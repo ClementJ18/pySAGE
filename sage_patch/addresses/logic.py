@@ -37,6 +37,7 @@ __all__ = [
     "GAME_ENGINE_SET_FPS_SLOT",
     "GAME_ENGINE_SUB_FRAME",
     "GAME_ENGINE_SUB_FRAME_RATIO",
+    "GAME_INFO_COMMAND_POINT_FACTOR",
     "GAME_INFO_GAME_TYPE",
     "GAME_INFO_GET_SLOT",
     "GAME_INFO_GSID",
@@ -71,6 +72,12 @@ __all__ = [
     "GAME_LOGIC_LIVING_WORLD_TYPE",
     "GAME_LOGIC_LIVING_WORLD_TYPE_MP_BATTLE",
     "GAME_LOGIC_LOAD_MAP",
+    "GAME_LOGIC_OBJECT_BUCKETS_BEGIN",
+    "GAME_LOGIC_OBJECT_BUCKETS_END",
+    "GAME_LOGIC_OBJECT_HASH_WALK",
+    "GAME_LOGIC_OBJECT_HASH_WALK_BYTES",
+    "GAME_LOGIC_RANDOM_VALUE",
+    "GAME_LOGIC_SOURCE_FILE",
     "GAME_LOGIC_START_NEW_GAME",
     "GAME_LOGIC_UPDATE",
     "GAME_LOGIC_UPDATE_ENTRY",
@@ -81,6 +88,13 @@ __all__ = [
     "GAME_MAIN_BYTES",
     "GAME_MESSAGE_APPEND_INTEGER",
     "GAME_MODE_SKIRMISH",
+    "GAME_RULES_COMBOS_MP",
+    "GAME_RULES_COMMAND_POINT_FACTOR",
+    "GAME_RULES_COMMAND_POINT_FACTOR_BYTES",
+    "GAME_RULES_COMMAND_POINT_FACTOR_COUNT",
+    "GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS",
+    "GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS_BYTES",
+    "GAME_RULES_POPULATE",
     "GAME_SLOT_ACCEPTED",
     "GAME_SLOT_COLOR",
     "GAME_SLOT_IS_OCCUPIED",
@@ -93,6 +107,7 @@ __all__ = [
     "GAME_SLOT_ORIGINAL_START_POS",
     "GAME_SLOT_PLAYER_TEMPLATE",
     "GAME_SLOT_SET_IS_OCCUPIED",
+    "GAME_SLOT_SET_PLAYER_TEMPLATE",
     "GAME_SLOT_SIZE",
     "GAME_SLOT_START_POS",
     "GAME_SLOT_START_POS_GRANTED",
@@ -105,6 +120,23 @@ __all__ = [
     "GAME_SLOT_STATE_MEDIUM_AI",
     "GAME_SLOT_STATE_OPEN",
     "GAME_SLOT_TEAM",
+    "GAME_SLOT_TEMPLATE_BOUNDS",
+    "GAME_START_RANDOM_ASSIGN",
+    "GAME_START_RANDOM_ASSIGN_BYTES",
+    "GAME_START_RANDOM_ASSIGN_RESUME",
+    "GAME_START_RANDOM_CANDIDATES_EBP",
+    "GAME_START_RANDOM_DRAW",
+    "GAME_START_RANDOM_DRAW_BYTES",
+    "GAME_START_RANDOM_DRAW_RESUME",
+    "GAME_START_RANDOM_POOL",
+    "GAME_START_RANDOM_POOL_BYTES",
+    "GAME_START_RANDOM_POOL_INDEX_EBP",
+    "GAME_START_RANDOM_POOL_RESUME",
+    "GAME_START_RANDOM_POOL_SKIP",
+    "GAME_START_RANDOM_SLOT_EBP",
+    "GAME_START_SLOT_TEMPLATE",
+    "GAME_START_SLOT_TEMPLATE_BYTES",
+    "GAME_START_SLOT_TEMPLATE_RESUME",
     "GAME_STATE_REGISTER_SNAPSHOT",
     "GAME_TEXT_FORMAT_SLOT",
     "IMAGE_BASE",
@@ -115,6 +147,28 @@ __all__ = [
     "IS_MULTIPLAYER_OR_SKIRMISH_OR_ITS_REPLAY_BYTES",
     "KEY_PLAYER_AI_TYPE",
     "KEY_PLAYER_AI_TYPE_BYTES",
+    "LAN_FACTION_READ_AI",
+    "LAN_FACTION_READ_AI_BYTES",
+    "LAN_FACTION_READ_HUMAN",
+    "LAN_FACTION_READ_HUMAN_BYTES",
+    "LAN_FACTION_READ_NEXT_AI",
+    "LAN_FACTION_READ_NEXT_AI_BYTES",
+    "LAN_FACTION_READ_NEXT_HUMAN",
+    "LAN_FACTION_READ_NEXT_HUMAN_BYTES",
+    "LAN_FACTION_WRITE_AI",
+    "LAN_FACTION_WRITE_AI_BYTES",
+    "LAN_FACTION_WRITE_HUMAN",
+    "LAN_FACTION_WRITE_HUMAN_BYTES",
+    "LAN_GAME_INFO_PACK",
+    "LAN_GAME_INFO_PARSE",
+    "LAN_PACK_NIBBLES",
+    "LAN_PACK_NIBBLES_BYTES",
+    "LAN_PARSE_CURSOR_EBP",
+    "LAN_PARSE_END_EBP",
+    "LAN_UNPACK_NIBBLES",
+    "LAN_UNPACK_NIBBLES_BYTES",
+    "LAN_WRITE_BYTE",
+    "LAN_WRITE_BYTE_BYTES",
     "LOADING_SCREEN_PROGRESS",
     "LOADING_SCREEN_PROGRESS_BYTES",
     "LOADING_SCREEN_PROGRESS_REPORT",
@@ -139,6 +193,7 @@ __all__ = [
     "MAP_META_DATA_IS_OFFICIAL",
     "MAP_META_DATA_SORT_KEY",
     "MAP_PATH_FORMAT",
+    "MAP_PREVIEW_OBSERVER_SKIPS",
     "MAX_PLAYER_COUNT",
     "MSG_CLEAR_GAME_DATA",
     "MSG_NEW_GAME",
@@ -150,6 +205,8 @@ __all__ = [
     "NET_CRC_INTERVAL_REPLAY_HEADER",
     "NET_CRC_INTERVAL_SKIRMISH_CLAMP",
     "NET_CRC_INTERVAL_STOCK",
+    "OBJECT_HASH_ENTRY_NEXT",
+    "OBJECT_HASH_ENTRY_OBJECT",
     "PLAYBACK_INSTALLS_OBSERVER",
     "RECORDER_END_BRANCH",
     "RECORDER_END_BRANCH_BYTES",
@@ -319,7 +376,40 @@ GAME_INFO_SI = 0x58
 GAME_INFO_GAME_TYPE = 0x5C
 GAME_INFO_RULES = 0x60
 GAME_INFO_RULES_COUNT = 10
+#: Rule 3, the lobby's `RULE:CommandPointFactor` (default 100): a percentage the command-point
+#: hard cap is scaled by in `COMMAND_POINTS_INIT_FACTOR`, and nothing else in the simulation reads
+#: it. Edain relabels its seven values as game modes. See `docs/command-point-override.md`.
+GAME_INFO_COMMAND_POINT_FACTOR = 0x6C
 GAME_INFO_GSID = 0x88
+#: The lobby's rule-combo tables, read by `AptMpGameRules`. `0x00960A10(ruleSet)` answers a
+#: NULL-padded array of descriptors - `GAME_RULES_COMBOS_MP` for rule set 0 (skirmish, LAN, online),
+#: whose length `0x00960A46` hard-codes as 2. A descriptor is `{Int rule, {const char *label, Int
+#: value} *options, Int count, Int defaultIndex}`. The combo is built from it at
+#: `GAME_RULES_POPULATE` (label, value as item data), and a value maps back to a selection by
+#: matching item data, so the option list is the only place the choices exist.
+GAME_RULES_COMBOS_MP = 0x00DB77BC
+GAME_RULES_COMMAND_POINT_FACTOR = 0x00C82578
+GAME_RULES_COMMAND_POINT_FACTOR_BYTES = bytes.fromhex(
+    "03000000"  # rule 3
+    "4025c800"  # options -> GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS
+    "07000000"  # count
+    "02000000"  # default index (100)
+)
+GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS = 0x00C82540
+#: The seven `{label, value}` pairs: ThirdX 33, HalfX 50, 1X 100, 2X 200, 4X 400, 8X 800, 100X
+#: 10000. A label is a string-table key, fetched with the value as its format argument, and the
+#: default entry gets `VALUE:Default` appended.
+GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS_BYTES = bytes.fromhex(
+    "5828c80021000000"
+    "4c28c80032000000"
+    "4028c80064000000"
+    "3428c800c8000000"
+    "2828c80090010000"
+    "1c28c80020030000"
+    "1028c80010270000"
+)
+GAME_RULES_COMMAND_POINT_FACTOR_COUNT = 7
+GAME_RULES_POPULATE = 0x00986B1C
 # `ParseAsciiStringToGameInfo(GameInfo *, AsciiString, bool keepNames)`, cdecl; the string is passed
 # by value and destroyed by the callee. Nothing is committed unless the whole string parses.
 GAME_INFO_PARSE = 0x00802DBA
@@ -374,6 +464,110 @@ GAME_SLOT_OBSERVER_TEMPLATE = -2
 # 0..`GAME_INFO_SLOT_COUNT`-1 and returns NULL outside it, so a cave can walk the array without
 # its own guard.
 GAME_INFO_GET_SLOT = 0x00800B55
+# The LAN lobby's binary `GameInfo` - the payload of `MSG_GAME_OPTIONS_PACKED` (type 0x13, the
+# host's broadcast, sent at `0x0084C4D8`) and of the game announce (type 1, `0x00989E20`). Both
+# are written by `LAN_GAME_INFO_PACK(GameInfo*, buf, 0x186)` and read back by
+# `LAN_GAME_INFO_PARSE`. Each seat's colour and template share one byte, through
+# `LAN_PACK_NIBBLES` - `((a - c) << 4) - d + b`, called as `(colour, template, -1, -2)` - and
+# `LAN_UNPACK_NIBBLES(byte, -1, -2, &colour, &template)`, both cdecl. So the wire holds 16
+# templates, -2..13, and a larger index carries into the colour nibble. Derived in
+# `docs/lobby-faction-byte.md`.
+LAN_GAME_INFO_PACK = 0x0084A976
+LAN_GAME_INFO_PARSE = 0x0084B0EC
+LAN_PACK_NIBBLES = 0x009738A5
+LAN_PACK_NIBBLES_BYTES = bytes.fromhex("8a4424042a44240cc0e0042a44241002442408c3")
+LAN_UNPACK_NIBBLES = 0x009738B9
+LAN_UNPACK_NIBBLES_BYTES = bytes.fromhex(
+    "558bec8a45088b4d148ad0c0ea0488118b5518240f88028a450c00018a451000025dc3"
+)
+#: The packer's one-byte writer, `(cursor, byte, end) -> cursor`, cdecl: it appends the low byte
+#: of its second argument when it fits before `end` and returns the cursor unchanged when not.
+LAN_WRITE_BYTE = 0x0084A537
+LAN_WRITE_BYTE_BYTES = bytes.fromhex("ff74240c8d44240c6a0150ff742410e86affffff83c410c3")
+#: The packer's two seat arms, human then AI, each from `mov ecx, [esi+0xc]` (the colour) to the
+#: `call LAN_WRITE_BYTE` that writes the packed byte; that call is the last five bytes. The seat
+#: is `esi` throughout and `edi` is the buffer end.
+LAN_FACTION_WRITE_HUMAN = 0x0084AB40
+LAN_FACTION_WRITE_HUMAN_BYTES = bytes.fromhex(
+    "8b4e0c6afe89450c8b46186aff5051e8518d12008845dc57ff75dcff750ce8d4f9ffff"
+)
+LAN_FACTION_WRITE_AI = 0x0084ABEE
+LAN_FACTION_WRITE_AI_BYTES = bytes.fromhex(
+    "8b4e0c6afe89450c8b46186aff5051e8a38c12008845d457ff75d4ff750ce826f9ffff"
+)
+#: The parser's two seat arms, human then AI, each from the `mov ebx, eax` that takes the cursor
+#: past the packed byte to the `call LAN_UNPACK_NIBBLES`, the last five bytes. `ebx` is the
+#: cursor, `[ebp+LAN_PARSE_CURSOR_EBP]` its last checked value and `[ebp+LAN_PARSE_END_EBP]` the
+#: end of the payload; the colour and template land in two signed bytes the code after the call
+#: range-checks with `movsx`.
+LAN_FACTION_READ_HUMAN = 0x0084B44A
+LAN_FACTION_READ_HUMAN_BYTES = bytes.fromhex(
+    "8bd883c40c3b5dec0f865d0500003b5df00f87540500008d45e6508d45e4506afe6affff7598895dece841841200"
+)
+LAN_FACTION_READ_AI = 0x0084B741
+LAN_FACTION_READ_AI_BYTES = bytes.fromhex(
+    "8bd883c40c3b5dec0f86660200003b5df00f875d0200008d45e5508d45e3506afe6affff759c895dece84a811200"
+)
+#: The next field each arm reads (the start position), from `ebx` and checked against the cursor
+#: slot - which is why advancing both past a second byte is all the parser needs.
+LAN_FACTION_READ_NEXT_HUMAN = 0x0084B4DB
+LAN_FACTION_READ_NEXT_HUMAN_BYTES = bytes.fromhex("ff75f08d45e85053e858f1ffff")
+LAN_FACTION_READ_NEXT_AI = 0x0084B7D2
+LAN_FACTION_READ_NEXT_AI_BYTES = bytes.fromhex("ff75f08d45cc5053e861eeffff")
+LAN_PARSE_CURSOR_EBP = -0x14
+LAN_PARSE_END_EBP = -0x10
+#: `GameLogic::startNewGame`'s Random-faction pool: a loop over every template index that
+#: collects the playable ones (`cmp byte [esi+0x151], 0` / `je <next>`, index in `[ebp-0x10]`),
+#: which each Random slot then draws from after its start position's restrictions filter it.
+#: `..._RESUME` is the push onto the pool, `..._SKIP` the loop's next-index edge.
+GAME_START_RANDOM_POOL = 0x0062D4D4
+GAME_START_RANDOM_POOL_BYTES = bytes.fromhex("80be5101000000740c")
+GAME_START_RANDOM_POOL_RESUME = 0x0062D4DD
+GAME_START_RANDOM_POOL_SKIP = 0x0062D4E9
+GAME_START_RANDOM_POOL_INDEX_EBP = -0x10
+#: Where `startNewGame` gives a Random slot the template it drew - `push esi` / `mov ecx, ebx` /
+#: `call GameSlot::setPlayerTemplate` - with the slot in `ebx` and the template in `esi`, which
+#: the code after it keeps using. The slot's own template is still the Random sentinel here.
+GAME_START_RANDOM_ASSIGN = 0x0062D71C
+GAME_START_RANDOM_ASSIGN_BYTES = bytes.fromhex("568bcbe836551d00")
+GAME_START_RANDOM_ASSIGN_RESUME = 0x0062D724
+#: Where `startNewGame` reads each occupied slot's template into `esi` - `mov esi, [ebx+0x18]` /
+#: `jmp <the Random pass>` - with the slot in `ebx`. Anything still negative there but Observer is
+#: drawn by the Random pass that follows.
+GAME_START_SLOT_TEMPLATE = 0x0062D52C
+GAME_START_SLOT_TEMPLATE_BYTES = bytes.fromhex("8b7318e906020000")
+GAME_START_SLOT_TEMPLATE_RESUME = 0x0062D73A
+#: The Random draw itself, once per Random slot: the slot's candidates are a copy of the pool,
+#: `std::vector<Int>` at `[ebp-0x28]`/`[ebp-0x24]`, already filtered by its start position, and
+#: the draw is `pool[GameLogicRandomValue(0, 1000) % size]`. `..._DRAW` is the `mov esi, end` /
+#: `mov edi, begin` that opens it - reached from both filters' skips, so it is the last point
+#: where the candidates are final - and the slot is `[ebp-0x1C]` throughout.
+GAME_START_RANDOM_DRAW = 0x0062D6D8
+GAME_START_RANDOM_DRAW_BYTES = bytes.fromhex("8b75dc8b7dd8")
+GAME_START_RANDOM_DRAW_RESUME = 0x0062D6DE
+GAME_START_RANDOM_CANDIDATES_EBP = -0x28
+GAME_START_RANDOM_SLOT_EBP = -0x1C
+#: `GameSlot::setPlayerTemplate(Int)`, `__thiscall`, `ret 4`.
+GAME_SLOT_SET_PLAYER_TEMPLATE = 0x00802C5A
+#: `GameLogicRandomValue(lo, hi, file, line)`, cdecl: the synchronised generator, `lo..hi`
+#: inclusive. `file` is only read when the random log is on, but must be a real string; the draw
+#: `startNewGame` makes passes `GAME_LOGIC_SOURCE_FILE`.
+GAME_LOGIC_RANDOM_VALUE = 0x006D328E
+GAME_LOGIC_SOURCE_FILE = 0x00BFD400
+#: The lower bound on a slot's template, -2 (Observer), in each reader that takes one from outside
+#: the screen: the lobby string parser (twice), the LAN host applying a client's request, and the
+#: two LAN packet readers. A template below it is refused - the whole string, the request, the
+#: packet.
+GAME_SLOT_TEMPLATE_BOUNDS = (
+    (0x0080351C, bytes.fromhex("83f8fe")),
+    (0x0080385B, bytes.fromhex("83f8fe")),
+    (0x0064A271, bytes.fromhex("83fffe")),
+    (0x0084B4A6, bytes.fromhex("807de6fe")),
+    (0x0084B79D, bytes.fromhex("807de5fe")),
+)
+#: The setup screen's map preview numbering its start positions: `cmp [slot+0x18], -2` then
+#: `jle <skip>` - skipping observers by "-2 or below". The `jle` of each.
+MAP_PREVIEW_OBSERVER_SKIPS = (0x007053E2, 0x0070545B)
 # `GameSlot::m_state`. 1, 2 and 6 are the values observed; the display name at `GAME_SLOT_NAME`
 # reads "Closed" and "Easy" against the first two, which is what names them. `GameSlot::isHuman`
 # (`0x008009A7`) is exactly `m_state == 6`. The rest are read out of `GAME_INFO_PARSE`, which maps
@@ -718,3 +912,15 @@ MAP_CACHE_STOCK_FIELDS = (
     ("InitialCameraPosition", 0x9C),
     ("PlayerPosition", 0x00),
 )
+#: `TheGameLogic`'s object-id hash: a bucket array from `+0xB8` to `+0xBC`, each bucket a chain of
+#: `{next, ObjectID, Object *}` entries. Walked by the lookup `findObjectByID` reaches
+#: (`0x006B4E8F`, on the table header at `+0xB4`): bucket `id % count`, then `next` until the id
+#: matches. Ids past the bucket count share a bucket, so a full walk has to follow `next`.
+GAME_LOGIC_OBJECT_BUCKETS_BEGIN = 0xB8
+GAME_LOGIC_OBJECT_BUCKETS_END = 0xBC
+OBJECT_HASH_ENTRY_NEXT = 0x00
+OBJECT_HASH_ENTRY_OBJECT = 0x08
+#: `mov eax, [ecx+4]` / `mov eax, [eax+edx*4]` / ... / `cmp [eax+4], esi` / `mov eax, [eax]` - the
+#: bucket index and chain walk that fix the entry layout above.
+GAME_LOGIC_OBJECT_HASH_WALK = 0x006B4EA6
+GAME_LOGIC_OBJECT_HASH_WALK_BYTES = bytes.fromhex("8b41048b0490eb0739700474068b0085c075f5")

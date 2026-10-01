@@ -192,6 +192,35 @@ def test_panel_edits_every_selected_object(qapp):
 
 
 @pytest.mark.full
+def test_base_name_offers_the_maps_bases(qapp):
+    from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel  # noqa: PLC0415
+
+    boolean, ascii_string = AssetPropertyType.Boolean, AssetPropertyType.AsciiString
+    keep = placed(
+        "Keep", 0.0, 0.0, objectName=(ascii_string, "Keep"), objectIsABase=(boolean, True)
+    )
+    wall = placed("Wall", 10.0, 0.0, objectBaseName=(ascii_string, "Keep"))
+    camp = placed(
+        "Camp", 50.0, 0.0, objectName=(ascii_string, "Camp"), objectIsABase=(boolean, True)
+    )
+    map = Map()
+    map.objects_list = ObjectsList(
+        version=3, object_list=[keep, wall, camp], start_pos=0, end_pos=0
+    )
+    document = MapDocument(map)
+    panel = ObjectPropertiesPanel(Host(document))
+    document.selection.set([wall])
+    panel.refresh()
+
+    field = panel.object_field("objectBaseName")
+    assert field.isEditable()
+    assert [field.itemText(i) for i in range(field.count())] == ["Camp", "Keep"]
+    assert field.currentText() == "Keep"
+    field.textActivated.emit("Camp")
+    assert wall.properties["objectBaseName"]["value"] == "Camp"
+
+
+@pytest.mark.full
 def test_health_presets_and_waypoint_type_names(qapp):
     from sage_worldbuilder.properties import WAYPOINT_TYPE_NAMES  # noqa: PLC0415
     from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel  # noqa: PLC0415

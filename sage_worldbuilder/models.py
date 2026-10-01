@@ -51,6 +51,7 @@ __all__ = [
     "ObjectModels",
     "model_conditions",
     "model_key",
+    "is_tree",
     "object_models",
 ]
 
@@ -259,6 +260,14 @@ def _draws(template: object) -> list[object]:
         ]
         draws = kept + added + list(getattr(owner, "Draw", None) or [])
     return draws
+
+
+def is_tree(template: object) -> bool:
+    """Whether the template is drawn as a tree: one of its draws, as the engine assembles them
+    (`_draws`), is a `W3DTreeDraw`."""
+    from sage_ini.model.draw import W3DTreeDraw  # noqa: PLC0415 - the model is loaded with the game
+
+    return any(isinstance(draw, W3DTreeDraw) for draw in _draws(template))
 
 
 def object_models(

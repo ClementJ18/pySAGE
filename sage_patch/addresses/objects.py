@@ -53,17 +53,42 @@ __all__ = [
     "AUTO_HEAL_UPDATE",
     "AUTO_HEAL_UPDATE_TAIL",
     "AUTO_HEAL_UPDATE_VTABLE",
+    "BEHAVIOR_GET_CONTAIN_SLOT",
+    "BEHAVIOR_MODULE_INTERFACE",
     "BODY_GET_HEALTH_RATIO_SLOT",
     "BODY_GET_HEALTH_SLOT",
     "BODY_GET_MAX_HEALTH_SLOT",
+    "CASTLE_BEHAVIOR_NAME_STRING",
+    "CASTLE_BEHAVIOR_START_BUILD_UP",
+    "CASTLE_BEHAVIOR_START_BUILD_UP_BYTES",
+    "CASTLE_BEHAVIOR_START_FADE",
+    "CASTLE_BEHAVIOR_START_FADE_BYTES",
+    "CASTLE_BEHAVIOR_STATE",
+    "CASTLE_BEHAVIOR_UNPACK",
+    "CASTLE_BEHAVIOR_UPDATE",
+    "CASTLE_BEHAVIOR_UPDATE_VTABLE",
+    "CASTLE_BEHAVIOR_UPDATE_VTABLE_STAMP",
+    "CASTLE_BEHAVIOR_UPDATE_VTABLE_STAMP_BYTES",
+    "CASTLE_MEMBER_BEHAVIOR_NAME_STRING",
+    "CASTLE_MEMBER_CASTLE_ID",
+    "CASTLE_MEMBER_CASTLE_ID_STAMP",
+    "CASTLE_MEMBER_CASTLE_ID_STAMP_BYTES",
+    "CASTLE_STATE_FADING",
     "CONTAIN_GET_HORDE_IFACE",
     "CONTAIN_GET_HORDE_IFACE_ENTRY",
     "CONTAIN_GET_HORDE_IFACE_SLOT",
+    "CONTAIN_EXIT_ALL_HORDE_TEST",
+    "CONTAIN_EXIT_ALL_LOOP",
+    "CONTAIN_EXIT_ALL_LOOP_BYTES",
+    "CONTAIN_EXIT_ALL_ORDER_EXIT",
+    "CONTAIN_EXIT_ALL_PASSENGERS",
+    "CONTAIN_EXIT_ALL_WRAPPER_CALLS",
     "CONTAIN_ITEM_LIST",
     "CONTAIN_ITEM_LIST_NODE_OBJECT",
     "CONTAIN_ITEM_LIST_WALK",
     "CONTAIN_ITEM_LIST_WALK_ENTRY",
     "CONTAIN_ITERATE_SLOT",
+    "CONTAIN_REMOVE_ALL_SLOT",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM",
@@ -97,6 +122,7 @@ __all__ = [
     "FWWD_REACTION_FIRE_CALL",
     "FWWD_REACTION_FIRE_RESUME",
     "FX_LIST_PLAY_AT_OBJECT",
+    "GAME_LOGIC_DESTROY_OBJECT",
     "HORDE_CONTAIN_BUILD_SLOTS_SLOT",
     "HORDE_CONTAIN_CREATE_PAYLOAD_CALL",
     "HORDE_CONTAIN_CREATE_PAYLOAD_CALL_BYTES",
@@ -181,6 +207,8 @@ __all__ = [
     "LOCOMOTOR_SPEED_MODIFIER_FOLD_BYTES",
     "LOCOMOTOR_SPEED_MODIFIER_SETUP",
     "LOCOMOTOR_SPEED_MODIFIER_SETUP_BYTES",
+    "MODEL_CONDITION_BASE_BUILD",
+    "MODIFIER_HOLDER_APPLY_FX_CALLS",
     "MODIFIER_HOLDER_APPLY_MODIFIER_LIST",
     "MODIFIER_HOLDER_APPLY_REFUSE_CATEGORY",
     "MODIFIER_HOLDER_APPLY_REFUSE_LOOKUP",
@@ -207,6 +235,9 @@ __all__ = [
     "OBJECT_ARMY_ID",
     "OBJECT_ATTEMPT_HEALING",
     "OBJECT_BODY_MODULE",
+    "OBJECT_BOUNDING_CIRCLE_RADIUS",
+    "OBJECT_BOUNDING_CIRCLE_RADIUS_READ",
+    "OBJECT_BOUNDING_CIRCLE_RADIUS_READ_BYTES",
     "OBJECT_CAN_ACCEPT_UPGRADE",
     "OBJECT_CONSTRUCTION_PERCENT",
     "OBJECT_CONTAIN",
@@ -248,6 +279,8 @@ __all__ = [
     "OBJECT_IMAGE_UPGRADE_THE_IMAGES",
     "OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE",
     "OBJECT_MODULE_LIST",
+    "OBJECT_FIND_MODULE",
+    "OBJECT_FIND_MODULE_ENTRY",
     "OBJECT_POSITION",
     "OBJECT_POSITION_Z",
     "OBJECT_PRODUCER_ID",
@@ -267,12 +300,21 @@ __all__ = [
     "OBJECT_STATUS_UNDER_CONSTRUCTION",
     "OBJECT_STATUS_UNSELECTABLE",
     "OBJECT_TEAM",
+    "OBJECT_TEST_MODEL_CONDITION",
+    "OBJECT_TEST_MODEL_CONDITION_ENTRY",
     "OBJECT_TEST_STATUS",
     "OBJECT_THING_TEMPLATE",
     "OBJECT_TO_ARMY_RECORD",
     "OBJECT_TRANSFORM",
     "OBJECT_UPGRADE_MASK",
     "OBJECT_WRITE_ARMY_RECORD_STATE",
+    "OPEN_CONTAIN_CONTAIN_INTERFACE",
+    "OPEN_CONTAIN_EJECT_PASSENGERS_ON_DEATH",
+    "OPEN_CONTAIN_GET_CONTAIN",
+    "OPEN_CONTAIN_GET_CONTAIN_BYTES",
+    "OPEN_CONTAIN_KILL_RIDERS_NOT_FREE_TO_EXIT_SLOT",
+    "OPEN_CONTAIN_ON_DIE_EJECT",
+    "OPEN_CONTAIN_ON_DIE_EJECT_BYTES",
     "PARTITION_FILTER_DESTRUCTOR",
     "PARTITION_FILTER_NOT_DESTROYED_VTABLE",
     "PARTITION_FILTER_OBJECT_FILTER_VTABLE",
@@ -317,6 +359,9 @@ __all__ = [
     "THE_THING_FACTORY",
     "THING_FACTORY_FIND_TEMPLATE",
     "THING_FACTORY_FIND_TEMPLATE_ENTRY",
+    "THING_FACTORY_ID_SWAP",
+    "THING_FACTORY_ID_SWAP_BYTES",
+    "THING_FACTORY_ID_SWAP_RESUME",
     "THING_FACTORY_NEW_OBJECT",
     "THING_TEMPLATE_BUILD_COST",
     "THING_TEMPLATE_COMMAND_POINT_BONUS",
@@ -326,6 +371,9 @@ __all__ = [
     "THING_TEMPLATE_COPY_ID",
     "THING_TEMPLATE_COPY_ID_BYTES",
     "THING_TEMPLATE_COPY_ID_RESUME",
+    "THING_TEMPLATE_COPY_KEEP_ID",
+    "THING_TEMPLATE_COPY_KEEP_ID_BYTES",
+    "THING_TEMPLATE_COPY_KEEP_ID_RESUME",
     "THING_TEMPLATE_ID",
     "THING_TEMPLATE_ID_COUNTER",
     "THING_TEMPLATE_ID_SETTER",
@@ -334,9 +382,15 @@ __all__ = [
     "THING_TEMPLATE_KINDOF",
     "THING_TEMPLATE_LOCOMOTOR_SET_SPEED",
     "THING_TEMPLATE_REFUND_VALUE",
+    "TOGGLE_MOUNTED_DISMOUNT_HEALTH_COPY",
+    "TOGGLE_MOUNTED_HEALTH_COPY_HOOK",
+    "TOGGLE_MOUNTED_HEALTH_COPY_SEQUENCE",
     "TOGGLE_MOUNTED_INSTANCE_SIZE",
     "TOGGLE_MOUNTED_MODULE_DATA_SIZE",
+    "TOGGLE_MOUNTED_MOUNT_HEALTH_COPY",
     "TOGGLE_MOUNTED_RETIRE",
+    "TOGGLE_MOUNTED_RETIRE_BYTES",
+    "TOGGLE_MOUNTED_RETIRE_DESTROY",
     "TOGGLE_MOUNTED_SWAP",
     "TOGGLE_MOUNTED_SWAP_FLAG",
     "TOGGLE_MOUNTED_SYNC_SKIP",
@@ -552,6 +606,10 @@ OBJECT_APPLY_MODIFIER_LIST_FAIL_BRANCH = 0x0068F23A
 OBJECT_APPLY_MODIFIER_LIST_READD = 0x0068F243
 OBJECT_REMOVE_MODIFIER_LIST = 0x0068F2A0
 MODIFIER_HOLDER_APPLY_MODIFIER_LIST = 0x00805A8E
+#: The two `call FX_LIST_PLAY_AT_OBJECT` inside `MODIFIER_HOLDER_APPLY_MODIFIER_LIST` that play a
+#: list's `FX`/`FX2`/`FX3` on the object it lands on: the first when the list is newly applied,
+#: the second when a live one is refreshed. Neither is gated on anything about the target.
+MODIFIER_HOLDER_APPLY_FX_CALLS = (0x00805CBB, 0x00805D32)
 MODIFIER_HOLDER_APPLY_REFUSE_CATEGORY = 0x00805B9C
 MODIFIER_HOLDER_APPLY_REFUSE_LOOKUP = 0x00805B01
 MODIFIER_LIST_REPLACE_IN_CATEGORY_IF_LONGEST = 0xD2
@@ -601,6 +659,20 @@ THING_TEMPLATE_REFUND_VALUE = 0x5EC
 THING_TEMPLATE_COPY_ID = 0x006D24B7
 THING_TEMPLATE_COPY_ID_BYTES = bytes.fromhex("668b88e8050000")
 THING_TEMPLATE_COPY_ID_RESUME = 0x006D24BE
+#: Inside the identity-keeping copy at `0x007405B1` (reached from `0x006D29C0` and `0x006D2A54`):
+#: it saves the template's own id in `bx`, runs `copyFrom` (which copies the source's id over it),
+#: then restores the id here. `esi` is the destination, so at this store `[esi+0x5E8]` still holds
+#: the source's id and `bx` the destination's own.
+THING_TEMPLATE_COPY_KEEP_ID = 0x00740630
+THING_TEMPLATE_COPY_KEEP_ID_BYTES = bytes.fromhex("66899ee8050000")
+THING_TEMPLATE_COPY_KEEP_ID_RESUME = 0x00740637
+#: `ThingFactory::addTemplate` (`0x006D10DE`) meeting a name already registered: the new template
+#: (`esi`) has just taken the old one's id, and this hands the old one (`eax` = its `+0x5E8`) a
+#: fresh id off the top counter. `mov ecx,[ctr]` / `dec word [ctr]` / `mov [eax],cx`, no relative
+#: operand; `ecx` and `edx` are dead at the resume.
+THING_FACTORY_ID_SWAP = 0x006D112D
+THING_FACTORY_ID_SWAP_BYTES = bytes.fromhex("8b0de418da0066ff0de418da00668908")
+THING_FACTORY_ID_SWAP_RESUME = 0x006D113D
 #: `KindOf ARMY_SUMMARY` is index 128 - bit `0x01` of KindOf byte `+0x10`, `template + 0x118`. The
 #: harvest requires it, and so does the engine's own ledger walk at `0x0078100E`.
 KINDOF_ARMY_SUMMARY_BYTE = 0x118
@@ -990,6 +1062,27 @@ CONTAIN_ITEM_LIST_WALK = 0x0086620E
 CONTAIN_ITEM_LIST_WALK_ENTRY = bytes.fromhex(
     "538bd98b4334568b303bf07449578b7e088b4704f6800c01000002"
 )
+#: The exit-all loop behind `EVACUATE` on a garrison-family contain (`TunnelContain`,
+#: `HordeGarrisonContain`, the slaughter contains). `__stdcall(contain, cmdSource, arg)`, reached
+#: from contain-interface slot `+0x80` through the two wrappers whose `call`s are listed below.
+#: For each passenger: one with its own contain is asked for a horde interface and, if it has
+#: one, the whole battalion is told to exit; one without a contain gets `aiExit` through its
+#: `AIUpdate`. A passenger with a contain that is **not** a horde falls through both and is
+#: skipped - which is every ring hero, whose ring pickup is a `CitadelSlaughterHordeContain`.
+#: See `docs/evacuate-contained-heroes.md`.
+CONTAIN_EXIT_ALL_PASSENGERS = 0x00991027
+CONTAIN_EXIT_ALL_WRAPPER_CALLS = (0x0087A56A, 0x0087CEA0)
+#: The loop body, `mov eax, [esi+8]` through the `jne` back to it.
+CONTAIN_EXIT_ALL_LOOP = 0x0099105E
+CONTAIN_EXIT_ALL_LOOP_BYTES = bytes.fromhex(
+    "8b46088b885802000085c9741b8b01ff507c85c0742aff75108b10ff750c8bc8ff9284000000eb188b806002"
+    "000085c0740eff75108d4820ff750ce82306deff8b363b750875b9"
+)
+#: `test eax, eax / je next / push [ebp+0x10]` on the horde interface just fetched - the test that
+#: drops a non-horde contain-carrying passenger.
+CONTAIN_EXIT_ALL_HORDE_TEST = 0x00991070
+#: `mov eax, [eax+0x260]`: the `AIUpdate` arm, which expects the passenger in `eax`.
+CONTAIN_EXIT_ALL_ORDER_EXIT = 0x00991086
 #: `ObjectStatus HORDE_MEMBER`, bit 38 of the mask at `OBJECT_STATUS` - so bit `0x40` of the byte
 #: at `Object+0x98`, by `OBJECT_TEST_STATUS`'s own encoding. `HordeContain::addToContain`
 #: (`0x0086CF2A`) clears it for a `MACHINE`, `HERO` or `SIEGE_TOWER` that joins a battalion, which
@@ -1088,11 +1181,76 @@ TOGGLE_MOUNTED_SYNC_SKIP = 0x008B12BF
 #: else. A retire is not a kill - no `DeathType`, no death FX, no `SlowDeathBehavior`, nothing
 #: scored.
 TOGGLE_MOUNTED_RETIRE = 0x008B1E9A
+#: The retire in full, `push esi` to `ret`. `esi` is the old `Object` from the second instruction
+#: on and nothing reassigns it, which is what lets a hook at `TOGGLE_MOUNTED_RETIRE_DESTROY` read
+#: it.
+TOGGLE_MOUNTED_RETIRE_BYTES = bytes.fromhex(
+    "568b71088bcee8eaa2ddff8bcee842a8ddff8bcee860c1e5ff85c074106a018bcee853c1e5ff8bc8e834fadbff"
+    "a1404bde0085c074098b481056e82267e3ff8b0d2c41de0056e8c69cd7ff5ec3"
+)
+#: The retire's `mov ecx, [THE_GAME_LOGIC]`, six bytes, ahead of `push esi` / `call
+#: GAME_LOGIC_DESTROY_OBJECT`. The `je` at `0x008B1ECE` (no UI to deselect from) lands exactly
+#: here and nothing branches into the middle of it.
+TOGGLE_MOUNTED_RETIRE_DESTROY = 0x008B1ED9
+#: `GameLogic::destroyObject(Object *)`, `__thiscall` on `*THE_GAME_LOGIC`, `ret 4`.
+GAME_LOGIC_DESTROY_OBJECT = 0x0062BBAB
+#: A `BehaviorModule`'s `BehaviorModuleInterface` sub-object sits at `+0x0C` (the offset
+#: `GAME_LOGIC_DESTROY_OBJECT` and the `Object` constructor's module loop both use), and slot
+#: `+0x08` of that interface is `getContain`: the constructor stores its non-NULL answer at
+#: `OBJECT_CONTAIN` (`0x0069A3D2`). The store is unconditional per module, so an object with two
+#: contain modules - an Edain hero with a hobbit `TransportContain` and a ring
+#: `CitadelSlaughterHordeContain` - keeps only the **last** one at `OBJECT_CONTAIN`.
+BEHAVIOR_MODULE_INTERFACE = 0x0C
+BEHAVIOR_GET_CONTAIN_SLOT = 0x08
+#: `OpenContain::getContain`: a NULL-preserving `this - 0x0C + 0x20`, the module's own
+#: `ContainModuleInterface` at `OPEN_CONTAIN_CONTAIN_INTERFACE` (39 interface vtables point at it,
+#: `TransportContain`'s `0x00C5E130` among them). A module whose interface slot holds this address
+#: is known to have `OpenContain`'s layout: `MODULE_MODULE_DATA` is an `OpenContainModuleData` and
+#: the primary vtable is at `+0`.
+OPEN_CONTAIN_GET_CONTAIN = 0x008A18E0
+OPEN_CONTAIN_GET_CONTAIN_BYTES = bytes.fromhex("8d41f483c114f7d81bc023c1c3")
+OPEN_CONTAIN_CONTAIN_INTERFACE = 0x20
+#: `EjectPassengersOnDeath`'s byte in `OpenContainModuleData` (row `0x00C5A050` of the base field
+#: table at `0x00C59F30`, parsed as a `Bool`). `KillPassengersOnDeath` is the next byte.
+OPEN_CONTAIN_EJECT_PASSENGERS_ON_DEATH = 0x82
+#: The eject arm of `OpenContain::onDie` (`0x00867120`, the die interface at module `+0x28`, so
+#: `[esi-0x24]` is the `ModuleData`, `esi-0x28` the module and `esi-8` its contain interface):
+#: `EjectPassengersOnDeath` set -> `processDamageToContained` when `DamagePercentToUnits > 0`,
+#: then the module's `+0x64`, then the interface's `removeAllContained(false)`. What stock death
+#: does with the flag, and the source of the two slots below.
+OPEN_CONTAIN_ON_DIE_EJECT = 0x00867151
+OPEN_CONTAIN_ON_DIE_EJECT_BYTES = bytes.fromhex(
+    "80b882000000007430f30f10406c0f2f0594b5c100760b8d4ef88b01ff90480100008d4ed88b01ff5064"
+    "8d4ef88b016a00ff90a8000000"
+)
+#: Module primary-vtable slot: kill (or, with the transport's destroy flag, silently destroy) each
+#: passenger that could not walk out from where the container stands. `TransportContain`'s is
+#: `0x0086B05F`, asking slot `+0x6C` per rider; `OpenContain`'s is a bare `ret`.
+OPEN_CONTAIN_KILL_RIDERS_NOT_FREE_TO_EXIT_SLOT = 0x64
+#: `ContainModuleInterface::removeAllContained(Bool exposeStealthUnits)`, `__thiscall`, `ret 4`.
+#: `OpenContain`'s (`0x00866675`, inherited by `TransportContain`) pops the item list front until it
+#: is empty, each through `removeFromContain` (`0x00865EB6`), which is a full exit: `onRemoving`,
+#: the contained status cleared, and the passenger put back in the world where the container is.
+CONTAIN_REMOVE_ALL_SLOT = 0xA8
 #: The stack the cave hands the swap in place of a `ToggleMountedSpecialAbilityUpdate` instance:
 #: that module's `sizeof`, so `TOGGLE_MOUNTED_SWAP_FLAG` lands inside it. Only three slots
 #: are ever touched - the two pointers and the flag - so the rest is left as whatever the
 #: stack held.
 TOGGLE_MOUNTED_INSTANCE_SIZE = 0x90
+#: The health hand-over in the mount swap and in its dismount sibling, which are byte-identical
+#: here: load both bodies (`esi` the new object, `edi` the old), keep the new body at `[ebp-0x14]`
+#: and its vtable in `ebx`, then `new->setHealth(old->getHealth())` through body slot `+0xac` - a
+#: raw store to `+0x08` with no clamp and no ratio. Absolute health therefore crosses between
+#: templates with different `MaxHealth` unchanged. The experience copy just before it has already
+#: run the new object's level-ups, so the new body's maximum includes its rank bonus by now.
+TOGGLE_MOUNTED_MOUNT_HEALTH_COPY = 0x008B14F0
+TOGGLE_MOUNTED_DISMOUNT_HEALTH_COPY = 0x008B236F
+TOGGLE_MOUNTED_HEALTH_COPY_SEQUENCE = bytes.fromhex(
+    "8b865c0200008b8f5c0200008b188945ec8b01ff5010518b4decd91c24ff93ac000000"
+)
+#: `mov eax, [ecx]` / `call [eax+0x10]` - the `getHealth` call on the old body, five bytes of two
+#: whole instructions at this offset into the sequence. Nothing in the image branches into it.
+TOGGLE_MOUNTED_HEALTH_COPY_HOOK = 0x11
 #: The constructor's `mov byte [esi+0x28], al` with `eax` already zero, widened to a dword so
 #: it clears the edge latch in the instance's tail padding as well. One byte changed, three for
 #: three: the stores that follow it are untouched and `sizeof` does not move.
@@ -1510,3 +1668,56 @@ SELF_BUILD_HEAL_ANCHOR_BYTES = bytes.fromhex(
     "8b9f5c02000085db0f84da0000008b038bcbff501cdb461c8b461c85c07d06d8059886bd00def9"
     "8b4704f6801f01000020d95df0"
 )
+#: `Object+0xB8` - the bounding-circle radius of the object's `GeometryCollection` (which starts at
+#: `+0xA8`): the largest 2D radius over its active shapes, offsets included, recomputed by
+#: `0x00AD2860` whenever a shape is switched on or off. `privateMoveAwayFromUnit` reads the other
+#: object's copy at `0x0066DCC9`.
+OBJECT_BOUNDING_CIRCLE_RADIUS = 0xB8
+OBJECT_BOUNDING_CIRCLE_RADIUS_READ = 0x0066DCC9
+OBJECT_BOUNDING_CIRCLE_RADIUS_READ_BYTES = bytes.fromhex("f30f1098b8000000")
+
+#: `Object::testModelCondition(index)` - `__thiscall`, one stack argument, `ret 4`; answers `0` or
+#: `1` in `eax` from the `ModelConditionFlags` bitset at `Object+0x10C`. Clobbers only `eax`, `ecx`
+#: and `edx`.
+OBJECT_TEST_MODEL_CONDITION = 0x0046E918
+OBJECT_TEST_MODEL_CONDITION_ENTRY = bytes.fromhex("8b54240433c0568bf140")
+#: `ModelConditionFlags` `BASE_BUILD` - the build-up a castle unpack plays after its fade.
+MODEL_CONDITION_BASE_BUILD = 219
+#: `Object::findModule(NameKeyType)` - `__thiscall`, `ret 4`. Walks `OBJECT_MODULE_LIST` and returns
+#: the first module whose `getModuleNameKey` (vtable `+0x10`) equals the argument, or NULL. The
+#: key is the module's class name (`"CastleMemberBehavior"`), not its `ModuleTag`.
+OBJECT_FIND_MODULE = 0x0068BDA5
+OBJECT_FIND_MODULE_ENTRY = bytes.fromhex("568bb14c0200005733ffeb0e8b01ff50103b44240c")
+
+#: `CastleBehavior`, the flag-side module that unpacks a camp or castle. Derived in
+#: `docs/castle-unpack-button-gap.md` and `docs/castle-unpack-clearance.md`.
+CASTLE_BEHAVIOR_NAME_STRING = 0x00C0BE9C
+CASTLE_MEMBER_BEHAVIOR_NAME_STRING = 0x00C0BE84
+CASTLE_BEHAVIOR_UNPACK = 0x0079BE6A
+#: The update interface sits at module `+0x10`: the constructor stamps its vtable there, and
+#: slot 0 of that vtable is `CastleBehavior::update`.
+CASTLE_BEHAVIOR_UPDATE = 0x0079CF2A
+CASTLE_BEHAVIOR_UPDATE_VTABLE = 0x00C30E08
+CASTLE_BEHAVIOR_UPDATE_VTABLE_STAMP = 0x0079A954
+CASTLE_BEHAVIOR_UPDATE_VTABLE_STAMP_BYTES = bytes.fromhex("c74610080ec300")  # mov [esi+0x10], vt
+#: The unpack state, as a module-base offset: `update` keeps it at `[this+0x24]` with `this` the
+#: interface at `+0x10`. `CASTLE_STATE_FADING` is the state between the unpack and the build-up:
+#: the members exist, carry `JUST_BUILT`, and are fading in for `FadeTime`.
+CASTLE_BEHAVIOR_STATE = 0x34
+CASTLE_STATE_FADING = 2
+#: `update`'s state-1 arm: `push ebx` (zero) / `lea ecx, [esi-0x10]` / `mov [esi+0x24], 2` /
+#: `call unpack`. It is what makes state 2 mean "just unpacked".
+CASTLE_BEHAVIOR_START_FADE = 0x0079D09D
+CASTLE_BEHAVIOR_START_FADE_BYTES = bytes.fromhex("538d4ef0c7462402000000e8bdedffff")
+#: `update`'s state-2 expiry: `mov [esi+0x24], 3`, two mask clears, then `or byte [ebp-9], 4`
+#: (`JUST_BUILT`) and `or byte [ebp+0x43], 8` (`BASE_BUILD`) - the swap that ends the fade.
+CASTLE_BEHAVIOR_START_BUILD_UP = 0x0079D065
+CASTLE_BEHAVIOR_START_BUILD_UP_BYTES = bytes.fromhex(
+    "c7462403000000e8b7fe29006a4c8d45dc5350e8abfe2900804df704804d4308"
+)
+#: `CastleMemberBehavior+0x18` - the `ObjectID` of the flag whose `CastleBehavior` built this
+#: member. `CastleBehavior::onStructureBuilt` stamps it on every member it is handed:
+#: `mov eax, [ebp-0x10]` (the flag) / `mov eax, [eax+0x74]` (its id) / `mov [ebx+0x18], eax`.
+CASTLE_MEMBER_CASTLE_ID = 0x18
+CASTLE_MEMBER_CASTLE_ID_STAMP = 0x0079AC81
+CASTLE_MEMBER_CASTLE_ID_STAMP_BYTES = bytes.fromhex("8b45f08b4074894318")

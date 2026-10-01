@@ -45,6 +45,18 @@ __all__ = [
     "BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS",
     "BUILD_GATE_NOT_ENOUGH_MONEY",
     "BUILD_GATE_TEMPLATE_EBP",
+    "BUILD_OBJECT_NOW",
+    "BUILD_OBJECT_NOW_PROLOGUE",
+    "BUILD_OBJECT_NOW_SLOT",
+    "BUILD_OBJECT_NOW_VTABLE_ENTRY",
+    "CLEAR_REMOVABLES",
+    "CLEAR_REMOVABLES_CALL",
+    "CLEAR_REMOVABLES_CALL_BYTES",
+    "CLEAR_REMOVABLES_LOOP",
+    "CLEAR_REMOVABLES_LOOP_BYTES",
+    "CLEAR_REMOVABLES_PREDICATE_CALL",
+    "CLEAR_REMOVABLES_PROLOGUE",
+    "CLEAR_REMOVABLES_RETURN",
     "COMMAND_POINTS_HAS_ENOUGH",
     "COMMAND_POINTS_IN_USE",
     "COMMAND_POINT_CAP_BONUS_ADD",
@@ -60,10 +72,36 @@ __all__ = [
     "CONSTRUCTION_RAMP_ANCHOR_BYTES",
     "CONSTRUCTION_RAMP_HEALTH_STEP",
     "CONSTRUCTION_RAMP_HEALTH_STEP_BYTES",
+    "EH_PROLOG",
+    "EH_PROLOG_BYTES",
+    "GETTING_BUILT_CANCEL_RESUME",
+    "GETTING_BUILT_CANCEL_STOP",
+    "GETTING_BUILT_CANCEL_STOP_BYTES",
+    "GETTING_BUILT_DAMAGE_CANCEL",
+    "GETTING_BUILT_DAMAGE_CANCEL_BYTES",
+    "GETTING_BUILT_DAMAGE_CANCEL_GATE",
+    "GETTING_BUILT_DAMAGE_CANCEL_GATE_BYTES",
+    "GETTING_BUILT_DISMISS_WORKER",
+    "GETTING_BUILT_DISMISS_WORKER_BYTES",
+    "GETTING_BUILT_RECENT_DAMAGE_PROBE",
+    "GETTING_BUILT_RECENT_DAMAGE_PROBE_BYTES",
+    "GETTING_BUILT_SPAWN_COUNTDOWN",
+    "GETTING_BUILT_SPAWN_TIMER",
+    "GETTING_BUILT_START_WORKER_REPAIR",
     "GETTING_BUILT_STILL_BUILDING_SLOT",
+    "GETTING_BUILT_STOP_REPAIR",
+    "GETTING_BUILT_UPDATE",
+    "GETTING_BUILT_WORKER_SPAWNED",
+    "IS_REMOVABLE_FOR_CONSTRUCTION",
+    "IS_REMOVABLE_FOR_CONSTRUCTION_BYTES",
     "MONEY_AMOUNT",
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
+    "OBJECT_KILL",
+    "OBJECT_MODEL_CONDITIONS_CHANGED",
+    "OBJECT_PRODUCER",
+    "OBJECT_SET_PRODUCER",
+    "OBJECT_STATUS_WORKER_REPAIRING",
     "PRODUCTION_BATCH_TEMPLATE_READ",
     "PRODUCTION_BATCH_TEMPLATE_READ_BYTES",
     "PRODUCTION_ENTRY_KIND",
@@ -126,6 +164,9 @@ __all__ = [
     "REBUILD_HOLE_SET_POSITION_RESUME",
     "REBUILD_HOLE_START_REBUILD",
     "REBUILD_HOLE_START_REBUILD_BYTES",
+    "REPLACE_SELF_BUILD_CALL",
+    "REPLACE_SELF_BUILD_CALL_BYTES",
+    "REPLACE_SELF_BUILD_RETURN",
     "REQUEST_UNIQUE_UNIT_ID",
     "REQUEST_UNIQUE_UNIT_ID_BODY",
     "REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT",
@@ -480,6 +521,68 @@ QUEUE_EXIT_REMEMBER_HORDE_BYTES = bytes.fromhex(
 #: rebuild out of rubble, which is what makes it the "the structure is not finished yet" test that
 #: the effectively-dead flag is not.
 GETTING_BUILT_STILL_BUILDING_SLOT = 0x2C
+#: `GettingBuiltBehavior::update`. `ecx` is the module's update interface (`module+0x10`), so the
+#: GettingBuilt interface is `esi+0x10` and its flags `+0x12`..`+0x16` read as `esi+0x22`..`+0x26`.
+#: Derived in `docs/repair-damage-cancel.md`.
+GETTING_BUILT_UPDATE = 0x00857E77
+#: `GettingBuiltBehaviorInterface::stopRepair` - slot `+0x14`: when the repairing flag (`+0x12`) is
+#: set, clears it and `UNDERGOING_REPAIR` / `UNDER_CONSTRUCTION` and stops the repair sound loop.
+GETTING_BUILT_STOP_REPAIR = 0x00856644
+#: The update's "damaged recently" probe: `[ebp-1] = Object::wasDamagedWithin(4 seconds)`
+#: (`0x0068C933`), forced to 0 while the interface's repairing-from-rubble flag (`esi+0x25`) is set.
+GETTING_BUILT_RECENT_DAMAGE_PROBE = 0x00857EB0
+GETTING_BUILT_RECENT_DAMAGE_PROBE_BYTES = bytes.fromhex(
+    "8365ec00807e250075156a048d45ec508bcfe86c4ae3ff84c0c645ff017504c645ff00"
+)
+#: The damage cancel: `SpawnTimer` (`ModuleData+0x20`) `>= 0`, damaged recently, and not still
+#: building (`esi+0x26`) -> `0x008580AC`, which calls `stopRepair`.
+GETTING_BUILT_DAMAGE_CANCEL = 0x00857F29
+GETTING_BUILT_DAMAGE_CANCEL_BYTES = bytes.fromhex(
+    "8b5df0f30f1043200f2f0594b5c1007210807dff00740a807e26000f8462010000"
+)
+#: `jb` past the cancel when `SpawnTimer < 0` - the gate that exempts every structure without
+#: auto-heal (castles, walls, gates, camps) from having its repair cancelled by damage.
+GETTING_BUILT_DAMAGE_CANCEL_GATE = 0x00857F38
+GETTING_BUILT_DAMAGE_CANCEL_GATE_BYTES = bytes.fromhex("7210")
+#: The cancel itself: `mov ecx, [ebp-0x18] / mov eax, [ecx] / call [eax+0x14]` - `stopRepair` on
+#: the GettingBuilt interface. Its two entries are the branches at `0x00857F23` and `0x00857F44`;
+#: nothing branches into the middle of it. `GETTING_BUILT_CANCEL_RESUME` follows, and is itself a
+#: branch target (`0x008580A5`), which is why the hook ends there.
+GETTING_BUILT_CANCEL_STOP = 0x008580AC
+GETTING_BUILT_CANCEL_STOP_BYTES = bytes.fromhex("8b4de88b01ff5014")
+GETTING_BUILT_CANCEL_RESUME = 0x008580B4
+#: `GettingBuiltBehaviorInterface` slot `+0x04`, the repair start for a structure with a
+#: `WorkerName`: spawns the worker, makes each the other's producer, sets `+0x1C` and orders the
+#: worker to repair. It never sets the repairing flag `+0x12`, so `stopRepair` has nothing to stop
+#: on such a structure. Without a `WorkerName` it defers to `startRepair` (slot `+0x10`).
+GETTING_BUILT_START_WORKER_REPAIR = 0x00857A19
+#: Interface byte set when slot `+0x04` has spawned a worker (`0x00857AFA`).
+GETTING_BUILT_WORKER_SPAWNED = 0x1C
+#: `ModuleData+0x20`, `SpawnTimer` (a `Real`, seconds).
+GETTING_BUILT_SPAWN_TIMER = 0x20
+#: Interface `+0x08`, the auto-repair countdown: seeded from `SpawnTimer` (`0x00857EA4`), less
+#: `1.0` per update while the structure is hurt and not recently hit (`0x008579ED`), and slot
+#: `+0x04` spawns a worker when it reaches zero with no worker present (`0x008579FA`).
+GETTING_BUILT_SPAWN_COUNTDOWN = 0x08
+#: The engine's own dismissal of a finished repair worker, in the worker manager `0x00857238`:
+#: raise model condition `+0x128` bit `0x10000000` (and notify), `Object::kill(UNRESISTABLE,
+#: FADED)`, then clear the structure's producer. The cancel cave repeats it, so these bytes are
+#: asserted as the pattern it copies and the three helpers it calls.
+GETTING_BUILT_DISMISS_WORKER = 0x008572D2
+GETTING_BUILT_DISMISS_WORKER_BYTES = bytes.fromhex(
+    "b800000010858628010000750d0986280100008bcee85042e3ff6a166a088bcee8cc1be4ff6a008bcfe8b643e3ff"
+)
+#: `Object+0x7C`, the id `Object::setProducer` writes and `GettingBuiltBehavior` reads its worker
+#: back from (`0x00857EEF`, `0x0085724F`).
+OBJECT_PRODUCER = 0x7C
+#: `Object::setProducer(Object *)` - `__thiscall`, `ret 4`; stores the object's id (0 for NULL).
+OBJECT_SET_PRODUCER = 0x0068B6B6
+#: `Object::kill(DamageType, DeathType)` - `__thiscall`, `ret 8`.
+OBJECT_KILL = 0x00698EC3
+#: The model-condition-changed notification, called after editing `Object+0x10C` in place.
+OBJECT_MODEL_CONDITIONS_CHANGED = 0x0068B53C
+#: `ObjectStatus` `WORKER_REPAIRING` (bit 97): set on a worker while it is repairing a structure.
+OBJECT_STATUS_WORKER_REPAIRING = 97
 #: The four places a structure about to be built is driven to one hit point, all the same shape
 #: (`ecx` the body, `[esp+4]` the delta).
 CONSTRUCTION_INITIAL_HEALTH_CALLS = (0x0079541F, 0x00858975, 0x0088D59E, 0x008AD88E)
@@ -525,3 +628,56 @@ CONSTRUCTION_PERCENT_FROM_RATIO_ANCHORS = {
     0x008567F8: bytes.fromhex("8b8f5c0200008b01ff5014d80dd888bd00d99f88020000"),
     0x00858074: bytes.fromhex("8b038bcbff5014d80dd888bd00d99f88020000"),
 }
+# `BuildAssistant::buildObjectNow` and the site clearing it does first
+# (`docs/replace-self-rubble.md`).
+#: `BuildAssistant::buildObjectNow(constructor, template, pos, angle, owner)` - `__thiscall`,
+#: `ret 0x14`, `TheBuildAssistant` vtable `+0x38`. Unless the constructor is a `DOZER` or the
+#: template is `NO_COLLIDE`, it clears the site (`CLEAR_REMOVABLES`) and moves units off it before
+#: it creates anything.
+BUILD_OBJECT_NOW = 0x00797796
+BUILD_OBJECT_NOW_SLOT = 0x38
+BUILD_OBJECT_NOW_VTABLE_ENTRY = 0x00C30810
+#: `mov eax, <handler>; call EH_PROLOG` - what makes `[ebp+4]` its return address.
+BUILD_OBJECT_NOW_PROLOGUE = bytes.fromhex("b80252b900e850572a00")
+#: `BuildAssistant::clearRemovablesForConstruction(template, pos, angle)` - `__thiscall`,
+#: `ret 0xC`. Walks every object the new footprint would collide with and destroys each one
+#: `IS_REMOVABLE_FOR_CONSTRUCTION` accepts, unless its template has `KindOf` 58.
+CLEAR_REMOVABLES = 0x00796576
+CLEAR_REMOVABLES_PROLOGUE = bytes.fromhex("b81b51b900e870692a00")
+#: `buildObjectNow`'s call to it, `push ebx; push esi; call`, and where that call returns.
+CLEAR_REMOVABLES_CALL = 0x007977F1
+CLEAR_REMOVABLES_CALL_BYTES = bytes.fromhex("5356e87eedffff")
+CLEAR_REMOVABLES_RETURN = 0x007977F8
+#: The loop body, `push edx` through the `jne` back to it: ask the predicate, skip `KindOf` 58,
+#: `GameLogic::destroyObject`, next.
+CLEAR_REMOVABLES_LOOP = 0x007965E3
+CLEAR_REMOVABLES_LOOP_BYTES = bytes.fromhex(
+    "528bcfe8bbdaffff3c0175188b4204f6800f01000004750c8b0d2c41de0052e8a455e9ff8d4d10e80ae9caff"
+    "8bd085d275ce"
+)
+#: `call IS_REMOVABLE_FOR_CONSTRUCTION` inside that loop, with the object pushed. The caller reads
+#: `edx` (the object) again after it returns, so a replacement must preserve `edx`.
+CLEAR_REMOVABLES_PREDICATE_CALL = 0x007965E6
+#: `BuildAssistant::isRemovableForConstruction(Object *)`, `ret 4`, no `this` use: false for
+#: `INERT` or `TAINT`; true for `SHRUBBERY` or `CLEARED_BY_BUILD`; otherwise the effectively-dead
+#: bit (`Object+0x458` bit 0). The last case is why any rubble under a new footprint is destroyed.
+#: `isLocationClearOfObjects` asks the same question, to decide what does not block placement
+#: (`docs/castle-unpack-clearance.md` §2.4).
+IS_REMOVABLE_FOR_CONSTRUCTION = 0x007940A6
+IS_REMOVABLE_FOR_CONSTRUCTION_BYTES = bytes.fromhex(
+    "8b4c240485c9750432c0eb338b4104f680130100000275f0f6801b0100000175e7f68008010000407404b001"
+    "eb11f6800e0100000875f38a81580400002401c20400"
+)
+#: MSVC `__EH_prolog`: `push -1; push eax; push fs:[0]; ...; mov [esp+0xc], ebp;
+#: lea ebp, [esp+0xc]` - so in every function that opens with it, `[ebp]` is the caller's `ebp`
+#: and `[ebp+4]` the return address.
+EH_PROLOG = 0x00A3CEF0
+EH_PROLOG_BYTES = bytes.fromhex("6aff5064a100000000508b44240c64892500000000896c240c8d6c240c50c3")
+#: `ReplaceSelfUpgrade::upgradeImplementation`'s creation of the replacement: `mov eax,
+#: [TheBuildAssistant]; mov ebx, [eax]` through `call [ebx+0x38]`, and where that call returns.
+#: `docs/foundation-rebind.md` pins the same `call`.
+REPLACE_SELF_BUILD_CALL = 0x008BB8B4
+REPLACE_SELF_BUILD_CALL_BYTES = bytes.fromhex(
+    "a10082de008b18894de0e8b5fddcffd945c850518b0d0082de00d91c248d45e45057ff75e0ff5338"
+)
+REPLACE_SELF_BUILD_RETURN = 0x008BB8DC

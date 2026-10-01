@@ -116,7 +116,7 @@ from sage_worldbuilder.launch_patch import (
 )
 from sage_worldbuilder.libraries import LibraryMaps
 from sage_worldbuilder.lighting import next_time_of_day
-from sage_worldbuilder.models import ArtIndex, MapConditions, ObjectModels
+from sage_worldbuilder.models import ArtIndex, MapConditions, ObjectModels, is_tree
 from sage_worldbuilder.new_map import DEFAULT_CELL_SIZE, NewMapOptions, new_map
 from sage_worldbuilder.palette import names_under, object_palette
 from sage_worldbuilder.render.art import ArtTextures
@@ -209,7 +209,7 @@ from sage_worldbuilder.ui.map_settings import MapSettingsPanel, MultiplayerPosit
 from sage_worldbuilder.ui.map_view import MapView
 from sage_worldbuilder.ui.mapcache_dialog import MapCacheDialog
 from sage_worldbuilder.ui.new_map_dialog import NewMapDialog
-from sage_worldbuilder.ui.object_palette import ObjectPalettePanel
+from sage_worldbuilder.ui.object_palette import ObjectPalettePanel, ReplaceObjectDialog
 from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel
 from sage_worldbuilder.ui.players import PlayersPanel
 from sage_worldbuilder.ui.remap_textures_dialog import RemapTexturesDialog
@@ -524,7 +524,7 @@ selected objects' own modules respond to, ticked to give one at the start of the
 <b>Item List</b> searches the map's objects, waypoints, areas and teams, zooms to what you pick,
 and can filter the view down to what it matches. The <b>Edit</b> menu selects similar, duplicate,
 deprecated or missing objects, objects on missing teams, and the objects of a base;
-<b>Replace Selected</b> swaps the selection for the object chosen in the palette.</p>
+<b>Replace Selected</b> swaps the selection for an object picked from the palette it opens.</p>
 <h3>Waypoints and trigger areas</h3>
 <p>With the <b>Waypoint Tool</b> (W), click to add a waypoint, drag from one waypoint to another to
 link them (drag again to remove the link), or drag from a waypoint to an empty spot to add a
@@ -856,6 +856,9 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_docks()
         self._build_menus()
+        self._tree_game: Game | None = None
+        self._tree_types: dict[str, bool] = {}
+        self._tree_templates: TemplateIndex | None = None
         self._build_status_bar()
         # The central area: the top-down view, or the 3D view once it has been opened.
         self.view_stack = QStackedWidget()
@@ -2747,12 +2750,16 @@ class MainWindow(QMainWindow):
         self._select(finder(self.document.map, TemplateIndex(self.game)), what)
 
     def replace_selected(self) -> None:
-        objects, template = self.selected_objects(), self.palette_panel.template()
+        objects = self.selected_objects()
         if not objects:
             return
+        dialog = ReplaceObjectDialog(
+            self.palette_panel.palette(), len(objects), self.palette_panel.template(), self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        template = dialog.template()
         if template is None:
-            self._show_dock(self.palette_dock)
-            _status(self).showMessage("Choose the replacement in the Object Palette.", 5000)
             return
         command = replace_objects(objects, template)
         if command.commands:
@@ -3348,12 +3355,41 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self) -> None:
         status = _status(self)
+        self.tree_label = QLabel()
+        status.addWidget(self.tree_label)
         self.game_label = QLabel()
         self.cell_label = QLabel()
         self.height_label = QLabel()
         for label in (self.game_label, self.cell_label, self.height_label):
             status.addPermanentWidget(label)
         self.show_cursor(None, None)
+
+    def _show_tree_count(self) -> None:
+        """Count the open map's objects whose template is drawn as a tree (`is_tree`), for the
+        left of the status bar; blank with no map, `?` before the game data loads."""
+        document = self.document
+        if document is None:
+            self.tree_label.setText("")
+            return
+        game = self.game
+        if game is None:
+            self.tree_label.setText("Trees: ?")
+            return
+        if self._tree_game is not game:
+            self._tree_game = game
+            self._tree_types = {}
+            self._tree_templates = TemplateIndex(game)
+        objects = document.map.objects_list
+        count = 0
+        for obj in objects.object_list if objects is not None else []:
+            name = obj.type_name.lower()
+            tree = self._tree_types.get(name)
+            if tree is None:
+                assert self._tree_templates is not None
+                template = self._tree_templates.get(name)
+                tree = self._tree_types[name] = template is not None and is_tree(template)
+            count += tree
+        self.tree_label.setText(f"Trees: {count}")
 
     def show_cursor(self, cell: tuple[int, int] | None, height: float | None) -> None:
         """Report the heightmap cell under the cursor and its height (set by the map view)."""
@@ -4320,6 +4356,7 @@ class MainWindow(QMainWindow):
             suffix = " (read-only)" if document.read_only else ""
             self.setWindowTitle(f"{document.title}{suffix}[*] - {APP_TITLE}")
             self.setWindowModified(document.dirty)
+        self._show_tree_count()
         self._fill_map_info()
 
     def _fill_map_info(self) -> None:

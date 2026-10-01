@@ -1914,8 +1914,8 @@ class WeatherFlag(BFMEEnum):
 class RadarPriority(BFMEEnum):
     INVALID = 0
     NOT_ON_RADAR = 1
-    UNIT = 2
-    STRUCTURE = 3
+    STRUCTURE = 2
+    UNIT = 3
     LOCAL_UNIT_ONLY = 4
 
 

@@ -177,6 +177,9 @@ those factions' would-be players fall into the synthesised path instead of faili
   stock image never calls it, so "the engine's own loader, reused" is a reading of the disassembly
   and not an observation.
 - **Not yet observed in game.** Everything below "the file still loads and verifies" is a claim.
+- **A LAN lobby needs `lobby-faction-byte` as well.** The host's binary lobby broadcast sends a
+  seat's faction in a nibble, so a faction at `PlayerTemplate` index 14 or later reaches every
+  client as an observer in the next colour. See [`lobby-faction-byte.md`](lobby-faction-byte.md).
 
 ## 6. How to test it
 

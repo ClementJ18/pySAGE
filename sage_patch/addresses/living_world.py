@@ -40,6 +40,7 @@ __all__ = [
     "ARMY_DEFINITION_FIELD_TABLE_REFS",
     "ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES",
     "ARMY_DEFINITION_HERO_BUILD_ORDER",
+    "ARMY_DEFINITION_SIDE",
     "ARMY_ENTRY_CLONE_AND_APPEND",
     "ARMY_ENTRY_COPY",
     "ARMY_ENTRY_DEFAULT_OFFSET",
@@ -257,6 +258,9 @@ ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
 # `HeroBuildOrder`'s `store + offset` inside the 0xEC-byte `ArmyDefinition`. The row's parse
 # function is `INI_PARSE_STRING_LIST` and its `userData` is null.
 ARMY_DEFINITION_HERO_BUILD_ORDER = 0x8C
+# `Side`, row 0 of the same table: an `AsciiString` at the very start of the struct, parsed by
+# `GAME_DATA_ASCIISTRING_PARSER`. `TheArmyDefinitionManager` keys the blocks by it.
+ARMY_DEFINITION_SIDE = 0x00
 LIVING_WORLD_BATTLE_SETUP_UPGRADE_LOOP = 0x008126E5
 #: The static `AsciiString` the campaign start passes to `startLinearCampaign`, and its magic-static
 #: guard. Setting both first substitutes the campaign name.

@@ -38,7 +38,7 @@ from sage_patch.addresses import (
     WALL_LAYER_FIRST,
     WALL_LAYER_LAST,
 )
-from sage_patch.patches.experimental.wall_layer_promotion import (
+from sage_patch.patches.wall_layer_promotion import (
     ANCHORS,
     HOOK_SITES,
     SECTION_NAME,

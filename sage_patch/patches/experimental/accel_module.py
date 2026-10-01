@@ -1,17 +1,17 @@
-"""Load `sage_accel.dll` at the engine's `Direct3DCreate9` resolve and let it wrap the renderer.
+"""Load OH1A's `bfme2_accel.dll` from `game.dat` itself, at the engine's `Direct3DCreate9` resolve.
 
-The loader half of `../../docs/accel-module.md` (milestone M0): the engine resolves
-`Direct3DCreate9` from `d3d9.dll` itself and stores it in `DIRECT3D_CREATE9_PTR` before first use.
-A `.accel` cave takes over that store. It re-runs it, `LoadLibraryA`s `sage_accel.dll`, resolves
-`sage_accel_arm`, and hands it the real pointer. Whatever non-null pointer comes back is what the
-engine calls from then on. A missing DLL, a missing export or a NULL answer each leave the engine's
-own pointer in place, so a patched `game.dat` without the module runs as stock.
+The accelerator normally arrives through its loader, which injects the DLL into a running game.
+This patch makes `game.dat` load it instead: the engine resolves `Direct3DCreate9` from `d3d9.dll`
+itself and stores it in `DIRECT3D_CREATE9_PTR` before first use, and a `.accel` cave takes over
+that store, re-runs it, and `LoadLibraryA`s `bfme2_accel.dll`. The DLL installs itself from its
+own `DllMain`, as it does when injected. A missing DLL leaves the patched `game.dat` running as
+stock.
 
-This replaces the original accelerator's two ways of starting, and it is the reason the port can
-compose with other patches: `bfme2_accel.dll` recognised its build by a checksum over the whole of
-`.text` and, on a build it did not recognise, guessed the game thread from 64 effect calls
-(`../../docs/accel-thread-identity.md` §3). Here the module is armed from one site, on the game
-thread, and identifies that thread positively.
+The moment is chosen for the DLL: `d3d9.dll` and `d3dx9_27.dll` are loaded, the device does not
+exist yet, and no effect has been created, so the render thread's hooks are in place before the
+first device call. The DLL has to come from a build that works on a `game.dat` other tools have
+patched (`../../docs/accel-module.md` §2): it identifies a build by a hash over all of `.text`,
+which any patch changes.
 
 Derived from OH1A's `bfme2_accel.dll`, with his permission (`../../docs/accel-port.md` §4).
 """
@@ -27,7 +27,6 @@ from ...addresses import (
     DIRECT3D_CREATE9_STORE,
     DIRECT3D_CREATE9_STORE_ENTRY,
     DIRECT3D_CREATE9_STORE_RESUME,
-    GET_PROC_ADDRESS_IAT,
     LOAD_LIBRARY_A_IAT,
 )
 from ...asm import JE, Asm
@@ -39,15 +38,12 @@ __all__ = [
     "BLOCK_MAGIC",
     "CODE_OFFSET",
     "DLL_NAME",
-    "EXPORT_NAME",
     "OFF_MODULE",
     "OFF_STATE",
     "SECTION_NAME",
-    "STATE_ARMED",
-    "STATE_DECLINED",
-    "STATE_NO_EXPORT",
-    "STATE_NO_MODULE",
+    "STATE_LOADED",
     "STATE_NOT_REACHED",
+    "STATE_NO_MODULE",
     "AccelModulePatch",
     "build_code",
     "hook_va",
@@ -55,37 +51,30 @@ __all__ = [
 
 SECTION_NAME = ".accel"
 
-# CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE - code, two names, and the
-# state the hook records for a live reader.
+# CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE - code, the DLL's name, and
+# the state the hook records for a live reader.
 _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 
 #: `'SACL'`, so the block is recognisable in a process without being told where it landed.
 BLOCK_MAGIC = 0x4C434153
 
 #: Looked up by `LoadLibraryA`'s normal search, which starts in the directory holding `game.dat`.
-#: Must match `sage_accel.build.DLL_NAME`; a test checks the two agree.
-DLL_NAME = b"sage_accel.dll\x00"
-EXPORT_NAME = b"sage_accel_arm\x00"
+DLL_NAME = b"bfme2_accel.dll\x00"
 
 OFF_MAGIC = 0x00
 #: What the hook found, as one of the `STATE_*` values; `sage_live` can read it to say why a game is
-#: running without the module.
+#: running without the accelerator.
 OFF_STATE = 0x04
 #: The module handle `LoadLibraryA` returned, or 0.
 OFF_MODULE = 0x08
 OFF_DLL_NAME = 0x10
-OFF_EXPORT_NAME = 0x20
 #: Where the code starts. Fixed, so the hook can address the block absolutely while it is still
 #: being emitted.
-CODE_OFFSET = 0x30
+CODE_OFFSET = 0x20
 
 STATE_NOT_REACHED = 0
 STATE_NO_MODULE = 1
-STATE_NO_EXPORT = 2
-#: The module was asked and returned NULL: it is switched off (`sage_accel.off`), or the engine
-#: resolved no `Direct3DCreate9` to wrap.
-STATE_DECLINED = 3
-STATE_ARMED = 4
+STATE_LOADED = 2
 
 #: What has to be true before the hook means anything: the resolve, the `cmp eax, ebx` whose flags
 #: the `je` after the store reads, the store itself, and that `je`.
@@ -96,16 +85,10 @@ def _block() -> bytes:
     block = bytearray(CODE_OFFSET)
     struct.pack_into("<I", block, OFF_MAGIC, BLOCK_MAGIC)
     block[OFF_DLL_NAME : OFF_DLL_NAME + len(DLL_NAME)] = DLL_NAME
-    block[OFF_EXPORT_NAME : OFF_EXPORT_NAME + len(EXPORT_NAME)] = EXPORT_NAME
     return bytes(block)
 
 
 def _emit(base_va: int) -> Asm:
-    state = base_va + OFF_STATE
-
-    def set_state(value: int) -> None:
-        a.emit(0xC6, 0x05, struct.pack("<I", state), value)  # mov byte [state], value
-
     a = Asm(base_va + CODE_OFFSET)
     a.label("hook")
     a.emit(0xA3, struct.pack("<I", DIRECT3D_CREATE9_PTR))  # the displaced store
@@ -113,37 +96,15 @@ def _emit(base_va: int) -> Asm:
     # register go back exactly as they came.
     a.emit(0x9C)  # pushfd
     a.emit(0x60)  # pushad
-
-    a.emit(0x68, struct.pack("<I", base_va + OFF_DLL_NAME))  # push "sage_accel.dll"
+    a.emit(0x68, struct.pack("<I", base_va + OFF_DLL_NAME))  # push "bfme2_accel.dll"
     a.emit(0xFF, 0x15, struct.pack("<I", LOAD_LIBRARY_A_IAT))  # call [LoadLibraryA]
     a.emit(0xA3, struct.pack("<I", base_va + OFF_MODULE))  # mov [module], eax
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "no_module")
-
-    a.emit(0x68, struct.pack("<I", base_va + OFF_EXPORT_NAME))  # push "sage_accel_arm"
-    a.emit(0x50)  # push eax
-    a.emit(0xFF, 0x15, struct.pack("<I", GET_PROC_ADDRESS_IAT))  # call [GetProcAddress]
-    a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc(JE, "no_export")
-
-    a.emit(0xFF, 0x35, struct.pack("<I", DIRECT3D_CREATE9_PTR))  # push [Direct3DCreate9]
-    a.emit(0xFF, 0xD0)  # call eax        ; void *__cdecl sage_accel_arm(void *real)
-    a.emit(0x83, 0xC4, 0x04)  # add esp, 4
-    a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc(JE, "declined")
-    a.emit(0xA3, struct.pack("<I", DIRECT3D_CREATE9_PTR))  # mov [Direct3DCreate9], eax
-    set_state(STATE_ARMED)
+    a.emit(0xC6, 0x05, struct.pack("<I", base_va + OFF_STATE), STATE_LOADED)
     a.jmp("done")
-
     a.label("no_module")
-    set_state(STATE_NO_MODULE)
-    a.jmp("done")
-    a.label("no_export")
-    set_state(STATE_NO_EXPORT)
-    a.jmp("done")
-    a.label("declined")
-    set_state(STATE_DECLINED)
-
+    a.emit(0xC6, 0x05, struct.pack("<I", base_va + OFF_STATE), STATE_NO_MODULE)
     a.label("done")
     a.emit(0x61)  # popad
     a.emit(0x9D)  # popfd
@@ -164,19 +125,18 @@ class AccelModulePatch(Patch):
     name = "accel-module"
     author = "officialNecro"
     experimental = True
-    runtime_verified = "partly"  # M0 armed in Edain on 2026-09-24; the M1 census is unplayed
+    # The loader cave armed in Edain on 2026-09-24; loading bfme2_accel.dll through it is unplayed
+    runtime_verified = "partly"
     description = (
-        "Load sage_accel.dll from the game directory when the engine resolves Direct3DCreate9, "
-        "and let it wrap the renderer. The module is built with `python -m sage_accel build` and "
-        "copied beside game.dat with `python -m sage_accel install`; without it, or with a "
-        "sage_accel.off file beside it, the game runs as stock. Milestone M1: the module counts "
-        "every Direct3D device, effect and lock call and writes a report to sage_accel.log every "
-        "30 s, changing nothing. Derived from OH1A's bfme2_accel.dll. Client-local. No INI change"
+        "Load OH1A's BFME2 Accelerator (bfme2_accel.dll) from the game directory when the engine "
+        "resolves Direct3DCreate9, instead of injecting it with its loader. Without the DLL beside "
+        "game.dat the game runs as stock. The DLL must be a build that accepts a patched game.dat "
+        "(see the write-up); it logs to bfme2_accel.log beside itself. Client-local. No INI change"
     )
 
     @property
     def credit(self) -> str:
-        return f"{super().credit}, derived from OH1A's bfme2_accel.dll"
+        return f"{super().credit}, loading OH1A's bfme2_accel.dll"
 
     def apply(self, data: bytearray) -> None:
         off = va_to_offset(data, DIRECT3D_CREATE9_STORE)

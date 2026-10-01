@@ -132,7 +132,7 @@ jobs:
       # Core CLIs run with no extras; desktop apps refuse with the pip command to fix it.
       - name: Console scripts work without extras
         run: |
-          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify sage-accel; do
+          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify; do
             echo "== $script"
             /tmp/wheelenv/bin/$script --help > /dev/null
           done
@@ -146,29 +146,3 @@ jobs:
             fi
             grep -q "pip install" /tmp/out.txt || { echo "no install hint:"; cat /tmp/out.txt; exit 1; }
           done
-
-  # The native module the `accel-module` patch loads. Built here and shipped as this artifact, so
-  # players never need the toolchain. zig cross-compiles, so Linux builds the 32-bit Windows DLL.
-  accel-module:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-
-      - name: Install the package with the accel extra
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[accel]"
-
-      - name: Build sage_accel.dll
-        run: sage-accel build --out build
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sage_accel
-          path: build/sage_accel.dll
-          if-no-files-found: error

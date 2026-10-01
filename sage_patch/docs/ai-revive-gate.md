@@ -13,8 +13,12 @@ The RE behind [`patches/ai_revive_gate.py`](../patches/ai_revive_gate.py). ROTWK
 - So a `REVIVE` button disabled by an unobtainable `NeededUpgrade` is refused to the player and
   honoured for the AI.
 - The patch hooks the revive branch's 6-byte entry and routes a matched slot through the engine's
-  *own* upgrade gate at `0x0079502A`, having first counted the slot. 6 bytes edited, 40 bytes of
-  cave, no new engine calls.
+  *own* upgrade gate at `0x0079502A`, having first counted the slot. 6 bytes edited, 118 bytes of
+  cave.
+- For the AI, "matched" means **the slot the ControlBar gives that hero**, found by roster name,
+  not the slot whose REVIVE ordinal equals the revive index. The two differ on every Edain
+  faction, so gating by ordinal judged the wrong button. See
+  [Which slot a revive index names](#which-slot-a-revive-index-names).
 - `canMakeUnit` has **five** call sites, and only four are AI. The fifth is `BuildAssistant`'s
   own `+0x64` gate reaching it by a **virtual self-call** — the edge the ControlBar and
   `queueCreateUnit` come in on. The cave therefore tests its own return address and takes the
@@ -186,26 +190,79 @@ Where those two walks disagree, the stock engine cannot tell. A gate can — it 
 button, and answers for whatever slot the count landed on. That makes an unconditional gate wrong
 on the player's path even where the button it *should* have evaluated is ungated.
 
-This patch does not try to reconcile the two walks. It restricts the gate to the callers that ask
-directly, which are only ever the AI's own choices, and leaves every path a human touches on the
-stock edge — where the disagreement stays as harmless as it has always been.
+So the gate is restricted to the callers that ask directly, which are only ever the AI's own
+choices, and every path a human touches stays on the stock edge. On the AI's path the gate does
+not trust the count either; it finds the button the ControlBar would have given the hero.
+
+### Which slot a revive index names
+
+The ControlBar's populate is two passes (detailed in
+[`hero-revive-ownership.md`](hero-revive-ownership.md) §2). **Pass 1** (`0x00943F97`) gives REVIVE
+slot ordinal *n* to `Player::getBuildableHeroName(n)` (`0x006AB249`): the `PlayerTemplate+0x198`
+ring list first, then `+0x18C`, `BuildableHeroesMP`. It then looks that hero up in the ledger. The
+revive index the AI asks about is a **ledger** index (`Player+0x758`, `0xE8`-byte entries, the name
+at `+0xE4`), and the ledger starts at `BuildableHeroesMP`. The two orders are offset by the ring
+list's length, and they drift further as fielded heroes leave the ledger and dead ones rejoin at
+its tail.
+
+Read live from a Wild skirmish (2026-09-27):
+
+| REVIVE ordinal | MoriaTunnel slot | ControlBar's hero (pass 1) | ledger index |
+|---|---|---|---|
+| 0 | `FakeRingHeroReviveSlot` | `RingHeroDummy` | - |
+| 1 | `CreateAHeroReviveSlot` | `CreateAHero` | 0 |
+| 2 | `GenericReviveSlot1` | `WildYazneg` | 1 |
+| 3 | `GenericReviveSlot2` | `WildGoblinKing_mod` | 2 |
+| … | … | … | … |
+| 8 | `GenericReviveSlot7` | `MoriaSmaugFly` | 7 |
+
+Gating by ordinal judged Yazneg by the Create-A-Hero slot and Smaug by `FakeHeroReviveSlot6`, so
+the AI never recruited either. It let the Three Trolls through at the tunnels on
+`GenericReviveSlot5`, the slot that belongs to Bolg. Two Brutal Wild AIs fielded only the Goblin
+King and the Trolls in two whole matches.
+
+The fix compares heroes instead of positions: a REVIVE slot matches when
+`getBuildableHeroName(ordinal)` is the same `ThingTemplate` as `ReviveMgr::getTemplate(index)`
+(`0x00780C2F`). Pass 1's own guard (`0x006A8803`) is not reproduced. It tests the relationship
+between the **local** player and the producer, which is viewer state, and reading it on the logic
+path would desync. The AI always sees its buttons the way their owner does.
 
 ## The patch
 
 Hook the 6 bytes at `REVIVE` (`0x007950CE`, `83 7e 14 2e 75 0b`) with `e9 <rel32>` + `90`, into a
-58-byte `.aigate` cave:
+118-byte `.aigate` cave:
 
 ```asm
 cmp dword [esi+0x14], 0x2E     ; GUICOMMAND_REVIVE
 jne  -> 0x007950DF             ; NEXT
-mov  eax, [ebp-0x0C]           ; slotsSeen
-cmp  eax, [ebp+0x10]           ; reviveIndex
-jne  -> 0x007950DC             ; BUMP
 cmp dword [ebp+4], 0x00793F59  ; who asked? — see below
-je   -> 0x007950AD             ; not the AI: ACCEPT, exactly as stock
+jne  the_ai
+mov  eax, [ebp-0x0C]           ; not the AI: stock - slotsSeen
+cmp  eax, [ebp+0x10]           ;   == reviveIndex ?
+jne  -> 0x007950DC             ;   BUMP
+jmp  -> 0x007950AD             ;   ACCEPT, exactly as stock
+the_ai:
+mov  ecx, [ebp+8]              ; producer
+call 0x0068B678                ; getControllingPlayer
+test eax, eax / je -> BUMP
+push eax                       ; keep the player
+push dword [ebp-0x0C]          ; this slot's ordinal
+mov  ecx, eax
+call 0x006AB249                ; getBuildableHeroName(ordinal)
+pop  ecx                       ; the player
+test eax, eax / je -> BUMP     ; past the roster
+push eax                       ; keep the slot's hero
+push dword [ebp+0x10]          ; reviveIndex
+add  ecx, 0x758
+call 0x00780C2F                ; ledger->getTemplate(reviveIndex)
+pop  ecx
+cmp  eax, ecx / jne -> BUMP    ; not this hero's slot
 inc  dword [ebp-0x0C]          ; count it now — see below
 jmp  -> 0x0079502A             ; GATE
 ```
+
+The three callees are `__thiscall` with `ret 4` (or no arguments) and preserve `ebx`, `esi` and
+`edi`. `canMakeUnit`'s loop keeps all its state in `ebp` locals, so nothing live is clobbered.
 
 **Why the return address.** `canMakeUnit` opens `push ebp; mov ebp, esp`, so `[ebp+4]` is its
 caller's return address for the whole body. The only non-AI caller is the `+0x64` gate's
@@ -249,6 +306,9 @@ The middle column is the bug; the right-hand column is the tempting one-line fix
 wrong. `[ebp-0xC]` is dead on the accept path (nothing from `0x007950AD` onward reads it), so the
 extra increment costs nothing.
 
+The table predates matching by hero; with it, a later slot can only match again if the roster
+names the same hero twice. Counting first still makes the first such slot final.
+
 ## Composition with `commandset-limit`
 
 `commandset-limit` raises the walk's bound at `0x007950E2` from 33 to N (see
@@ -276,6 +336,10 @@ The return-address test is deterministic for the same reason and a stronger one:
 call stack, which is a property of *how the function was entered*, not of any game state at all.
 Every peer executes the same call from the same site.
 
+The hero match reads the producer's controlling player, its `PlayerTemplate` roster and its hero
+ledger. All three are logic state, and the ledger is xfer'd and CRC'd. The ControlBar's pass-1
+guard is deliberately left out because it reads the local player.
+
 ## Scope: what this deliberately does not fix
 
 **Model-condition-gated slots (9 of 95).** `DisableOnModelCondition` (`CommandButton+0x1E0`) and
@@ -300,20 +364,19 @@ than fixing an asymmetry, and is not attempted here.
 passes. That matches what the player's own evaluation does with it, so the patch reproduces the
 player's behaviour rather than second-guessing the data.
 
-**The two walks are still not reconciled.** The gate answers for whatever slot the positional
-count landed on, which is the ControlBar's button only when the two walks agree — see
-[Why the matched button is not the button](#why-the-matched-button-is-not-the-button). Restricting
-the gate to the AI makes that harmless rather than correct: where they disagree the AI can refuse
-a producer that could legitimately field the hero. Under-recruiting is the safe direction of a
-patch whose defect is over-recruiting, so it is accepted here. Reconciling them properly means
-teaching the walk the ControlBar's rules — `ShowButton`, the visible command range — and is a
-larger change than this one.
+**Pass 2 of the ControlBar is not reproduced.** A ledger entry whose hero is not in the roster
+(one a script allowed to revive, or taken by domination) gets a leftover slot from pass 2, and
+the AI's walk finds no slot naming it, so the AI will not recruit it. Stock accepted it on the
+count. Under-recruiting is the safe direction here. Nor are `ShowButton` and the visible command
+range, which pass 1 also honours. No Edain REVIVE button hides itself that way.
 
 ## Status
 
-**Static-verified and runtime-verified.** The patch applies to a clean `game.dat`, `verify`
-passes, and the installed hook and cave disassemble to the intended instructions with all four
-exits landing on the intended labels. In game, the AI stops recruiting from disabled slots.
+**The count-matched version was runtime-verified; the hero-matched version is static-verified
+only.** The first cave applied, verified and stopped the AI recruiting from disabled slots, but
+by judging the wrong slot it also stopped Wild recruiting Yazneg and Smaug and let the Trolls
+through at the tunnels (live reads above, 2026-09-27). The hero-matched cave applies and verifies,
+and its tests disassemble it back. It has not yet been run in a match.
 
 **The player's own recruit path is re-tested in game too.** It runs through
 [the fifth caller](#the-fifth-caller-and-why-a-scan-misses-it): the ControlBar asks `+0x64`,

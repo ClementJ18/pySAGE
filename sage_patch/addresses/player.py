@@ -27,9 +27,25 @@ __all__ = [
     "COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES",
     "COMMAND_BUTTON_FREE_OFFSET",
     "COMMAND_BUTTON_GET_TEXT_LABEL",
+    "COMMAND_BUTTON_GET_THING_TEMPLATE",
+    "COMMAND_BUTTON_GET_THING_TEMPLATE_ENTRY",
+    "COMMAND_BUTTON_OBJECT",
+    "COMMAND_BUTTON_REVIVE_INDEX",
     "COMMAND_BUTTON_SIZE",
     "COMMAND_BUTTON_SPECIAL_POWER",
     "COMMAND_BUTTON_TRIGGER_WHEN_READY",
+    "COMMAND_POINTS_BASE",
+    "COMMAND_POINTS_HARD_CAP",
+    "COMMAND_POINTS_INIT",
+    "COMMAND_POINTS_INIT_FACTOR",
+    "COMMAND_POINTS_INIT_FACTOR_BYTES",
+    "COMMAND_POINTS_INIT_MERGE",
+    "COMMAND_POINTS_INIT_MERGE_BYTES",
+    "COMMAND_POINTS_INIT_RETURN",
+    "COMMAND_POINTS_INIT_RETURN_BYTES",
+    "COMMAND_POINTS_OVERRIDDEN",
+    "COMMAND_POINTS_OVERRIDE",
+    "COMMAND_POINTS_RESET",
     "COMMAND_SET_GET_COMMAND_BUTTON",
     "COMMAND_SET_STORE_FIND_COMMAND_SET",
     "COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET",
@@ -77,6 +93,8 @@ __all__ = [
     "PLAYER_DEFEAT_FRAME",
     "PLAYER_FOR_EACH_TEAM_OBJECT",
     "PLAYER_GET_SPELLBOOK_OBJECT",
+    "PLAYER_GET_UPGRADE_DISCOUNT",
+    "PLAYER_GET_UPGRADE_DISCOUNT_BODY",
     "PLAYER_GRANT_UPGRADE",
     "PLAYER_HERO_LEDGER_OFFSET",
     "PLAYER_INDEX",
@@ -88,6 +106,7 @@ __all__ = [
     "PLAYER_INIT_FROM_DICT_BYTES",
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
+    "PLAYER_KILL_PLAYER",
     "PLAYER_LIST_COUNT_OFFSET",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
     "PLAYER_LIST_GET_NTH",
@@ -96,6 +115,7 @@ __all__ = [
     "PLAYER_LIST_LOCAL_PLAYER",
     "PLAYER_LIST_OBSERVE_NEXT_PLAYER",
     "PLAYER_LIST_PLAYER_FROM_INDEX",
+    "PLAYER_LIST_RECOMPUTE_COMMAND_POINTS",
     "PLAYER_LIVING_WORLD_ID_OFFSET",
     "PLAYER_MONEY",
     "PLAYER_NAME_KEY",
@@ -130,18 +150,32 @@ __all__ = [
     "PLAYER_TEMPLATE_DEFAULT_AI_TYPE",
     "PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE",
     "PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE_BYTES",
+    "PLAYER_TEMPLATE_EVIL",
     "PLAYER_TEMPLATE_FIELD_TABLE",
     "PLAYER_TEMPLATE_FIELD_TABLE_REFS",
     "PLAYER_TEMPLATE_FIELD_TABLE_REF_OPCODES",
+    "PLAYER_TEMPLATE_FIND_BY_INDEX",
     "PLAYER_TEMPLATE_FIND_BY_KEY",
+    "PLAYER_TEMPLATE_GET_DISPLAY_NAME",
+    "PLAYER_TEMPLATE_IS_OBSERVER",
     "PLAYER_TEMPLATE_NAME_KEY",
+    "PLAYER_TEMPLATE_PARSED_JOIN",
+    "PLAYER_TEMPLATE_PARSED_JOIN_BYTES",
+    "PLAYER_TEMPLATE_PARSED_JOIN_RESUME",
+    "PLAYER_TEMPLATE_PARSED_NEW_KEY",
+    "PLAYER_TEMPLATE_PARSED_NEW_KEY_BYTES",
+    "PLAYER_TEMPLATE_PARSED_NEW_KEY_RESUME",
+    "PLAYER_TEMPLATE_PLAYABLE_SIDE",
     "PLAYER_TEMPLATE_PTR",
     "PLAYER_TEMPLATE_PURCHASE_SCIENCE_COMMAND_SET",
     "PLAYER_TEMPLATE_PURCHASE_SCIENCE_COMMAND_SET_MP",
     "PLAYER_TEMPLATE_RESOURCE_FILTER",
     "PLAYER_TEMPLATE_RESOURCE_VALUES",
     "PLAYER_TEMPLATE_SIZE",
+    "PLAYER_TEMPLATE_STORE_BEGIN",
+    "PLAYER_TEMPLATE_STORE_END",
     "PLAYER_TRANSFER_COMMAND_POINTS_FOR_OBJECT",
+    "PLAYER_UPGRADE_DISCOUNTS",
     "SCORE_KEEPER_ADD_OBJECT_DESTROYED",
     "SCORE_KEEPER_ADD_OBJECT_LOST",
     "SCORE_KEEPER_COUNTER_BLOCK",
@@ -223,15 +257,25 @@ __all__ = [
     "SPM_TRIGGER_HOOK_BYTES",
     "THE_EXPERIENCE_LEVEL_SYSTEM",
     "THE_PLAYER_LIST",
+    "THE_PLAYER_TEMPLATE_STORE",
     "THE_SCIENCE_STORE",
     "THE_SPECIAL_POWER_STORE",
     "THE_UPGRADE_CENTER",
+    "UPGRADE_CALC_COST_TO_BUILD",
     "UPGRADE_CENTER_FIND_UPGRADE",
     "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY",
     "UPGRADE_CENTER_FIND_UPGRADE_BY_KEY_ENTRY",
     "UPGRADE_CENTER_FIND_UPGRADE_ENTRY",
     "UPGRADE_CENTER_FIND_UPGRADE_RESUME",
     "UPGRADE_CENTER_LIST",
+    "UPGRADE_DISCOUNT_CALL",
+    "UPGRADE_DISCOUNT_CALL_BYTES",
+    "UPGRADE_DISCOUNT_ENTRY_VALUE",
+    "UPGRADE_DISCOUNT_ENTRY_VALUE_ENTRY",
+    "UPGRADE_DISCOUNT_GATE",
+    "UPGRADE_DISCOUNT_GATE_BYTES",
+    "UPGRADE_DISCOUNT_TYPE_BRANCH",
+    "UPGRADE_DISCOUNT_TYPE_BRANCH_BYTES",
     "UPGRADE_FILTER_BODY",
     "UPGRADE_FILTER_BODY_BYTES",
     "UPGRADE_FILTER_OWNER_SLOT",
@@ -496,6 +540,50 @@ COMMAND_SET_STORE_GET_PURCHASE_SCIENCE_COMMAND_SET = 0x0071F933
 PLAYER_COMMAND_POINTS_CAP = 0x64
 PLAYER_COMMAND_POINTS_BONUS = 0x6C
 PLAYER_COMMAND_POINTS_HARD_CAP = 0x70
+#: Where the base and hard cap are (re)computed and where a script overrides them. See
+#: `docs/command-point-override.md`.
+#:
+#: `CommandPointBookkeeping::init(playerIndex, isEvil)`, `ret 8`, on `Player+0x60`. Picks the
+#: GameData pair (`GoodCommandPointsMPn` for n live players, `...AI`, plain, living-world bonus),
+#: then at `..._MERGE` stores it - but on a bookkeeping whose `OVERRIDDEN` byte is set it keeps
+#: `max(current, computed)` for each of base and hard cap - and at `..._FACTOR` scales the hard cap
+#: by `GameInfo.CommandPointFactor / 100` outside a living-world session. `..._RETURN` is the
+#: `pop ebx` epilogue every path that pushed `ebx` reaches. `edi` is the bookkeeping, `ebx` the
+#: computed base and `esi` the computed hard cap throughout the merge.
+COMMAND_POINTS_INIT = 0x006A7C86
+COMMAND_POINTS_INIT_MERGE = 0x006A7DC7
+COMMAND_POINTS_INIT_MERGE_BYTES = bytes.fromhex(
+    "8a472c"  # mov al, [edi+0x2c]
+    "84c0"  # test al, al
+    "7405"  # je  store hard
+    "3b7710"  # cmp esi, [edi+0x10]
+    "7e03"  # jle skip
+    "897710"  # mov [edi+0x10], esi
+    "84c0"  # test al, al
+    "7405"  # je  store base
+    "3b5f04"  # cmp ebx, [edi+4]
+    "7e03"  # jle skip
+    "895f04"  # mov [edi+4], ebx
+)
+COMMAND_POINTS_INIT_FACTOR = 0x006A7DE2
+COMMAND_POINTS_INIT_FACTOR_BYTES = bytes.fromhex("a12c89de00")  # mov eax, [THE_GAME_INFO]
+COMMAND_POINTS_INIT_RETURN = 0x006A7E0A
+COMMAND_POINTS_INIT_RETURN_BYTES = bytes.fromhex("5b5f5ec9c20800")  # pop ebx/edi/esi; leave; ret 8
+#: `CommandPointBookkeeping::override(base, hardCap)`, `ret 8`: stores both and sets `OVERRIDDEN`.
+#: Its one caller is script action 504, `OVERRIDE_PLAYER_COMMAND_POINTS` (case body `0x007CF2BF`,
+#: worker `0x007BDC36`). `COMMAND_POINTS_RESET` (`0x006A8183`, from `Player::init`) clears the byte;
+#: the bookkeeping's xfer saves it from version 7.
+COMMAND_POINTS_OVERRIDE = 0x006A7ACD
+COMMAND_POINTS_RESET = 0x006A8183
+COMMAND_POINTS_BASE = 0x04
+COMMAND_POINTS_HARD_CAP = 0x10
+COMMAND_POINTS_OVERRIDDEN = 0x2C
+#: `Player::killPlayer`: sets `PLAYER_IS_DEFEATED`, destroys what the player owns and then calls
+#: `ThePlayerList->recomputeCommandPoints()` (`PLAYER_LIST_RECOMPUTE_COMMAND_POINTS`, vtable
+#: `+0x40`, from `0x006ABF44` - its only caller), which re-runs `COMMAND_POINTS_INIT` for all
+#: twenty players.
+PLAYER_KILL_PLAYER = 0x006ABE7C
+PLAYER_LIST_RECOMPUTE_COMMAND_POINTS = 0x006A84F3
 #: The command-point accounting as objects are gained, lost and modified, and the leak in it. See
 #: `docs/command-point-leak.md`.
 PLAYER_ADD_COMMAND_POINTS_FOR_OBJECT = 0x006AA56D
@@ -539,6 +627,34 @@ PLAYER_MONEY = 0x90
 PLAYER_TEMPLATE_BLOCK_KEY_EARLY = 0x005FE880
 PLAYER_TEMPLATE_BLOCK_KEY_EARLY_BYTES = bytes.fromhex("8b0d103bde00")
 PLAYER_TEMPLATE_BLOCK_KEY_EARLY_RESUME = 0x005FE886
+#: `ThePlayerTemplateStore` and its `std::vector<PlayerTemplate>` (`+0x0C` begin, `+0x10` end, a
+#: `PLAYER_TEMPLATE_SIZE` stride). A template's lobby identity is its index in that vector - the
+#: `Int` a `GameSlot` holds - and `FIND_BY_INDEX(i)` (`__thiscall`, `ret 4`) resolves it to the
+#: final override, or null past the end.
+THE_PLAYER_TEMPLATE_STORE = 0x00DE3B10
+PLAYER_TEMPLATE_STORE_BEGIN = 0x0C
+PLAYER_TEMPLATE_STORE_END = 0x10
+PLAYER_TEMPLATE_FIND_BY_INDEX = 0x005FCAD9
+PLAYER_TEMPLATE_IS_OBSERVER = 0x150
+PLAYER_TEMPLATE_PLAYABLE_SIDE = 0x151
+#: `Evil`, a Bool (row 53 of the field table, `INI::parseBool`). `Player::initCommandPoints` reads
+#: the same byte to pick the Good or Evil command-point pair.
+PLAYER_TEMPLATE_EVIL = 0x1BC
+#: `PlayerTemplate::getDisplayName`, which copy-constructs the `DisplayName` `UnicodeString` into
+#: the caller's buffer - `__thiscall(UnicodeString *out)`, `ret 4`.
+PLAYER_TEMPLATE_GET_DISPLAY_NAME = 0x0062772D
+#: Where `PlayerTemplateStore::parse` writes the block's name key into the template it has just
+#: parsed - the only two places the key and the finished fields meet. A new block is parsed into
+#: a stack temporary that takes the key at `..._NEW_KEY` (`mov [ebp-0x1e4], edi`) before it is
+#: copied into the vector; an override or a re-parse of an existing block has its key written
+#: inside the branch and joins at `..._PARSED_JOIN` (`mov eax, [ThePlayerTemplateStore]`). `edi`
+#: is the key at both.
+PLAYER_TEMPLATE_PARSED_NEW_KEY = 0x005FE95C
+PLAYER_TEMPLATE_PARSED_NEW_KEY_BYTES = bytes.fromhex("89bd1cfeffff")
+PLAYER_TEMPLATE_PARSED_NEW_KEY_RESUME = 0x005FE962
+PLAYER_TEMPLATE_PARSED_JOIN = 0x005FE900
+PLAYER_TEMPLATE_PARSED_JOIN_BYTES = bytes.fromhex("a1103bde00")
+PLAYER_TEMPLATE_PARSED_JOIN_RESUME = 0x005FE905
 #: `Player::init(PlayerTemplate *)`, where a purse is seeded. The reset calls it with NULL on all
 #: twenty slots, so the hook sits before the NULL branch, to both clear and seed.
 PLAYER_INIT = 0x006B0239
@@ -555,6 +671,20 @@ COMMAND_BUTTON_CTOR = 0x0075D516
 #: reads exactly this (`0x00697086`). `3` is `UNIT_BUILD` and `46` is `REVIVE`
 #: (`GUICOMMAND_REVIVE`), the two cases that reach production.
 COMMAND_BUTTON_COMMAND = 0x14
+#: `Object`, a handle to the button's `ThingTemplate` (parse fn `0x0073AD1F`). Read it through
+#: `COMMAND_BUTTON_GET_THING_TEMPLATE`, never directly: the handle is followed to the template's
+#: last override, and re-resolved by name when the template table was reloaded.
+COMMAND_BUTTON_OBJECT = 0x20
+#: `CommandButton::getThingTemplate()` - `__thiscall`, no arguments, plain `ret`; the resolved
+#: `Object`, or null when the button names none. Keeps `esi`; clobbers `eax`, `ecx`, `edx`.
+COMMAND_BUTTON_GET_THING_TEMPLATE = 0x0075D1DC
+# push esi / lea esi, [ecx+0x20]
+COMMAND_BUTTON_GET_THING_TEMPLATE_ENTRY = bytes.fromhex("568d7120")
+#: The hero-ledger index the ControlBar's revive populate attached to a REVIVE button, -1 when
+#: none. Written by both passes (`0x009440AC`, `0x00944340`), read by `Object::doCommandButton`'s
+#: revive case (`0x006973D3`) and the tooltip builder (`0x008083FE`). It lives on the shared
+#: button definition, so it describes whatever the local player last had selected.
+COMMAND_BUTTON_REVIVE_INDEX = 0xC0
 #: `AutoAbility` (`+0x10C`). The three bytes after it are padding, cleared for free by widening the
 #: constructor's byte store to a dword. (`+0x103` is not padding.)
 COMMAND_BUTTON_AUTO_ABILITY = 0x10C
@@ -790,3 +920,36 @@ SPELLBOOK_UI_SLOT_LIMIT = 0x18
 #: That exemption, as an anchor: `cmp eax, 0x26` on the button's `Command` followed by the jump
 #: into the arm that does not ask for a selection.
 DO_COMMAND_SPELL_BOOK_EXEMPTION = 0x00940462
+
+# Derived in `docs/player-upgrade-discount.md`. `UpgradeTemplate::calcCostToBuild` -
+# `__thiscall`, stack args `(Player *, Object *)`, `ret 8`, the price in `eax`. Every place an
+# upgrade's price is shown, checked or charged calls it.
+UPGRADE_CALC_COST_TO_BUILD = 0x0066F2C8
+# Its discount block, from the `Type` test to the `fadd` that turns the discount sum into a
+# multiplier. `esi` is the `UpgradeTemplate` until `add esi, 8` at `0x0066F37D`, and after it the
+# name copied as the discount call's argument.
+UPGRADE_DISCOUNT_GATE = 0x0066F363
+UPGRADE_DISCOUNT_GATE_BYTES = bytes.fromhex(
+    "837e0401f30f10050819bd00752b807e790075255189650c8bcc83c60856e8aa6bdcff8b4d08e83df40300"
+)
+# `jne` past the discount when `Type` (`+0x04`) is not 1 (`OBJECT`; 0 is `PLAYER`).
+UPGRADE_DISCOUNT_TYPE_BRANCH = 0x0066F36F
+UPGRADE_DISCOUNT_TYPE_BRANCH_BYTES = bytes.fromhex("752b")
+# `call PLAYER_GET_UPGRADE_DISCOUNT`, `ecx` = the `Player`, the upgrade's name by value.
+UPGRADE_DISCOUNT_CALL = 0x0066F389
+UPGRADE_DISCOUNT_CALL_BYTES = bytes.fromhex("e83df40300")
+# `Player::getUpgradeDiscount(AsciiString name)` - `__thiscall`, `ret 4`, destroys its argument,
+# returns in `st0` the sum of every `UpgradeDiscount = Yes` entry that applies to `name`.
+PLAYER_GET_UPGRADE_DISCOUNT = 0x006AE7CB
+PLAYER_GET_UPGRADE_DISCOUNT_BODY = bytes.fromhex(
+    "558bec510f57c056578bf98bb7d0030000f30f1145fceb148d4508508bcee850f2ffffd845fc83c624d95dfc"
+    "3bb7d403000075e48d4d08e84975d8ffd945fc5f5ec9c20400"
+)
+# The `Player`'s vector of those entries, begin/end at `+0x3D0`/`+0x3D4`, `0x24` bytes each: the
+# `ApplyToTheseUpgrades` list begin/end at `+0x14`/`+0x18` (empty = every upgrade) and the
+# `Percentage` at `+0x20`.
+PLAYER_UPGRADE_DISCOUNTS = 0x3D0
+# One entry's share for a name - `__thiscall` on the entry, `(const AsciiString *)`, `ret 4`,
+# `st0`: its `Percentage` if the list is empty or names it, else `0.0`.
+UPGRADE_DISCOUNT_ENTRY_VALUE = 0x006ADA3E
+UPGRADE_DISCOUNT_ENTRY_VALUE_ENTRY = bytes.fromhex("568bf1")

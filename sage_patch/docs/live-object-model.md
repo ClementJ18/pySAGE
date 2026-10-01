@@ -31,6 +31,10 @@ entry + 0x08   ->  Object*
 
 That indirection is the trap: validating table entries directly as objects fails on all of them.
 
+Strictly the slots are hash buckets, not ids: `findObjectByID` (`0x006B4E8F`) indexes slot
+`id % count` and then follows `entry+0x00` (`next`) until `entry+0x04` matches. With fewer live ids
+than slots most chains are one long, but a full walk has to follow `next`.
+
 **Proof the table is right.** Non-null slots numbered exactly 525, matching `+0xC4`; and slot 1's
 `+0x08` is byte-identical to the pointer at `TheGameLogic+0xAC`, which independently resolves to a
 `WallHubTemplate` object.

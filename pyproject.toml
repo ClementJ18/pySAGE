@@ -49,7 +49,6 @@ sage-cah = "sage_cah.__main__:main"
 sage-patch = "sage_patch.__main__:main"
 sage-test = "sage_test.__main__:main"
 sage-verify = "sage_verify.__main__:main"
-sage-accel = "sage_accel.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / asset-ui / cah-ui).
 [project.gui-scripts]
@@ -108,12 +107,6 @@ patch = [
     "unicorn>=2.0",
 ]
 
-# Builds sage_accel.dll, the module the `accel-module` patch loads. ziglang is a pip-installable clang
-# carrying mingw-w64's D3D9/D3DX9 headers, so no system toolchain is needed.
-accel = [
-    "ziglang>=0.16",
-]
-
 # The map editor; pyBIG because a game's maps and ini data live in its `.big` archives.
 worldbuilder = [
     "PyQt6>=6.6",
@@ -136,7 +129,6 @@ all = [
     "pysage-tools[w3d-view]",
     "pysage-tools[patch]",
     "pysage-tools[worldbuilder]",
-    "pysage-tools[accel]",
 ]
 
 [dependency-groups]
@@ -148,11 +140,10 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_accel*", "sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_test*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_w3d*", "sage_cah*", "sage_verify*", "sage_worldbuilder*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_test*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_w3d*", "sage_cah*", "sage_verify*", "sage_worldbuilder*"]
 
 [tool.setuptools.package-data]
 # Every file a package opens at runtime; tests/test_packaging.py checks they all ship.
-sage_accel = ["src/*.c", "src/*.h"]  # compiled by `sage-accel build` from an installed package
 sage_apt = ["assets/*.html", "py.typed"]
 sage_asset = ["py.typed", "ui/*.ico"]
 sage_w3d = ["py.typed"]

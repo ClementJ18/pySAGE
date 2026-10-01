@@ -22,7 +22,10 @@ The awkward part is not the gate, it is the plumbing behind it:
 
 - **Cost:** 3 imm32 repoints + ~150 bytes of cave. No structure grows, no ctor/dtor changes.
 - **Risk:** low. Omitting the keyword leaves the binary behaviourally identical.
-- **Status:** **scoped, not built.**
+- **Status:** **scoped, not built.** The narrowing counterpart is built:
+  [`spell-recharge-targets`](spell-recharge-targets.md) lets a `SpellRechargeModifierUpgrade`
+  discount only the powers it names, by computing the discount at recharge time rather than
+  through this flag.
 
 ## The choke point
 
@@ -372,7 +375,9 @@ fail to parse.
 ```ini
 Behavior = SpellRechargeModifierUpgrade ModuleTag_Recharge
   TriggeredBy            = Upgrade_LoreMaster
-  Percentage             = -15% -25% -40%
+  Percentage             = -15%
+  Percentage             = -25%
+  Percentage             = -40%
   AffectedSpecialPowers  = SpecialAbilityHeal SpecialAbilityWordOfPower
 End
 

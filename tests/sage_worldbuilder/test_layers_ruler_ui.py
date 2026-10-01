@@ -14,7 +14,7 @@ pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not ins
 pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
 from PyQt6.QtCore import QPointF, Qt  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QDialog  # noqa: E402
 
 from sage_map.assets.object_list import Object, ObjectsList  # noqa: E402
 from sage_map.assets.trigger_areas import TriggerAreas  # noqa: E402
@@ -23,6 +23,7 @@ from sage_map.context import AssetPropertyType  # noqa: E402
 from sage_map.map import Map  # noqa: E402
 from sage_worldbuilder import MapDocument  # noqa: E402
 from sage_worldbuilder.settings import Settings  # noqa: E402
+from sage_worldbuilder.ui.object_palette import ReplaceObjectDialog  # noqa: E402
 from sage_worldbuilder.ui.tools import Gesture  # noqa: E402
 from sage_worldbuilder.ui.window import MainWindow  # noqa: E402
 
@@ -128,7 +129,7 @@ def test_rename_merge_delete_select_and_move_selection(window):
     assert ["Forest", "3", "0"] in rows(panel)
 
 
-def test_select_helpers_and_replace_selected(window):
+def test_select_helpers_and_replace_selected(window, monkeypatch):
     tree_a, tree_b, rock = window.document.map.objects_list.object_list
     window.document.selection.set([tree_a])
     window._refresh()
@@ -141,11 +142,41 @@ def test_select_helpers_and_replace_selected(window):
     window.select_missing_action.trigger()
     assert window.document.selection.items == (rock,)
 
-    window.palette_panel.choose("Tree")
+    asked = []
+
+    def exec_(dialog):
+        asked.append(dialog.template())
+        dialog.objects.select("Tree")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(ReplaceObjectDialog, "exec", exec_)
+    window.palette_panel.objects.set_palette({"Neutral": {"Nature": ["Rock", "Tree"]}})
+    window.palette_panel.choose("Rock")
     window.replace_selected_action.trigger()
+    assert asked == ["Rock"]  # the dialog starts on the palette's own choice
     assert rock.type_name == "Tree"
     window.document.stack.undo()
     assert rock.type_name == "Rock"
+
+    monkeypatch.setattr(ReplaceObjectDialog, "exec", lambda dialog: QDialog.DialogCode.Rejected)
+    window.replace_selected_action.trigger()
+    assert rock.type_name == "Rock"
+
+
+def test_replace_dialog_needs_an_object(qapp):
+    dialog = ReplaceObjectDialog({"Neutral": {"Nature": ["Rock", "Tree"]}}, 2)
+    assert dialog.template() is None
+    assert not dialog.ok.isEnabled()
+    dialog.objects.search.setText("tre")
+    assert dialog.objects.select("Tree")
+    assert not dialog.objects.select("Rock")  # filtered out
+    assert dialog.template() == "Tree"
+    assert dialog.ok.isEnabled()
+    dialog.objects.tree.setCurrentItem(dialog.objects.tree.topLevelItem(0))  # a heading
+    assert dialog.template() is None
+    assert not dialog.ok.isEnabled()
+    dialog.accept()
+    assert dialog.result() != QDialog.DialogCode.Accepted
 
 
 def test_ruler_measures_in_feet_and_cells(window):

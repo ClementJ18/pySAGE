@@ -38,6 +38,14 @@ from sage_patch.scripts.perf_stage_dump import (
 from .synthetic import perf_stage_readout_image
 from .test_perf_stage_readout import BASE, SITE_SHADOW, SITE_VIEWS, Machine
 
+
+@pytest.fixture(autouse=True)
+def fixed_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`read_sample` stamps each sample with QueryPerformanceCounter, which only Windows has; the
+    stamp is not what these tests are about, so it is pinned and the reader runs on any host."""
+    monkeypatch.setattr("sage_patch.scripts.perf_stage_dump.qpc", lambda: 0)
+
+
 #: The two `MeshDX8Render` call sites, which share a label and therefore share a row.
 SITE_MESH_A = 0x005431E7
 SITE_MESH_B = 0x00543326

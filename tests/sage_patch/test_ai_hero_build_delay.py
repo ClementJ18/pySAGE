@@ -31,12 +31,17 @@ import pytest
 
 from sage_ini.model.objects import REGISTRY
 from sage_patch.addresses import (
+    AI_DATA_ARMY_DEFINITION,
+    AI_HERO_ARMY_DEFINITION_LIST,
+    AI_HERO_BUILDER_AI_DATA,
     AI_HERO_NAME_RESOLVED_RESUME,
     AI_HERO_REJECT,
     ARMY_DEFINITION_FIELD_TABLE,
     ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES,
     ARMY_DEFINITION_FIELD_TABLE_REFS,
+    ARMY_DEFINITION_SIDE,
     ASCII_STRING_SET,
+    GAME_DATA_ASCIISTRING_PARSER,
     GAME_LOGIC_FRAME,
     INI_PARSE_STRING_LIST,
     LOGIC_FRAMES_PER_SECOND,
@@ -234,6 +239,48 @@ class TestTheGate:
         assert f"cmp ecx, 0x{BASE + TABLE_BYTES:x}" in stream
         assert f"mov ecx, 0x{BASE:x}" in stream
 
+    def test_it_finds_the_faction_through_the_builders_own_army_definition(self):
+        """The same getter and the same `+0x160` the stock list copy uses, so the `Side` read is
+        the one of the struct the hero list came from."""
+        stream = [text(ins) for ins in gate_instructions().values()]
+        call = stream.index(f"call 0x{AI_HERO_BUILDER_AI_DATA:x}")
+        assert stream[call - 1] == "mov ecx, esi"
+        assert f"mov eax, dword ptr [eax + 0x{AI_DATA_ARMY_DEFINITION:x}]" in stream[call:]
+
+    def test_a_missing_record_or_army_definition_keys_as_zero(self):
+        """`0x006A950B` answers null for a player it does not know. Every null takes the same
+        edge, and none of them dereferences what it just tested."""
+        decoded = gate_instructions()
+        unsided = next(va for va, i in decoded.items() if text(i) == "xor eax, eax")
+        tests = [
+            va
+            for va, i in decoded.items()
+            if text(i) in {"test eax, eax", "cmp dword ptr [eax], 0"} and va < unsided
+        ]
+        assert len(tests) == 3
+        for va in tests:
+            branch = min(a for a in decoded if a > va)
+            assert decoded[branch].mnemonic == "je"
+            assert int(decoded[branch].op_str, 16) == unsided
+
+    def test_the_faction_survives_the_hero_lookup_in_edx(self):
+        """`nameToKey` is the callee's to clobber `edx` in, so the faction rides the stack across
+        it and comes back just before the table is walked."""
+        stream = [text(ins) for ins in gate_instructions().values()]
+        hero = stream.index("push edi")
+        assert stream[hero - 1] == "push eax"
+        assert stream[hero + 3] == "pop edx"
+
+    def test_a_hit_needs_the_hero_and_the_faction(self):
+        decoded = gate_instructions()
+        stream = [text(ins) for ins in decoded.values()]
+        assert "cmp dword ptr [ecx], eax" in stream
+        side = next(va for va, i in decoded.items() if text(i) == "cmp dword ptr [ecx + 4], edx")
+        branch = min(va for va in decoded if va > side)
+        assert decoded[branch].mnemonic == "je"
+        landing = int(decoded[branch].op_str, 16)
+        assert text(decoded[landing]) == "mov eax, dword ptr [ecx + 8]"
+
 
 class TestTheParser:
     def test_it_runs_the_stock_parser_first(self):
@@ -279,12 +326,40 @@ class TestTheParser:
         claim = next(va for va, i in decoded.items() if text(i) == "mov dword ptr [ecx], eax")
         assert erase < claim
 
-    def test_a_freed_slot_loses_its_seconds_too(self):
+    def test_a_freed_slot_loses_its_faction_and_seconds_too(self):
         """A free slot has to read as zero seconds, because the gate's lookup treats a matched
-        slot's second dword as the delay without asking whether the slot is live."""
+        slot's third dword as the delay without asking whether the slot is live."""
         stream = [text(ins) for ins in parser_instructions().values()]
         assert "and dword ptr [ecx], 0" in stream
         assert "and dword ptr [ecx + 4], 0" in stream
+        assert "and dword ptr [ecx + 8], 0" in stream
+
+    def test_it_keys_on_the_blocks_side(self):
+        """The faction comes off `instance`, the struct the row is filling, at `Side`'s offset -
+        not off `store`, which is the hero list itself."""
+        stream = [text(ins) for ins in parser_instructions().values()]
+        call = stream.index(f"call 0x{INI_PARSE_STRING_LIST:x}")
+        after = stream[call:]
+        load = after.index("mov eax, dword ptr [ebp + 0xc]")
+        assert ARMY_DEFINITION_SIDE == 0, "the expected text below assumes Side at the base"
+        assert after[load + 1] == "lea eax, [eax]"
+        assert stream.count(f"call 0x{NAME_KEY_FROM_STRING:x}") == 2
+
+    def test_an_empty_side_keys_as_zero_rather_than_being_interned(self):
+        decoded = parser_instructions()
+        test = next(va for va, i in decoded.items() if text(i) == "cmp dword ptr [eax], 0")
+        branch = min(va for va in decoded if va > test)
+        assert decoded[branch].mnemonic == "je"
+        landing = int(decoded[branch].op_str, 16)
+        assert text(decoded[landing]) == "mov esi, dword ptr [ebp + 0x10]"
+
+    def test_erasing_and_claiming_both_match_the_faction(self):
+        """A bare name in one block must not wipe another block's delay on the same hero - the
+        collision this keying exists to remove."""
+        stream = [text(ins) for ins in parser_instructions().values()]
+        assert "cmp dword ptr [ecx + 4], edx" in stream
+        assert "mov dword ptr [ecx + 4], edx" in stream
+        assert "mov dword ptr [ecx + 8], edi" in stream
 
     def test_the_name_buffer_leaves_room_for_a_terminator(self):
         """The copy stops one byte short of the buffer's end, and the terminator goes there."""
@@ -360,7 +435,7 @@ class TestApply:
         assert located is not None
         _, _, vsize = located
         assert vsize == TABLE_BYTES + len(build_code(located[0]))
-        assert TABLE_BYTES == SLOTS * 8
+        assert TABLE_BYTES == SLOTS * 12
 
     def test_the_section_name_survives_the_eight_byte_pe_field(self):
         assert len(SECTION_NAME) <= 8
@@ -489,6 +564,24 @@ class TestInstalledBinary:
         preceding = entries_before(stock, table, KEYWORD)
         assert preceding is not None
         assert ARMY_DEFINITION_FIELD_TABLE + len(preceding) * ROW_SIZE == _HERO_ROW_VA
+
+    def test_side_is_row_zero_an_ascii_string_at_the_base(self, stock):
+        """What both halves read the faction from. Row 0 is also why it is parsed before
+        `HeroBuildOrder` whenever a block lists it first, as every shipped block does."""
+        table = read_field_table(stock, ARMY_DEFINITION_FIELD_TABLE)
+        assert entries_before(stock, table, "Side") == ()
+        _name, parse, _user, offset = table[0]
+        assert (parse, offset) == (GAME_DATA_ASCIISTRING_PARSER, ARMY_DEFINITION_SIDE)
+
+    def test_the_list_copy_reads_its_army_definition_through_the_getter(self, stock):
+        """The call right before the `+0x160` load the list anchor pins - the reason the gate may
+        call it with the builder in `ecx` and trust `+0x160` in what it returns."""
+        call = at(stock, AI_HERO_ARMY_DEFINITION_LIST - 5, 5)
+        assert call[0] == 0xE8
+        assert AI_HERO_ARMY_DEFINITION_LIST + struct.unpack("<i", call[1:])[0] == (
+            AI_HERO_BUILDER_AI_DATA
+        )
+        assert at(stock, AI_HERO_ARMY_DEFINITION_LIST, 6) == bytes.fromhex("8b8060010000")
 
     def test_the_row_parses_through_the_shared_string_list_parser(self, stock):
         assert struct.unpack("<I", at(stock, _HERO_ROW_VA + 4, 4))[0] == INI_PARSE_STRING_LIST

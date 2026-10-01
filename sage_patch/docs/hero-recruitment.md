@@ -94,6 +94,10 @@ Haldir when it means Rumil — correct after all. Two are permanently-gated fill
 so does not line up at all; `Statics.check_revive_slots` reports that shape, and 9 of the tree's
 187 playable-faction producers trip it.
 
+The [`revive-object-binding`](../patches/revive_object_binding.py) patch removes the need for the
+block. A `REVIVE` button that sets `Object` is bound to that hero instead of to its position. See
+[`revive-object-binding.md`](revive-object-binding.md).
+
 **The numbers inside these button names are not roster indices.**
 `Command_GenericReviveSlot1` occurs at positions 0, 1, 3 and 4 in different sets, so its number
 identifies the button. Only the hero names carry information.

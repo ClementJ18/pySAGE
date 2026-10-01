@@ -14,7 +14,14 @@ from __future__ import annotations
 import struct
 from typing import TYPE_CHECKING
 
-from ..addresses import GET_FINAL_OVERRIDE, GUI_COMMAND_SPECIAL_POWER
+from ..addresses import (
+    COMMAND_BUTTON_CONDITION_AVAILABLE,
+    COMMAND_BUTTON_CONDITION_DISABLED,
+    COMMAND_BUTTON_CONDITION_GATE,
+    COMMAND_BUTTON_CONDITION_GATE_BODY,
+    GET_FINAL_OVERRIDE,
+    GUI_COMMAND_SPECIAL_POWER,
+)
 from ..asm import JE, JL, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, va_to_offset
@@ -100,13 +107,10 @@ MULTI_EXECUTE_WINDOWS = (
 #: `EnableOnModelCondition` against an `Object`'s model-condition mask. `stdcall(button, object)`,
 #: `ret 8`, answering `DISABLED` or `AVAILABLE`. It pushes and pops `ebx`/`esi`/
 #: `edi`, so the cave can hold its loop state across the call.
-MODEL_CONDITION_GATE_VA = 0x00942490
-MODEL_CONDITION_GATE_WINDOW = (
-    MODEL_CONDITION_GATE_VA,
-    bytes.fromhex("5356578b7c24108db7e00100008bcee8df12b7ff84c08b5c24147410568d8b0c"),
-)
-DISABLED = 3
-AVAILABLE = 2
+MODEL_CONDITION_GATE_VA = COMMAND_BUTTON_CONDITION_GATE
+MODEL_CONDITION_GATE_WINDOW = (MODEL_CONDITION_GATE_VA, COMMAND_BUTTON_CONDITION_GATE_BODY[:32])
+DISABLED = COMMAND_BUTTON_CONDITION_DISABLED
+AVAILABLE = COMMAND_BUTTON_CONDITION_AVAILABLE
 
 #: `Object::getCommandSetString` - `__thiscall`, no arguments, returning the `AsciiString*` of the
 #: object's *effective* command set: the first non-empty of the three per-object override strings at

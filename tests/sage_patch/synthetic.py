@@ -62,18 +62,21 @@ from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import ai_hero_build_delay as ahbd
 from sage_patch.patches import banner_modifier as bm
 from sage_patch.patches import cah_factions as cf
+from sage_patch.patches import castle_unpack_buttons as cubtn
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
 from sage_patch.patches import deploy_before_attack as dba
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
+from sage_patch.patches import gate_close_repath as gcr
 from sage_patch.patches import give_upgrade_all as gua
 from sage_patch.patches import healing_received as hr
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import interpolation_alpha as ia
+from sage_patch.patches import lobby_faction_byte as lfb
 from sage_patch.patches import mod_load_order as mlo
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import multi_mod as mm
@@ -82,12 +85,16 @@ from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import perf_scope_skip as pss
 from sage_patch.patches import perf_stage_readout as psr
+from sage_patch.patches import player_upgrade_discount as pud
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_split as ps
 from sage_patch.patches import render_rate as rrate
+from sage_patch.patches import replace_self_rubble as rsr
+from sage_patch.patches import revive_object_binding as rob
 from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import script_debug_window as sdw
 from sage_patch.patches import skirmish_ai_fallback as saf
+from sage_patch.patches import spell_recharge_targets as srt
 from sage_patch.patches import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches import standalone_launcher as sl
 from sage_patch.patches import summon_carryover as sc
@@ -95,6 +102,7 @@ from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
+from sage_patch.patches import wall_layer_promotion as wlp
 from sage_patch.patches import worldbuilder_mod as wbm
 from sage_patch.patches import worldbuilder_object_typeahead as wbt
 from sage_patch.patches.experimental import accel_module as accel
@@ -108,13 +116,13 @@ from sage_patch.patches.experimental import ranged_stand_off as rso
 from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import spellbook_hotkeys as sbhk
-from sage_patch.patches.experimental import wall_layer_promotion as wlp
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
 from sage_patch.patches.utils import model_conditions as mc
 from sage_patch.patches.utils import modifier_types as mt
 from sage_patch.patches.utils import token_lists as tl
 from sage_patch.patches.utils import weapon_set_flags as ws
+from sage_patch.utils import call_rel32
 
 IMAGE_BASE = 0x400000
 
@@ -492,6 +500,16 @@ def wall_layer_promotion_image() -> bytearray:
     )
 
 
+def gate_close_repath_image() -> bytearray:
+    """A stand-in carrying the gate's re-add call and every site the repath cave depends on.
+
+    Sparse: the gate close, the AI path code and the object hash sit in five different pages. The
+    hooked call is planted between the setup and the epilogue it sits between in the real body, so
+    a hook aimed at either neighbour would overwrite an anchor and fail here.
+    """
+    return _sparse_image({gcr.HOOK_VA: gcr.HOOK_ORIGINAL, **gcr.ANCHORS})
+
+
 def upgrade_alias_image() -> bytearray:
     """A stand-in carrying `UpgradeCenter::findUpgrade` and the two helpers its cave calls.
 
@@ -500,6 +518,16 @@ def upgrade_alias_image() -> bytearray:
     runs them, so a hook written one byte long would overwrite the resume point and fail here.
     """
     return _sparse_image({ua.HOOK_VA: ua.HOOK_ORIGINAL, **ua.ANCHORS})
+
+
+def player_upgrade_discount_image() -> bytearray:
+    """A stand-in carrying `calcCostToBuild`'s discount block and the stock discount sum.
+
+    Sparse: the sum sits ~0x3F000 above the price function. The gate block is planted whole, from
+    the `Type` test to the call, because the cave reads `Type` off the `esi` that block leaves
+    behind. A patch that edited the wrong byte of it would fail its own anchor here.
+    """
+    return _sparse_image(dict(pud.ANCHORS))
 
 
 def observer_switch_image() -> bytearray:
@@ -623,6 +651,14 @@ def skirmish_ai_fallback_image() -> bytearray:
     )
 
 
+def lobby_faction_byte_image() -> bytearray:
+    """A stand-in carrying the LAN packer's and parser's two seat arms, each as the whole window
+    whose registers the caves read, plus the byte writer, the two nibble helpers and each parser
+    arm's next read. Sparse: the arms sit at `0x0084AB40`-`0x0084B7DF` and the helpers at
+    `0x009738A5`."""
+    return _sparse_image({**dict(lfb.WRITE_SITES), **dict(lfb.READ_SITES), **lfb.ANCHORS})
+
+
 def crash_dump_image() -> bytearray:
     """A stand-in carrying both crash-path windows and everything the cave reads through.
 
@@ -672,6 +708,136 @@ def ai_command_null_target_image() -> bytearray:
     `mov eax, [ebp+0x1c]` before it, say - would find nothing there.
     """
     return _sparse_image({acnt.HOOK_VA: acnt.HOOK_ORIGINAL, **acnt.ANCHORS})
+
+
+def castle_unpack_buttons_image() -> bytearray:
+    """A stand-in carrying the control bar's `BASE_BUILD` test, the helpers the cave calls, and the
+    `CastleBehavior` sites that fix what the state it reads means.
+
+    Sparse because those span the image: the bar sits at `0x0071EE67`, its under-construction
+    update at `0x00944EBB`, the castle's update and `onStructureBuilt` near `0x0079A000`, and the
+    two module names and the update vtable in `.rdata`.
+    """
+    return _sparse_image({cubtn.HOOK_VA: cubtn.HOOK_ORIGINAL, **cubtn.ANCHORS})
+
+
+def evacuate_contained_heroes_image() -> bytearray:
+    """A stand-in carrying the exit-all loop body the cave jumps back into, and the two wrapper
+    `call`s that prove it is the loop `EVACUATE` reaches."""
+    return _sparse_image(
+        {
+            ad.CONTAIN_EXIT_ALL_LOOP: ad.CONTAIN_EXIT_ALL_LOOP_BYTES,
+            **{
+                site: call_rel32(site, ad.CONTAIN_EXIT_ALL_PASSENGERS)
+                for site in ad.CONTAIN_EXIT_ALL_WRAPPER_CALLS
+            },
+        }
+    )
+
+
+def mount_health_ratio_image() -> bytearray:
+    """A stand-in carrying the mount swap's and the dismount swap's health hand-over, each as the
+    full stock sequence the cave's register contract is read from."""
+    return _sparse_image(
+        {
+            ad.TOGGLE_MOUNTED_MOUNT_HEALTH_COPY: ad.TOGGLE_MOUNTED_HEALTH_COPY_SEQUENCE,
+            ad.TOGGLE_MOUNTED_DISMOUNT_HEALTH_COPY: ad.TOGGLE_MOUNTED_HEALTH_COPY_SEQUENCE,
+        }
+    )
+
+
+def repair_damage_cancel_image() -> bytearray:
+    """A stand-in carrying `GettingBuiltBehavior::update`'s recent-damage probe, the damage cancel
+    whose `SpawnTimer` gate the patch erases, the `stopRepair` call it hooks, and the worker
+    manager's dismissal the cave repeats."""
+    return _sparse_image(
+        {
+            ad.GETTING_BUILT_RECENT_DAMAGE_PROBE: ad.GETTING_BUILT_RECENT_DAMAGE_PROBE_BYTES,
+            ad.GETTING_BUILT_DAMAGE_CANCEL: ad.GETTING_BUILT_DAMAGE_CANCEL_BYTES,
+            ad.GETTING_BUILT_CANCEL_STOP: ad.GETTING_BUILT_CANCEL_STOP_BYTES,
+            ad.GETTING_BUILT_DISMISS_WORKER: ad.GETTING_BUILT_DISMISS_WORKER_BYTES,
+        }
+    )
+
+
+def replace_self_rubble_image() -> bytearray:
+    """A stand-in carrying the clearing loop whose predicate `call` is hooked, the predicate the
+    cave falls through to, and the two call sites and prologues that make its frame walk sound."""
+    return _sparse_image(dict(rsr.ANCHORS))
+
+
+def revive_object_binding_image() -> bytearray:
+    """A stand-in carrying the three hooked sites and every address the cave jumps to or calls.
+
+    Sparse because they span the image: `canMakeUnit` near `0x00795000`, the ControlBar's revive
+    populate near `0x00944000`, and the ledger, button and player helpers between them.
+    """
+    return _sparse_image(
+        {**{va: stock for va, (stock, _label) in rob.HOOKS.items()}, **rob.ANCHORS}
+    )
+
+
+def radar_structure_discs_image() -> bytearray:
+    """A stand-in carrying the blip painter's KindOf test and circle span loop, both hooked, and
+    the three engine routines the caves and the replaced row routine call into, so the caves can
+    be emulated against the engine's own bytes."""
+    return _sparse_image(
+        {
+            ad.RADAR_BLIP_KINDOF_SEQUENCE: ad.RADAR_BLIP_KINDOF_SEQUENCE_BYTES,
+            ad.RADAR_CIRCLE_SPAN_LOOP: ad.RADAR_CIRCLE_SPAN_LOOP_BYTES,
+            ad.RADAR_CIRCLE_RADIUS: ad.RADAR_CIRCLE_RADIUS_BYTES,
+            ad.RADAR_PLOT_SPAN_ENDS: ad.RADAR_PLOT_SPAN_ENDS_BYTES,
+            ad.RADAR_PIXEL_IN_BOUNDS: ad.RADAR_PIXEL_IN_BOUNDS_BYTES,
+            ad.OBJECT_GET_RADAR_PRIORITY: ad.OBJECT_GET_RADAR_PRIORITY_BYTES,
+        }
+    )
+
+
+def mount_swap_eject_image() -> bytearray:
+    """A stand-in carrying the mount toggle's retire in full, `OpenContain::getContain`, and the
+    eject arm of `OpenContain::onDie` the cave's slots are read from."""
+    return _sparse_image(
+        {
+            ad.TOGGLE_MOUNTED_RETIRE: ad.TOGGLE_MOUNTED_RETIRE_BYTES,
+            ad.OPEN_CONTAIN_GET_CONTAIN: ad.OPEN_CONTAIN_GET_CONTAIN_BYTES,
+            ad.OPEN_CONTAIN_ON_DIE_EJECT: ad.OPEN_CONTAIN_ON_DIE_EJECT_BYTES,
+        }
+    )
+
+
+#: `SpellRechargeModifierUpgrade`'s three stock field rows as `(name VA, name, parse, offset)`.
+SPELL_RECHARGE_FIELD_ROWS = (
+    (0x00C5EF1C, "Percentage", 0x008BA26F, 0x138),
+    (0x00C06684, "StartsActive", 0x0042E558, 0x144),
+    (0x00C6EEFC, "LabelForPalantirString", 0x0042EE5E, 0x148),
+)
+
+
+def spell_recharge_targets_image() -> bytearray:
+    """A stand-in carrying `SpellRechargeModifierUpgrade`'s field table and its name strings,
+    every site `spell-recharge-targets` rewrites with its stock bytes, and every anchor it reads.
+
+    Sparse: the sites span `newModuleData` at `0x0065xxxx` to the second `startPowerRecharge` at
+    `0x0099xxxx`, and the table's strings sit in three different `.rdata` pages."""
+    planted: dict[int, bytes] = {
+        srt.FIELD_TABLE_VA: b"".join(
+            struct.pack("<4I", name_va, parse, 0, offset)
+            for name_va, _name, parse, offset in SPELL_RECHARGE_FIELD_ROWS
+        ),
+        srt.MODULEDATA_SIZE_VA: b"\x68" + struct.pack("<I", srt.STOCK_MODULEDATA_SIZE),
+        srt.MODULEDATA_CTOR_CALL_VA: bytes.fromhex("e846a02600"),
+        srt.FIELD_TABLE_PUSH_VA: b"\x68" + struct.pack("<I", srt.FIELD_TABLE_VA),
+        srt.ON_DELETE_VA: srt.ON_DELETE_STOCK,
+        srt.ON_CAPTURE_VA: srt.ON_CAPTURE_STOCK,
+        srt.UPGRADE_IMPL_VA: srt.UPGRADE_IMPL_STOCK,
+        srt.GATE1_VA: srt.GATE1_STOCK,
+        srt.GATE2_VA: srt.GATE2_STOCK,
+    }
+    for name_va, name, _parse, _offset in SPELL_RECHARGE_FIELD_ROWS:
+        planted[name_va] = name.encode("ascii") + b"\x00"
+    for va, blob, _what in srt.ANCHORS:
+        planted[va] = blob
+    return _sparse_image(planted)
 
 
 def ai_flag_capture_gate_image() -> bytearray:

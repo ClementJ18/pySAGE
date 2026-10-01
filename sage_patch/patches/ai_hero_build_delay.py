@@ -6,6 +6,11 @@ so an expensive hero drawn early stalls the army. Two edits: the list parser lea
 suffix (clamped to 0x100000), and a gate before the cost test (`AI_HERO_COST_TEST`) skips a hero
 whose time has not come. A bare `Name` behaves as before.
 
+A delay belongs to one faction. It is recorded against the pair (the block's `Side`, the hero's
+name), and the gate looks it up with the `Side` of the `ArmyDefinition` the AI player runs on, so
+a hero two factions share can be delayed in one and free in the other. `Side` has to be parsed
+before `HeroBuildOrder` for that - it is the block's first line in stock RotWK and in Edain.
+
 Derivation: `../docs/ai-hero-build-delay.md`.
 """
 
@@ -16,8 +21,11 @@ import struct
 from sage_ini.engine import Engine, FieldDelta
 
 from ..addresses import (
+    AI_DATA_ARMY_DEFINITION,
     AI_HERO_ARMY_DEFINITION_LIST,
     AI_HERO_ARMY_DEFINITION_LIST_BYTES,
+    AI_HERO_BUILDER_AI_DATA,
+    AI_HERO_BUILDER_AI_DATA_BYTES,
     AI_HERO_LIST_ELEMENT,
     AI_HERO_LIST_ELEMENT_BYTES,
     AI_HERO_NAME_RESOLVED,
@@ -35,6 +43,7 @@ from ..addresses import (
     AI_HERO_REQUEST_ENTRY,
     ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES,
     ARMY_DEFINITION_FIELD_TABLE_REFS,
+    ARMY_DEFINITION_SIDE,
     ASCII_STRING_CHARS_OFFSET,
     ASCII_STRING_SET,
     GAME_LOGIC_FRAME,
@@ -76,12 +85,16 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 #: a list whose entries are hero names, and only `HeroBuildOrder` is one.
 KEYWORD = "HeroBuildOrder"
 
-#: How many distinct hero names may carry a delay. Each costs eight bytes - a `NameKey` and a
-#: second count - and the whole table sits at the section's base so the code that follows it lands
-#: at a fixed offset. Stock RotWK declares six `HeroBuildOrder` lines and Edain ten; 256 is a
-#: ceiling nothing is expected to approach rather than a budget to spend.
+#: How many (faction, hero) pairs may carry a delay. Each costs twelve bytes - the hero's `NameKey`,
+#: the `Side`'s `NameKey` and a second count - and the whole table sits at the section's base so the
+#: code that follows it lands at a fixed offset. Stock RotWK declares six `HeroBuildOrder` lines and
+#: Edain eleven, with 44 delayed entries between them; 256 is a ceiling nothing is expected to
+#: approach rather than a budget to spend.
 SLOTS = 256
-_SLOT_SIZE = 8
+_SLOT_SIZE = 12
+_SLOT_HERO = 0x0
+_SLOT_SIDE = 0x4
+_SLOT_SECONDS = 0x8
 TABLE_BYTES = SLOTS * _SLOT_SIZE
 
 #: The delay a token may name, in seconds, before the parser clamps it. Four hundred times the
@@ -89,11 +102,13 @@ TABLE_BYTES = SLOTS * _SLOT_SIZE
 #: an `int32`.
 MAX_SECONDS = 0x0010_0000
 
-#: The parser's frame. 256 bytes of name buffer, then the seconds it read out of a token.
+#: The parser's frame. 256 bytes of name buffer, the seconds it read out of a token, and the key of
+#: the block's `Side`, taken once per line.
 _BUF = -0x104
 _BUF_END = -0x005  # the last byte of the buffer, kept free for the terminator
 _SECONDS = -0x108
-_FRAME_SIZE = 0x10C
+_SIDE_KEY = -0x10C
+_FRAME_SIZE = 0x110
 
 HOOK_VA = AI_HERO_NAME_RESOLVED
 HOOK_ORIGINAL = AI_HERO_NAME_RESOLVED_BYTES
@@ -101,10 +116,12 @@ HOOK_ORIGINAL = AI_HERO_NAME_RESOLVED_BYTES
 #: The first bytes at each address the cave reaches, plus the ones that pin what is being gated.
 #: `AI_HERO_ARMY_DEFINITION_LIST` is the load-bearing one: it is the single instruction pair tying
 #: the builder's `+0x4C` list to the `HeroBuildOrder` keyword, and without it the gate would be
-#: reading an anonymous vector of names. The hook's own six bytes are asserted by
+#: reading an anonymous vector of names. `AI_HERO_BUILDER_AI_DATA` is the getter the gate calls to
+#: find the player's `ArmyDefinition`, and so its `Side`. The hook's own six bytes are asserted by
 #: `apply_byte_patch`.
 ANCHORS = {
     AI_HERO_ARMY_DEFINITION_LIST: AI_HERO_ARMY_DEFINITION_LIST_BYTES,
+    AI_HERO_BUILDER_AI_DATA: AI_HERO_BUILDER_AI_DATA_BYTES,
     AI_HERO_REQUEST: AI_HERO_REQUEST_ENTRY,
     AI_HERO_REQUEST_CALL: AI_HERO_REQUEST_CALL_BYTES,
     AI_HERO_PICK_INDEX: AI_HERO_PICK_INDEX_ENTRY,
@@ -150,8 +167,12 @@ def _emit_parser(a: Asm, table: int, table_end: int) -> None:
 
     Runs the stock list parser first, so token splitting, macro expansion and the vector's own
     housekeeping stay the engine's; then walks what it produced. Every element is either plain -
-    in which case any delay standing against that name is erased - or carries a `:Seconds`
+    in which case any delay this faction had on that name is erased - or carries a `:Seconds`
     suffix, in which case the name is written back without it and the seconds are recorded.
+
+    The faction is the block's `Side`, read off `instance` - it is row 0 and the first line of
+    every block, so it has been parsed by the time this row runs. A block with no `Side` yet keys
+    its delays on zero, which only an AI whose `ArmyDefinition` has no `Side` either will match.
     """
     a.emit(0x55)  # push ebp
     a.emit(0x8B, 0xEC)  # mov ebp, esp
@@ -165,6 +186,19 @@ def _emit_parser(a: Asm, table: int, table_end: int) -> None:
     a.emit(0xFF, 0x75, 0x08)  # push [ebp+0x08]   ini
     a.call_absolute(INI_PARSE_STRING_LIST)
     a.emit(0x83, 0xC4, 0x10)  # add esp, 0x10
+
+    # The faction, interned the way the gate interns it. An empty `AsciiString` has no data
+    # pointer, and keys as zero.
+    a.emit(0x83, 0xA5, _ebp(_SIDE_KEY), 0x00)  # and dword [ebp-0x10c], 0
+    a.emit(0x8B, 0x45, 0x0C)  # mov eax, [ebp+0xc]    ; instance
+    a.emit(0x8D, 0x40, ARMY_DEFINITION_SIDE)  # lea eax, [eax+Side]
+    a.emit(0x83, 0x38, 0x00)  # cmp dword [eax], 0
+    a.jcc(JE, "block_sided")
+    a.emit(0x50)  # push eax
+    a.emit(0x8B, 0x0D, struct.pack("<I", THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
+    a.call_absolute(NAME_KEY_FROM_STRING)  # eax = NameKey, ret 4
+    a.emit(0x89, 0x85, _ebp(_SIDE_KEY))  # mov [ebp-0x10c], eax
+    a.label("block_sided")
 
     a.emit(0x8B, 0x75, 0x10)  # mov esi, [ebp+0x10]   ; store == &vector<AsciiString>
     a.emit(0x8B, 0x1E)  # mov ebx, [esi]        ; begin
@@ -240,32 +274,39 @@ def _emit_parser(a: Asm, table: int, table_end: int) -> None:
 
     # Erase first, unconditionally. That is what makes a re-parse authoritative: a name that has
     # lost its suffix loses its delay with it, rather than keeping the one a previous parse left.
+    # Only this faction's entry goes - another block naming the same hero keeps its own.
+    a.emit(0x8B, 0x95, _ebp(_SIDE_KEY))  # mov edx, [ebp-0x10c]   ; the faction
     a.emit(0xB9, struct.pack("<I", table))  # mov ecx, table
     a.label("erase")
-    a.emit(0x39, 0x01)  # cmp [ecx], eax
+    a.emit(0x39, 0x41, _SLOT_HERO)  # cmp [ecx], eax
     a.jcc(JNE, "erase_next")
-    a.emit(0x83, 0x21, 0x00)  # and dword [ecx], 0
-    a.emit(0x83, 0x61, 0x04, 0x00)  # and dword [ecx+4], 0   ; a free slot reads as zero seconds
+    a.emit(0x39, 0x51, _SLOT_SIDE)  # cmp [ecx+4], edx
+    a.jcc(JNE, "erase_next")
+    a.emit(0x83, 0x61, _SLOT_HERO, 0x00)  # and dword [ecx], 0
+    a.emit(0x83, 0x61, _SLOT_SIDE, 0x00)  # and dword [ecx+4], 0
+    a.emit(0x83, 0x61, _SLOT_SECONDS, 0x00)  # and dword [ecx+8], 0 ; a free slot reads as no delay
     a.label("erase_next")
-    a.emit(0x83, 0xC1, _SLOT_SIZE)  # add ecx, 8
+    a.emit(0x83, 0xC1, _SLOT_SIZE)  # add ecx, 12
     a.emit(0x81, 0xF9, struct.pack("<I", table_end))  # cmp ecx, table_end
     a.jcc(JB, "erase")
 
-    a.emit(0x8B, 0x95, _ebp(_SECONDS))  # mov edx, [ebp-0x108]
-    a.emit(0x85, 0xD2)  # test edx, edx
+    # `edi` held the characters, and nothing reads them past this point.
+    a.emit(0x8B, 0xBD, _ebp(_SECONDS))  # mov edi, [ebp-0x108]
+    a.emit(0x85, 0xFF)  # test edi, edi
     a.jcc(JE, "next")  # no suffix, or `:0`: erased is all this token asks for
 
     a.emit(0xB9, struct.pack("<I", table))  # mov ecx, table
     a.label("free")
-    a.emit(0x83, 0x39, 0x00)  # cmp dword [ecx], 0
+    a.emit(0x83, 0x79, _SLOT_HERO, 0x00)  # cmp dword [ecx], 0
     a.jcc(JE, "claim")
-    a.emit(0x83, 0xC1, _SLOT_SIZE)  # add ecx, 8
+    a.emit(0x83, 0xC1, _SLOT_SIZE)  # add ecx, 12
     a.emit(0x81, 0xF9, struct.pack("<I", table_end))  # cmp ecx, table_end
     a.jcc(JB, "free")
     a.jmp("next")  # a full table drops the delay rather than displacing somebody else's
     a.label("claim")
-    a.emit(0x89, 0x01)  # mov [ecx], eax
-    a.emit(0x89, 0x51, 0x04)  # mov [ecx+4], edx
+    a.emit(0x89, 0x41, _SLOT_HERO)  # mov [ecx], eax
+    a.emit(0x89, 0x51, _SLOT_SIDE)  # mov [ecx+4], edx
+    a.emit(0x89, 0x79, _SLOT_SECONDS)  # mov [ecx+8], edi
 
     a.label("next")
     a.emit(0x83, 0xC3, 0x04)  # add ebx, 4
@@ -283,26 +324,54 @@ def _emit_gate(a: Asm, table: int, table_end: int) -> None:
     On entry `edi` is the chosen hero's `AsciiString`, `eax` its index in the build order -
     live, because the stock code stores it one instruction after the site - and `esi` the hero
     builder. Both exits are edges the stock function already had.
+
+    The faction is the `Side` of the `ArmyDefinition` the builder's player runs on - the same
+    struct its hero list was copied from. A player the AI manager has no record for, or a record
+    with no `ArmyDefinition`, keys as zero, like a block with no `Side`.
     """
     a.emit(0x50)  # push eax                 ; the index survives the lookup
+
+    a.emit(0x8B, 0xCE)  # mov ecx, esi             ; the builder
+    a.call_absolute(AI_HERO_BUILDER_AI_DATA)  # eax = the player's AI record, or null
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "unsided")
+    a.emit(0x8B, 0x80, struct.pack("<I", AI_DATA_ARMY_DEFINITION))  # mov eax, [eax+0x160]
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "unsided")
+    a.emit(0x8D, 0x40, ARMY_DEFINITION_SIDE)  # lea eax, [eax+Side]
+    a.emit(0x83, 0x38, 0x00)  # cmp dword [eax], 0
+    a.jcc(JE, "unsided")
+    a.emit(0x50)  # push eax                 ; &Side
+    a.emit(0x8B, 0x0D, struct.pack("<I", THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
+    a.call_absolute(NAME_KEY_FROM_STRING)  # eax = NameKey, ret 4
+    a.jmp("sided")
+    a.label("unsided")
+    a.emit(0x33, 0xC0)  # xor eax, eax
+    a.label("sided")
+    a.emit(0x50)  # push eax                 ; the faction, across the second lookup
+
     a.emit(0x57)  # push edi                 ; &AsciiString
     a.emit(0x8B, 0x0D, struct.pack("<I", THE_NAME_KEY_GENERATOR))  # mov ecx, [TheNameKeyGenerator]
     a.call_absolute(NAME_KEY_FROM_STRING)  # eax = NameKey, ret 4
+    a.emit(0x5A)  # pop edx                  ; the faction
 
     a.emit(0xB9, struct.pack("<I", table))  # mov ecx, table
     a.label("lookup")
-    a.emit(0x39, 0x01)  # cmp [ecx], eax
+    a.emit(0x39, 0x41, _SLOT_HERO)  # cmp [ecx], eax
+    a.jcc(JNE, "lookup_next")
+    a.emit(0x39, 0x51, _SLOT_SIDE)  # cmp [ecx+4], edx
     a.jcc(JE, "hit")
-    a.emit(0x83, 0xC1, _SLOT_SIZE)  # add ecx, 8
+    a.label("lookup_next")
+    a.emit(0x83, 0xC1, _SLOT_SIZE)  # add ecx, 12
     a.emit(0x81, 0xF9, struct.pack("<I", table_end))  # cmp ecx, table_end
     a.jcc(JB, "lookup")
     a.emit(0x58)  # pop eax
-    a.jmp("allow")  # no delay recorded: stock, instruction for instruction
+    a.jmp("allow")  # no delay recorded for this faction: stock, instruction for instruction
 
-    # A free slot holds zero seconds, so a key that matched one - which is only the empty string's
-    # key - answers "no delay" here rather than needing a test of its own.
+    # A free slot holds zero seconds, so a pair that matched one - only the empty string's key
+    # against no faction - answers "no delay" here rather than needing a test of its own.
     a.label("hit")
-    a.emit(0x8B, 0x41, 0x04)  # mov eax, [ecx+4]              ; seconds
+    a.emit(0x8B, 0x41, _SLOT_SECONDS)  # mov eax, [ecx+8]           ; seconds
     a.emit(0x0F, 0xAF, 0x05, struct.pack("<I", LOGIC_FRAMES_PER_SECOND))  # imul eax, [logic rate]
     a.emit(0x8B, 0x0D, struct.pack("<I", THE_GAME_LOGIC))  # mov ecx, [TheGameLogic]
     a.emit(0x39, 0x41, GAME_LOGIC_FRAME)  # cmp [ecx+0x40], eax
@@ -338,7 +407,8 @@ class AiHeroBuildDelayPatch(Patch):
     description = (
         "Let a HeroBuildOrder entry carry a delay, as Name:Seconds, before which the skirmish AI "
         "will not consider recruiting that hero - so it stops banking its whole purse for an "
-        "expensive hero in the opening minutes. A bare Name behaves exactly as it does today"
+        "expensive hero in the opening minutes. The delay applies to that ArmyDefinition's Side "
+        "only. A bare Name behaves exactly as it does today"
     )
 
     def apply(self, data: bytearray) -> None:

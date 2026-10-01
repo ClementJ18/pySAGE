@@ -152,19 +152,38 @@ above it at `0x00D9F60C` is the *client* rate. `TheGameLogic` (`0x00DE412C`) cou
 `+0x40` from zero at the start of a match, so a delay in seconds is `frame < seconds * [0x00D9F608]`,
 with the rate read from the global rather than baked in.
 
-## 7. What a delay cannot key on
+## 7. What a delay is keyed on
 
-The list a builder walks is a copy, and the only thing the gate holds at `0x009A09E3` is the
-hero's name. So a recorded delay is keyed by **name**, through
-`TheNameKeyGenerator::nameToKey` (`0x0049F474` on `0x00DD90E4`), which is the same interning the
-engine itself applies to these names at `0x009A08B6` and `0x009A0948`.
+A delay is keyed on the pair **(faction, hero)**, both interned through
+`TheNameKeyGenerator::nameToKey` (`0x0049F474` on `0x00DD90E4`) — the same interning the engine
+applies to these names at `0x009A08B6` and `0x009A0948`.
 
-The consequence is that a delay is global to a hero name, not per-`ArmyDefinition`: a name listed
-by two factions with two different delays keeps the last one parsed. Keying on the
-`ArmyDefinition` instead would be exact — the gate could re-derive it through `0x009A0383` — but
-those objects are re-allocated whenever the block is parsed again, and a recycled pointer would
-silently hand one faction another's delay. A name cannot be recycled, so name-keyed is the reading
-that cannot be wrong about something else.
+- **The hero** is the name the gate holds in `edi` at `0x009A09E3`.
+- **The faction** is the `ArmyDefinition`'s `Side`: row 0 of the field table, an `AsciiString`
+  at `+0x00`, parsed by `0x0042EE5E`. The parser reads it off the `instance` its row is handed;
+  the gate re-derives the same struct the way the list copy does, `0x009A0383` on the builder
+  (`__thiscall`, answers null for a player `TheSkirmishAIManager` does not know) and then `+0x160`.
+
+The first version keyed on the name alone, and Edain showed why that was wrong: two factions
+naming one hero overwrote each other. `GondorBoromir_mod:720` in `MenOfTheWestArmy` was erased by
+the bare `GondorBoromir_mod` in `BelfalasArmy` parsed after it, and `ImladrisArmy` inherited
+`ArnorArmy`'s `LothlorienCirdan:720`.
+
+The `ArmyDefinition` pointer itself would also be exact, but those objects are re-allocated
+whenever the block is parsed again, and a recycled pointer would silently hand one faction
+another's delay. A `Side` cannot be recycled; it is also what `TheArmyDefinitionManager` keys the
+blocks by.
+
+**The one condition:** `Side` has to be parsed before `HeroBuildOrder`, because the parser reads
+it while that row runs. Every block in stock RotWK and in Edain lists `Side` first. A block that
+did not would key its delays on zero, which only an `ArmyDefinition` with no `Side` matches at the
+gate — the delays would be inert, not misapplied. A player with no AI record or no
+`ArmyDefinition` also keys as zero at the gate.
+
+Each slot of the table is twelve bytes: hero key, side key, seconds. Re-parsing a block erases
+only that faction's entry for a name, so a re-parse stays authoritative without touching another
+faction's delay. `tests/sage_patch/test_ai_hero_build_delay_emulated.py` runs the parser and the
+gate under unicorn on both Edain collisions.
 
 ## 8. What is still open
 

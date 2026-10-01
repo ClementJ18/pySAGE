@@ -46,6 +46,7 @@ from sage_worldbuilder.commands.edits import SetProperty
 from sage_worldbuilder.commands.objects import MoveObjects
 from sage_worldbuilder.properties import OBJECT_SPECS, WAYPOINT_SPECS
 from sage_worldbuilder.scene import WAYPOINT_PREFIX
+from sage_worldbuilder.selection.helpers import base_names
 from sage_worldbuilder.teams import qualified_team_name, team_list
 from sage_worldbuilder.ui.host import PanelHost
 from sage_worldbuilder.ui.property_form import PropertyForm
@@ -182,7 +183,11 @@ class ObjectPropertiesPanel(QWidget):
         self.angle.valueChanged.connect(self._set_angle)
 
         self.tabs = QTabWidget()
-        suggestions = {"originalOwner": self._team_names, "objectLayer": self._layer_names}
+        suggestions = {
+            "originalOwner": self._team_names,
+            "objectLayer": self._layer_names,
+            "objectBaseName": self._base_names,
+        }
         # WorldBuilder's Available Upgrades check list, which edits `objectUpgradesList`, and the
         # Listen button, which plays the first object's ambient sound
         # (`MapObjectProps::OnListen`); the window sets what Listen calls.
@@ -469,6 +474,10 @@ class ObjectPropertiesPanel(QWidget):
         document = self.host.document
         teams = team_list(document.map) if document is not None else None
         return [qualified_team_name(team) for team in teams or []]
+
+    def _base_names(self) -> list[str]:
+        document = self.host.document
+        return base_names(document.map) if document is not None else []
 
     def _layer_names(self) -> list[str]:
         document = self.host.document

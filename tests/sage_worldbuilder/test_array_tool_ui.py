@@ -253,10 +253,11 @@ def test_the_tool_needs_an_object_and_says_so(window):
 def test_choosing_an_object_does_not_leave_the_array_tool(window):
     window.use_tool("array")
     window.palette_panel.choose("GondorWall")
-    window.palette_panel._clicked(window.palette_panel.tree.topLevelItem(0).child(0).child(0))
+    tree = window.palette_panel.objects.tree
+    tree.itemClicked.emit(tree.topLevelItem(0).child(0).child(0), 0)
     assert window.map_view.tool is window.array_tool
     window.use_tool("select")
-    window.palette_panel._clicked(window.palette_panel.tree.topLevelItem(0).child(0).child(0))
+    tree.itemClicked.emit(tree.topLevelItem(0).child(0).child(0), 0)
     assert window.map_view.tool is window.place_tool
 
 

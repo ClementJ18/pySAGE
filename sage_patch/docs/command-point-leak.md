@@ -248,6 +248,11 @@ explanation for the defeat cases is the same §2 leak reached through the owners
 follows a defeat, since every aura affecting the transferred buildings re-applies under the new
 owner. Not established; it needs a runtime reading.
 
+A second candidate is not a leak at all: every defeat recomputes every player's base and hard cap
+from `GameData` and the lobby's command-point factor, overwriting what a game-mode script set with
+`OVERRIDE_PLAYER_COMMAND_POINTS` — see [`command-point-override.md`](command-point-override.md).
+That one moves the cap rather than `Player+0x6C`, so the sign test below tells the two apart.
+
 ## 6. Confirming it in a game
 
 `sage_live` reads `Player+0x6C` directly, and the sign is the whole test: the field is a sum of

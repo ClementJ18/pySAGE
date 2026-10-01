@@ -90,16 +90,17 @@ def placed(window):
 
 def test_palette_lists_the_game_objects_by_side_and_the_map_teams(window):
     palette = window.palette_panel
-    sides = [palette.tree.topLevelItem(i).text(0) for i in range(palette.tree.topLevelItemCount())]
+    objects = palette.objects
+    sides = [objects.tree.topLevelItem(i).text(0) for i in range(objects.tree.topLevelItemCount())]
     assert sides == ["Civilian (1)", "Gondor (1)"]
-    branch = palette.tree.topLevelItem(1)
+    branch = objects.tree.topLevelItem(1)
     assert [branch.child(i).text(0) for i in range(branch.childCount())] == ["Units (1)"]
     assert branch.child(0).child(0).text(0) == "GondorFighter"
-    palette.search.setText("tree")
-    assert palette.tree.topLevelItemCount() == 1
-    assert palette.tree.topLevelItem(0).text(0) == "Civilian (1)"
-    assert palette.status.text() == "1 object(s)"
-    palette.search.setText("")
+    objects.search.setText("tree")
+    assert objects.tree.topLevelItemCount() == 1
+    assert objects.tree.topLevelItem(0).text(0) == "Civilian (1)"
+    assert objects.status.text() == "1 object(s)"
+    objects.search.setText("")
     owners = [palette.owner.itemText(i) for i in range(palette.owner.count())]
     assert owners == ["/team", "PlyrCivilian/teamPlyrCivilian"]
     assert palette.default_owner() == "/team"
@@ -107,8 +108,8 @@ def test_palette_lists_the_game_objects_by_side_and_the_map_teams(window):
 
 def test_choosing_an_object_switches_to_place_and_a_click_places_it(window):
     palette = window.palette_panel
-    tree = palette.tree.topLevelItem(0).child(0).child(0)
-    palette._clicked(tree)
+    tree = palette.objects.tree
+    tree.itemClicked.emit(tree.topLevelItem(0).child(0).child(0), 0)
     assert window.map_view.tool is window.place_tool
     assert window.place_tool_action.isChecked()
 

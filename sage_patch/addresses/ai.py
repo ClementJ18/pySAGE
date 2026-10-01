@@ -31,9 +31,14 @@ __all__ = [
     "AI_COMMAND_TRANSFER_TARGET_USE",
     "AI_COMMAND_TRANSFER_TARGET_USE_BYTES",
     "AI_COMMAND_TYPE_OFFSET",
+    "AI_CURRENT_STATE_ID",
+    "AI_CURRENT_STATE_ID_BYTES",
     "AI_CURRENT_VICTIM",
     "AI_CURRENT_VICTIM_BYTES",
     "AI_CURRENT_VICTIM_ID_OFFSET",
+    "AI_DATA_ARMY_DEFINITION",
+    "AI_DESTROY_PATH",
+    "AI_DESTROY_PATH_BYTES",
     "AI_FLAG_CAPTURE_KEEP",
     "AI_FLAG_CAPTURE_PICKER",
     "AI_FLAG_CAPTURE_PICKER_CALL",
@@ -58,6 +63,8 @@ __all__ = [
     "AI_GROUP_UPGRADE_SELF_EBP",
     "AI_HERO_ARMY_DEFINITION_LIST",
     "AI_HERO_ARMY_DEFINITION_LIST_BYTES",
+    "AI_HERO_BUILDER_AI_DATA",
+    "AI_HERO_BUILDER_AI_DATA_BYTES",
     "AI_HERO_LIST_BEGIN",
     "AI_HERO_LIST_ELEMENT",
     "AI_HERO_LIST_ELEMENT_BYTES",
@@ -74,9 +81,29 @@ __all__ = [
     "AI_HERO_REQUEST_CALL",
     "AI_HERO_REQUEST_CALL_BYTES",
     "AI_HERO_REQUEST_ENTRY",
+    "AI_MOVE_UPDATE_NO_PATH_RECOMPUTE",
+    "AI_MOVE_UPDATE_NO_PATH_RECOMPUTE_BYTES",
+    "AI_MOVE_UPDATE_STATE_TEST",
+    "AI_MOVE_UPDATE_STATE_TEST_BYTES",
+    "AI_MOVE_UPDATE_UNGUARDED_PATH_READ",
+    "AI_MOVE_UPDATE_UNGUARDED_PATH_READ_BYTES",
     "AI_NEIGHBOUR_LIST_COPY",
     "AI_NEIGHBOUR_LIST_COPY_FAULT",
+    "AI_PATH_OFFSET",
     "AI_PLANNER_UNCHECKED_LOOKUPS",
+    "AI_POWER_NOT_CAST",
+    "AI_POWER_NOT_CAST_BYTES",
+    "AI_POWER_READY_WINDOW",
+    "AI_POWER_READY_WINDOW_BYTES",
+    "AI_POWER_TICK",
+    "AI_POWER_TICK_ENTRY",
+    "AI_POWER_TICK_HOOK",
+    "AI_POWER_TICK_HOOK_BYTES",
+    "AI_POWER_TICK_RESUME",
+    "AI_POWER_UPDATE_BUTTON_OFFSET",
+    "AI_POWER_UPDATE_CTOR_VTABLE_WRITE",
+    "AI_POWER_UPDATE_CTOR_VTABLE_WRITE_BYTES",
+    "AI_POWER_UPDATE_TICK_VTABLE",
     "AI_PRODUCER_ACCEPT",
     "AI_PRODUCER_ANY_BRANCH",
     "AI_PRODUCER_ANY_BRANCH_ENTRY",
@@ -114,9 +141,23 @@ __all__ = [
     "AI_SET_GOAL_OBJECT_BYTES",
     "AI_SET_GOAL_POSITION",
     "AI_SET_GOAL_POSITION_BYTES",
+    "AI_STATE_NO_PATH_UNSAFE",
+    "AI_TEAM_BUILDER_DONE_SIZE_CALL",
+    "AI_TEAM_BUILDER_RECRUIT_SIZE_CALL",
+    "AI_TEAM_SIZE",
+    "AI_TEAM_SIZE_BACK_EDGE",
+    "AI_TEAM_SIZE_BACK_EDGE_BYTES",
+    "AI_TEAM_SIZE_ENTRY",
+    "AI_TEAM_SIZE_KINDOF_TESTS",
+    "AI_TEAM_SIZE_KINDOF_TESTS_BYTES",
+    "AI_TEAM_SIZE_MEMBER",
+    "AI_TEAM_SIZE_MEMBER_BYTES",
+    "AI_TEAM_SIZE_NEXT",
+    "AI_TEAM_SIZE_NEXT_BYTES",
     "AI_UPDATE_LOCOMOTOR_SET_SPEED",
     "AI_UPDATE_SET_LOCOMOTOR_SET",
     "AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE",
+    "AI_WAITING_FOR_PATH_OFFSET",
     "AI_WORLD_MODEL",
     "ATTACK_APPROACH_COMPUTE_PATH",
     "ATTACK_APPROACH_COMPUTE_PATH_BYTES",
@@ -138,7 +179,11 @@ __all__ = [
     "CAN_MAKE_UNIT_PRODUCTION_GATE_SLOT",
     "CAN_MAKE_UNIT_REVIVE_BRANCH",
     "CAN_MAKE_UNIT_REVIVE_BRANCH_ENTRY",
+    "CAN_MAKE_UNIT_REVIVE_DISPATCH",
+    "CAN_MAKE_UNIT_REVIVE_DISPATCH_BYTES",
     "CAN_MAKE_UNIT_SCAN_BOUND",
+    "CAN_MAKE_UNIT_TEMPLATE_BRANCH",
+    "CAN_MAKE_UNIT_TEMPLATE_BRANCH_BYTES",
     "CAN_MAKE_UNIT_UPGRADE_GATE",
     "CAN_MAKE_UNIT_VTABLE_SLOT",
     "DEPLOY_STYLE_AI_BYPASS_PATH",
@@ -178,6 +223,31 @@ __all__ = [
     "DEPLOY_STYLE_UPDATE_RESOLVED_BYTES",
     "DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH",
     "DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH_BYTES",
+    "GATE_CLOSE_EPILOGUE",
+    "GATE_CLOSE_EPILOGUE_BYTES",
+    "GATE_CLOSE_FOR_PATHING",
+    "GATE_CLOSE_FOR_PATHING_ENTRY",
+    "GATE_CLOSE_READD_CALL",
+    "GATE_CLOSE_READD_CALL_BYTES",
+    "GATE_CLOSE_READD_SETUP",
+    "GATE_CLOSE_READD_SETUP_BYTES",
+    "HERO_LEDGER_FIND_ENTRY",
+    "HERO_LEDGER_FIND_ENTRY_ENTRY",
+    "HERO_LEDGER_GET_ENTRY",
+    "HERO_LEDGER_GET_ENTRY_ENTRY",
+    "HERO_LEDGER_GET_TEMPLATE",
+    "HERO_LEDGER_GET_TEMPLATE_ENTRY",
+    "PATHFINDER_ADD_OBJECT",
+    "PATHFINDER_ADD_OBJECT_BYTES",
+    "PATH_APPEND_NODE_LINK",
+    "PATH_APPEND_NODE_LINK_BYTES",
+    "PATH_DESTRUCTOR",
+    "PATH_DESTRUCTOR_BYTES",
+    "PATH_HEAD_OFFSET",
+    "PATH_NODE_NEXT_OFFSET",
+    "PATH_NODE_POS_OFFSET",
+    "PLAYER_GET_BUILDABLE_HERO",
+    "PLAYER_GET_BUILDABLE_HERO_ENTRY",
     "SPELLBOOK_AI_REBUILD",
     "SPELLBOOK_AI_REBUILD_NAME",
     "SPELLBOOK_AI_TYPE_COUNT",
@@ -220,6 +290,15 @@ CAN_MAKE_UNIT_PRODUCTION_GATE = 0x00793ECB
 CAN_MAKE_UNIT_PRODUCTION_GATE_SLOT = 0x64
 CAN_MAKE_UNIT_PRODUCTION_GATE_CALL = 0x00793F56
 CAN_MAKE_UNIT_PRODUCTION_GATE_CALL_BYTES = bytes.fromhex("ff5068")  # call dword [eax+0x68]
+# The per-slot split between the two questions: `cmp byte [ebp-1], 0` (`isRevive`) then
+# `jne CAN_MAKE_UNIT_REVIVE_BRANCH`. Ten bytes, two whole instructions, no inbound edge - every
+# slot passes through here, which is where `revive-object-binding` decides a bound REVIVE button
+# before the positional count ever sees it.
+CAN_MAKE_UNIT_REVIVE_DISPATCH = 0x00794FF1
+CAN_MAKE_UNIT_REVIVE_DISPATCH_BYTES = bytes.fromhex("807dff000f85d3000000")
+# The template branch the dispatch falls through to: `mov eax, [esi+0x14]` (`Command`).
+CAN_MAKE_UNIT_TEMPLATE_BRANCH = 0x00794FFB
+CAN_MAKE_UNIT_TEMPLATE_BRANCH_BYTES = bytes.fromhex("8b4614")
 # The revive branch: `cmp [esi+0x14], GUICOMMAND_REVIVE` then `jne ..._NEXT_SLOT`. Six bytes,
 # one inbound edge (the `jne` at 0x00794FF5), which is what makes it hookable.
 CAN_MAKE_UNIT_REVIVE_BRANCH = 0x007950CE
@@ -231,6 +310,24 @@ CAN_MAKE_UNIT_NEXT_SLOT = 0x007950DF
 # `cmp dword [ebp-8], 0x21` - how many `CommandSet` slots the walk visits. Stock 33, raised to N
 # by `CommandSetLimitPatch` so the AI can see the slots the button-limit patch makes definable.
 CAN_MAKE_UNIT_SCAN_BOUND = 0x007950E2
+# `Player::getBuildableHeroName(n)` - `__thiscall`, `ret 4`, the `ThingTemplate*` of roster name n
+# (the `PlayerTemplate+0x198` ring list, then `+0x18C` `BuildableHeroesMP`), or null past the end.
+# The ControlBar's revive pass 1 (`0x00943FD6`) offers REVIVE slot n to exactly this hero.
+PLAYER_GET_BUILDABLE_HERO = 0x006AB249
+PLAYER_GET_BUILDABLE_HERO_ENTRY = bytes.fromhex("8b442404")  # mov eax, [esp+4]
+# `ReviveMgr::getTemplate(index)` on `Player+0x758` - `__thiscall`, `ret 4`, the `ThingTemplate*`
+# of hero-ledger entry `index`, or null.
+HERO_LEDGER_GET_TEMPLATE = 0x00780C2F
+HERO_LEDGER_GET_TEMPLATE_ENTRY = bytes.fromhex("ff742404")  # push dword [esp+4]
+# `ReviveMgr::findEntry(ThingTemplate *what, Int id, Int ordinal)` on `Player+0x758` -
+# `__thiscall`, `ret 0xc`, the ledger index or -1. Matches `what+0x64` (the template's name)
+# against each entry's name, so an override resolves to its base's entry; with `id == -1` it takes
+# the `ordinal`-th entry of that name. The ControlBar's pass 1 calls it at `0x0094401B`.
+HERO_LEDGER_FIND_ENTRY = 0x0078131E
+HERO_LEDGER_FIND_ENTRY_ENTRY = bytes.fromhex("558bec5151")
+# `ReviveMgr::getEntry(index)` - `__thiscall`, `ret 4`, the entry or null.
+HERO_LEDGER_GET_ENTRY = 0x00781298
+HERO_LEDGER_GET_ENTRY_ENTRY = bytes.fromhex("ff742404e8")  # push dword [esp+4] / call
 # The `SkirmishAI` producer picker, which lacks the under-construction check the legacy
 # `AIPlayer::findFactory` makes. See `docs/ai-construction-gate.md`.
 
@@ -272,6 +369,13 @@ AI_PRODUCER_NEXT_CANDIDATE = 0x009A07C7
 # everything below to the `HeroBuildOrder` keyword: without it, `+0x4C` is just a vector of names.
 AI_HERO_ARMY_DEFINITION_LIST = 0x009A10E1
 AI_HERO_ARMY_DEFINITION_LIST_BYTES = bytes.fromhex("8b8060010000058c0000008d7e4c")
+# The getter that list copy calls first: `__thiscall` on the hero builder, pushes its `Player*`
+# (`+0x30`) and asks `TheSkirmishAIManager` for that player's AI record (`0x006A950B`, which answers
+# null for a player it does not know). Keeps `esi` and `edi`; `eax`/`ecx`/`edx` are the callee's.
+# The record's `+0x160` is the `ArmyDefinition` the player runs on.
+AI_HERO_BUILDER_AI_DATA = 0x009A0383
+AI_HERO_BUILDER_AI_DATA_BYTES = bytes.fromhex("ff71308b0d3849de00e87a91d0ffc3")
+AI_DATA_ARMY_DEFINITION = 0x160
 # The hero build order on the builder, `{begin, end}` at `+0x4C`/`+0x50`. Logic state: xfered at
 # 0x009A11C8, so it is saved into a `.sav` and folded into the per-frame CRC.
 AI_HERO_LIST_BEGIN = 0x4C
@@ -336,6 +440,31 @@ AI_FLAG_CAPTURE_SQUAD_UPDATE = 0x009BC3F4
 # and the one anchor that cannot be a coincidence of layout.
 AI_FLAG_CAPTURE_SQUAD_NAME_PUSH = 0x009BC0A2
 AI_FLAG_CAPTURE_SQUAD_NAME_PUSH_BYTES = bytes.fromhex("68d0a3c800")
+# The `SkirmishAI` team builder's size count, and why a team leaves with one battalion. Derived in
+# `docs/ai-team-size.md`.
+
+#: `__thiscall`, one stack argument (the `Team*`), `ret 4`: how many objects on the team carry
+#: `CAN_ATTACK`, `HERO` or `SUPPORT`. A battalion's members are on its team, so it counts them.
+AI_TEAM_SIZE = 0x009A24A6
+AI_TEAM_SIZE_ENTRY = bytes.fromhex("558bec83ec188b4d08578d45e85033ff")
+#: The loop head: `mov eax, [ebp-0x18]` (the member) / `mov eax, [eax+4]` (its template). Six
+#: bytes, two whole instructions, and the target of the loop's own back-edge.
+AI_TEAM_SIZE_MEMBER = 0x009A24C6
+AI_TEAM_SIZE_MEMBER_BYTES = bytes.fromhex("8b45e88b4004")
+#: `test byte [eax+0x108], 8` - the first of the three KindOf tests, with the template in `eax`.
+AI_TEAM_SIZE_KINDOF_TESTS = 0x009A24CC
+AI_TEAM_SIZE_KINDOF_TESTS_BYTES = bytes.fromhex("f6800801000008")
+#: `lea ecx, [ebp-0x18]` - advance the iterator without counting.
+AI_TEAM_SIZE_NEXT = 0x009A24E6
+AI_TEAM_SIZE_NEXT_BYTES = bytes.fromhex("8d4de8")
+#: `jne AI_TEAM_SIZE_MEMBER` - the back-edge, the only branch into the loop head.
+AI_TEAM_SIZE_BACK_EDGE = 0x009A24F2
+AI_TEAM_SIZE_BACK_EDGE_BYTES = bytes.fromhex("75d2")
+#: The team builder update's two calls to `AI_TEAM_SIZE`, its only callers: the count the recruiter
+#: starts from (it adds battalions while that is below the prototype's max, `+0x2D0`), and the
+#: finished-team test (at least the min, `+0x2D4`, and either the max or enough threat).
+AI_TEAM_BUILDER_RECRUIT_SIZE_CALL = 0x009A3311
+AI_TEAM_BUILDER_DONE_SIZE_CALL = 0x009A33D1
 # The War of the Ring AI's region graph, and why a disabled region crashes it. Derived in
 # `docs/living-campaign/ai-disabled-regions.md`.
 
@@ -624,3 +753,109 @@ AI_REBUILD_HEALTH_THRESHOLD = 0x00BD869C
 #: not hide a genuinely damaged building further down the list.
 AI_REBUILD_NEXT_CANDIDATE = 0x009E7793
 AI_REBUILD_NEXT_CANDIDATE_BYTES = bytes.fromhex("83c6043b770475d2")
+
+# Gate closing and in-flight paths (`docs/gate-close-pathfinding.md` §8). A path planned while a
+# gate was open is never re-checked when it closes; these are the pieces the `gate-close-repath`
+# cave uses to make such a unit plan again.
+
+#: `GateOpenAndCloseBehavior` "close for pathing": `+0x2C := 1`, pull the gate out of the pathfind
+#: map, flip its `GeometryForOpen` / `GeometryForClosed` shapes, put it back. `__thiscall` on the
+#: module, one `Bool` argument, `ret 4`. The opening `cmp [esi+0x2c], 1` / `je` is the early exit
+#: for a gate already closed for pathing, so everything past it runs once per close.
+GATE_CLOSE_FOR_PATHING = 0x0089C9FA
+GATE_CLOSE_FOR_PATHING_ENTRY = bytes.fromhex("565733ff8bf147397e2c7479")
+#: `call 0x006E85E9` - the re-add at the end of close-for-pathing, with `ecx` the pathfinder and
+#: the gate `Object *` pushed just before. The last thing the function does before its epilogue.
+GATE_CLOSE_READD_CALL = 0x0089CA78
+GATE_CLOSE_READD_CALL_BYTES = bytes.fromhex("e86cbbe4ff")
+#: The run around it: `mov eax, [TheAI]` / `mov ecx, [eax+0x10]` / `push ebx` before, and the
+#: `pop ebp` / `pop ebx` / `pop edi` / `pop esi` / `ret 4` epilogue after - nothing reads `eax`
+#: once the call returns.
+GATE_CLOSE_READD_SETUP = 0x0089CA6F
+GATE_CLOSE_READD_SETUP_BYTES = bytes.fromhex("a1404bde008b481053")
+GATE_CLOSE_EPILOGUE = 0x0089CA7D
+GATE_CLOSE_EPILOGUE_BYTES = bytes.fromhex("5d5b5f5ec20400")
+#: `Pathfinder::addObjectToPathfindMap(Object *)` - a wrapper over
+#: `addOrRemoveObjectFromPathfindMap` (`0x00936B7D`) with the add flag set. `__thiscall`, `ret 4`.
+PATHFINDER_ADD_OBJECT = 0x006E85E9
+PATHFINDER_ADD_OBJECT_BYTES = bytes.fromhex("6a006a006a01ff742410e885e52400c20400")
+
+#: `AIUpdateInterface::destroyPath` - free `m_path`, clear it, clear `m_waitingForPath`, the
+#: blocked-and-stuck byte and `AI_GOAL_IS_OBJECT_OFFSET`, then tail-jump to vtable `+0x220`
+#: (`0x00662997`, locomotor goal := none). `__thiscall`, no arguments; 45 engine callers.
+AI_DESTROY_PATH = 0x0066276B
+AI_DESTROY_PATH_BYTES = bytes.fromhex(
+    "53568bf1578dbe400100008b1f85db740e8bcbe87c3f100053e817cfdcff598327008b065f"
+    "c686b103000000c686b803000000c686b2030000008bce5e5bffa020020000"
+)
+#: `AIUpdateInterface::m_path` (`Path *`, NULL when the unit has none) and `m_waitingForPath`
+#: (set while a request sits in the pathfinder's queue), as `destroyPath` clears them.
+AI_PATH_OFFSET = 0x140
+AI_WAITING_FOR_PATH_OFFSET = 0x3B1
+#: `AIUpdateInterface::getCurrentStateID` - the id of the main state machine's current state,
+#: `0xF423F` when it has none. `__thiscall`, no arguments, touches only `eax`.
+AI_CURRENT_STATE_ID = 0x00660AC1
+AI_CURRENT_STATE_ID_BYTES = bytes.fromhex("8b41308b400485c074048b4004c3b83f420f00c3")
+#: The one main-machine state in which `AIInternalMoveToState::update` (`0x00748E46`) can reach its
+#: tail with no path: with this state current and the unit near its goal, a missing path skips the
+#: recompute and falls to `0x0074927C`, which reads `[m_path+8]` unguarded. The cave leaves units in
+#: this state alone.
+AI_STATE_NO_PATH_UNSAFE = 0x47
+#: `mov ecx, [ebx+0x260]` / `call AI_CURRENT_STATE_ID` / `cmp eax, 0x47` - where the move state
+#: tests for that state, and the unguarded read it protects.
+AI_MOVE_UPDATE_STATE_TEST = 0x0074911B
+AI_MOVE_UPDATE_STATE_TEST_BYTES = bytes.fromhex("8b8b60020000e89b79f1ff83f847")
+AI_MOVE_UPDATE_UNGUARDED_PATH_READ = 0x0074927C
+AI_MOVE_UPDATE_UNGUARDED_PATH_READ_BYTES = bytes.fromhex("8b8640010000f30f1047208b4008")
+#: `cmp [ebp-8], 0` / `mov byte [ebp-1], 0` / `jne` / `mov byte [ebp-1], 1` - the move state's
+#: "no path -> force a recompute" test, which is what turns a destroyed path into a new plan.
+AI_MOVE_UPDATE_NO_PATH_RECOMPUTE = 0x00748F35
+AI_MOVE_UPDATE_NO_PATH_RECOMPUTE_BYTES = bytes.fromhex("837df800c645ff007504c645ff01")
+
+#: `Path`: `+4` the first `PathNode`, `+8` the last. `PathNode`: `+0` next, `+4` previous, `+0xC`
+#: the position (`Coord3D`), `+0x20` the layer. Read from `Path::appendNode` (`0x00665429`) and the
+#: node walk in `Path::~Path` (`0x007666FF`).
+PATH_HEAD_OFFSET = 0x04
+PATH_NODE_NEXT_OFFSET = 0x00
+PATH_NODE_POS_OFFSET = 0x0C
+PATH_APPEND_NODE_LINK = 0x00665480
+PATH_APPEND_NODE_LINK_BYTES = bytes.fromhex("8b4e0885c974058901894804")
+PATH_DESTRUCTOR = 0x007666FF
+PATH_DESTRUCTOR_BYTES = bytes.fromhex("8b410485c07411568b3050e899ebefff85f6598bc675f15e")
+
+# `AISpecialPowerUpdate`: the per-object module that owns one AI hook. See
+# `docs/ai-power-model-condition.md`.
+
+#: `mov dword [esi+0x10], 0xC6D948` - the module's constructor (`0x008B703A`) stamping its
+#: `UpdateModuleInterface` vtable, whose slot 0 is `AI_POWER_TICK`. Inside the tick `esi` is that
+#: interface, so the module's own fields read at `esi-0x10`: the `Object` at `esi-8`, the bound
+#: flag at `esi+0x11` and the type behaviour at `esi+0x14`.
+AI_POWER_UPDATE_CTOR_VTABLE_WRITE = 0x008B7062
+AI_POWER_UPDATE_CTOR_VTABLE_WRITE_BYTES = bytes.fromhex("c7461048d9c600")
+AI_POWER_UPDATE_TICK_VTABLE = 0x00C6D948
+#: `push ebx` / `push esi` / `mov esi, ecx` / `xor ebx, ebx` - `AISpecialPowerUpdate::update`.
+#: It binds the hook's button on its first run, asks whether the power is ready, then hands the
+#: coin flip, the type's picker and the cast to `0x00993055`.
+AI_POWER_TICK = 0x008B73B7
+AI_POWER_TICK_ENTRY = bytes.fromhex("53568bf133db")
+#: The type behaviour's `CommandButton *`, set by the bind. The tick has already tested it for
+#: NULL (`0x008B7437`) before the hook site.
+AI_POWER_UPDATE_BUTTON_OFFSET = 0x0C
+#: From the button load through the ready check (`0x008B708B`: a status test, `canUseSpecialPower`,
+#: the power module ready) to the `call 0x00993055` that picks and casts. The call's rel32 is its
+#: target, so asserting the run pins both the ready test the hook follows and the cast it gates.
+AI_POWER_READY_WINDOW = 0x008B7431
+AI_POWER_READY_WINDOW_BYTES = bytes.fromhex(
+    "8b46148b400c3bc374638b40443bc3578b7ef4740b508d4ef0e83cfcffffeb02b0013ac3743c8a4f198b46f8"
+    "518a4f18518b4e1450e8eabb0d00"
+)
+#: `mov cl, [edi+0x19]` / `mov eax, [esi-8]` - the first two argument loads for the cast step,
+#: reached only once the power is ready. Six bytes, fallthrough only: the hook site.
+AI_POWER_TICK_HOOK = 0x008B7457
+AI_POWER_TICK_HOOK_BYTES = bytes.fromhex("8a4f198b46f8")
+AI_POWER_TICK_RESUME = 0x008B745D
+#: `mov ecx, [esi+0x14]` / `mov eax, [ecx]` / `pop edi, esi, ebx` / `jmp [eax+0x10]` - the exit
+#: every "did not cast" edge takes, the not-ready one included: it tail-calls the behaviour's
+#: next-wake computation.
+AI_POWER_NOT_CAST = 0x008B7493
+AI_POWER_NOT_CAST_BYTES = bytes.fromhex("8b4e148b015f5e5bff6010")

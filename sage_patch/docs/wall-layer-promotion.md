@@ -1,7 +1,7 @@
 # An object standing inside a wall's footprint is teleported onto the wall
 
 RotWK 2.01 `game.dat`, ImageBase `0x400000`. Shipped as
-[`../patches/experimental/wall_layer_promotion.py`](../patches/experimental/wall_layer_promotion.py),
+[`../patches/wall_layer_promotion.py`](../patches/wall_layer_promotion.py),
 which implements §7.
 **Confirmed against a running game on 2026-09-21**
 (§6): a trebuchet really is put on a wall-height layer, and its z really does become the wall's

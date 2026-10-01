@@ -112,11 +112,11 @@ Pass three (`0x0096E0B8`) spawns a record whose `Position` is non-zero through
 point and branches on the army's **hero**, not its name (`0x006B735C`, `army+0x18`, copied from
 `HeroTemplateName`):
 
-- **with a hero**, it moves the army into a free hero-army slot (`0x007F3D27`, slot lists at
-  `region+0x110`/`+0x1AC`);
+- **with a hero**, it moves the army into a free `HeroArmySpot` slot (`0x007F3D27`, slot lists at
+  `region+0x104`/`+0x1A0`; see [`hero-army-slot-overflow.md`](hero-army-slot-overflow.md));
 - **without one**, it calls `0x006B540B`, which folds the new army's roster into the army its
   player already has in that region and destroys the new army - `ScriptingName` and all. Only when
-  there is no such army is the new one placed (`0x007F3D27`'s `+0x104`/`+0x1A0` lists).
+  there is no such army is the new one placed (`0x007F3D27`'s `GarrisonArmySpot` lists, `+0x110`/`+0x1AC`).
 
 So an army lands exactly on its `Position` only when the point lies outside every region, and a
 hero-less army spawned in a region its player owns stops existing under its own name. **Measured
@@ -167,4 +167,4 @@ reserved.
 | 1 | Does a battle created at act time behave like one `detectConflicts` made - prompt, deployment, harvest? | play one: `ForceBattle` into a garrisoned enemy region |
 | 2 | Does anything re-snap an exactly placed army to its slot on a later turn? | spawn with `ExactPosition`, end two turns, compare positions |
 | 3 | What does `0x0060E985` do after the conflict pass, and does it treat an early battle differently? | read it |
-| 4 | Does a teleported `UseArmy` need its old region's slot released? | read `0x007F3D27`'s counterpart on army departure |
+| 4 | Does a teleported `UseArmy` need its old region's slot released? | yes: release is `0x007F2199`, and the move pass only releases from the army's current region. See [`hero-army-slot-overflow.md`](hero-army-slot-overflow.md) |

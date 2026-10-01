@@ -1,10 +1,10 @@
 """Tests for the accel-module patch.
 
-The hook is executed here, not only disassembled. :class:`Machine` runs it with `LoadLibraryA`,
-`GetProcAddress` and `sage_accel_arm` driven from Python, so every way the module can be absent is
-reachable, and each one is checked for what the engine sees afterwards: the pointer it will call,
-the registers and the flags. The `je` at the resume reads flags the engine set *before* the hook,
-so flags coming back unchanged is the property that matters most.
+The hook is executed here, not only disassembled. :class:`Machine` runs it with `LoadLibraryA`
+answered from Python, so both outcomes are reachable, and each one is checked for what the engine
+sees afterwards: the pointer it will call, the registers and the flags. The `je` at the resume reads
+flags the engine set *before* the hook, so flags coming back unchanged is the property that matters
+most.
 
 :class:`TestComposition` covers the neighbour: `perf-scope-skip` hooks the same function ninety
 bytes further on.
@@ -16,8 +16,6 @@ import struct
 
 import pytest
 
-from sage_accel.build import DLL_NAME as BUILT_DLL_NAME
-from sage_accel.build import EXPORT_NAME as BUILT_EXPORT_NAME
 from sage_ini.engine import STOCK
 from sage_patch.addresses import (
     DIRECT3D_CREATE9_PTR,
@@ -26,7 +24,6 @@ from sage_patch.addresses import (
     DIRECT3D_CREATE9_STORE,
     DIRECT3D_CREATE9_STORE_ENTRY,
     DIRECT3D_CREATE9_STORE_RESUME,
-    GET_PROC_ADDRESS_IAT,
     LOAD_LIBRARY_A_IAT,
 )
 from sage_patch.patcher import apply_patches
@@ -35,13 +32,10 @@ from sage_patch.patches.experimental.accel_module import (
     BLOCK_MAGIC,
     CODE_OFFSET,
     DLL_NAME,
-    EXPORT_NAME,
     OFF_MODULE,
     OFF_STATE,
     SECTION_NAME,
-    STATE_ARMED,
-    STATE_DECLINED,
-    STATE_NO_EXPORT,
+    STATE_LOADED,
     STATE_NO_MODULE,
     STATE_NOT_REACHED,
     AccelModulePatch,
@@ -57,13 +51,10 @@ from .synthetic import accel_module_image
 
 BASE = 0x00F00000
 _LOADLIB = 0x00E10000
-_GETPROC = 0x00E20000
-_ARM = 0x00E30000
 _STACK = 0x00200000
 _STACK_SIZE = 0x10000
 _MODULE = 0x6B000000
 _REAL = 0x6A012340  # the engine's own Direct3DCreate9
-_WRAPPER = 0x6B001000  # what the module hands back
 
 
 @pytest.fixture
@@ -95,10 +86,8 @@ class TestRegistration:
     def test_takes_no_parameters(self) -> None:
         assert AccelModulePatch().options() == {}
 
-    def test_names_agree_with_the_builder(self) -> None:
-        """The cave asks for what `python -m sage_accel build` produces, by the same names."""
-        assert DLL_NAME == BUILT_DLL_NAME.encode() + b"\x00"
-        assert EXPORT_NAME == BUILT_EXPORT_NAME.encode() + b"\x00"
+    def test_loads_the_accelerators_own_dll(self) -> None:
+        assert DLL_NAME == b"bfme2_accel.dll\x00"
 
 
 class TestTheSiteIsWhatItClaims:
@@ -122,7 +111,6 @@ class TestTheSiteIsWhatItClaims:
         block = build_code(BASE)[:CODE_OFFSET]
         assert struct.pack("<I", BLOCK_MAGIC) == b"SACL"
         assert DLL_NAME in block
-        assert EXPORT_NAME in block
         assert block[OFF_STATE] == STATE_NOT_REACHED
 
 
@@ -183,31 +171,28 @@ class TestComposition:
 
 
 class Machine:
-    """The hook, running, with the three calls it makes answered from Python."""
+    """The hook, running, with `LoadLibraryA` answered from Python."""
 
-    def __init__(self, *, loads: bool = True, resolves: bool = True, answer: int = _WRAPPER):
+    def __init__(self, *, loads: bool = True):
         unicorn = pytest.importorskip("unicorn")
         self.regs = pytest.importorskip("unicorn.x86_const")
         self.uc = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
-        self.loads, self.resolves, self.answer = loads, resolves, answer
-        self.arm_calls: list[int] = []
+        self.loads = loads
+        self.loaded: list[bytes] = []
         self.landed: int | None = None
 
         code = build_code(BASE)
         self.uc.mem_map(BASE, (len(code) + 0xFFF) & ~0xFFF)
         self.uc.mem_write(BASE, code)
         self.uc.mem_map(_STACK, _STACK_SIZE)
-        for page in (0x00525000, _LOADLIB, _GETPROC, _ARM):
+        for page in (0x00525000, _LOADLIB):
             self.uc.mem_map(page, 0x1000)
             self.uc.mem_write(page, b"\xc3" * 0x1000)
         for page in {LOAD_LIBRARY_A_IAT & ~0xFFF, DIRECT3D_CREATE9_PTR & ~0xFFF}:
             self.uc.mem_map(page, 0x1000)
         self.uc.mem_write(LOAD_LIBRARY_A_IAT, struct.pack("<I", _LOADLIB))
-        self.uc.mem_write(GET_PROC_ADDRESS_IAT, struct.pack("<I", _GETPROC))
 
         self.uc.hook_add(unicorn.UC_HOOK_CODE, self._loadlib, begin=_LOADLIB, end=_LOADLIB)
-        self.uc.hook_add(unicorn.UC_HOOK_CODE, self._getproc, begin=_GETPROC, end=_GETPROC)
-        self.uc.hook_add(unicorn.UC_HOOK_CODE, self._arm, begin=_ARM, end=_ARM)
         resume = DIRECT3D_CREATE9_STORE_RESUME
         self.uc.hook_add(unicorn.UC_HOOK_CODE, self._land, begin=resume, end=resume)
 
@@ -215,33 +200,15 @@ class Machine:
         self.landed = address
         uc.emu_stop()
 
-    def _return(self, value: int, pop: int) -> None:
-        esp = self.uc.reg_read(self.regs.UC_X86_REG_ESP)
-        ret = struct.unpack("<I", self.uc.mem_read(esp, 4))[0]
-        self.uc.reg_write(self.regs.UC_X86_REG_EAX, value)
-        self.uc.reg_write(self.regs.UC_X86_REG_ESP, esp + 4 + pop)
-        self.uc.reg_write(self.regs.UC_X86_REG_EIP, ret)
-
-    def _cstring(self, va: int) -> bytes:
-        raw = bytes(self.uc.mem_read(va, 64))
-        return raw[: raw.index(b"\x00") + 1]
-
     def _loadlib(self, uc, address, size, user_data) -> None:  # noqa: ANN001, ARG002
-        esp = uc.reg_read(self.regs.UC_X86_REG_ESP)
-        assert self._cstring(struct.unpack("<I", uc.mem_read(esp + 4, 4))[0]) == DLL_NAME
-        self._return(_MODULE if self.loads else 0, 4)  # stdcall, one argument
-
-    def _getproc(self, uc, address, size, user_data) -> None:  # noqa: ANN001, ARG002
-        esp = uc.reg_read(self.regs.UC_X86_REG_ESP)
-        module, name = struct.unpack("<II", uc.mem_read(esp + 4, 8))
-        assert module == _MODULE, "resolved from the wrong module"
-        assert self._cstring(name) == EXPORT_NAME
-        self._return(_ARM if self.resolves else 0, 8)  # stdcall, two arguments
-
-    def _arm(self, uc, address, size, user_data) -> None:  # noqa: ANN001, ARG002
-        esp = uc.reg_read(self.regs.UC_X86_REG_ESP)
-        self.arm_calls.append(struct.unpack("<I", uc.mem_read(esp + 4, 4))[0])
-        self._return(self.answer, 0)  # cdecl: the caller pops
+        r = self.regs
+        esp = uc.reg_read(r.UC_X86_REG_ESP)
+        ret, name_va = struct.unpack("<II", uc.mem_read(esp, 8))
+        raw = bytes(uc.mem_read(name_va, 64))
+        self.loaded.append(raw[: raw.index(b"\x00") + 1])
+        uc.reg_write(r.UC_X86_REG_EAX, _MODULE if self.loads else 0)
+        uc.reg_write(r.UC_X86_REG_ESP, esp + 8)  # stdcall, one argument
+        uc.reg_write(r.UC_X86_REG_EIP, ret)
 
     def run(self, *, zero_flag: bool = False) -> dict[str, int]:
         """Enter the hook as the engine does: the real pointer in eax, ebx = 0, the flags of
@@ -267,8 +234,7 @@ class Machine:
 
         self.uc.emu_start(hook_va(BASE), 0xFFFFFFFF, count=200)
         assert self.landed == DIRECT3D_CREATE9_STORE_RESUME, "the hook did not reach the resume"
-        out = {n: self.uc.reg_read(getattr(r, f"UC_X86_REG_{n.upper()}")) for n in self.entry}
-        return out
+        return {n: self.uc.reg_read(getattr(r, f"UC_X86_REG_{n.upper()}")) for n in self.entry}
 
     def pointer(self) -> int:
         return struct.unpack("<I", self.uc.mem_read(DIRECT3D_CREATE9_PTR, 4))[0]
@@ -281,40 +247,31 @@ class Machine:
 
 
 class TestTheHookRuns:
-    def test_armed_the_engine_calls_the_module(self) -> None:
+    def test_the_dll_is_loaded_and_the_engine_keeps_its_pointer(self) -> None:
         m = Machine()
         m.run()
-        assert m.arm_calls == [_REAL], "the module must be handed the engine's own pointer"
-        assert m.pointer() == _WRAPPER
-        assert m.byte(OFF_STATE) == STATE_ARMED
+        assert m.loaded == [DLL_NAME]
+        assert m.pointer() == _REAL
+        assert m.byte(OFF_STATE) == STATE_LOADED
         assert m.dword(OFF_MODULE) == _MODULE
 
-    @pytest.mark.parametrize(
-        ("machine", "state"),
-        [
-            ({"loads": False}, STATE_NO_MODULE),
-            ({"resolves": False}, STATE_NO_EXPORT),
-            ({"answer": 0}, STATE_DECLINED),
-        ],
-        ids=["no-dll", "no-export", "declined"],
-    )
-    def test_every_absence_leaves_the_stock_pointer(self, machine, state: int) -> None:
-        m = Machine(**machine)
+    def test_a_missing_dll_is_recorded(self) -> None:
+        m = Machine(loads=False)
         m.run()
         assert m.pointer() == _REAL
-        assert m.byte(OFF_STATE) == state
+        assert m.byte(OFF_STATE) == STATE_NO_MODULE
+        assert m.dword(OFF_MODULE) == 0
 
-    @pytest.mark.parametrize("machine", [{}, {"loads": False}, {"resolves": False}, {"answer": 0}])
-    def test_registers_and_flags_come_back_untouched(self, machine) -> None:
-        m = Machine(**machine)
+    @pytest.mark.parametrize("loads", [True, False], ids=["loaded", "missing"])
+    def test_registers_and_flags_come_back_untouched(self, loads: bool) -> None:
+        m = Machine(loads=loads)
         out = m.run()
         assert out == m.entry
 
     def test_a_failed_resolve_still_takes_the_engines_branch(self) -> None:
-        """The engine resolved nothing: eax = 0 and ZF set. The store is re-run (writing 0), the
-        module is still asked, and the `je` must still see ZF."""
-        m = Machine(answer=0)
+        """The engine resolved nothing: eax = 0 and ZF set. The store is re-run (writing 0), and
+        the `je` must still see ZF."""
+        m = Machine()
         out = m.run(zero_flag=True)
         assert out["eflags"] & 0x40
         assert m.pointer() == 0
-        assert m.arm_calls == [0]

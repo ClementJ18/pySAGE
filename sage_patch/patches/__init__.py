@@ -4,6 +4,7 @@ from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.ai_team_size import AiTeamSizePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.cah_factions import (
@@ -31,16 +32,20 @@ from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
 from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
+from sage_patch.patches.faction_variants import FactionVariantsPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
 from sage_patch.patches.healing_received import HealingReceivedPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
+from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
+from sage_patch.patches.mount_health_ratio import MountHealthRatioPatch
+from sage_patch.patches.mount_swap_eject import MountSwapEjectPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.object_image_upgrade import (
@@ -49,14 +54,20 @@ from sage_patch.patches.object_image_upgrade import (
 )
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
+from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.production_split import ProductionSplitPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
+from sage_patch.patches.radar_structure_discs import RadarStructureDiscsPatch
+from sage_patch.patches.repair_damage_cancel import RepairDamageCancelPatch
+from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
+from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
 from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
 from sage_patch.patches.summon_carryover import SummonCarryoverPatch
@@ -73,6 +84,7 @@ __all__ = [
     "AiConstructionGatePatch",
     "AiFlagCaptureGatePatch",
     "AiReviveGatePatch",
+    "AiTeamSizePatch",
     "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
@@ -84,11 +96,13 @@ __all__ = [
     "ConstructionInitialHealthPatch",
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
+    "FactionVariantsPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
     "GiveUpgradeAllPatch",
     "HeadlessPatch",
     "HealingReceivedPatch",
+    "HideModifierFxPatch",
     "HeroBarSlotsPatch",
     "HeroManaPatch",
     "SpecialPowerMusicPatch",
@@ -101,17 +115,24 @@ __all__ = [
     "LivingWorldOverridePatch",
     "MaintenanceCostPatch",
     "MapListSymbolsPatch",
+    "MountHealthRatioPatch",
+    "MountSwapEjectPatch",
     "MultiExecuteGatePatch",
     "MultiSelectGroupPatch",
     "ObjectivesScreenPatch",
     "ObjectImageUpgradePatch",
     "ObjectImageUpgradeWorldbuilderPatch",
     "PlayerHealFilterPatch",
+    "PlayerUpgradeDiscountPatch",
     "ProductionConditionPatch",
     "ProductionSplitPatch",
     "QueueIgnoreCpPatch",
+    "RadarStructureDiscsPatch",
+    "RepairDamageCancelPatch",
     "RechargeRescalePatch",
+    "ReplaceSelfRubblePatch",
     "ReplayOutcomePatch",
+    "ReviveObjectBindingPatch",
     "SciencePrereqPatch",
     "SecondResourcePatch",
     "ShareExperienceAllPatch",
@@ -119,6 +140,7 @@ __all__ = [
     "SmartRallyPatch",
     "SpawnUnionPatch",
     "SpellStoreUpgradePatch",
+    "SpellRechargeTargetsPatch",
     "SpellbookCommandSetRefreshPatch",
     "SpellbookHotkeysPatch",
     "SummonCarryoverPatch",

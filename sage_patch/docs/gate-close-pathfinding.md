@@ -10,6 +10,13 @@ close transition removes the object from the pathfind map and puts back a byte-i
 footprint, leaving every in-flight path valid and every cell as passable as it was a frame
 earlier.
 
+**Play disagrees with half of that.** Reported in game: a move order given *after* a gate closes
+routes around it, for any gate and any owner, while a unit ordered through the gate *while it was
+open* walks through it after it shuts. So the pathfinder does see a closed gate as a wall when it
+plans - by some route §7 leaves open - and the leak is only the second half of the sentence: paths
+already planned are never re-checked. §8 records that half and the `gate-close-repath` patch that
+closes it.
+
 ## 1. What the module does on a state change
 
 `GateOpenAndCloseBehavior` (registered at `0x006594CB`, class ctor `0x0089C04B`, instance
@@ -195,3 +202,67 @@ The runtime checks, in order of cost:
    state actually flips, and confirm `[shape+0x20]` for `Closed` stays `1` in both states.
 3. Watch the cell dword at `+0xC` for a doorway cell across a close to see whether the type
    nibble or bit 17 moves at all.
+
+## 8. Paths planned before the close are never re-checked
+
+Nothing on the close path touches a unit. Close-for-pathing (`0x0089C9FA`) calls only the pathfind
+map update and the geometry switches of §1, and the map update (`0x00936B7D`) calls nothing that
+reaches `AIUpdateInterface`. A unit's path lives at `AIUpdate+0x140` until its own move state
+replaces it, and `AIInternalMoveToState::update` (`0x00748E46`, vtable `0x00C27448` slot 6) only
+re-plans on three conditions:
+
+```
+00748f35  cmp  [ebp-8], 0 / mov byte [ebp-1], 0 / jne / mov byte [ebp-1], 1   ; no path -> recompute
+00748f45  call 0x662745 ; blocked-and-stuck, and only for a KindOf bit            -> recompute
+00749147  frame - [state+0x44] > interval, and the goal moved (0x00741450)       -> recompute
+```
+
+A path through a gate that has since closed trips none of them. The gate's collision repel
+(§5) is all that is left, and it has the gaps §5 lists, plus the ones in its handler
+`privateMoveAwayFromUnit` (`0x0066DA5F`, AIUpdate vtable `0x00C10590` slot `+0x144`, reached
+through AI command `0x34`): a horde member's collision is forwarded to the horde, and when the
+move-away path (`0x006FB231`) comes back empty twice nothing happens at all and the unit carries
+on along its old path. A unit already standing in the doorway is the likely case of the latter.
+
+### The lever: `destroyPath`
+
+`0x0066276B` frees `m_path`, zeroes it, clears `m_waitingForPath` (`+0x3B1`), the
+blocked-and-stuck byte (`+0x3B8`) and the goal-is-object flag (`+0x3B2`), and tail-calls vtable
+`+0x220`, which sets the locomotor goal to none. It has 45 callers. A move state that finds no path
+and is not waiting for one takes the first recompute arm above and calls its own `computePath`
+(vtable slot `+0x44`) - the same thing a fresh order does, against the map as it now stands.
+
+One state cannot take a missing path. When the main machine's current state
+(`getCurrentStateID`, `0x00660AC1`) is `0x47` and the unit is near its goal, the move state skips
+the recompute and falls to `0x0074927C`, which reads `[m_path+8]` without a check.
+
+### The patch
+
+`gate-close-repath` turns the re-add call at the end of close-for-pathing (`0x0089CA78`) into a
+call into a cave. The cave makes the re-add, then walks `TheGameLogic`'s object hash (buckets at
+`+0xB8`..`+0xBC`, each a chain of `{next, id, Object *}`; see `findObjectByID`'s walk at
+`0x006B4EA6`). For each object other than the gate with an `AIUpdate` (`+0x260`) holding a path and
+not waiting for the pathfinder, it measures every segment of the path (`Path+4` head, `PathNode+0`
+next, `+0xC` position; `0x00665429`) against the gate's position (`+0x38`). If a segment comes
+within the gate's bounding-circle radius plus the unit's own (`Object+0xB8`, the
+`GeometryCollection` radius `privateMoveAwayFromUnit` also reads), and the unit is not in state
+`0x47`, it calls `destroyPath`.
+
+What that leaves, all static:
+
+- **Units in state `0x47`** keep their old path. Their current behaviour is unchanged, not fixed.
+- **A path that arrives in the same frame the gate closes** - the AI no longer waiting, but its
+  move state not yet updated to take the path - is destroyed while the state still believes it is
+  waiting, and the state then fails (`0x00748EE2`). The unit stops rather than walking through.
+  The window is one logic frame per unit.
+- **A unit already inside the closed footprint** re-plans from a blocked start; whether the
+  pathfinder finds a way out or the move fails is the pathfinder's own behaviour for that case.
+- **The reach test is a circle.** A path running along the wall within the gate's radius re-plans
+  too, and re-plans to much the same route. That costs a pathfind, not a change of behaviour.
+- **Every client must carry the patch.** It runs inside the logic update and walks the table in id
+  order, so it is deterministic, but a client without it keeps the old paths and desyncs.
+
+Runtime checks, in order: order a unit through an open gate and close it in front of the unit; do
+the same with a horde and with an attack-move; and watch a gate close on an army that is standing
+in the doorway.
+

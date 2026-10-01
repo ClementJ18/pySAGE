@@ -526,7 +526,7 @@ INI_PARSE_REAL_BYTES = bytes.fromhex("8b4c24046a00e894efffff")
 #: `100.0f`, the scale both percent derivations and the `DozerAIUpdate` ramp share.
 FLOAT_HUNDRED = 0x00BD88D8
 #: `kernel32!LoadLibraryA` in the IAT, which the engine calls for `D3D9.DLL` at `0x00525176`. The
-#: `accel-module` cave calls it the same way for `sage_accel.dll`.
+#: `accel-module` cave calls it the same way for `bfme2_accel.dll`.
 LOAD_LIBRARY_A_IAT = 0x00BD0188
 #: `kernel32!GetProcAddress` in the IAT - how the probe reaches `D3DPERF_GetStatus`, which the
 #: engine itself never resolves.

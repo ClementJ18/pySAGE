@@ -30,9 +30,33 @@ __all__ = [
     "BATTLE_SCHOOL_REGISTRATION",
     "BATTLE_SCHOOL_REGISTRATION_BYTES",
     "BATTLE_SCHOOL_TRANSITION_NAME",
+    "COMBO_BOX_ADD_ENTRY",
+    "COMBO_BOX_DROPDOWN_BUTTON",
+    "COMBO_BOX_ENABLE_NOTIFY",
+    "COMBO_BOX_ENTRY_COUNT",
+    "COMBO_BOX_GADGET_DATA",
+    "COMBO_BOX_GET_ITEM_DATA",
+    "COMBO_BOX_GET_SELECTED",
+    "COMBO_BOX_OPEN_GATE",
+    "COMBO_BOX_OPEN_GATE_BYTES",
+    "COMBO_BOX_OPEN_GO",
+    "COMBO_BOX_OPEN_SKIP",
+    "COMBO_BOX_RESET",
+    "COMBO_BOX_SET_DROPDOWN_LINES",
+    "COMBO_BOX_SET_ITEM_DATA",
+    "COMBO_BOX_SET_SELECTED",
+    "COMBO_BOX_TOGGLE",
+    "COMBO_BOX_TOGGLE_BOX_EBP",
+    "COMMAND_BUTTON_CONDITION_AVAILABLE",
+    "COMMAND_BUTTON_CONDITION_DISABLED",
+    "COMMAND_BUTTON_CONDITION_GATE",
+    "COMMAND_BUTTON_CONDITION_GATE_BODY",
     "CONTROL_BAR_AVAILABILITY_OK_HIGH",
     "CONTROL_BAR_AVAILABILITY_OK_LOW",
     "CONTROL_BAR_AVAILABILITY_TEST",
+    "CONTROL_BAR_BASE_BUILD_CALL",
+    "CONTROL_BAR_BASE_BUILD_TEST",
+    "CONTROL_BAR_BASE_BUILD_TEST_BYTES",
     "CONTROL_BAR_CLICK_ARGUMENT_BUILD",
     "CONTROL_BAR_CLICK_ARGUMENT_BUILD_BYTES",
     "CONTROL_BAR_CLICK_BUTTON_LOAD",
@@ -47,7 +71,9 @@ __all__ = [
     "CONTROL_BAR_COMMAND_DISPATCH_BYTES",
     "CONTROL_BAR_COMMAND_INDEX_TABLE",
     "CONTROL_BAR_COMMAND_JUMP_TABLE",
+    "CONTROL_BAR_CONTEXT_UNDER_CONSTRUCTION",
     "CONTROL_BAR_DO_COMMAND",
+    "CONTROL_BAR_EVALUATE_CONTEXT_UI",
     "CONTROL_BAR_GET_COMMAND_AVAILABILITY",
     "CONTROL_BAR_GET_VISIBLE_RANGE",
     "CONTROL_BAR_MAX_VISIBLE",
@@ -80,7 +106,31 @@ __all__ = [
     "CONTROL_BAR_RANGE_LOOP_REVIVE",
     "CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES",
     "CONTROL_BAR_RANGE_START_EBP",
+    "CONTROL_BAR_REVIVE_BIND",
+    "CONTROL_BAR_REVIVE_BIND_BYTES",
+    "CONTROL_BAR_REVIVE_BIND_SET_ENTRY",
+    "CONTROL_BAR_REVIVE_ENTRY_EBP",
+    "CONTROL_BAR_REVIVE_ORDINAL_EBP",
+    "CONTROL_BAR_REVIVE_PASS2_NEXT",
+    "CONTROL_BAR_REVIVE_PASS2_NEXT_BYTES",
+    "CONTROL_BAR_REVIVE_PASS2_RESUME",
+    "CONTROL_BAR_REVIVE_PASS2_RESUME_BYTES",
+    "CONTROL_BAR_REVIVE_PASS2_TEST",
+    "CONTROL_BAR_REVIVE_PASS2_TEST_BYTES",
+    "CONTROL_BAR_REVIVE_PLAYER_EBP",
+    "CONTROL_BAR_REVIVE_ROSTER_LOOKUP",
+    "CONTROL_BAR_REVIVE_ROSTER_LOOKUP_BYTES",
+    "CONTROL_BAR_REVIVE_ROSTER_RESUME",
+    "CONTROL_BAR_REVIVE_ROSTER_RESUME_BYTES",
+    "CONTROL_BAR_REVIVE_UNBOUND",
+    "CONTROL_BAR_REVIVE_UNBOUND_BYTES",
+    "CONTROL_BAR_REVIVE_USED_COUNT",
+    "CONTROL_BAR_REVIVE_USED_EBP",
     "CONTROL_BAR_UNAVAILABLE",
+    "CONTROL_BAR_UNDER_CONSTRUCTION_ARM",
+    "CONTROL_BAR_UNDER_CONSTRUCTION_ARM_BYTES",
+    "CONTROL_BAR_UNDER_CONSTRUCTION_UPDATE",
+    "CONTROL_BAR_UNDER_CONSTRUCTION_UPDATE_BYTES",
     "CONTROL_BAR_UNIT_COST_CALL",
     "CONTROL_BAR_UNIT_COST_CALL_BYTES",
     "CREDITS_EXIT_AUDIO_TAIL",
@@ -114,12 +164,14 @@ __all__ = [
     "DESCRIPTION_TAIL_RESUME",
     "DESCRIPTION_TEXT_EBP_OFFSET",
     "DESCRIPTION_UNIT_COST_BODY",
+    "GAME_TEXT_FETCH_SLOT",
     "GET_CHECKBOX_STATE",
     "GUICOMMAND_POP_VISIBLE_COMMAND_RANGE",
     "GUICOMMAND_PUSH_VISIBLE_COMMAND_RANGE",
     "GUICOMMAND_REVIVE",
     "GUI_COMMAND_SPECIAL_POWER",
     "GUI_LOSE_CASH",
+    "GUI_RANDOM_LABEL",
     "HOT_KEY_EXECUTE",
     "HOT_KEY_EXECUTE_FLAG_EBP",
     "HOT_KEY_EXECUTE_HIT",
@@ -173,22 +225,62 @@ __all__ = [
     "MODEL_FIELD_STORE_BYTES",
     "MODEL_FIELD_STORE_RESUME",
     "MODEL_FIELD_TABLE_ROW",
+    "MP_SETUP_CTOR_FACTION_WINDOWS_CLEAR",
+    "MP_SETUP_CTOR_FACTION_WINDOWS_CLEAR_BYTES",
+    "MP_SETUP_DIRTY",
     "MP_SETUP_DISABLED_FACTION_PUSH",
     "MP_SETUP_DISABLED_FACTION_PUSH_BYTES",
+    "MP_SETUP_DROPDOWN_LINES",
     "MP_SETUP_FACTION_COMBO",
     "MP_SETUP_FACTION_COMBO_BYTES",
+    "MP_SETUP_FACTION_COMBO_CALLS",
     "MP_SETUP_FACTION_COMBO_SLOT_ARG",
     "MP_SETUP_FACTION_COMBO_SLOT_ARG_BYTES",
     "MP_SETUP_FACTION_COMBO_SLOT_WINDOW",
     "MP_SETUP_FACTION_COMBO_SLOT_WINDOW_BYTES",
+    "MP_SETUP_FACTION_ENABLE_CALL",
+    "MP_SETUP_FACTION_ENABLE_CALL_BYTES",
+    "MP_SETUP_FACTION_LIST_INDEX_EBP",
+    "MP_SETUP_FACTION_LIST_PLAYABLE",
+    "MP_SETUP_FACTION_LIST_PLAYABLE_BYTES",
+    "MP_SETUP_FACTION_LIST_PLAYABLE_RESUME",
+    "MP_SETUP_FACTION_LIST_SKIP",
+    "MP_SETUP_FACTION_REQUEST_PENDING",
+    "MP_SETUP_FACTION_WINDOWS",
+    "MP_SETUP_GADGET_FILED",
+    "MP_SETUP_GADGET_HERO_TEST",
+    "MP_SETUP_GADGET_HERO_TEST_BYTES",
+    "MP_SETUP_GADGET_HERO_TEST_RESUME",
+    "MP_SETUP_GADGET_SLOT_EBP",
+    "MP_SETUP_GADGET_UNKNOWN",
+    "MP_SETUP_GAME_INFO",
+    "MP_SETUP_GET_GAME_INFO",
     "MP_SETUP_HISTORICAL_FIXUP",
     "MP_SETUP_HISTORICAL_FIXUP_BYTES",
+    "MP_SETUP_HISTORICAL_FLAGS",
+    "MP_SETUP_MODE",
+    "MP_SETUP_MODE_WOTR",
     "MP_SETUP_RANDOM_LOOP_INIT",
     "MP_SETUP_RANDOM_LOOP_INIT_BYTES",
+    "MP_SETUP_REDRAW_SLOT",
+    "MP_SETUP_SELECTION_DONE",
+    "MP_SETUP_SELECTION_UNMATCHED",
+    "MP_SETUP_SELECTION_UNMATCHED_BYTES",
     "MP_SETUP_START_GATE_LOOP_INIT",
     "MP_SETUP_START_GATE_LOOP_INIT_BYTES",
+    "MP_SETUP_STRATEGY",
+    "MP_SETUP_STRATEGY_REQUEST_TEMPLATE_SLOT",
+    "MP_SETUP_SYNC_FACTION",
+    "MP_SETUP_SYNC_FACTION_CALLS",
+    "MP_SETUP_SYNC_FACTION_TEMPLATE",
+    "MP_SETUP_SYNC_FACTION_TEMPLATE_BYTES",
+    "MP_SETUP_SYNC_FACTION_TEMPLATE_RESUME",
     "MP_SETUP_VALIDATE_LOOP_INIT",
     "MP_SETUP_VALIDATE_LOOP_INIT_BYTES",
+    "MP_SETUP_WOTR",
+    "MP_SETUP_WOTR_IS_HISTORICAL",
+    "MULTIPLAYER_COLOR_VALUE",
+    "MULTIPLAYER_SETTINGS_GET_COLOR",
     "OBSERVER_BAR_GATE_CALL",
     "OBSERVER_BAR_GATE_CALL_BYTES",
     "OBSERVER_BAR_GATE_FINGERPRINT",
@@ -260,6 +352,7 @@ __all__ = [
     "THE_GAME_TEXT",
     "THE_HOT_KEY_MANAGER",
     "THE_IN_GAME_UI",
+    "THE_MULTIPLAYER_SETTINGS",
     "THE_TACTICAL_VIEW",
     "TOOLTIP_COST_BUILD",
     "TOOLTIP_COST_BUILD_RESUME",
@@ -281,6 +374,11 @@ __all__ = [
     "VIEW_LOCATION_SIZE",
     "VIEW_POSITION_OFFSET",
     "VIEW_SET_LOCATION_VTABLE_SLOT",
+    "WINDOW_ENABLE",
+    "WINDOW_HIDE",
+    "WINDOW_STATUS",
+    "WINDOW_STATUS_ENABLED",
+    "WINDOW_STATUS_HIDDEN",
     "WINDOW_TRANSITIONS_HANDLER",
     "WINDOW_TRANSITION_REVERSE",
     "WINDOW_TRANSITION_REVERSE_BYTES",
@@ -367,6 +465,18 @@ DESCRIPTION_BUFFER_EBP_OFFSET = -0x28
 CONTROL_BAR_UNIT_COST_CALL = 0x0094343B
 CONTROL_BAR_UNIT_COST_CALL_BYTES = bytes.fromhex("e8fc58d4ff")
 CONTROL_BAR_UNAVAILABLE = 0x009438C8
+#: The one routine that evaluates a `CommandButton`'s `DisableOnModelCondition` (`+0x1E0`), then
+#: its `EnableOnModelCondition` (`+0x194`), against an `Object`'s model-condition mask (`+0x10C`).
+#: `stdcall(button, object)`, `ret 8`, answering `..._DISABLED` or `..._AVAILABLE`. Pure: it pushes
+#: and pops `ebx`/`esi`/`edi` and its two helpers (`0x004B3783`, `0x006632E9`) write only `eax`,
+#: `ecx`, `edx`, so logic code can call it. `..._BODY` is the whole function through its `ret 8`.
+COMMAND_BUTTON_CONDITION_GATE = 0x00942490
+COMMAND_BUTTON_CONDITION_GATE_BODY = bytes.fromhex(
+    "5356578b7c24108db7e00100008bcee8df12b7ff84c08b5c24147410568d8b0c010000e8310ed2ff84c075218d"
+    "b7940100008bcee8ba12b7ff84c07414568d8b0c010000e8100ed2ff84c075046a03eb026a02585f5e5bc20800"
+)
+COMMAND_BUTTON_CONDITION_DISABLED = 3
+COMMAND_BUTTON_CONDITION_AVAILABLE = 2
 # `UnicodeString::UnicodeString(const WideChar *)` - thiscall, one stack argument which it
 # cleans (`ret 4`), returning `this` in `eax`. It zeroes the object before assigning, so it is
 # correct on the uninitialised storage a return-value-optimised caller hands out. This is the
@@ -457,6 +567,45 @@ CONTROL_BAR_RANGE_LOOP_REVIVE = 0x00943F2B
 CONTROL_BAR_RANGE_LOOP_REVIVE_BYTES = bytes.fromhex("8b45b88b4dd403c8518b4de8")
 CONTROL_BAR_RANGE_LOOP_PRODUCTION = 0x0094426A
 CONTROL_BAR_RANGE_LOOP_PRODUCTION_BYTES = bytes.fromhex("8b45b803c8518b4de8")
+# The revive populate inside those loops: pass 1 (in `..._LOOP_REVIVE`) binds REVIVE slot
+# ordinal n to roster hero n, pass 2 (in `..._LOOP_PRODUCTION`) hands each ledger entry pass 1
+# left unclaimed the next REVIVE slot. See `docs/hero-revive-ownership.md` §2 and
+# `docs/revive-object-binding.md`.
+#
+# Pass 1's frame: the player (`[ebp-0x1c]`), the REVIVE ordinal (`[ebp-0x20]`, incremented once per
+# REVIVE button at `0x009440C7`), the ledger entry being bound (`[ebp-0x28]`), and the
+# used-ledger-index flags pass 2 reads (`[ebp-0x84]`, 33 bytes, cleared at `0x00943F03`).
+CONTROL_BAR_REVIVE_PLAYER_EBP = -0x1C
+CONTROL_BAR_REVIVE_ORDINAL_EBP = -0x20
+CONTROL_BAR_REVIVE_ENTRY_EBP = -0x28
+CONTROL_BAR_REVIVE_USED_EBP = -0x84
+CONTROL_BAR_REVIVE_USED_COUNT = 0x21
+# Pass 1's roster lookup, `push [ebp-0x20]` / `mov ecx, [ebp-0x1c]` / `call getBuildableHeroName`.
+# Eleven bytes, three whole instructions; the one inbound edge is to the first (the local-player
+# guard's `jne` at `0x00943FBB`). `esi` is the button, and `edi`/`ebx` are reloaded at the tail.
+CONTROL_BAR_REVIVE_ROSTER_LOOKUP = 0x00943FD6
+CONTROL_BAR_REVIVE_ROSTER_LOOKUP_BYTES = bytes.fromhex("ff75e08b4de4e86872d6ff")
+CONTROL_BAR_REVIVE_ROSTER_RESUME = 0x00943FE1
+CONTROL_BAR_REVIVE_ROSTER_RESUME_BYTES = bytes.fromhex("8945d8")  # mov [ebp-0x28], eax
+# Pass 1's bind, reached with `ebx` = the ledger index, `edi` = its template and `[ebp-0x28]` = its
+# entry: `push [ebp-0x28]` / `mov ecx, esi` / `mov byte [ebp+ebx-0x84], 1` / `call 0x0075D3BC`,
+# then the hero's display name into `+0x7c` and `mov [esi+0xc0], ebx`. `..._SET_ENTRY` is the
+# `call`, which a cave can enter with the entry already pushed and `ecx` = the button.
+CONTROL_BAR_REVIVE_BIND = 0x00944059
+CONTROL_BAR_REVIVE_BIND_BYTES = bytes.fromhex("ff75d88bcec6841d7cffffff01e85193e1ff")
+CONTROL_BAR_REVIVE_BIND_SET_ENTRY = 0x00944066
+# Pass 1's no-hero arm: `or [esi+0xc0], -1`, then the tail's `inc [ebp-0x10]` / `inc [ebp-0x20]`.
+CONTROL_BAR_REVIVE_UNBOUND = 0x009440BD
+CONTROL_BAR_REVIVE_UNBOUND_BYTES = bytes.fromhex("838ec0000000ffff45f0ff45e0")
+# Pass 2's REVIVE test, `cmp dword [esi+0x14], 0x2e` / `jne ..._PASS2_NEXT`. Ten bytes, two whole
+# instructions, no inbound edge.
+CONTROL_BAR_REVIVE_PASS2_TEST = 0x0094428F
+CONTROL_BAR_REVIVE_PASS2_TEST_BYTES = bytes.fromhex("837e142e0f85c9000000")
+CONTROL_BAR_REVIVE_PASS2_RESUME = 0x00944299
+CONTROL_BAR_REVIVE_PASS2_RESUME_BYTES = bytes.fromhex("8b0d2c41de00")  # mov ecx, [0xde412c]
+# Pass 2's next-slot step, which reloads everything it uses: `mov ecx, [ebp-0x38]`.
+CONTROL_BAR_REVIVE_PASS2_NEXT = 0x00944362
+CONTROL_BAR_REVIVE_PASS2_NEXT_BYTES = bytes.fromhex("8b4dc8")
 # How many command buttons the ControlBar can draw at once: the length of its widget array, and
 # the bound the first loop carries as a literal. Untouched by the button-limit patch, which
 # raises how many buttons a `CommandSet` may *define*, not how many fit on screen.
@@ -754,6 +903,127 @@ MP_SETUP_FACTION_COMBO_SLOT_ARG = 0x00844BFB
 MP_SETUP_FACTION_COMBO_SLOT_ARG_BYTES = bytes.fromhex("8b7d0857")
 MP_SETUP_FACTION_COMBO_SLOT_WINDOW = 0x00844C0F
 MP_SETUP_FACTION_COMBO_SLOT_WINDOW_BYTES = bytes.fromhex("8bbcbe34030000")
+#: The game-setup screen's gadget binder (`0x00840906`) files each per-slot window the movie names
+#: `~<slot>.<Kind>` into the screen's array for that kind, by `stricmp` against a ladder of kind
+#: names. `push <"Hero">` is the last rung; a name that misses it leaves through
+#: `MP_SETUP_GADGET_UNKNOWN`. Every filed gadget joins `MP_SETUP_GADGET_FILED` - the `pop ecx` that
+#: drops the window the rung pushed for `COMBO_BOX_RESET` - and then the War of the Ring rule that
+#: hides slots past the sixth. At the rung: `ebx` the kind name, `esi` the window, `edi` the screen,
+#: `[ebp+0x10]` the slot.
+MP_SETUP_GADGET_HERO_TEST = 0x00840A6C
+MP_SETUP_GADGET_HERO_TEST_BYTES = bytes.fromhex("68f44bc000")
+MP_SETUP_GADGET_HERO_TEST_RESUME = 0x00840A71
+MP_SETUP_GADGET_FILED = 0x00840A8D
+MP_SETUP_GADGET_UNKNOWN = 0x00840AA3
+MP_SETUP_GADGET_SLOT_EBP = 0x10
+#: The screen's per-slot `PlayerTemplate` combo boxes, one window pointer per slot.
+MP_SETUP_FACTION_WINDOWS = 0x334
+#: The constructor's `memset` of that array - `push 0x20` / `push 0` / `lea eax, [ebx+0x334]` then
+#: this call - which is where a screen starts with no windows filed.
+MP_SETUP_CTOR_FACTION_WINDOWS_CLEAR = 0x008451FD
+MP_SETUP_CTOR_FACTION_WINDOWS_CLEAR_BYTES = bytes.fromhex("e8267d1f00")
+#: The three calls to the faction combo-box fill (`MP_SETUP_FACTION_COMBO`), all
+#: `push <slot>` / `mov ecx, <screen>` / `call`. Wrapped at the call rather than at the entry
+#: because `scenario-player-factions` asserts the entry's bytes.
+MP_SETUP_FACTION_COMBO_CALLS = (0x00844F70, 0x0084552C, 0x00846889)
+#: The fill's walk of `ThePlayerTemplateStore`: `cmp byte [esi+0x151], 0` / `je <next>`, the
+#: `PlayableSide` test, with the template's index in `[ebp-0x34]`. `..._RESUME` is the
+#: `IsObserver` test that follows; `..._SKIP` is the loop's next-template edge.
+MP_SETUP_FACTION_LIST_PLAYABLE = 0x00844DBE
+MP_SETUP_FACTION_LIST_PLAYABLE_BYTES = bytes.fromhex("80be51010000000f84f3000000")
+MP_SETUP_FACTION_LIST_PLAYABLE_RESUME = 0x00844DCB
+MP_SETUP_FACTION_LIST_SKIP = 0x00844EBE
+MP_SETUP_FACTION_LIST_INDEX_EBP = -0x34
+#: `syncFactionCombo(slot)`: puts the slot's `PlayerTemplate` into its combo box - by selecting the
+#: entry carrying that index when the slot is editable, by writing the template's display name as
+#: the box's text when it is not. Called from one place. `..._TEMPLATE` is where it reads
+#: `GameSlot+0x18` into `[ebp-0x14]`, the value both halves go on to use.
+MP_SETUP_SYNC_FACTION = 0x00843D43
+MP_SETUP_SYNC_FACTION_CALLS = (0x00844451,)
+MP_SETUP_SYNC_FACTION_TEMPLATE = 0x00843D7B
+MP_SETUP_SYNC_FACTION_TEMPLATE_BYTES = bytes.fromhex("8b47188945ec")
+MP_SETUP_SYNC_FACTION_TEMPLATE_RESUME = 0x00843D81
+#: The combo-selection handler (message `0x4026`) walks the eight slots comparing the sender with
+#: each per-slot array; this `jmp` is where the walk ends without a match. `ebx` the sender, `esi`
+#: the screen. `MP_SETUP_SELECTION_DONE` is the handler's common exit.
+MP_SETUP_SELECTION_UNMATCHED = 0x0084594E
+MP_SETUP_SELECTION_UNMATCHED_BYTES = bytes.fromhex("e96d010000")
+MP_SETUP_SELECTION_DONE = 0x00845AC0
+#: The per-slot control update's `call Window::enable` on the faction box: `ecx` the box, the flag
+#: on the stack, `esi` the screen and `edi` the slot.
+MP_SETUP_FACTION_ENABLE_CALL = 0x00842BB9
+MP_SETUP_FACTION_ENABLE_CALL_BYTES = bytes.fromhex("e8f528edff")
+#: Screen members and helpers the faction-changed handler (`0x00844177`) uses, in its order:
+#: the game info getter, the "request pending" byte it clears, the strategy object whose vtable
+#: `+0x28` asks for a template (`__thiscall(GameSlot *, Int)` -> `Bool`: set directly in skirmish,
+#: sent to the host from a LAN client), the War of the Ring flags it raises for a historical
+#: scenario, the redraw flag the selection handler sets, and the slot redraw it ends in,
+#: `__thiscall(GameSlot *, Int slot, Bool)`, `ret 0xc`.
+MP_SETUP_GET_GAME_INFO = 0x0083FF11
+MP_SETUP_GAME_INFO = 0x5C
+MP_SETUP_FACTION_REQUEST_PENDING = 0x2C4
+MP_SETUP_STRATEGY = 0x58
+MP_SETUP_STRATEGY_REQUEST_TEMPLATE_SLOT = 0x28
+MP_SETUP_MODE = 0x7C
+MP_SETUP_MODE_WOTR = 1
+MP_SETUP_WOTR = 0x60
+MP_SETUP_WOTR_IS_HISTORICAL = 0x00975942
+MP_SETUP_HISTORICAL_FLAGS = (0x2BF, 0x2C2, 0x2B9, 0x2BE)
+MP_SETUP_DIRTY = 0x2B9
+MP_SETUP_REDRAW_SLOT = 0x00843B4C
+#: `dropdownLines(slot)`, cdecl: `max(8 - slot, 4)`, the rows a slot's drop-down may open to.
+MP_SETUP_DROPDOWN_LINES = 0x008402C1
+#: The combo-box API: cdecl wrappers around `TheWindowManager->winSendSystemMsg`. `RESET` empties
+#: the box (0x4025); `ADD_ENTRY(box, UnicodeString text, Color)` appends a row and returns its
+#: index, taking the string by value and destroying it (0x4022); `SET_ITEM_DATA(box, row, data)`
+#: (0x402B) and `GET_ITEM_DATA(box, row)` (0x402A) carry the row's `Int`; `SET_SELECTED(box, row,
+#: Bool)` (0x402D) and `GET_SELECTED(box, &row)` (0x402C); `SET_DROPDOWN_LINES(box, n)`.
+COMBO_BOX_RESET = 0x00724187
+COMBO_BOX_ADD_ENTRY = 0x00724811
+COMBO_BOX_SET_ITEM_DATA = 0x007243A6
+COMBO_BOX_GET_ITEM_DATA = 0x007243CD
+COMBO_BOX_SET_SELECTED = 0x0072437D
+COMBO_BOX_GET_SELECTED = 0x00724337
+COMBO_BOX_SET_DROPDOWN_LINES = 0x0072414F
+#: A combo box's gadget data hangs off its window at `+0x2C` (`0x009A5E08` is that one load), and
+#: holds the entry count at `+0x20` and the drop-down button's window at `+0x24`. The gadget keeps
+#: the button disabled - which draws it without its arrow - whenever it has one entry or none:
+#: `COMBO_BOX_ENABLE_NOTIFY`, its answer to the `0x1C` message `WINDOW_ENABLE` sends after enabling
+#: the window and all its children, returns early only for more than one entry and otherwise
+#: disables the button, and adding an entry to an enabled box enables the button for `count > 1`
+#: (`0x00724D32`). A list of one does not open either way (`0x00724513`).
+COMBO_BOX_GADGET_DATA = 0x2C
+COMBO_BOX_ENTRY_COUNT = 0x20
+COMBO_BOX_DROPDOWN_BUTTON = 0x24
+COMBO_BOX_ENABLE_NOTIFY = 0x0072493B
+#: `ComboBox` drop-down toggle, `(GameWindow *box)`, cdecl, from the drop-down button (`0x0072473B`)
+#: and the box's input handler (`0x00724AE6`). Opening makes the box the lone window, then
+#: `..._GATE` - `cmp dword [data+0x20], 1` / `jle` - leaves unless it lists two or more; `edi` is
+#: the gadget data and `[ebp+8]` the box there. `..._GO` shows and sizes the list, `..._SKIP` is
+#: the shared exit.
+COMBO_BOX_TOGGLE = 0x00724495
+COMBO_BOX_TOGGLE_BOX_EBP = 0x08
+COMBO_BOX_OPEN_GATE = 0x00724513
+COMBO_BOX_OPEN_GATE_BYTES = bytes.fromhex("837f20010f8e45010000")
+COMBO_BOX_OPEN_GO = 0x0072451D
+COMBO_BOX_OPEN_SKIP = 0x00724662
+#: `GameWindow::winEnable(Bool)` and `winHide(Bool)`, both `__thiscall`, `ret 4`, and the status
+#: word they set bits in - Generals' `WIN_STATUS_ENABLED` and `WIN_STATUS_HIDDEN`.
+WINDOW_ENABLE = 0x007154B3
+WINDOW_HIDE = 0x0071552B
+WINDOW_STATUS = 0x08
+WINDOW_STATUS_ENABLED = 0x08
+WINDOW_STATUS_HIDDEN = 0x10
+#: `TheMultiplayerSettings` and its `getColor(index)`, `__thiscall`, `ret 4`; index -1 is the
+#: entry whose `+0x10` colour the faction fill writes every row in.
+THE_MULTIPLAYER_SETTINGS = 0x00DE7D3C
+MULTIPLAYER_SETTINGS_GET_COLOR = 0x0078385B
+MULTIPLAYER_COLOR_VALUE = 0x10
+#: `TheGameText`'s vtable `+0x3C`: `fetch(UnicodeString *out, const char *label, Bool *exists)`,
+#: `__thiscall`, `ret 0xc` - the call behind `GUI:Random` in the faction box.
+GAME_TEXT_FETCH_SLOT = 0x3C
+#: The string table label the faction box's Random row is written with.
+GUI_RANDOM_LABEL = 0x00BFDEF8
 #: The tray's class, constructed once, by `StrategicHUD`'s `_OnSelectionDetailsLoaded` handler
 #: (`0x0083A141`). `+0x28` is its state - 0 closed, 1 opening, 2 open, 3 closing - and `+0x2C` says
 #: the selection has something to show.
@@ -872,3 +1142,24 @@ CONTROL_BAR_AVAILABILITY_OK_HIGH = 2
 #: `doCommand`'s copy of that rule, kept as an anchor: a build that changed which values pass
 #: fails here rather than having a cave silently disagree with the bar beside it.
 CONTROL_BAR_AVAILABILITY_TEST = 0x009405B3
+
+#: `ControlBar::evaluateContextUI` - clears the dirty byte at `+0x28` and picks the bar's context
+#: for the current selection, ending in `switchToContext(ctx, drawable)` at `0x0071D8BE`. Derived in
+#: `docs/castle-unpack-button-gap.md`.
+CONTROL_BAR_EVALUATE_CONTEXT_UI = 0x0071EBDA
+#: Its single-object `BASE_BUILD` test: `push 0xdb / mov ecx, esi / call testModelCondition /
+#: test al, al / jne` to the under-construction arm. `CONTROL_BAR_BASE_BUILD_CALL` is the `call`.
+CONTROL_BAR_BASE_BUILD_TEST = 0x0071EE67
+CONTROL_BAR_BASE_BUILD_TEST_BYTES = bytes.fromhex("68db0000008bcee8a5fad4ff84c00f859e000000")
+CONTROL_BAR_BASE_BUILD_CALL = 0x0071EE6E
+#: The context that shows no command set: what `BASE_BUILD`, and an unfinished
+#: `UNDER_CONSTRUCTION`, select. The arm is `push [ebp-0x14] / push 6 / jmp` to `switchToContext`.
+CONTROL_BAR_CONTEXT_UNDER_CONSTRUCTION = 6
+CONTROL_BAR_UNDER_CONSTRUCTION_ARM = 0x0071EF19
+CONTROL_BAR_UNDER_CONSTRUCTION_ARM_BYTES = bytes.fromhex("ff75ec6a06eb6b")
+#: That context's per-frame update: while the selected object is not `UNDER_CONSTRUCTION` it
+#: tail-jumps to `evaluateContextUI`, so the bar leaves the context the frame its reason ends.
+CONTROL_BAR_UNDER_CONSTRUCTION_UPDATE = 0x00944EBB
+CONTROL_BAR_UNDER_CONSTRUCTION_UPDATE_BYTES = bytes.fromhex(
+    "568bf18b466c578bb8fc0000006a028bcfe81b8fb0ff84c075095f8bce5ee9fc9cddff"
+)

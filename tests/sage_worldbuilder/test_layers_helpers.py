@@ -21,6 +21,7 @@ from sage_worldbuilder.layers import (
 )
 from sage_worldbuilder.selection.helpers import (
     TemplateIndex,
+    base_names,
     base_parents,
     base_siblings,
     deprecated_objects,
@@ -127,6 +128,14 @@ def test_base_objects_are_found_by_the_base_they_belong_to():
     assert base_parents(map, [wall, tower]) == [centre]
     assert base_siblings(map, [tree]) == [] and base_parents(map, [tree]) == []
     assert base_parents(map, [centre]) == [centre]
+    assert base_names(map) == ["Fortress"]
+    # Each base once whatever its case; an unnamed base names nothing.
+    map.objects_list.object_list += [
+        placed("Camp", objectName="Outpost", objectIsABase=True),
+        placed("Camp", objectName="fortress", objectIsABase=True),
+        placed("Camp", objectIsABase=True),
+    ]
+    assert base_names(map) == ["Fortress", "Outpost"]
 
 
 def test_selection_helpers():

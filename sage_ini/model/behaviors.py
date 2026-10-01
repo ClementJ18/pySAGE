@@ -2931,7 +2931,7 @@ class SpellRechargeModifierUpgrade(UpgradeBehavior):
     UpgradeDiscount: Bool
     ApplyToTheseUpgrades: List[Upgrade]
     Slaughter: Bool
-    Percentage: t.Float
+    Percentage: List[t.Float]
     Float: t.Float
 
 

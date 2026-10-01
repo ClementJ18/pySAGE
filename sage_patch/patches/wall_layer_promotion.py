@@ -6,14 +6,14 @@ siege engine pushed into a wall gets its centre into a stamped cell and is lifte
 three `setLayer` calls are re-aimed at a gate in a `.wallyr` section, which refuses to lift a
 `MACHINE` onto a wall-height layer more than 10 units above it. Ramps are unaffected.
 
-Derivation: `../../docs/wall-layer-promotion.md`.
+Derivation: `../docs/wall-layer-promotion.md`.
 """
 
 from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     FLOAT_TEN,
     KINDOF_MACHINE_BYTE,
     KINDOF_MACHINE_MASK,
@@ -37,9 +37,9 @@ from ...addresses import (
     WALL_LAYER_PROMOTION_SET_CALL,
     WALL_LAYER_PROMOTION_SET_CALL_ENTRY,
 )
-from ...asm import JA, JG, JL, JZ, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, find_section, va_to_offset
+from ..asm import JA, JG, JL, JZ, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
 __all__ = [
     "ANCHORS",
@@ -143,7 +143,6 @@ def build_code(base_va: int) -> bytes:
 class WallLayerPromotionPatch(Patch):
     name = "wall-layer-promotion"
     author = "officialNecro"
-    experimental = True
     description = (
         "Stop siege engines being teleported onto walls they walked past. Ramps still work. No "
         "INI change"

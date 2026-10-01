@@ -19,6 +19,7 @@ from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_hero_build_delay import AiHeroBuildDelayPatch
 from sage_patch.patches.ai_rebuild_gate import AiRebuildGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.ai_team_size import AiTeamSizePatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
@@ -30,9 +31,12 @@ from sage_patch.patches.cah_factions import (
     CahFactionsWorldbuilderPatch,
 )
 from sage_patch.patches.campaign_army_verbs import CampaignArmyVerbsPatch
+from sage_patch.patches.castle_unpack_buttons import CastleUnpackButtonsPatch
 from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
 from sage_patch.patches.command_point_cost import CommandPointCostPatch
+from sage_patch.patches.command_point_modes import CommandPointModesPatch
+from sage_patch.patches.command_point_override import CommandPointOverridePatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
@@ -48,7 +52,9 @@ from sage_patch.patches.desert_weather import (
 from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
+from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
 from sage_patch.patches.experimental.accel_module import AccelModulePatch
+from sage_patch.patches.experimental.ai_power_model_condition import AiPowerModelConditionPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
@@ -70,10 +76,11 @@ from sage_patch.patches.experimental.special_power_charges import SpecialPowerCh
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
 from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
-from sage_patch.patches.experimental.wall_layer_promotion import WallLayerPromotionPatch
+from sage_patch.patches.faction_variants import FactionVariantsPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.forbidden_upgrades import ForbiddenUpgradesPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
+from sage_patch.patches.gate_close_repath import GateCloseRepathPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
 from sage_patch.patches.healing_received import (
     HealingReceivedPatch,
@@ -82,6 +89,7 @@ from sage_patch.patches.healing_received import (
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
+from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
 from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
@@ -89,9 +97,12 @@ from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
+from sage_patch.patches.lobby_faction_byte import LobbyFactionBytePatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
 from sage_patch.patches.mod_load_order import ModLoadOrderPatch
+from sage_patch.patches.mount_health_ratio import MountHealthRatioPatch
+from sage_patch.patches.mount_swap_eject import MountSwapEjectPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.multi_mod import MultiModPatch
@@ -107,6 +118,7 @@ from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
 from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
 from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
+from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import (
     ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch,
@@ -117,10 +129,14 @@ from sage_patch.patches.production_split import (
 )
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.quiet_exit import QuietExitPatch
+from sage_patch.patches.radar_structure_discs import RadarStructureDiscsPatch
 from sage_patch.patches.rebuild_hole_repair import RebuildHoleRepairPatch
 from sage_patch.patches.render_rate import RenderRatePatch
+from sage_patch.patches.repair_damage_cancel import RepairDamageCancelPatch
+from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
+from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
 from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
 from sage_patch.patches.science_prereqs import (
     SciencePrereqPatch,
@@ -131,6 +147,7 @@ from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
 from sage_patch.patches.standalone_launcher import StandaloneLauncherPatch
@@ -141,6 +158,7 @@ from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.wall_layer_promotion import WallLayerPromotionPatch
 from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
 from sage_patch.patches.worldbuilder_label_assert import WorldbuilderLabelAssertPatch
 from sage_patch.patches.worldbuilder_mod import WorldbuilderModPatch
@@ -163,8 +181,10 @@ _REGISTERED: tuple[type[Patch], ...] = (
     AiDisabledRegionsPatch,
     AiFlagCaptureGatePatch,
     AiHeroBuildDelayPatch,
+    AiPowerModelConditionPatch,
     AiRebuildGatePatch,
     AiReviveGatePatch,
+    AiTeamSizePatch,
     AssetLoadProfilePatch,
     AttackRequiresDamagePatch,
     AutoDepositInflationPatch,
@@ -177,10 +197,13 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CampaignArmyVerbsPatch,
     CampaignSelectPatch,
     CaptureTheFlagPatch,
+    CastleUnpackButtonsPatch,
     CastleUnpackClearancePatch,
     ComboHordeRecruitmentPatch,
     CommandLineSkirmishPatch,
     CommandPointCostPatch,
+    CommandPointModesPatch,
+    CommandPointOverridePatch,
     CommandPointUpkeepPatch,
     CommandSetButtonUpgradePatch,
     CommandSetLimitPatch,
@@ -195,9 +218,12 @@ _REGISTERED: tuple[type[Patch], ...] = (
     DesyncDebugPatch,
     DetachableRiderHealPatch,
     DrawModuleScalePatch,
+    EvacuateContainedHeroesPatch,
+    FactionVariantsPatch,
     FireAtAttackerPatch,
     ForbiddenUpgradesPatch,
     FoundationRebindPatch,
+    GateCloseRepathPatch,
     GiveUpgradeAllPatch,
     HeadlessPatch,
     HealingReceivedPatch,
@@ -208,6 +234,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     HeroBarWorldbuilderPatch,
     HeroManaPatch,
     HeroRecruitParallelPatch,
+    HideModifierFxPatch,
     HideSelectionDetailsPatch,
     HordeExitAbsorptionPatch,
     HordeMemberSpeedPatch,
@@ -219,9 +246,12 @@ _REGISTERED: tuple[type[Patch], ...] = (
     LiveBridgePatch,
     MapTransitionPatch,
     LivingWorldOverridePatch,
+    LobbyFactionBytePatch,
     MaintenanceCostPatch,
     MapListSymbolsPatch,
     ModLoadOrderPatch,
+    MountHealthRatioPatch,
+    MountSwapEjectPatch,
     MultiExecuteGatePatch,
     MultiInstanceLauncherPatch,
     MultiInstancePatch,
@@ -237,18 +267,23 @@ _REGISTERED: tuple[type[Patch], ...] = (
     PerfScopeSkipPatch,
     PerfStageReadoutPatch,
     PlayerHealFilterPatch,
+    PlayerUpgradeDiscountPatch,
     ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch,
     ProductionSplitPatch,
     ProductionSplitWorldbuilderPatch,
     QueueIgnoreCpPatch,
     QuietExitPatch,
+    RadarStructureDiscsPatch,
     RebuildHoleRepairPatch,
+    RepairDamageCancelPatch,
     RangedStandOffPatch,
     RechargeRescalePatch,
     RenderRatePatch,
+    ReplaceSelfRubblePatch,
     ReplayAnnotationsPatch,
     ReplayOutcomePatch,
+    ReviveObjectBindingPatch,
     ScenarioPlayerFactionsPatch,
     SciencePrereqPatch,
     SciencePrereqWorldbuilderPatch,
@@ -263,6 +298,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     SpecialPowerMusicPatch,
     SpellbookCommandSetRefreshPatch,
     SpellbookHotkeysPatch,
+    SpellRechargeTargetsPatch,
     SpellStoreUpgradePatch,
     StandaloneLauncherPatch,
     SummonCarryoverPatch,

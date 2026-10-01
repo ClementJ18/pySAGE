@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "TemplateIndex",
+    "base_names",
     "base_parents",
     "base_siblings",
     "deprecated_objects",
@@ -61,6 +62,16 @@ def _text(obj: Object, key: str) -> str:
 
 def _base_names(selected: Iterable[Object]) -> set[str]:
     return {name.lower() for obj in selected if (name := _text(obj, "objectBaseName"))}
+
+
+def base_names(map: Map) -> list[str]:
+    """The bases an object's `objectBaseName` can name: the names of the objects flagged
+    `objectIsABase`, sorted, each once whatever its case."""
+    names: dict[str, str] = {}
+    for obj in _objects(map):
+        if _flag(obj, "objectIsABase") and (name := _text(obj, "objectName")):
+            names.setdefault(name.lower(), name)
+    return sorted(names.values(), key=str.lower)
 
 
 def base_siblings(map: Map, selected: Iterable[Object]) -> list[Object]:

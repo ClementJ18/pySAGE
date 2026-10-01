@@ -2,7 +2,9 @@
 
 `BuildAssistant::canMakeUnit` checks `NeededUpgrade` for unit buttons but not in its revive branch,
 so the AI recruits heroes from slots a mod disabled. A cave adds the upgrade test to the revive
-branch, applied only when the caller is the AI (it checks the return address).
+branch, applied only when the caller is the AI (it checks the return address). For the AI it also
+picks the slot the way the ControlBar does - the slot whose roster hero is the ledger entry's hero -
+because counting slots up to the ledger index names a different button.
 
 Derivation: `../docs/ai-revive-gate.md`.
 """
@@ -26,8 +28,14 @@ from ..addresses import (
     CAN_MAKE_UNIT_UPGRADE_GATE,
     CAN_MAKE_UNIT_VTABLE_SLOT,
     GUICOMMAND_REVIVE,
+    HERO_LEDGER_GET_TEMPLATE,
+    HERO_LEDGER_GET_TEMPLATE_ENTRY,
+    OBJECT_GET_CONTROLLING_PLAYER,
+    PLAYER_GET_BUILDABLE_HERO,
+    PLAYER_GET_BUILDABLE_HERO_ENTRY,
+    PLAYER_HERO_LEDGER_OFFSET,
 )
-from ..asm import JE, Asm
+from ..asm import JE, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
@@ -67,6 +75,9 @@ ANCHORS = {
     CAN_MAKE_UNIT_BUMP_SLOT: bytes.fromhex("ff45f4"),  # inc dword [ebp-0xc]   ; slots seen
     CAN_MAKE_UNIT_NEXT_SLOT: bytes.fromhex("ff45f8"),  # inc dword [ebp-8]     ; slot index
     CAN_MAKE_UNIT_PRODUCTION_GATE_CALL: CAN_MAKE_UNIT_PRODUCTION_GATE_CALL_BYTES,
+    PLAYER_GET_BUILDABLE_HERO: PLAYER_GET_BUILDABLE_HERO_ENTRY,
+    HERO_LEDGER_GET_TEMPLATE: HERO_LEDGER_GET_TEMPLATE_ENTRY,
+    OBJECT_GET_CONTROLLING_PLAYER: bytes.fromhex("8b891c030000"),  # mov ecx, [ecx+0x31c]
 }
 
 
@@ -78,26 +89,50 @@ def build_code(base_va: int) -> bytes:
     a.jmp_absolute(CAN_MAKE_UNIT_NEXT_SLOT)  # not a REVIVE button
 
     a.label("is_revive")
-    a.emit(0x8B, 0x45, 0xF4)  # mov eax, [ebp-0xc]       ; REVIVE slots seen
-    a.emit(0x3B, 0x45, 0x10)  # cmp eax, [ebp+0x10]      ; the requested revive index
-    a.jcc(JE, "matched")
-    a.jmp_absolute(CAN_MAKE_UNIT_BUMP_SLOT)  # a REVIVE slot, but not this index
-
-    a.label("matched")
     # Whose question is this? `canMakeUnit` is reached either directly - only the AI does that -
     # or through `BuildAssistant`'s `+0x64` gate, which is what the ControlBar and production ask.
     # The gate is for the AI's choice of producer, so anything arriving through `+0x64` takes the
     # stock edge and this patch cannot change what is shown, clickable or queueable.
     a.emit(0x81, 0x7D, 0x04, struct.pack("<I", PRODUCTION_GATE_RETURN))  # cmp [ebp+4], <return>
-    a.jcc(JE, "not_the_ai")
+    a.jcc(JNE, "the_ai")
+
+    # The stock branch: the slot whose REVIVE ordinal equals the revive index.
+    a.emit(0x8B, 0x45, 0xF4)  # mov eax, [ebp-0xc]       ; REVIVE slots seen
+    a.emit(0x3B, 0x45, 0x10)  # cmp eax, [ebp+0x10]      ; the requested revive index
+    a.jcc(JNE, "not_this_slot")
+    a.jmp_absolute(CAN_MAKE_UNIT_ACCEPT)
+
+    # The AI's branch. The revive index is a hero-ledger index, but the ControlBar gives REVIVE slot
+    # n to roster hero n (`getBuildableHeroName`, ring list first), so the ordinal and the index
+    # disagree by the ring list's length and again whenever a fielded hero leaves the ledger. The
+    # slot to judge is the one whose roster hero is the ledger entry's hero.
+    a.label("the_ai")
+    a.emit(0x8B, 0x4D, 0x08)  # mov ecx, [ebp+8]         ; the producer
+    a.call_absolute(OBJECT_GET_CONTROLLING_PLAYER)
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "not_this_slot")
+    a.emit(0x50)  # push eax                                ; keep the player
+    a.emit(0xFF, 0x75, 0xF4)  # push dword [ebp-0xc]     ; this slot's REVIVE ordinal
+    a.emit(0x8B, 0xC8)  # mov ecx, eax
+    a.call_absolute(PLAYER_GET_BUILDABLE_HERO)  # -> the hero the ControlBar puts here
+    a.emit(0x59)  # pop ecx                                 ; the player
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "not_this_slot")  # past the roster: no hero is offered here
+    a.emit(0x50)  # push eax                                ; keep the slot's hero
+    a.emit(0xFF, 0x75, 0x10)  # push dword [ebp+0x10]    ; the revive index
+    a.emit(0x81, 0xC1, struct.pack("<I", PLAYER_HERO_LEDGER_OFFSET))  # add ecx, 0x758
+    a.call_absolute(HERO_LEDGER_GET_TEMPLATE)  # -> the ledger entry's hero
+    a.emit(0x59)  # pop ecx                                 ; the slot's hero
+    a.emit(0x3B, 0xC1)  # cmp eax, ecx
+    a.jcc(JNE, "not_this_slot")
 
     # Count it now: the gate's failure edge continues the walk, and a slot that has been counted
     # cannot be matched again, so failing the gate ends the search for this index.
     a.emit(0xFF, 0x45, 0xF4)  # inc dword [ebp-0xc]
     a.jmp_absolute(CAN_MAKE_UNIT_UPGRADE_GATE)
 
-    a.label("not_the_ai")
-    a.jmp_absolute(CAN_MAKE_UNIT_ACCEPT)
+    a.label("not_this_slot")
+    a.jmp_absolute(CAN_MAKE_UNIT_BUMP_SLOT)
     return a.finish()
 
 

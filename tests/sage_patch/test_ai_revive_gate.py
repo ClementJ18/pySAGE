@@ -26,6 +26,10 @@ from sage_patch.addresses import (
     CAN_MAKE_UNIT_UPGRADE_GATE,
     CAN_MAKE_UNIT_VTABLE_SLOT,
     GUICOMMAND_REVIVE,
+    HERO_LEDGER_GET_TEMPLATE,
+    OBJECT_GET_CONTROLLING_PLAYER,
+    PLAYER_GET_BUILDABLE_HERO,
+    PLAYER_HERO_LEDGER_OFFSET,
 )
 from sage_patch.patches.ai_revive_gate import (
     ANCHORS,
@@ -158,16 +162,50 @@ class TestTheCave:
         assert test.address < gate_jump.address
 
     def test_the_production_path_takes_the_stock_edge(self):
-        """Reached through `+0x64` the cave must jump to the accept path, which is exactly what
-        the stock `je` at 0x007950DA did - so nothing a human sees, clicks or queues changes."""
+        """Reached through `+0x64` the cave falls through to the stock branch: the slot whose
+        REVIVE ordinal equals the revive index is accepted, exactly as the stock `je` at
+        0x007950DA did, and nothing is called on the way - so nothing a human sees, clicks or
+        queues changes."""
         insns = disassemble()
+        at = {i.address: i for i in insns}
         test = next(
             i for i in insns if i.mnemonic == "cmp" and i.op_str.startswith("dword ptr [ebp + 4]")
         )
-        taken = next(i for i in insns if i.mnemonic == "je" and i.address > test.address)
-        landing = int(taken.op_str, 16)
-        stock = next(i for i in insns if i.address == landing)
-        assert (stock.mnemonic, int(stock.op_str, 16)) == ("jmp", CAN_MAKE_UNIT_ACCEPT)
+        branch = at[test.address + test.size]
+        assert branch.mnemonic == "jne"
+        stock = [at[a] for a in sorted(at) if branch.address < a]
+        stock = stock[: next(k for k, i in enumerate(stock) if i.mnemonic == "jmp") + 1]
+        assert [(i.mnemonic, i.op_str) for i in stock[:2]] == [
+            ("mov", "eax, dword ptr [ebp - 0xc]"),
+            ("cmp", "eax, dword ptr [ebp + 0x10]"),
+        ]
+        assert (stock[-1].mnemonic, int(stock[-1].op_str, 16)) == ("jmp", CAN_MAKE_UNIT_ACCEPT)
+        assert not any(i.mnemonic == "call" for i in stock)
+
+    def test_the_ai_matches_the_slot_by_roster_hero_not_by_count(self):
+        """The ControlBar offers REVIVE slot n to `getBuildableHeroName(n)`, and the revive index
+        is a hero-ledger index, so the AI's branch compares the two heroes. Counting instead
+        judged the slot one before the hero's own on every faction with a ring list."""
+        calls = [int(i.op_str, 16) for i in disassemble() if i.mnemonic == "call"]
+        assert calls == [
+            OBJECT_GET_CONTROLLING_PLAYER,
+            PLAYER_GET_BUILDABLE_HERO,
+            HERO_LEDGER_GET_TEMPLATE,
+        ]
+        ops = [(i.mnemonic, i.op_str) for i in disassemble()]
+        assert ("push", "dword ptr [ebp - 0xc]") in ops  # the slot's ordinal
+        assert ("push", "dword ptr [ebp + 0x10]") in ops  # the revive index
+        assert ("add", f"ecx, {PLAYER_HERO_LEDGER_OFFSET:#x}") in ops
+        assert ("cmp", "eax, ecx") in ops
+
+    def test_the_ai_branch_leaves_the_stack_balanced(self):
+        """Four pushes: two are arguments the `ret 4` callees pop, two are saved values popped
+        back. An unbalanced `esp` would hand `canMakeUnit`'s epilogue the wrong frame."""
+        insns = disassemble()
+        pushes = sum(i.mnemonic == "push" for i in insns)
+        pops = sum(i.mnemonic == "pop" for i in insns)
+        args = sum(i.mnemonic == "call" for i in insns) - 1  # the player lookup takes none
+        assert pushes == pops + args
 
     def test_it_has_exactly_four_exits_all_into_canmakeunit(self):
         exits = {int(i.op_str, 16) for i in disassemble() if i.mnemonic == "jmp"}

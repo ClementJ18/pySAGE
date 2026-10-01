@@ -64,15 +64,16 @@ and the power list at `+0xdc` (a vector, parsed by `0x0042eed6`).
 008b1499  call 0x0079f0e1             ; ScoreKeeper::addObjectBuilt(old, -1)  -- un-count the old one
 008b14ab  call 0x00436030             ; Object+0x88 -> new
 008b14bd  call 0x005ea74e             ; Object+0x488 -> new
-008b14e1  call 0x0079d8ef             ; health: new->body := old->body health, a guard byte +0x3c around it
-008b150d  call [body+0xac]            ; experience: new := old, through Object+0x25c
+008b14e1  call 0x0079d8ef             ; experience: new := old, through Object+0x26c, a guard byte +0x3c around it
+008b150d  call [body+0xac]            ; health: new->body := old->body health (mount-health-ratio.md)
 008b151e  call 0x00670aa2             ; the new drawable, argument 10
 008b1527  call 0x006aabb2             ; the player's slot for the old object; if != -1, name the new one
 008b1560  call 0x006682b1             ; contain module
 008b156d  call 0x0069954a             ; setTeam(new, old->m_team)  -- Object+0x31c
 008b158e  call 0x0060a1d5             ; TheInGameUI: carry the selection across
 008b15fa  call 0x008b12bf             ; SynchronizeTimerOnSpecialPower
-008b1608  …                           ; the old contain module's passengers
+008b1608  …                           ; the AI's current command (Object+0x260), new := old -- not
+                                      ;   passengers: nothing moves the contain (mount-swap-eject.md)
 008b167a  mov  byte [ebx+0x8c], 1     ; "the swap happened" -- this+0x8c
 ```
 

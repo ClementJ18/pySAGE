@@ -24,6 +24,8 @@ __all__ = [
     "DRAWABLE_GET_SCALE",
     "DRAWABLE_GET_SCALE_BYTES",
     "DRAWABLE_GET_SCALE_OTHER_CALLS",
+    "OBJECT_GET_RADAR_PRIORITY",
+    "OBJECT_GET_RADAR_PRIORITY_BYTES",
     "PERF_BEGIN_EVENT",
     "PERF_BEGIN_EVENT_BYTES",
     "PERF_D3D_BEGIN_EVENT_PTR",
@@ -47,6 +49,24 @@ __all__ = [
     "PERF_SCOPE_STAGE_SITE",
     "PERF_SCOPE_STAGE_SITE_BYTES",
     "PERF_SCOPE_STRNCPY_IAT",
+    "RADAR_BLIP_COLOUR",
+    "RADAR_BLIP_KINDOF_LOAD",
+    "RADAR_BLIP_KINDOF_SEQUENCE",
+    "RADAR_BLIP_KINDOF_SEQUENCE_BYTES",
+    "RADAR_CIRCLE_MIN_RADIUS",
+    "RADAR_CIRCLE_MIN_RADIUS_STOCK",
+    "RADAR_CIRCLE_RADIUS",
+    "RADAR_CIRCLE_RADIUS_BYTES",
+    "RADAR_CIRCLE_SPAN_CALLS",
+    "RADAR_CIRCLE_SPAN_LOOP",
+    "RADAR_CIRCLE_SPAN_LOOP_BYTES",
+    "RADAR_KINDOF_COMMANDCENTER",
+    "RADAR_PIXEL_IN_BOUNDS",
+    "RADAR_PIXEL_IN_BOUNDS_BYTES",
+    "RADAR_PLOT_SPAN_ENDS",
+    "RADAR_PLOT_SPAN_ENDS_BYTES",
+    "RADAR_PRIORITY_STRUCTURE",
+    "SURFACE_DRAW_PIXEL",
     "THE_DISPLAY",
     "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_SCALE_CALLS",
     "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_THIS",
@@ -222,7 +242,7 @@ D3DPERF_SETOPTIONS_STORE_RESUME = 0x00525207
 #: Where the engine stores the `Direct3DCreate9` it has just resolved from `d3d9.dll`, and the
 #: `accel-module` patch's hook: the one moment the renderer's entry point passes through a writable
 #: slot before first use, on the game thread, with `d3d9.dll` already loaded. The cave re-runs the
-#: store, then offers the pointer to `sage_accel.dll`.
+#: store, then loads `bfme2_accel.dll`.
 DIRECT3D_CREATE9_STORE = 0x00525199
 DIRECT3D_CREATE9_STORE_ENTRY = bytes.fromhex("a31436dd00")
 #: The `je` that tests the resolve's result. It reads the flags of the `cmp eax, ebx` *before* the
@@ -266,3 +286,66 @@ PERF_D3D_END_EVENT_PTR = 0x00DD3620
 #: own first instruction.
 PERF_SCOPE_STAGE_SITE = 0x00449DCF
 PERF_SCOPE_STAGE_SITE_BYTES = bytes.fromhex("5368fc9dbd0068ec9dbd008d8da8feffffe8abd80c00")
+
+# The minimap blip painter: the per-object body of the radar draw loop, which walks the radar
+# object list and paints each object onto the 128x128 radar surface. It picks one of three shapes
+# from the template's KindOf: WALL_SEGMENT fills the geometry footprint, COMMANDCENTER draws a
+# circle of radius `floor(boundingRadius * scale + 0.5)` (at least 2), and everything else is a
+# fixed 2x2 dot. Derived in `docs/radar-structure-discs.md`.
+
+#: `Object::getRadarPriority` - `__thiscall`, no arguments. Returns the template's `RadarPriority`
+#: byte (`ThingTemplate+0x600`), and for `INVALID` (0) falls back to `STRUCTURE` (2) when the
+#: template is `KindOf CAPTURABLE` or the object's contain module answers yes at vtable `+0x10`.
+#: Preserves `esi`, `edi` and `ebx`.
+OBJECT_GET_RADAR_PRIORITY = 0x0068EBE9
+OBJECT_GET_RADAR_PRIORITY_BYTES = bytes.fromhex(
+    "568bf18b4604570fbeb80006000085ff75258b8e5802000085c9740c8b01ff501084c074036a025f"
+    "8b4604f6800e0100000274036a025f8bc75f5ec3"
+)
+#: `RadarPriorityType::STRUCTURE`, as `OBJECT_GET_RADAR_PRIORITY` returns it: index 2 of the name
+#: table at `0x00DA3B24` (`INVALID`, `NOT_ON_RADAR`, `STRUCTURE`, `UNIT`, `LOCAL_UNIT_ONLY`).
+RADAR_PRIORITY_STRUCTURE = 2
+#: `KindOf COMMANDCENTER` is index 17, so it is bit 17 of the first KindOf dword.
+RADAR_KINDOF_COMMANDCENTER = 17
+#: The painter reading the first KindOf dword into `ebx` and keeping bit 17 in `bl`, which picks
+#: the circle. `edi` is the `Object*` and `eax` its `ThingTemplate*`:
+#: `mov edi,[esi+4]; mov eax,[edi+4]; mov ebx,[eax+0x108]; push [ebp-0x28]; shr ebx,0x11;
+#: mov ecx,edi; and bl,1; call 0x0068D8F7`. `RADAR_BLIP_KINDOF_LOAD` is the six-byte `mov ebx`.
+RADAR_BLIP_KINDOF_SEQUENCE = 0x0044FA73
+RADAR_BLIP_KINDOF_SEQUENCE_BYTES = bytes.fromhex(
+    "8b7e048b47048b9808010000ff75d8c1eb118bcf80e301e868de2300"
+)
+RADAR_BLIP_KINDOF_LOAD = 0x0044FA79
+#: The circle's radius: `fld [edi+0xb8]` (the bounding radius), `push 2`, `fmul [ebp-0x20]`,
+#: `pop ebx`, then `floor(r * scale + 0.5)` - and `ebx`, the popped 2, is the smallest radius the
+#: painter lets through. `RADAR_CIRCLE_MIN_RADIUS` is that `push`'s imm8.
+RADAR_CIRCLE_RADIUS = 0x0044FC51
+RADAR_CIRCLE_RADIUS_BYTES = bytes.fromhex("d987b80000006a02d84de05b5151d8059c86bd00")
+RADAR_CIRCLE_MIN_RADIUS = 0x0044FC58
+RADAR_CIRCLE_MIN_RADIUS_STOCK = 2
+#: The circle's first pass. `0x006E0AE4` has already rasterised the circle into 12-byte spans
+#: `{row, a, b}`, and for each span this loop sets `esi` to the row, then to the row mirrored
+#: about the centre, and calls `RADAR_PLOT_SPAN_ENDS` with `(a, b, &surface)` both times.
+RADAR_CIRCLE_SPAN_LOOP = 0x0044FCB3
+RADAR_CIRCLE_SPAN_LOOP_BYTES = bytes.fromhex(
+    "8b378d45ec50ff7708ff7704e84de1ffff8b75dc2b378d45ec50ff7708ff7704e839e1ffff8b0383c418"
+    "3b070f4cdf83c70c3b7dac75c9"
+)
+#: The two calls in `RADAR_CIRCLE_SPAN_LOOP`, and nothing else calls the routine they reach.
+RADAR_CIRCLE_SPAN_CALLS = (0x0044FCBF, 0x0044FCD3)
+#: Plots only the two ends of a span, `(a, row)` and `(b, row)`, with `row` in `esi`, which is
+#: why a COMMANDCENTER circle comes out hollow. `cdecl`, `(a, b, surface)`.
+RADAR_PLOT_SPAN_ENDS = 0x0044DE11
+RADAR_PLOT_SPAN_ENDS_BYTES = bytes.fromhex(
+    "558bec56ff7508e886ffffff84c059597412ff353877dc008b4d1056ff7508e8ab870c0056ff750ce865ffffff"
+    "84c059597412ff353877dc008b4d1056ff750ce88a870c005dc3"
+)
+#: `cdecl (x, y) -> al`: true when both lie in `[0, 128)`. Touches only `eax`.
+RADAR_PIXEL_IN_BOUNDS = 0x0044DDA3
+RADAR_PIXEL_IN_BOUNDS_BYTES = bytes.fromhex(
+    "837c2404007c1b837c2408007c14b880000000394424047d09394424087d03b001c332c0c3"
+)
+#: The colour of the blip being drawn, written by the painter just before the circle passes.
+RADAR_BLIP_COLOUR = 0x00DC7738
+#: `SurfaceClass::DrawPixel(x, y, colour)` - `__thiscall` on the surface, callee-cleaned.
+SURFACE_DRAW_PIXEL = 0x005165E0
