@@ -58,6 +58,11 @@ from sage_patch.patches.experimental.ai_power_model_condition import AiPowerMode
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
 from sage_patch.patches.experimental.campaign_select import CampaignSelectPatch
 from sage_patch.patches.experimental.capture_the_flag import CaptureTheFlagPatch
+from sage_patch.patches.experimental.castle_prefab import (
+    CastlePrefabCommandButtonPatch,
+    CastlePrefabPatch,
+    CastlePrefabWorldbuilderPatch,
+)
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
@@ -197,6 +202,9 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CampaignArmyVerbsPatch,
     CampaignSelectPatch,
     CaptureTheFlagPatch,
+    CastlePrefabCommandButtonPatch,
+    CastlePrefabPatch,
+    CastlePrefabWorldbuilderPatch,
     CastleUnpackButtonsPatch,
     CastleUnpackClearancePatch,
     ComboHordeRecruitmentPatch,
