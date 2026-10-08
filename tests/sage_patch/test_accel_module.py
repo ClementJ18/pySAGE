@@ -24,6 +24,7 @@ from sage_patch.addresses import (
     DIRECT3D_CREATE9_STORE,
     DIRECT3D_CREATE9_STORE_ENTRY,
     DIRECT3D_CREATE9_STORE_RESUME,
+    GET_PROC_ADDRESS_IAT,
     LOAD_LIBRARY_A_IAT,
 )
 from sage_patch.patcher import apply_patches
@@ -32,9 +33,12 @@ from sage_patch.patches.experimental.accel_module import (
     BLOCK_MAGIC,
     CODE_OFFSET,
     DLL_NAME,
+    INIT_NAME,
     OFF_MODULE,
     OFF_STATE,
     SECTION_NAME,
+    STATE_INCOMPATIBLE,
+    STATE_INIT_FAILED,
     STATE_LOADED,
     STATE_NO_MODULE,
     STATE_NOT_REACHED,
@@ -51,6 +55,8 @@ from .synthetic import accel_module_image
 
 BASE = 0x00F00000
 _LOADLIB = 0x00E10000
+_GETPROC = 0x00E10100
+_INITIALIZE = 0x00E10200
 _STACK = 0x00200000
 _STACK_SIZE = 0x10000
 _MODULE = 0x6B000000
@@ -87,7 +93,7 @@ class TestRegistration:
         assert AccelModulePatch().options() == {}
 
     def test_loads_the_accelerators_own_dll(self) -> None:
-        assert DLL_NAME == b"bfme2_accel.dll\x00"
+        assert DLL_NAME == b"pysage_accel.dll\x00"
 
 
 class TestTheSiteIsWhatItClaims:
@@ -173,11 +179,14 @@ class TestComposition:
 class Machine:
     """The hook, running, with `LoadLibraryA` answered from Python."""
 
-    def __init__(self, *, loads: bool = True):
+    def __init__(self, *, loads: bool = True, compatible: bool = True, init_result: int = 1):
         unicorn = pytest.importorskip("unicorn")
         self.regs = pytest.importorskip("unicorn.x86_const")
         self.uc = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
         self.loads = loads
+        self.compatible = compatible
+        self.init_result = init_result
+        self.initialized = 0
         self.loaded: list[bytes] = []
         self.landed: int | None = None
 
@@ -192,6 +201,9 @@ class Machine:
             self.uc.mem_map(page, 0x1000)
         self.uc.mem_write(LOAD_LIBRARY_A_IAT, struct.pack("<I", _LOADLIB))
 
+        self.uc.mem_write(GET_PROC_ADDRESS_IAT, struct.pack("<I", _GETPROC))
+        self.uc.hook_add(unicorn.UC_HOOK_CODE, self._getproc, begin=_GETPROC, end=_GETPROC)
+        self.uc.hook_add(unicorn.UC_HOOK_CODE, self._initialize, begin=_INITIALIZE, end=_INITIALIZE)
         self.uc.hook_add(unicorn.UC_HOOK_CODE, self._loadlib, begin=_LOADLIB, end=_LOADLIB)
         resume = DIRECT3D_CREATE9_STORE_RESUME
         self.uc.hook_add(unicorn.UC_HOOK_CODE, self._land, begin=resume, end=resume)
@@ -208,6 +220,28 @@ class Machine:
         self.loaded.append(raw[: raw.index(b"\x00") + 1])
         uc.reg_write(r.UC_X86_REG_EAX, _MODULE if self.loads else 0)
         uc.reg_write(r.UC_X86_REG_ESP, esp + 8)  # stdcall, one argument
+        uc.reg_write(r.UC_X86_REG_EIP, ret)
+
+    def _getproc(self, uc, address, size, user_data) -> None:  # noqa: ANN001, ARG002
+        r = self.regs
+        esp = uc.reg_read(r.UC_X86_REG_ESP)
+        ret, module, name_va = struct.unpack("<III", uc.mem_read(esp, 12))
+        assert module == _MODULE
+        assert bytes(uc.mem_read(name_va, len(INIT_NAME))) == INIT_NAME
+        uc.reg_write(r.UC_X86_REG_EAX, _INITIALIZE if self.compatible else 0)
+        uc.reg_write(r.UC_X86_REG_ESP, esp + 12)
+        uc.reg_write(r.UC_X86_REG_EIP, ret)
+
+    def _initialize(self, uc, address, size, user_data) -> None:  # noqa: ANN001, ARG002
+        self.initialized += 1
+        r = self.regs
+        esp = uc.reg_read(r.UC_X86_REG_ESP)
+        ret = struct.unpack("<I", uc.mem_read(esp, 4))[0]
+        # Simulate volatile registers clobbered by a real native initialization.
+        uc.reg_write(r.UC_X86_REG_EAX, self.init_result)
+        uc.reg_write(r.UC_X86_REG_ECX, 0xDEADBEEF)
+        uc.reg_write(r.UC_X86_REG_EDX, 0xBADF00D)
+        uc.reg_write(r.UC_X86_REG_ESP, esp + 4)
         uc.reg_write(r.UC_X86_REG_EIP, ret)
 
     def run(self, *, zero_flag: bool = False) -> dict[str, int]:
@@ -251,6 +285,7 @@ class TestTheHookRuns:
         m = Machine()
         m.run()
         assert m.loaded == [DLL_NAME]
+        assert m.initialized == 1
         assert m.pointer() == _REAL
         assert m.byte(OFF_STATE) == STATE_LOADED
         assert m.dword(OFF_MODULE) == _MODULE
@@ -275,3 +310,16 @@ class TestTheHookRuns:
         out = m.run(zero_flag=True)
         assert out["eflags"] & 0x40
         assert m.pointer() == 0
+
+
+@pytest.mark.parametrize(
+    ("compatible", "result", "state"),
+    [(False, 1, STATE_INCOMPATIBLE), (True, 0, STATE_INIT_FAILED), (True, 2, STATE_INIT_FAILED)],
+)
+def test_initialization_failure_preserves_engine(compatible, result, state) -> None:
+    m = Machine(compatible=compatible, init_result=result)
+    out = m.run()
+    assert out == m.entry
+    assert m.byte(OFF_STATE) == state
+    assert m.initialized == int(compatible)
+    assert m.pointer() == _REAL

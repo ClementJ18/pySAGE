@@ -1,0 +1,3 @@
+LIBRARY pysage_accel
+EXPORTS
+    SageAccelInitialize=_SageAccelInitialize@0

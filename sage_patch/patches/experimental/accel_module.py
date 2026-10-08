@@ -1,19 +1,11 @@
-"""Load OH1A's `bfme2_accel.dll` from `game.dat` itself, at the engine's `Direct3DCreate9` resolve.
+"""Initialize the native pySAGE accelerator on the engine's Direct3D resolve thread.
 
-The accelerator normally arrives through its loader, which injects the DLL into a running game.
-This patch makes `game.dat` load it instead: the engine resolves `Direct3DCreate9` from `d3d9.dll`
-itself and stores it in `DIRECT3D_CREATE9_PTR` before first use, and a `.accel` cave takes over
-that store, re-runs it, and `LoadLibraryA`s `bfme2_accel.dll`. The DLL installs itself from its
-own `DllMain`, as it does when injected. A missing DLL leaves the patched `game.dat` running as
-stock.
+The optional companion is built from ``native/accelerator``. LoadLibrary only attaches it;
+SageAccelInitialize performs installation outside the loader lock and returns a protocol result.
+The cave preserves the engine's pointer, registers and flags on every outcome. Engine-address
+hooks are disabled in this companion so that runtime installation cannot replace sage-patch edits.
 
-The moment is chosen for the DLL: `d3d9.dll` and `d3dx9_27.dll` are loaded, the device does not
-exist yet, and no effect has been created, so the render thread's hooks are in place before the
-first device call. The DLL has to come from a build that works on a `game.dat` other tools have
-patched (`../../docs/accel-module.md` §2): it identifies a build by a hash over all of `.text`,
-which any patch changes.
-
-Derived from OH1A's `bfme2_accel.dll`, with his permission (`../../docs/accel-port.md` §4).
+Derived from OH1A's MIT-licensed BFME2 Accelerator; see ``docs/accel-module.md``.
 """
 
 from __future__ import annotations
@@ -27,6 +19,7 @@ from ...addresses import (
     DIRECT3D_CREATE9_STORE,
     DIRECT3D_CREATE9_STORE_ENTRY,
     DIRECT3D_CREATE9_STORE_RESUME,
+    GET_PROC_ADDRESS_IAT,
     LOAD_LIBRARY_A_IAT,
 )
 from ...asm import JE, Asm
@@ -38,10 +31,13 @@ __all__ = [
     "BLOCK_MAGIC",
     "CODE_OFFSET",
     "DLL_NAME",
+    "INIT_NAME",
     "OFF_MODULE",
     "OFF_STATE",
     "SECTION_NAME",
     "STATE_LOADED",
+    "STATE_INCOMPATIBLE",
+    "STATE_INIT_FAILED",
     "STATE_NOT_REACHED",
     "STATE_NO_MODULE",
     "AccelModulePatch",
@@ -59,7 +55,8 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 BLOCK_MAGIC = 0x4C434153
 
 #: Looked up by `LoadLibraryA`'s normal search, which starts in the directory holding `game.dat`.
-DLL_NAME = b"bfme2_accel.dll\x00"
+DLL_NAME = b"pysage_accel.dll\x00"
+INIT_NAME = b"SageAccelInitialize\x00"
 
 OFF_MAGIC = 0x00
 #: What the hook found, as one of the `STATE_*` values; `sage_live` can read it to say why a game is
@@ -68,13 +65,16 @@ OFF_STATE = 0x04
 #: The module handle `LoadLibraryA` returned, or 0.
 OFF_MODULE = 0x08
 OFF_DLL_NAME = 0x10
+OFF_INIT_NAME = 0x30
 #: Where the code starts. Fixed, so the hook can address the block absolutely while it is still
 #: being emitted.
-CODE_OFFSET = 0x20
+CODE_OFFSET = 0x50
 
 STATE_NOT_REACHED = 0
 STATE_NO_MODULE = 1
 STATE_LOADED = 2
+STATE_INCOMPATIBLE = 3
+STATE_INIT_FAILED = 4
 
 #: What has to be true before the hook means anything: the resolve, the `cmp eax, ebx` whose flags
 #: the `je` after the store reads, the store itself, and that `je`.
@@ -85,6 +85,7 @@ def _block() -> bytes:
     block = bytearray(CODE_OFFSET)
     struct.pack_into("<I", block, OFF_MAGIC, BLOCK_MAGIC)
     block[OFF_DLL_NAME : OFF_DLL_NAME + len(DLL_NAME)] = DLL_NAME
+    block[OFF_INIT_NAME : OFF_INIT_NAME + len(INIT_NAME)] = INIT_NAME
     return bytes(block)
 
 
@@ -96,11 +97,25 @@ def _emit(base_va: int) -> Asm:
     # register go back exactly as they came.
     a.emit(0x9C)  # pushfd
     a.emit(0x60)  # pushad
-    a.emit(0x68, struct.pack("<I", base_va + OFF_DLL_NAME))  # push "bfme2_accel.dll"
+    a.emit(0x68, struct.pack("<I", base_va + OFF_DLL_NAME))  # push companion DLL name
     a.emit(0xFF, 0x15, struct.pack("<I", LOAD_LIBRARY_A_IAT))  # call [LoadLibraryA]
     a.emit(0xA3, struct.pack("<I", base_va + OFF_MODULE))  # mov [module], eax
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "no_module")
+    a.emit(0x68, struct.pack("<I", base_va + OFF_INIT_NAME))
+    a.emit(0x50)  # push module
+    a.emit(0xFF, 0x15, struct.pack("<I", GET_PROC_ADDRESS_IAT))
+    a.emit(0x85, 0xC0)
+    a.jcc(JE, "incompatible")
+    a.emit(0xFF, 0xD0)  # initialize on this engine thread, outside the loader lock
+    a.emit(0x83, 0xF8, 0x01)  # protocol success is exactly 1
+    a.jcc(JE, "ready")
+    a.emit(0xC6, 0x05, struct.pack("<I", base_va + OFF_STATE), STATE_INIT_FAILED)
+    a.jmp("done")
+    a.label("incompatible")
+    a.emit(0xC6, 0x05, struct.pack("<I", base_va + OFF_STATE), STATE_INCOMPATIBLE)
+    a.jmp("done")
+    a.label("ready")
     a.emit(0xC6, 0x05, struct.pack("<I", base_va + OFF_STATE), STATE_LOADED)
     a.jmp("done")
     a.label("no_module")
@@ -125,18 +140,20 @@ class AccelModulePatch(Patch):
     name = "accel-module"
     author = "officialNecro"
     experimental = True
-    # The loader cave armed in Edain on 2026-09-24; loading bfme2_accel.dll through it is unplayed
+    # In-game smoke tested; extended stability and multiplayer remain unverified.
     runtime_verified = "partly"
     description = (
-        "Load OH1A's BFME2 Accelerator (bfme2_accel.dll) from the game directory when the engine "
-        "resolves Direct3DCreate9, instead of injecting it with its loader. Without the DLL beside "
-        "game.dat the game runs as stock. The DLL must be a build that accepts a patched game.dat "
-        "(see the write-up); it logs to bfme2_accel.log beside itself. Client-local. No INI change"
+        "Initialize the pySAGE companion build of OH1A's BFME2 Accelerator (pysage_accel.dll) "
+        "on the engine thread when it resolves Direct3DCreate9. "
+        "Build the DLL from native/accelerator. "
+        "Without the DLL the game runs as stock. The companion leaves fixed-address engine hooks "
+        "off to preserve sage-patch edits. Parallel rendering is disabled by default pending "
+        "driver validation. Experimental; client-local. No INI change"
     )
 
     @property
     def credit(self) -> str:
-        return f"{super().credit}, loading OH1A's bfme2_accel.dll"
+        return f"{super().credit}, loading a companion derived from OH1A's BFME2 Accelerator"
 
     def apply(self, data: bytearray) -> None:
         off = va_to_offset(data, DIRECT3D_CREATE9_STORE)

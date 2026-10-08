@@ -1,0 +1,34 @@
+BFME2 Accelerator by Ohad Baehr (OH1A)
+Source: https://github.com/OhadBaehr/bfme2-accelerator
+Revision: 5b7f1edfebccc9a37184cf5b6103249bdb86f0a3
+Imported from the user's local checkout on 2026-10-08.
+License: MIT; see LICENSE. rpmalloc retains its public-domain/MIT notice in its sources.
+
+This is the native pySAGE companion, not the upstream injectable DLL.
+Runtime sources and includes are retained together so the upstream source can be compared
+directly. Fixed-address engine features are compiled but not installed by the companion.
+No launcher, artwork, proprietary game binary or compiled DLL is included in source control.
+
+Local changes:
+- Explicit SageAccelInitialize export; DllMain performs only attachment setup.
+- Exact producer thread supplied by the loader call instead of effect-call guessing.
+- Disable engine-address hooks, ANY_BINARY_OK bypass and effect-value deduplication.
+- Remove upstream profiling/capture activation paths that could bypass the engine gate.
+- Default-off experimental render thread following failed native D3D9 harness validation.
+- Reinstall device slots after Reset, including failed/inactive Reset paths.
+- Keep existing originals for slots still hooked; validate before partial-table repair.
+- Pump sent window messages while the window thread waits for the execution lock.
+- Check all required queue allocations and worker readiness; fix effect-cache epoch wrap.
+- Hook the device after releasing installation probes.
+- Build discovery, native compatibility tests, parameterized CRT test and render harness.
+
+src/aotr_rt_gen.inc is an upstream generated file with local execution-lock calls.
+Do not overwrite it with upstream gen_rt_hooks.py without porting those changes and
+reviewing the generated diff. The generator was not imported as a pySAGE build dependency.
+crt_test.cpp is upstream src/crt_test2.cpp with a caller-supplied CRT path.
+rt_harness.cpp uses pysage_accel.dll and explicitly opts into the experimental renderer;
+it must not be used as evidence for the default profile's performance.
+
+Review follow-up: preserve realloc(p, 0) semantics with native regression coverage;
+disable AOTR_NOPRESHADER; fix harness narrowing/file-open warnings without changing
+its double-precision expressions; build with /WX.

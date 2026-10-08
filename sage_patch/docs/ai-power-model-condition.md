@@ -42,7 +42,7 @@ interface (module `+0x10`), so the fields it reads sit at negative and small pos
 | `[esi-0xC]` | `+0x04` | the module data (`CommandButtonName`, `SpecialPowerAIType`, …) |
 | `[esi-8]` | `+0x08` | the owning `Object *` |
 | `[esi+0x10]` | `+0x20` | active flag |
-| `[esi+0x11]` | `+0x21` | bound flag; see "Binding" in pySAGE-edain's `docs/ai-special-powers.md` |
+| `[esi+0x11]` | `+0x21` | bound flag; see "Binding" in pySAGE-edain's AI special-powers documentation |
 | `[esi+0x14]` | `+0x24` | the type behaviour the factory at `0x0099272E` built |
 
 The type behaviour's `+0xC` is the `CommandButton *` the bind (`0x008B714F`) found.
@@ -87,7 +87,7 @@ The ready check `0x008B708B` asks about object status bit `0x5A`, calls `canUseS
 (`0x007B1D79`), then asks the power module itself. It never looks at the button.
 
 Nothing else between the bind and the cast looks at the button either: `0x00993055` rolls the
-coin and calls the type's slot 7; the pickers in pySAGE-edain's `docs/ai-special-powers.md` read
+coin and calls the type's slot 7; the pickers in pySAGE-edain's AI special-powers documentation read
 health, enemies and allies. So a hook on a button with `EnableOnModelCondition` casts whenever its
 picker is satisfied, whatever the object's model conditions.
 
