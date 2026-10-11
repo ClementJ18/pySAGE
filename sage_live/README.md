@@ -12,7 +12,7 @@ by the replay serializer and checked against the replay the engine recorded.
 ```python
 import sage_live
 
-with sage_live.attach() as game:              # read-only; nothing is written to the game
+with sage_live.attach() as game:  # read-only; nothing is written to the game
     observation = game.observe()
 
     print(observation.frame, observation.me.resources)
@@ -27,7 +27,7 @@ Issuing orders needs the experimental `live-bridge` patch (see Requirements) and
 
 ```python
 with sage_live.attach(writable=True) as game:
-    game.wait_for_match()                     # the menu is a running game; see below
+    game.wait_for_match()  # the menu is a running game; see below
     observation = game.observe()
 
     game.select([o.object_id for o in observation.orderable(game.player_index)])
@@ -86,7 +86,7 @@ Three frozen dataclasses:
 
 ```python
 barracks = observation.find(template="GondorBarracks", owner=game.player_index)[0]
-if not barracks.producing:                       # queue non-empty: unit *or* upgrade
+if not barracks.producing:  # queue non-empty: unit *or* upgrade
     game.select([barracks.object_id])
     game.recruit("GondorFighterHorde")
 
@@ -102,7 +102,7 @@ Units and upgrades share one `ProductionUpdate` queue. It costs a module walk pe
 ```python
 from sage_live.utils.statics import Statics
 
-game.revives = Statics.from_root(root)          # the roster and the slot blocks
+game.revives = Statics.from_root(root)  # the roster and the slot blocks
 game.select([barracks.object_id])
 game.confirm_queued(lambda: game.recruit_hero("GondorBeregond"), barracks.object_id)
 ```
@@ -116,12 +116,12 @@ control bar hides, so `recruit_hero` only allows that with `godsight`. Details:
 
 ```python
 statics = Statics.from_root(root)
-for power in statics.spell_store("Men"):              # what the store sells
+for power in statics.spell_store("Men"):  # what the store sells
     if power.purchasable and power.enabled_for(held) and power.cost <= me.power_points:
         game.confirm_power(lambda: game.purchase_power(power.science), power.science)
         break
 
-for power in statics.spell_book("Men"):               # what the book casts
+for power in statics.spell_book("Men"):  # what the book casts
     if power.castable and power.enabled_for(held):
         print(power.power, power.form, power.effect, power.radius, power.reload_seconds)
 # SpellBookRebuild        location heal    150.0 180.0
@@ -154,11 +154,11 @@ show battalions that came apart; see
 ## Moving the camera
 
 ```python
-here = game.camera()                      # the live ViewLocation, or None if unreadable
-game.look_at(centroid_of(fight))          # re-aim, touching nothing else
-game.look_at(plot.position, zoom=0.6)     # override one scalar
+here = game.camera()  # the live ViewLocation, or None if unreadable
+game.look_at(centroid_of(fight))  # re-aim, touching nothing else
+game.look_at(plot.position, zoom=0.6)  # override one scalar
 
-with CameraPan(game) as pan:              # a thread that eases toward its target
+with CameraPan(game) as pan:  # a thread that eases toward its target
     pan.aim(centroid_of(fight))
 ```
 
@@ -170,9 +170,9 @@ See [`camera-control.md`](../sage_patch/docs/camera-control.md).
 ## `Statics`: the join you cannot skip
 
 ```python
-from sage_live.utils.statics import Statics          # imports sage_ini; not re-exported
+from sage_live.utils.statics import Statics  # imports sage_ini; not re-exported
 
-statics = Statics.from_root(root)              # one ini load, about a minute
+statics = Statics.from_root(root)  # one ini load, about a minute
 plots = [o for o in observation.mine if statics.is_build_site(o.template_name)]
 ```
 

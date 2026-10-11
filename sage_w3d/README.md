@@ -43,14 +43,14 @@ strings are never assumed zero-padded or decoded as UTF-8.
 from sage_w3d import parse_w3d_from_path, write_w3d_to_path
 
 w3d = parse_w3d_from_path("model.w3d")
-w3d.meshes                 # list[Mesh]
-w3d.hierarchy              # Hierarchy | None
-w3d.hlod                   # HLOD | None
-w3d.animations             # list[Animation]  (.animation is the first)
+w3d.meshes  # list[Mesh]
+w3d.hierarchy  # Hierarchy | None
+w3d.hlod  # HLOD | None
+w3d.animations  # list[Animation]  (.animation is the first)
 w3d.compressed_animations  # list[CompressedAnimation]  (.compressed_animation is the first)
-w3d.boxes                  # list[CollisionBox]
-w3d.dazzles                # list[Dazzle]
-w3d.diagnostics            # list[W3DDiagnostic], empty for a fully modelled file
+w3d.boxes  # list[CollisionBox]
+w3d.dazzles  # list[Dazzle]
+w3d.diagnostics  # list[W3DDiagnostic], empty for a fully modelled file
 
 write_w3d_to_path(w3d, "model.rewritten.w3d")  # byte-identical to the input
 ```

@@ -49,7 +49,7 @@ linting is exposed through `sage-lint`.
 from sage_map import parse_map_from_path
 
 # Load a BFME .map file
-map = parse_map_from_path('path/to/your/file.map')
+map = parse_map_from_path("path/to/your/file.map")
 
 # Access map properties
 print(map.world_info)
@@ -82,7 +82,7 @@ python -m sage_edain.map_checks --help
 from sage_map import parse_map_from_path
 from sage_edain.map_checks import lint_map
 
-map = parse_map_from_path('path/to/your/file.map')
+map = parse_map_from_path("path/to/your/file.map")
 errors = lint_map(map)
 
 for error in errors:

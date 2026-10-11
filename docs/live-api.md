@@ -121,24 +121,26 @@ class Observation:
     players: tuple[PlayerState, ...]
     objects: tuple[GameObject, ...]
 
+
 @dataclass(frozen=True)
 class PlayerState:
     index: int
-    faction: str            # Side token, e.g. "Mordor"
+    faction: str  # Side token, e.g. "Mordor"
     resources: int
-    power_points: int       # spellbook, spendable
-    sciences: frozenset[int]          # held spellbook powers, by id (names need an ini load)
-    command_points: tuple[int, int]   # used, cap
-    upgrades: frozenset[str]          # completed, PLAYER-scoped only
+    power_points: int  # spellbook, spendable
+    sciences: frozenset[int]  # held spellbook powers, by id (names need an ini load)
+    command_points: tuple[int, int]  # used, cap
+    upgrades: frozenset[str]  # completed, PLAYER-scoped only
+
 
 @dataclass(frozen=True)
 class GameObject:
     object_id: int
-    template_name: str      # -> every ini stat, for free, via sage_ini
-    owner_index: int | None # the owning *player*, which is not template_side
+    template_name: str  # -> every ini stat, for free, via sage_ini
+    owner_index: int | None  # the owning *player*, which is not template_side
     position: tuple[float, float, float]
     angle: float
-    health: float           # fraction
+    health: float  # fraction
     upgrades: frozenset[str]  # completed, OBJECT-scoped: this battalion's, this structure's
 ```
 
@@ -187,7 +189,7 @@ game.build("MordorSlaughterHouse", (1024.0, 768.0, 0.0), angle=0.0)
 game.recruit("MordorFighterHorde")
 game.research("Upgrade_MordorFireArrows", building_id=12)
 game.purchase_power("Science_EyeOfSauron")
-game.send(Order(...))                      # escape hatch, always available
+game.send(Order(...))  # escape hatch, always available
 ```
 
 Each of those takes a **name or an id**, resolved through the session's `NameLookup`. That is a
@@ -205,10 +207,10 @@ section 10's acceptance test possible.
 `retarget._resolve_chunks` builds exactly the four inverse tables a live encoder needs:
 
 ```python
-things    = {name: i + 1 for i, name in enumerate(target.object_order)}
-upgrades  = {name: i + 3 for i, name in enumerate(target.upgrades)}
-powers    = {name: i + 1 for i, name in enumerate(target.specialpowers)}
-sciences  = {name: i + 1 for i, name in enumerate(target.sciences)}
+things = {name: i + 1 for i, name in enumerate(target.object_order)}
+upgrades = {name: i + 3 for i, name in enumerate(target.upgrades)}
+powers = {name: i + 1 for i, name in enumerate(target.specialpowers)}
+sciences = {name: i + 1 for i, name in enumerate(target.sciences)}
 ```
 
 Promote those into a public encoder over `narrate.GameData` that both `retarget` and `sage_live`

@@ -62,7 +62,7 @@ from sage_ini import Xref, load_game
 
 game = load_game("data").game
 fighter = game.objects["GondorFighter"]
-print(fighter.BuildCost)                              # fields convert on access
+print(fighter.BuildCost)  # fields convert on access
 print({o.name for o in Xref(game).referenced_by(fighter)})  # e.g. GondorFighterHorde
 ```
 
@@ -80,7 +80,7 @@ loaded from the `.sagepatch` a mod commits:
 from sage_ini import load_engine, load_game
 
 game = load_game("data", engine=load_engine("data/.sagepatch")).game
-game.specialpowers["MyHeroPower"].ManaCost      # a field only the patched engine has
+game.specialpowers["MyHeroPower"].ManaCost  # a field only the patched engine has
 ```
 
 Applying is process-wide, because the schema lives on the model classes; one engine is active at a
@@ -98,8 +98,17 @@ versions.
 
 ```python
 from sage_ini import (
-    load_game, Game, IniObject, Xref,
-    parse, parse_file, print_document,
-    walk_objects, Diagnostic, Diagnostics, Severity, Span,
+    load_game,
+    Game,
+    IniObject,
+    Xref,
+    parse,
+    parse_file,
+    print_document,
+    walk_objects,
+    Diagnostic,
+    Diagnostics,
+    Severity,
+    Span,
 )
 ```

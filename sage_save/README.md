@@ -43,8 +43,14 @@ object/upgrade/science harvests recognise each save's real content.
 
 ```python
 from sage_save import (
-    parse_save_from_path, decode_game_state, extract_map, iter_objects, check_save,
-    save_to_json, apply_json, write_save_to_path,
+    parse_save_from_path,
+    decode_game_state,
+    extract_map,
+    iter_objects,
+    check_save,
+    save_to_json,
+    apply_json,
+    write_save_to_path,
 )
 
 save = parse_save_from_path("Saved Game 1.BfME2Skirmish")
@@ -55,7 +61,7 @@ print(header.description, header.saved_at, header.map_name)
 for chunk in save.chunks:
     print(chunk.name, f"v{chunk.version}", len(chunk.payload))
 
-for obj in iter_objects(save):        # every live object, resolved to its ini template
+for obj in iter_objects(save):  # every live object, resolved to its ini template
     print(obj.object_id, obj.template_name)
 
 open("embedded.map", "wb").write(extract_map(save))  # a normal on-disk .map
@@ -69,6 +75,7 @@ write_save_to_path(edited, "edited.sav")
 
 # Cross-reference against a loaded game
 from sage_ini.loader import load_game
+
 game = load_game("path/to/data/ini").game
 for finding in check_save(save, game):
     print(finding.status, finding.reference.name)  # e.g. "missing HarlindonRuin10"

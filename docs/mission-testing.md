@@ -170,12 +170,14 @@ INIS = r"C:\...\_mod\maps\_inis"
 with run_user_map(
     MAP,
     install=r"C:\RotWK",
-    name="sagetest_<mission>",        # a folder the harness owns, not the player's copy
+    name="sagetest_<mission>",  # a folder the harness owns, not the player's copy
     extras=(INIS,),
-    seats=(Seat.human(faction=..., start_position=0),
-           Seat.computer(faction=..., difficulty="hard", start_position=1)),
+    seats=(
+        Seat.human(faction=..., start_position=0),
+        Seat.computer(faction=..., difficulty="hard", start_position=1),
+    ),
     settings=LobbySettings(starting_resources=0, seed=42),
-    writable=True,                    # ordering needs the live bridge
+    writable=True,  # ordering needs the live bridge
     timeout=180,
 ) as session:
     session.wait_for_match()
@@ -205,10 +207,10 @@ nothing the game reads, so a controller that dies leaves a game running exactly 
 from sage_live.backends.memory import ProcessMemory, MemoryBackend
 from sage_live.backends.script_trace import ScriptTrace, EventKind
 
-trace = ScriptTrace(process)          # process = a writable handle on the game
+trace = ScriptTrace(process)  # process = a writable handle on the game
 trace.attach(recording=True)
 ...
-events = trace.read()                 # (frame, kind, Script *, object id)
+events = trace.read()  # (frame, kind, Script *, object id)
 ```
 
 With §2's watch on top this becomes `watch.fired("Smaug_in_pos")`.
