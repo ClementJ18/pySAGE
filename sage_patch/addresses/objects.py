@@ -11,6 +11,16 @@ from sage_patch.addresses.runtime import (
 )
 
 __all__ = [
+    "EXPERIENCE_LEVEL_COLLECTION",
+    "EXPERIENCE_LEVEL_DOWN_ANCHORS",
+    "EXPERIENCE_LEVEL_FIND_BY_KEY",
+    "EXPERIENCE_LEVEL_MODE_ALLOWED",
+    "EXPERIENCE_LEVEL_RESOLVE",
+    "EXPERIENCE_TRACKER_LEVEL_CHECK",
+    "EXPERIENCE_TRACKER_OBJECT_LEVEL_CHANGE",
+    "OBJECT_REMOVE_LEVEL_MODIFIER",
+    "OBJECT_REMOVE_LEVEL_UPGRADE",
+    "THE_DELAYED_EXPERIENCE_LEVEL_GRANT_SYSTEM",
     "ACTIVE_BODY_ATTEMPT_HEALING",
     "ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_FSTP",
     "ACTIVE_BODY_ATTEMPT_HEALING_AMOUNT_FSTP_BYTES",
@@ -193,6 +203,9 @@ __all__ = [
     "LAYER_AFTER_MOVE_SET_CALL",
     "LAYER_AFTER_MOVE_SET_CALL_ENTRY",
     "LAYER_SET_ARGS_ENTRY",
+    "LEVEL_GRANT_SPECIAL_POWER_DISTRIBUTE_EXPERIENCE",
+    "LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE",
+    "LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE_BYTES",
     "LIFETIME_ALLOC",
     "LIFETIME_ALLOC_BYTES",
     "LIFETIME_ALLOC_RESUME",
@@ -1418,6 +1431,14 @@ LIFETIME_ANCHORS: dict[int, bytes] = {
 }
 # Semantic name for the confirmed float XP path; original EA name is unknown.
 EXPERIENCE_TRACKER_ADD_EXPERIENCE_POINTS = 0x0079D833
+
+# Confirmed by the supplied RotWK Ghidra analysis; see
+# `docs/level-grant-special-power-negative-experience.md`.
+LEVEL_GRANT_SPECIAL_POWER_DISTRIBUTE_EXPERIENCE = 0x008C6E82
+# After TEST EAX,EAX and PUSH EDI: JLE skips nonpositive ModuleData.Experience.
+LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE = 0x008C6E95
+LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE_BYTES = bytes.fromhex("0f8e91000000")
+
 # Derived in `docs/passive-aura-revive.md`. `PassiveAreaEffectBehavior` parks its update at the
 # sleep-forever sentinel the first time it ticks on a dead object, and nothing wakes an update
 # module when an object is revived - so an aura on a structure that survives death as rubble is
@@ -1812,3 +1833,107 @@ CONTAIN_ANSWER_NO_BYTES = bytes.fromhex("32c0c3")
 #: `Drawable+0xFC` - the `Object` a drawable belongs to, NULL for a client-only drawable. The
 #: selection is a list of drawables, and its walkers read each object through this.
 DRAWABLE_OBJECT = 0xFC
+
+
+# RotWK 2.01 level-down contracts, verified against tools/BFME-FILES/game.dat.backup.
+# See docs/experience-level-down.md for call conventions and the queue layout.
+EXPERIENCE_LEVEL_COLLECTION = 0x0068931C
+EXPERIENCE_LEVEL_FIND_BY_KEY = 0x00689BB3
+EXPERIENCE_LEVEL_MODE_ALLOWED = 0x00688DB0
+EXPERIENCE_LEVEL_RESOLVE = 0x00688D3C
+EXPERIENCE_TRACKER_LEVEL_CHECK = 0x0079D141
+EXPERIENCE_TRACKER_OBJECT_LEVEL_CHANGE = 0x0079DA9D
+OBJECT_REMOVE_LEVEL_MODIFIER = 0x0068F259
+OBJECT_REMOVE_LEVEL_UPGRADE = 0x00691438
+THE_DELAYED_EXPERIENCE_LEVEL_GRANT_SYSTEM = 0x00DE8AC0
+
+# Untouched code and the Object tracker virtual slot pin the supported build and ABI.
+EXPERIENCE_LEVEL_DOWN_ANCHORS: dict[int, bytes] = {
+    0x0079D141: bytes.fromhex(
+        "5151568bf18b0d0447de0056e8cac1eeff85c089442408745a53f30f2c5e105557c64424130133edff760c8b"
+        "0d0447de00ff742418e8c1cceeff8bf885ff74213b5f187c10ff74241c8b06578bceff50108befeb05c64424"
+        "1300807c24130075c785ed74088b85fc000000eb038b46245f5d5b5e5959c20400"
+    ),
+    0x0079D68D: bytes.fromhex("558bec518b410433d23890f7050000745e"),
+    0x0079D6AA: bytes.fromhex(
+        "385510f30f104508f30f1145fc7414f30f10411cf30f594508f30f59451cf30f1145fc38550c7414d945fc51"
+        "d91c24e8dbfdffffd95dfcf30f1045fc"
+    ),
+    0x0079D8EF: bytes.fromhex(
+        "568bf1eb18ff76388b0d2c41de00e87fbdcaff85c0740c8bb06c020000837e380075e28b460480b8f7050000"
+        "00742f8a463cf30f104424088bce"
+    ),
+    0x0079D934: bytes.fromhex("807c240c00741285c0740e8b4e2c3b410c740650e8b3fdffff5ec20800"),
+    0x0079DA9D: bytes.fromhex(
+        "5657ff7424108b7c24108bf1ff76348b0dc08ade0057e80a3b08008b4e34e85305f7ff85c0740e8d8fa40000"
+        "00518bc8e86051edff8d4710508bcee8b7f9ffff81c7fc000000ff378bcee83efcffff833f017e5a807e2000"
+        "75548b7e348b4704f68008010000807545c64620018b4704f68013010000048bcf7414e85bdbeeff6a018d88"
+        "dc030000e826000000eb1f6a26e8b902cbff84c075148bcfe83adbeeff6a018d88dc030000e8200000005f5e"
+        "c20800"
+    ),
+    0x0068931C: bytes.fromhex(
+        "558bec51518b450885c074228b490c83c030508d45f850e8f2d51a008b45f885c08b4dfc894dfc740583c008"
+        "eb0233c0c9c20400"
+    ),
+    0x00689E3C: bytes.fromhex(
+        "558bec5151ff750ce86afdffff83650c0085c074068b401889450c8365f800538b5d088b03578b383bf8c745"
+        "fcffffff7f742e568d4f08e8c4eeffff8bf0e831efffff84c074138b46183b450c7e0b3b45fc7d068945fc89"
+        "75f88b3f3b3b75d45e8b45f85f5bc9c20800"
+    ),
+    0x00689BB3: bytes.fromhex(
+        "558bec83ec10568bf1578d45088d7e28508bcfe88cb202003b0774058b4014eb4e8b4e0c8d45f050e8596ef5"
+        "ff8b45f08b4df48945f8894dfceb208b48088b01eb0a8b501c3b5508742b8b003bc175f28d4df8e8f2620300"
+        "8b45f885c075dc8d4508508bcfe8dfd50f0083200033c05f5ec9c20400"
+    ),
+    0x00688D3C: bytes.fromhex("8bc18b500485d2740e8b4a0485c97405e9a3cdddff8bc2c3"),
+    0x00465AF4: bytes.fromhex("8bc1eb028bc28b500485d275f7c3"),
+    0x00688DB0: bytes.fromhex(
+        "8b0d2c41de00e89bc6f9ff84c0740a33c0388601010000eb0833c03886020100000f94c0c3"
+    ),
+    0x0068F259: bytes.fromhex(
+        "558bec515356578b7d088b0785c08bf174060fb74004eb0233c033db433bc374708b8e5802000085c974078b"
+        "01ff507ceb0233c085c0740f8b106a00578bc8ff92dc010000eb4a8bcee8ffd1ffff85c08945fc743c8bcee8"
+        "c3c3ffff8bf885ff740c8b460483b82c060000007f0432dbeb08568bcfe8bdb20100ff75088b4dfce81d6017"
+        "0084db7408568bcfe883b201005f5e5bc9c20400"
+    ),
+    0x00691438: bytes.fromhex(
+        "558bec81ec90000000568bd1578b7d088b4f3833f6468bc183e11fd3e6c1e8058d84828c020000f7d621308b"
+        "b24c0200008b0685c07442538d480c8b01ff50288bd885db7429ff77388d8d70ffffff6a00e8a3e8ffff8b03"
+        "8d8d70ffffff518bcbff500c84c0740753e8e21124005983c6048b0685c075c05b5f5ec9c20400"
+    ),
+    0x00736E87: bytes.fromhex(
+        "395e048bcf751fe8e547f5ff385d0c8bc853740a6a0256e87f7ff7ffeb1a56e86177f7ffeb12385d0c567407"
+        "e8d3c9f5ffeb05e879a5f5ff33c040"
+    ),
+    0x00821319: bytes.fromhex(
+        "b848aeb900e8cdbb210051538b5d0c568b75088b46342b46305733ffc1f802894df0741e8b46306aff8d04b8"
+        "508bcbe85bdee6ff"
+    ),
+    0x00821353: bytes.fromhex(
+        "47c1f8023bf872e28b46502b464c33ffc1f802741b8b464cff34b88bcbe81625e7ff"
+    ),
+    0x0082137B: bytes.fromhex(
+        "47c1f8023bf872e58b4304f6801f01000040741fff73748b0d843dde00e8c581dfff85c0740dffb6fc000000"
+        "8bc8e84d8cfeff807d1000a12c41de008b4040742483f80a721f8b4df05356e821feffffa108f6d9006bc003"
+        "5068d20000008bcbe8a1a1e6ff8b8b6c02000056e818c4f7ff8d7e588bcfe88d23c9ff84c07408578bcbe8a3"
+        "27dcff80be0001000000744bf605cc8ade00017524830dcc8ade00018b0de490dd008365fc006848b5c000e8"
+        "bd73d2ff834dfcffa3c88ade00ff35c88ade008bcbe860a9e6ff85c0740dffb6fc0000008bc8e8129007008b"
+        "b60401000083feff740c6a016a00568bcbe812dfe6ff8b4df45f5e5b64890d00000000c9c20c00"
+    ),
+    0x00821567: bytes.fromhex(
+        "55568be9578d7d108b078b303bf0744153ff76088b0d2c41de00e8fb80c2ff8bd885db7425f6835804000001"
+        "740d6a588bcbe84ec8c2ff84c0740f"
+    ),
+    0x008215B1: bytes.fromhex(
+        "8b363b3775c15b8bcf5f5e5de9730f0400558bec83ec0c8079140075218b450c8b40748945f48b45088945f8"
+        "8a45108845fc8d45f45083c110e8b8feffffc9c20c00"
+    ),
+    0x00C3149C: bytes.fromhex("9dda7900"),
+    0x0079D494: bytes.fromhex(
+        "56ff7424088bf18d4e08e88d8bc9ffff7424088b0de490dd00e8c21fd0ff89460c5ec20400"
+    ),
+    0x0079D72A: bytes.fromhex("8b44240485c07410394124740b8941248b492ce8d5ffffffc20400"),
+    0x008D2688: bytes.fromhex(
+        "568b7424088b068bceff501c84c075108b068bceff50208b066a008bceff50245ec3"
+    ),
+}

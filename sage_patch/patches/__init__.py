@@ -22,6 +22,7 @@ from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
 )
+from sage_patch.patches.experience_level_down import ExperienceLevelDownPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
@@ -47,6 +48,9 @@ from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
+from sage_patch.patches.level_grant_special_power_negative_experience import (
+    LevelGrantSpecialPowerNegativeExperiencePatch,
+)
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
@@ -111,6 +115,7 @@ __all__ = [
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
     "FactionVariantsPatch",
+    "ExperienceLevelDownPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
     "GiveUpgradeAllPatch",
@@ -125,6 +130,7 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
+    "LevelGrantSpecialPowerNegativeExperiencePatch",
     "LifetimeFieldsPatch",
     "LiveBridgePatch",
     "MapTransitionPatch",

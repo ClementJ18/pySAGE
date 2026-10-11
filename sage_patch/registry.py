@@ -55,6 +55,7 @@ from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
 from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
+from sage_patch.patches.experience_level_down import ExperienceLevelDownPatch
 from sage_patch.patches.experimental.accel_module import AccelModulePatch
 from sage_patch.patches.experimental.ai_power_model_condition import AiPowerModelConditionPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
@@ -108,6 +109,9 @@ from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.lan_join_bystanders import LanJoinBystandersPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
+from sage_patch.patches.level_grant_special_power_negative_experience import (
+    LevelGrantSpecialPowerNegativeExperiencePatch,
+)
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.lobby_faction_byte import LobbyFactionBytePatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
@@ -245,6 +249,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     DrawModuleScalePatch,
     EvacuateContainedHeroesPatch,
     FactionVariantsPatch,
+    ExperienceLevelDownPatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
     GateCloseRepathPatch,
@@ -268,6 +273,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     InflationReadoutPatch,
     InterpolationAlphaPatch,
     LargeGroupBonusPatch,
+    LevelGrantSpecialPowerNegativeExperiencePatch,
     LifetimeFieldsPatch,
     LiveBridgePatch,
     MapTransitionPatch,
