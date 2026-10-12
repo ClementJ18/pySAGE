@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 __all__ = [
+    "COMMAND_BUTTON_SIDECAR_CTOR",
+    "COMMAND_BUTTON_SIDECAR_CTOR_BYTES",
+    "COMMAND_BUTTON_CTOR_BYTES",
     "ABILITY_MODULEDATA_SPECIAL_POWER",
     "ABILITY_TRIGGER",
     "ABILITY_TRIGGER_MODULEDATA_EBP",
@@ -953,3 +956,11 @@ PLAYER_UPGRADE_DISCOUNTS = 0x3D0
 # `st0`: its `Percentage` if the list is empty or names it, else `0.0`.
 UPGRADE_DISCOUNT_ENTRY_VALUE = 0x006ADA3E
 UPGRADE_DISCOUNT_ENTRY_VALUE_ENTRY = bytes.fromhex("568bf1")
+
+#: First whole ctor instruction; sidecars clear recycled button identities here.
+COMMAND_BUTTON_CTOR_BYTES = bytes.fromhex("b80c20b900")
+
+#: MOV ESI,ECX / OR [ESI+0x0C],-1, before the shared XOR EBX,EBX.
+#: Sidecar lifetime hook leaves the constructor entry and padding-default hooks intact.
+COMMAND_BUTTON_SIDECAR_CTOR = 0x0075D524
+COMMAND_BUTTON_SIDECAR_CTOR_BYTES = bytes.fromhex("8bf1834e0cff")

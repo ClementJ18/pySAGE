@@ -19,6 +19,7 @@ __all__ = [
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK",
     "WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH",
     "WORLDBUILDER_SCRIPT_ACTION_TEMPLATES_INIT",
+    "WORLDBUILDER_SCRIPT_ACTION_TEMPLATE_LAST_SET",
     "WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT",
     "WORLDBUILDER_SCRIPT_TEMPLATE_FLAGS_OR",
     "WORLDBUILDER_STRLEN",
@@ -58,3 +59,8 @@ WORLDBUILDER_STRLEN = 0x016C368C
 # `Parameter::getUiText`'s jump table over the 78 parameter types (`cmp type, 0x4d`); each case
 # prints one argument, and the enum cases hold their value names.
 WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH = 0x00AAE408
+
+
+#: Final string assignment in the action-template initializer, followed by mov esp,ebp /
+#: pop ebp / ret. This is the independent editor registration hook for castle-prefab-wb.
+WORLDBUILDER_SCRIPT_ACTION_TEMPLATE_LAST_SET = 0x00FF336E
