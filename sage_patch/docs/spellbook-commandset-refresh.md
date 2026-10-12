@@ -62,8 +62,7 @@ argument with `ret 4`. The shared stock epilogue restores EDI/ESI. EAX/ECX/EDX a
 volatile. The marking entry specifically expects EAX to hold the resolved set.
 
 The stock CommandSetUpgrade Apply, including its two post-set selection calls at `0x008B7C87`, is
-untouched. The former diagnostic Drawable guard had no confirmed effect and has been removed.
-No UpgradeMux conditions, science ownership, SpecialPower modules, releaseBuffer,
+untouched. No UpgradeMux conditions, science ownership, SpecialPower modules, releaseBuffer,
 UnUpgrade/re-evaluation cycle, or spellstore are modified. The transient cleared override
 observed during normal re-evaluation is not patched out. `THE_IN_GAME_UI` keeps its existing
 meaning and address.

@@ -292,12 +292,11 @@ keyword, and it is the right call only if the two behaviours turn out to need di
 
 ## 5. How removal reaches this patch
 
-Scoping this, the removal path looked like the thing that might sink it: `attemptRemoveUpgrade`
-(`0x008D2901`) clears the latch and the custom animation and does **not** call
-`unUpgradeImplementation`, and the only caller of vtable slot `+0x20` that a call scan finds is
-the debug handler at `0x006974D0`. On that reading a revoked upgrade would leave its button behind.
+The removal path looks as if it leaves the button behind: `attemptRemoveUpgrade` (`0x008D2901`)
+clears the latch and the custom animation and does **not** call `unUpgradeImplementation`, and the
+only caller of vtable slot `+0x20` that a call scan finds is the debug handler at `0x006974D0`.
 
-That reading was wrong, and the answer is one slot over. `Object::updateUpgradeModules` ends each
+It does not, and the answer is one slot over. `Object::updateUpgradeModules` ends each
 module's turn with `call [eax+0x18]` at `0x006937AF` — **unconditionally, for every upgrade module
 on the object, on every pass**, whether or not it just fired. For `CommandSetUpgrade` that slot is
 its own `0x008B7CAB`:

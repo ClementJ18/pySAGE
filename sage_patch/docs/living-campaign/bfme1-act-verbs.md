@@ -161,13 +161,9 @@ End
 
 Parser `0x007BABE0`. This is the biggest of the four by some margin: reinforcements attached to a
 region, arriving on a timer that scales with distance, pathfinding constrained by ownership, with an
-auto-summon option. It also explains `PathFindRule` — which
-[`living-world-parity.md`](living-world-parity.md) lists as a missing `MoveArmy` field. It is not a
-`MoveArmy` field at all; it belongs to `RegionReinforcements`, and BFME1's `gondorcampaign.ini` uses
-`PathFindRule = PlayerOwned` 19 times.
-
-**That is a correction to the parity doc** and it matters, because it moves `PathFindRule` from "a
-small missing field" to "part of a subsystem that is wholly absent".
+auto-summon option. It also owns `PathFindRule`, which is not a `MoveArmy` field at all;
+BFME1's `gondorcampaign.ini` uses `PathFindRule = PlayerOwned` 19 times. So `PathFindRule` is not "a
+small missing field" but part of a subsystem that is wholly absent.
 
 ## What reimplementation actually costs
 
@@ -215,12 +211,13 @@ That makes **the scaffolding cheap and the runtime the entire cost** for all fou
 
 | | question | how to settle |
 |---|---|---|
-| ~~1~~ | ~~Can the Act verb table grow in place?~~ | **settled** — no, but relocation is one dword at `0x0096E7F3` |
-| ~~2~~ | ~~Does RotWK still have the structure `ModifyArmyEntry` mutates?~~ | **settled** — yes, `LivingWorldPlayerArmy`/`ArmyEntry` parse today, offsets above |
 | 3 | Does anything in RotWK survive of the reinforcement-army list `RegionReinforcements` fed? | RotWK still has live `CREATE_REINFORCEMENT_TEAM`; check whether it shares a backing list |
-| ~~4~~ | ~~What does BFME1's `MergePlayerArmy` runtime actually move — templates, or a sub-army object?~~ | **settled** — neither: it moves `ArmyEntry` records, and `SplitArmyTemplate` is a manifest of which ones. Executor `0x007ADC30`, implementation `0x007B4510`. Scoped for RotWK in [`merge-player-army.md`](merge-player-army.md) |
 
-With 1, 2 and 4 settled, the ordering has changed. `MergePlayerArmy` is scoped in
+Settled: the Act verb table cannot grow in place, but relocation is one dword at `0x0096E7F3`;
+RotWK still has the structure `ModifyArmyEntry` mutates (`LivingWorldPlayerArmy`/`ArmyEntry` parse
+today, offsets above); and BFME1's `MergePlayerArmy` moves neither templates nor a sub-army object
+but `ArmyEntry` records, with `SplitArmyTemplate` as a manifest of which ones (executor
+`0x007ADC30`, implementation `0x007B4510`). `MergePlayerArmy` is scoped in
 [`merge-player-army.md`](merge-player-army.md), and scoping it turned up the one structural
 constraint all four verbs share: **the Act struct is `0xB8` bytes with three spare, so no verb can
 add a per-act list.** The records have to live in the patch's own cave, keyed by act name. That

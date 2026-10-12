@@ -259,14 +259,13 @@ every mod that ships the module the moment somebody wanted an upkeep somewhere. 
 
 ### No branch reaches any window
 
-The first attempt at this check used a linear capstone sweep of `.text`, and **it was wrong**:
-`Cs.disasm` stops at the first undecodable byte, so it covered 43,078 instructions of an 8.2 MB
-section and answered "no branches" for every window here — including one it could be proved wrong
-about by hand. [`scripts/scan_branches.py`](../scripts/scan_branches.py) replaces it by decoding a
-branch at **every byte offset**, which over-approximates and so cannot produce a false negative;
+A linear capstone sweep of `.text` cannot establish this: `Cs.disasm` stops at the first
+undecodable byte, so it covers 43,078 instructions of an 8.2 MB section and answers "no branches"
+for every window. [`scripts/scan_branches.py`](../scripts/scan_branches.py) decodes a branch at
+**every byte offset** instead, which over-approximates and so cannot produce a false negative;
 it reports no interior hit for any of the five windows, and no window byte appears as an `imm32`
 anywhere in the image. The full output is in
-[`auto-deposit-inflation.md` §5](auto-deposit-inflation.md#5-the-window-is-safe-and-how-that-was-actually-established).
+[`auto-deposit-inflation.md` §5](auto-deposit-inflation.md#5-the-window-is-safe-and-how-that-is-established).
 
 ## 5. Experience
 

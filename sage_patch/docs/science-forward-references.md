@@ -470,11 +470,9 @@ already passes in CI; everything above it needs the game.
    This one is already covered: the tests apply all three flag combinations, verify each, reject
    each against the other two's settings, and round-trip through `apply_patches`.
 
-## Appendix — a correction to `sage_patch.addresses`
+## Appendix — the `ScienceInfo` layout
 
-The note above `THE_SCIENCE_STORE` (`sage_patch/addresses/player.py`) says the store's elements are
-"separately allocated at *different sizes*, so no fixed offset names them and it is still
-unwalked". That is not what the binary does. `INI::parseScienceDefinition` allocates `ScienceInfo`
+`INI::parseScienceDefinition` allocates `ScienceInfo`
 at three sites (`0x005FF831`, `0x005FF888`, `0x005FF8E0`) and every one is `push 0x34`; the
 constructor is `0x005FF6D9` and the layout is fixed:
 
@@ -491,5 +489,4 @@ constructor is `0x005FF6D9` and the layout is fixed:
 
 The store is `{begin, end, capacity}` of `ScienceInfo*` at `TheScienceStore+0x0C`, exactly like
 `TheSpecialPowerStore`. With `+0x10` as the key and `NameKeyGenerator::keyToName` (`0x00548700`)
-resolving it, `sage_live` can name all 263 sciences from memory today. Independent of this patch,
-but found by it — fix the comment either way.
+resolving it, `sage_live` can name all 263 sciences from memory.

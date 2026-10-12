@@ -58,6 +58,7 @@ import struct
 
 from sage_patch import addresses as ad
 from sage_patch.patches import ai_command_null_target as acnt
+from sage_patch.patches import ai_farm_kill_gate as afk
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import ai_hero_build_delay as ahbd
 from sage_patch.patches import banner_modifier as bm
@@ -71,6 +72,7 @@ from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
 from sage_patch.patches import gate_close_repath as gcr
 from sage_patch.patches import give_upgrade_all as gua
+from sage_patch.patches import grant_science_upgrade as gsu
 from sage_patch.patches import healing_received as hr
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
@@ -78,6 +80,8 @@ from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import interpolation_alpha as ia
 from sage_patch.patches import lobby_faction_byte as lfb
 from sage_patch.patches import mod_load_order as mlo
+from sage_patch.patches import model_condition_images as mci
+from sage_patch.patches import multi_contain as mcon
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import multi_mod as mm
 from sage_patch.patches import object_image_upgrade as oi
@@ -94,6 +98,7 @@ from sage_patch.patches import revive_object_binding as rob
 from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import script_debug_window as sdw
 from sage_patch.patches import skirmish_ai_fallback as saf
+from sage_patch.patches import special_power_refund_upgrade as spru
 from sage_patch.patches import spell_recharge_targets as srt
 from sage_patch.patches import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches import standalone_launcher as sl
@@ -114,6 +119,7 @@ from sage_patch.patches.experimental import map_transition as mtr
 from sage_patch.patches.experimental import observer_all_commands as oac
 from sage_patch.patches.experimental import ranged_stand_off as rso
 from sage_patch.patches.experimental import recharge_rescale as rr
+from sage_patch.patches.experimental import shared_control_on_leave as scl
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import spellbook_hotkeys as sbhk
 from sage_patch.patches.utils import kind_of as ko
@@ -460,6 +466,43 @@ def object_image_upgrade_worldbuilder_image() -> bytearray:
     )
 
 
+def grant_science_upgrade_worldbuilder_image() -> bytearray:
+    """A stand-in carrying Worldbuilder's TooltipUpgrade and AudioLoopUpgrade registrations.
+
+    Both windows are planted, the factory pushes and ModuleFactory load included, so the two
+    Worldbuilder module patches can be applied to one image in either order.
+    """
+    return _sparse_image(
+        {
+            ad.WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CALL
+            - len(oi._WORLDBUILDER_REGISTER_PREFIX): oi._WORLDBUILDER_REGISTER_PREFIX
+            + oi._WORLDBUILDER_REGISTER_BYTES,
+            ad.WORLDBUILDER_GRANT_SCIENCE_UPGRADE_REGISTER_CALL
+            - len(gsu._WORLDBUILDER_REGISTER_PREFIX): gsu._WORLDBUILDER_REGISTER_PREFIX
+            + gsu._WORLDBUILDER_REGISTER_BYTES,
+        }
+    )
+
+
+def special_power_refund_upgrade_worldbuilder_image() -> bytearray:
+    """A stand-in carrying Worldbuilder's AudioLoopUpgrade and RemoveUpgradeUpgrade registrations.
+
+    Both windows are planted, the factory pushes and ModuleFactory load included, so the two
+    Worldbuilder module patches that wrap neighbouring calls can be applied to one image in
+    either order.
+    """
+    return _sparse_image(
+        {
+            ad.WORLDBUILDER_GRANT_SCIENCE_UPGRADE_REGISTER_CALL
+            - len(gsu._WORLDBUILDER_REGISTER_PREFIX): gsu._WORLDBUILDER_REGISTER_PREFIX
+            + gsu._WORLDBUILDER_REGISTER_BYTES,
+            ad.WORLDBUILDER_SPECIAL_POWER_REFUND_UPGRADE_REGISTER_CALL
+            - len(spru._WORLDBUILDER_REGISTER_PREFIX): spru._WORLDBUILDER_REGISTER_PREFIX
+            + spru._WORLDBUILDER_REGISTER_BYTES,
+        }
+    )
+
+
 def _sparse_image(planted: dict[int, bytes], image_base: int = IMAGE_BASE) -> bytearray:
     """A PE32 mapping one section per touched page, each holding the bytes ``planted`` puts in it.
 
@@ -735,6 +778,16 @@ def evacuate_contained_heroes_image() -> bytearray:
     )
 
 
+def model_condition_images_image() -> bytearray:
+    """A stand-in carrying the two UI resolver sites and both `setModelState` hooks the patch
+    repoints, and the field rows, `m_curState` stores, vtable slots and helpers its cave reads.
+
+    Sparse because those span the image: `W3DHordeModelDraw` near `0x0047A000`, `W3DModelDraw` near
+    `0x004C4000`, the resolvers near `0x0073D000`, and the field rows and vtables in `.rdata`.
+    """
+    return _sparse_image({va: stock for va, (stock, _) in mci.HOOKS.items()} | mci.ANCHORS)
+
+
 def mount_health_ratio_image() -> bytearray:
     """A stand-in carrying the mount swap's and the dismount swap's health hand-over, each as the
     full stock sequence the cave's register contract is read from."""
@@ -803,6 +856,13 @@ def mount_swap_eject_image() -> bytearray:
             ad.OPEN_CONTAIN_ON_DIE_EJECT: ad.OPEN_CONTAIN_ON_DIE_EJECT_BYTES,
         }
     )
+
+
+def multi_contain_image() -> bytearray:
+    """A stand-in carrying every site `multi-contain` rewrites with its stock bytes, and every
+    anchor it reads: the two enter states' vtable slots, the enter hint's slaughter test and the
+    two contain vtables' answers to it."""
+    return _sparse_image(mcon.stock_windows())
 
 
 #: `SpellRechargeModifierUpgrade`'s three stock field rows as `(name VA, name, parse, offset)`.
@@ -902,6 +962,83 @@ def ai_hero_build_delay_image() -> bytearray:
             **ahbd.ANCHORS,
         }
     )
+
+
+#: The rows of the stand-in `ArmyDefinition` table `ai_farm_kill_gate_image` plants, `Side` first
+#: as in the real one.
+ARMY_DEFINITION_STAND_IN_ROWS = ("Side", "PhaseDuration_Rush", "HeroBuildOrder")
+
+
+#: The rows of the stand-in `ArmyMemberDefinition` table: the real one, whole.
+ARMY_MEMBER_DEFINITION_STAND_IN_ROWS = (
+    "Unit",
+    "PercentageOfArmyPhase1",
+    "PercentageOfArmyPhase2",
+    "PercentageOfArmyPhase3",
+)
+
+
+def ai_farm_kill_gate_image() -> bytearray:
+    """A stand-in carrying everything `ai-farm-kill-gate` rewrites or reads: `AIFarmKillSquad`'s
+    vtable, the recruiter's two calls to its object test, the `ArmyMemberDefinition` allocation,
+    the anchors, and both field tables for the patch to rebuild.
+
+    The tables end the way the real ones do: with no terminator of their own, the last row running
+    straight into pointers that are not names. One such row is planted after each, aimed at bytes
+    no keyword could spell, so a rebuild that copied it would be visible.
+    """
+    army = ad.ARMY_DEFINITION_FIELD_TABLE
+    member = ad.ARMY_MEMBER_DEFINITION_FIELD_TABLE
+    strings_va = army & ~0xFFF
+    strings = bytearray()
+
+    def rows_for(names: tuple[str, ...]) -> bytes:
+        rows = bytearray()
+        for index, name in enumerate(names):
+            rows += struct.pack("<IIII", strings_va + len(strings), ad.INI_PARSE_REAL, 0, index * 4)
+            strings.extend(name.encode("ascii") + b"\x00")
+        rows += struct.pack("<IIII", strings_va + len(strings), 0x0063F3BF, 0x005B4B9A, 0x0063F3BF)
+        strings.extend(b"\x83\xec\x10\x00")
+        return bytes(rows)
+
+    army_rows = rows_for(ARMY_DEFINITION_STAND_IN_ROWS)
+    member_rows = rows_for(ARMY_MEMBER_DEFINITION_STAND_IN_ROWS)
+    assert strings_va + len(strings) <= member, "the names would run into the member table"
+
+    def call(from_va: int, to_va: int) -> bytes:
+        return b"\xe8" + struct.pack("<i", to_va - (from_va + 5))
+
+    planted = {
+        strings_va: bytes(strings),
+        army: army_rows,
+        member: member_rows,
+        ad.ARMY_MEMBER_DEFINITION_ALLOC: ad.ARMY_MEMBER_DEFINITION_ALLOC_BYTES,
+        **afk.ANCHORS,
+    }
+    for refs, opcodes, table in (
+        (ad.ARMY_DEFINITION_FIELD_TABLE_REFS, ad.ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES, army),
+        (
+            ad.ARMY_MEMBER_DEFINITION_FIELD_TABLE_REFS,
+            ad.ARMY_MEMBER_DEFINITION_FIELD_TABLE_REF_OPCODES,
+            member,
+        ),
+    ):
+        for ref, opcode in zip(refs, opcodes, strict=True):
+            planted[ref] = bytes([opcode]) + struct.pack("<I", table)
+    for slot, routine in (
+        (ad.AI_FARM_KILL_SQUAD_RUN_GATE_SLOT, ad.AI_FARM_KILL_SQUAD_RUN_GATE),
+        (ad.AI_FARM_KILL_SQUAD_RESET_SLOT, ad.AI_FARM_KILL_SQUAD_RESET),
+        (ad.AI_FARM_KILL_SQUAD_BUILD_SLOT, ad.AI_FARM_KILL_SQUAD_BUILD),
+    ):
+        planted[ad.AI_FARM_KILL_SQUAD_VTABLE + slot] = struct.pack("<I", routine)
+    for site in ad.AI_TEAM_RECRUIT_ACCEPT_CALLS:
+        # The second call's last byte is the first of the next page, so it is planted in two parts.
+        blob = call(site, ad.AI_TEAM_RECRUIT_ACCEPT)
+        head = min(len(blob), 0x1000 - (site & 0xFFF))
+        planted[site] = blob[:head]
+        if blob[head:]:
+            planted[site + head] = blob[head:]
+    return _sparse_image(planted)
 
 
 def give_upgrade_all_image() -> bytearray:
@@ -1971,3 +2108,10 @@ def cah_factions_worldbuilder_image() -> bytearray:
     terminator_va, terminator_prefix = cf.WORLDBUILDER_TERMINATOR_SITE
     planted[terminator_va] = terminator_prefix + struct.pack("<I", cf.WORLDBUILDER_TERMINATOR_VA)
     return _sparse_image(planted)
+
+
+def shared_control_on_leave_image() -> bytearray:
+    """A stand-in carrying the leave order's transfer arm, the order filter, the client's
+    ownership predicate, the `VictoryConditions` vtable slots and the entry of everything the cave
+    calls. Sparse because they span five megabytes."""
+    return _sparse_image(dict(scl.ANCHORS))

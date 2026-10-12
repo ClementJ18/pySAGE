@@ -163,7 +163,7 @@ And the two-mask idiom, verbatim, from `UpgradeMux`'s conflict test at `0x008b8f
 
 Two calls, no union built. `testUpgradeConditions` (`0x008b8329`) picks between `testForAny` and
 `testForAll` on the mux's own `RequiresAllTriggers`, so an `…RequiresAll` companion keyword later is
-a one-call swap — the first cut is **any-of**, matching a bare `TriggeredBy`.
+a one-call swap — this one is **any-of**, matching a bare `TriggeredBy`.
 
 ## 4. Milliseconds are free
 
@@ -430,8 +430,8 @@ dies. Everything else about it is byte-identical to stock, including its sleep.
   `UpgradeLifetimeBonus` appears anywhere in the shipped tree, which matters because an unknown
   field in a known block is a parse error rather than a warning: a mod adopting the defaults is
   adding names, not shadowing them.
-- **~~Is `update()` ever called off-schedule?~~ Settled** — this was the design's one load-bearing
-  assumption, and the driver states it in nine instructions at `0x0062ea97`:
+- **`update()` is never called off-schedule.** This is the design's one load-bearing assumption,
+  and the driver states it in nine instructions at `0x0062ea97`:
 
   ```
   0062ea97  lea  ecx, [module+0x10]        ; the interface subobject the hook inherits as `this`
@@ -445,7 +445,7 @@ dies. Everything else about it is byte-identical to stock, including its sleep.
   So a sleep of 1 is every frame, and a late call cannot accumulate error: the reschedule is
   relative to when the call actually happened. The patch anchors this window, because nothing in
   `LifetimeUpdate` itself would catch a build that changed it.
-- **~~Does the in-world timer follow?~~ Settled**, in §5, and anchored: the widget recomputes both
+- **The in-world timer follows** (§5, anchored): the widget recomputes both
   of its terms from the live module every frame. What has *not* been established is whether any
   mod's own HUD reads the death frame some other way.
 - **The two-frame edges.** Arming happens with a sleep of 1, so both the trigger and the death land

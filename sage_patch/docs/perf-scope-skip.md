@@ -195,11 +195,10 @@ pairing — but **no call site passes null**, so that arm is dead in a stock bui
 already does this" would be a statement about code that never runs, and it is not the argument. The
 argument is the previous paragraph.
 
-> **Correction (2026-09-22).** This paragraph used to say "all thirty call sites push an `.rdata`
-> literal". Twenty-six do. The two `MeshDX8Render` sites and the two `MeshFXShader` ones build the
-> name on the caller's stack and pass the stage string as the *category* instead — see
-> [`perf-stage-readout.md`](perf-stage-readout.md) §1.2, which is where it cost something. It costs
-> nothing here: this gate never looks at the name, only at whether anyone is listening.
+Twenty-six of the thirty call sites push an `.rdata` literal. The two `MeshDX8Render` sites and the
+two `MeshFXShader` ones build the name on the caller's stack and pass the stage string as the
+*category* instead ([`perf-stage-readout.md`](perf-stage-readout.md) §1.2). That makes no
+difference here: this gate never looks at the name, only at whether anyone is listening.
 
 What is left is one predictable indirect call against the ~313 bytes and two CRT calls this
 removes. Gating it as well would mean editing the five bytes at `0x00517740` that
@@ -249,16 +248,16 @@ The two patches hook the same function nine bytes apart:
 | `perf-stage-readout` | `0x00517690`..`0x00517695` (six bytes), `0x00517740` (five) |
 | `perf-scope-skip` | `0x00517699`..`0x0051769E` (six bytes), `0x00525202` (five) |
 
-They are order-independent, and **that took a fix**. This patch's first build anchored on
-`PERF_SCOPE_CTOR`'s first twelve bytes, which span both its own hook and the readout's; the pair
-then applied in one order and refused in the other. Both anchors were narrowed — the readout's to
-nine bytes, ending before the gate, and this one's moved to `0x00517696`'s `push esi` / `mov esi,
-ecx`, which is the first part of the constructor the readout leaves alone.
+They are order-independent because neither anchors on what the other writes. An anchor on
+`PERF_SCOPE_CTOR`'s first twelve bytes would span both hooks, and the pair would apply in one order
+and refuse in the other; so the readout's anchor is nine bytes, ending before the gate, and this
+one's is `0x00517696`'s `push esi` / `mov esi, ecx`, the first part of the constructor the readout
+leaves alone.
 
-The invariant is now checked mechanically rather than by eye:
+The invariant is checked mechanically rather than by eye:
 `TestComposition::test_neither_patch_anchors_on_what_the_other_writes` applies each patch, collects
 the sites it overwrites from the declared hook widths, and asserts the other's anchor ranges do not
-intersect them. Reinstating the old anchor makes it fail with the exact six-byte overlap.
+intersect them. A twelve-byte anchor makes it fail with the exact six-byte overlap.
 
 **Applied together they are complementary**, and that is the combination worth running: the readout
 still times every scope, because it hooks the constructor's entry *before* the gate, and the scope

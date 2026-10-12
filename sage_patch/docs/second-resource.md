@@ -8,8 +8,7 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read out of a clean
 `game.dat`. This is the writeup for the **`second-resource`** patch,
-[`patches/experimental/second_resource.py`](../patches/experimental/second_resource.py), and it supersedes the costing
-document this feature started as.
+[`patches/experimental/second_resource.py`](../patches/experimental/second_resource.py).
 
 ## What this is
 
@@ -130,7 +129,7 @@ copies it, and **no INI field names it**. It is not free. `Player::init` reads i
 The copy is dead — `Player+0x98` is rewritten two instructions later — but the member is real, and
 "the only read I found is dead" is not the same claim as "nothing reads it". **An apparent hole in
 a template is usually a subobject member the field scan cannot see**, and `ThingTemplate+0x5E8`
-turned out to be the same trap (§7.1). `StartMoney2` goes elsewhere (§4).
+is the same trap (§7.1). `StartMoney2` goes elsewhere (§4).
 
 ## 2. Seeding, and why `Player::init`'s entry
 

@@ -44,6 +44,8 @@ from sage_patch.patches.wotr_battle_observers import (  # noqa: E402
     NAME_OFFSET,
     NUMBER_BYTES,
     NUMBER_VA,
+    OBSERVER_NAME_TEST_BYTES,
+    OBSERVER_NAME_TEST_VA,
     OBSERVER_SIDE_NAME,
     PREPARE_BYTES,
     PREPARE_VA,
@@ -108,6 +110,7 @@ def synthetic_image() -> bytearray:
     write(ASSIGN_NAME_VA, ASSIGN_NAME_BYTES)
     write(REVEAL_CALL_VA, REVEAL_CALL_BYTES)
     write(START_POSITION_VA, START_POSITION_BYTES)
+    write(OBSERVER_NAME_TEST_VA, OBSERVER_NAME_TEST_BYTES)
     for va, blob, _what in ANCHORS:
         write(va, blob)
     return data

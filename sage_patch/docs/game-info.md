@@ -21,8 +21,7 @@ command line can choose the match; that part is read statically and has not been
 **A section-modified `game.dat` only runs under that name.** The same bytes renamed die instantly
 with an access violation inside `msvcr71.dll`, while an *unpatched* copy runs under any name — so a
 patched build has to be installed as `game.dat` to be tested at all, and "try the copy" proves
-nothing. This cost an hour of bisecting a patch that turned out to be fine; `live-bridge` and an
-appended **empty** section fail the same way under a new name.
+nothing. `live-bridge` and an appended **empty** section fail the same way under a new name.
 
 ## 1. The argument form is the first gate, and it is not the obvious one
 
@@ -365,7 +364,7 @@ human is eleven comma fields and an AI seven — exactly the shapes a real `Skir
 unknown kind clears the overall flag. The colour bound is `[0x00DE7D3C]+0x40`; the template bound
 is `ThePlayerTemplateStore`'s span divided by `0x1DC`.
 
-### The rules block, and a correction
+### The rules block
 
 `GR`'s ten ints land at `+0x60`, directly after `GT` at `+0x5C`. So §4's options block is `GT`
 followed by the first four rules, and a menu game's `GR=0 0 1 100 1000 -1 -1 -1 -1 -1` puts 1000

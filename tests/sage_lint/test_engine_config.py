@@ -100,6 +100,22 @@ class TestReport:
 
         assert _codes(capsys, tmp_path) == ["patched-out-field"]
 
+    def test_a_field_the_stock_engine_ignores_is_reported_with_no_sagepatch(self, tmp_path, capsys):
+        (tmp_path / "test.ini").write_text(
+            "ObjectCreationList OCL_Test\nEnd\n"
+            "Object Test\n"
+            "    Behavior = ObjectCreationUpgrade ModuleTag_Test\n"
+            "        TriggeredBy = Upgrade_Test\n"
+            "        UpgradeObject = OCL_Test\n"
+            "    End\n"
+            "End\n"
+            "Upgrade Upgrade_Test\n    Type = OBJECT\nEnd\n",
+            "utf-8",
+        )
+
+        # The value is an OCL reference that resolves, so the only report is that it does nothing.
+        assert _codes(capsys, tmp_path) == ["patched-out-field"]
+
     def test_a_malformed_sagepatch_is_reported_and_the_lint_still_runs(self, project, capsys):
         (project / ".sagepatch").write_text("= = =\n", encoding="utf-8")
         codes = _codes(capsys, project)

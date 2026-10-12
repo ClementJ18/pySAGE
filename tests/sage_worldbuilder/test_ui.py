@@ -16,6 +16,7 @@ pytestmark = pytest.mark.full
 
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 
+from PyQt6.QtCore import QRect, QSize  # noqa: E402
 from PyQt6.QtGui import QKeySequence  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QDialog, QMenu  # noqa: E402
 
@@ -33,7 +34,12 @@ from sage_worldbuilder.keymap import accelerators  # noqa: E402
 from sage_worldbuilder.settings import RecentMap, Settings  # noqa: E402
 from sage_worldbuilder.ui.app import report_unhandled  # noqa: E402
 from sage_worldbuilder.ui.dialogs import OpenMapDialog, SaveMapDialog  # noqa: E402
-from sage_worldbuilder.ui.window import _GUIDE_HTML, APP_TITLE, MainWindow  # noqa: E402
+from sage_worldbuilder.ui.window import (  # noqa: E402
+    _GUIDE_HTML,
+    APP_TITLE,
+    MainWindow,
+    _scripts_geometry,
+)
 
 
 @dataclass
@@ -387,6 +393,21 @@ def test_reset_layout_and_cursor_readout(window):
     window.show_cursor((3, 4), 12.5)
     assert window.cell_label.text() == "Cell: 3, 4"
     assert window.height_label.text() == "Height: 12 (0.5 ft)"
+
+
+def test_scripts_open_as_a_window_over_the_editor(window):
+    assert window.scripts_dock.isFloating()
+    assert window.scripts_dock.isHidden()
+    window.show_scripts()
+    assert not window.scripts_dock.isHidden()
+    assert window.scripts_dock.isFloating()
+    placed = _scripts_geometry(QRect(100, 50, 1500, 1000))
+    assert placed.size() == QSize(1000, 700)
+    assert placed.center() == QRect(100, 50, 1500, 1000).center()
+
+    window.reset_layout()
+    assert window.scripts_dock.isHidden()
+    assert not window.players_dock.isHidden()
 
 
 def test_named_layouts_save_load_and_delete(window):

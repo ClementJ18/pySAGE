@@ -10,14 +10,17 @@ tools' tooltips and option panels, since WorldBuilder's handlers for them were n
 - Fence: "Places a row of objects. Drag then use shift to stretch": a drag places the Object
   Palette's object along it; with Shift held when the button comes up, the row is stretched to
   end where the drag does. A click places one.
-- Ramp: drag from one end of the ramp to the other; the ground under the drag, Ramp Width across,
-  becomes a straight slope when the button comes up.
+- Ramp, as WorldBuilder's (`RampTool`, vtable `0x01E065F0`): a drag from one end of the ramp to
+  the other only lays it out, taking the ground's height under each end (`0x005A3E70` press,
+  `0x005A3D00` drag, `0x005A3FA0` release). The ramp stays shown, at its own heights and at the
+  current Ramp Width, until Ramp Options' Apply builds it (`0x005A37E0`); it stays laid out after,
+  to apply again.
 - Border: click to add a border reaching the clicked spot from the map's corner; drag a border's
   corner handle to resize it; Alt-click a handle to remove that border (the last one stays).
 - Mesh Mold: click or drag to place the mold (its reach and facing are drawn); Dressing Options'
   Apply shapes the ground under it.
 
-Each gesture is one undo entry, and what a tool adds is selected.
+Each gesture, or Apply, is one undo entry, and what a tool adds is selected.
 """
 
 from __future__ import annotations
@@ -27,12 +30,13 @@ from collections.abc import Sequence
 from typing import Protocol
 
 import numpy as np
-from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QColor, QPainter, QPen
+from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtGui import QColor, QPainter, QPen, QPolygonF
 
 from sage_map.assets.height_map import HeightMapBorder
+from sage_worldbuilder.commands.base import CompositeCommand
 from sage_worldbuilder.commands.objects import place_objects
-from sage_worldbuilder.commands.terrain import PatchHeights
+from sage_worldbuilder.commands.terrain import PatchCells, PatchHeights
 from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.dressing import (
     GroveOptions,
@@ -46,11 +50,13 @@ from sage_worldbuilder.dressing import (
     mold_patch,
     new_scorch,
     pick_tree,
-    ramp_patch,
+    ramp_edit,
     rectangle_points,
     remove_border,
 )
+from sage_worldbuilder.terrain.cells import CellLayer
 from sage_worldbuilder.terrain.grid import WORLD_UNITS_PER_CELL
+from sage_worldbuilder.terrain.surface import ground_height
 from sage_worldbuilder.ui.overlays import road_corners
 from sage_worldbuilder.ui.tools import DRAG_PIXELS, PICK_PIXELS, EditHost, Gesture, Tool, ToolView
 from sage_worldbuilder.viewport import snap
@@ -66,6 +72,7 @@ __all__ = [
 ]
 
 _FEEDBACK = QColor(255, 255, 255, 200)
+_RAMP_FILL = QColor(255, 255, 255, 60)
 
 
 class DressingHost(EditHost, Protocol):
@@ -254,32 +261,86 @@ class FenceTool(_DragTool):
 
 
 class RampTool(_DragTool):
+    def __init__(self, host: DressingHost) -> None:
+        super().__init__(host)
+        # The laid-out ramp's ends, `(x, y, ground height in feet)`, and the map they were laid
+        # out on; None until a drag.
+        self.ramp: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._document: MapDocument | None = None
+
     def _accepts(self, document: MapDocument) -> bool:
         return document.terrain is not None
+
+    def _end(self, document: MapDocument, point: tuple[float, float]) -> tuple[float, float, float]:
+        grid = document.terrain
+        assert grid is not None
+        return point[0], point[1], ground_height(grid, *point)
+
+    def move(self, view: ToolView, gesture: Gesture) -> bool:
+        if not super().move(view, gesture):
+            return False
+        press, document = self._press, view.document
+        if self._dragging and press is not None and document is not None:
+            self.ramp = self._end(document, press.world), self._end(document, gesture.world)
+            self._document = document
+        return True
 
     def release(self, view: ToolView, gesture: Gesture) -> bool:
         press, dragging = self._finish()
         document = view.document
-        grid = document.terrain if document is not None else None
-        if press is None or document is None or grid is None or not dragging:
+        if press is None or document is None or not dragging:
             return press is not None
-        patch = ramp_patch(grid, press.world, gesture.world, self.host.ramp_width())
-        if patch is not None:
-            command = PatchHeights(patch.x0, patch.y0, patch.values, "Ramp")
-            self.host.execute(command)
-            command.closed = True
+        self.ramp = self._end(document, press.world), self._end(document, gesture.world)
+        self._document = document
         view.update()
         return True
 
+    def apply(self, document: MapDocument | None) -> bool:
+        """Build the laid-out ramp; False when there is nothing to apply."""
+        grid = document.terrain if document is not None else None
+        ramp = self.ramp
+        if document is None or grid is None or ramp is None or self._document is not document:
+            self.host.show_status("Drag from one end of the ramp to the other first.")
+            return False
+        edit = ramp_edit(grid, document.cells(CellLayer.IMPASSABLE), *ramp, self.host.ramp_width())
+        if edit is None:
+            self.host.show_status("The ramp covers no heightmap samples.")
+            return False
+        heights = edit.heights
+        commands: list[PatchHeights | PatchCells] = [
+            PatchHeights(heights.x0, heights.y0, heights.values, "Ramp")
+        ]
+        if edit.impassable is not None:
+            cells = edit.impassable
+            commands.append(
+                PatchCells(cells.x0, cells.y0, {CellLayer.IMPASSABLE: cells.values}, "Ramp")
+            )
+        self.host.execute(CompositeCommand("Ramp", commands))
+        return True
+
     def paint(self, view: ToolView, painter: QPainter) -> None:
-        press, current = self._press, self._current
-        if not self._dragging or press is None or current is None:
+        ramp = self.ramp
+        if ramp is None or self._document is not view.document:
             return
-        corners = road_corners(press.world, current.world, self.host.ramp_width())
+        (ax, ay, z0), (bx, by, z1) = ramp
+        corners = road_corners((ax, ay), (bx, by), self.host.ramp_width())
+        if corners is None:
+            return
+        # The ramp's own surface, sloping from one end's height to the other's: in 3D it shows
+        # where the ground will rise above or sink below today's.
+        heights = (z0, z1, z1, z0)
+        plane = view.transform.plane_to_screen
+        outline = [QPointF(*plane(x, y, z)) for (x, y), z in zip(corners, heights, strict=True)]
+        painter.setPen(QPen(_FEEDBACK, 1.5))
+        painter.setBrush(_RAMP_FILL)
+        painter.drawPolygon(QPolygonF(outline))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(_FEEDBACK, 1.5, Qt.PenStyle.DashLine))
-        if corners is not None:
-            view.world_polygon(painter, corners)
+        start, end = QPointF(*plane(ax, ay, z0)), QPointF(*plane(bx, by, z1))
+        painter.drawLine(start, end)
+        painter.setPen(QPen(_FEEDBACK))
+        for point, height in ((start, z0), (end, z1)):
+            painter.drawText(point + QPointF(6, -6), f"{height:.1f} ft")
 
 
 class BorderTool(_DragTool):

@@ -47,7 +47,10 @@ def window(qapp, tmp_path, monkeypatch):
     map.objects_list.object_list.append(new_object(map, "Keep", (100.0, 100.0, 0.0), 0.0, "/team"))
     window._set_document(MapDocument(map))
     # The window needs game data for this command; the models themselves are stubbed below.
-    window.context = SimpleNamespace(game=object(), art_filesystem=lambda: object())
+    # `objects` is read by the status bar's tree count on every refresh.
+    window.context = SimpleNamespace(
+        game=SimpleNamespace(objects={}), art_filesystem=lambda: object()
+    )
     monkeypatch.setattr(
         "sage_worldbuilder.ui.window.ObjectModels", lambda game, world, level: object()
     )

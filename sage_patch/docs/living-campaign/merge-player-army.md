@@ -225,11 +225,10 @@ and within an act the engine orders by pass, not by INI line order.
 |---|---|---|
 | 1 | Is `0x0081205B` really clone-and-append? It has **no direct callers** | read `0x0081019B`'s field copies against the `0xD8` record layout; if it is not, build the clone in the cave from `operator new(0xD8)` + `0x0081019B` + `0x00811951`, which is what `0x00811CF9` does for `ArmyEntry` |
 | 2 | Does `0x00810840` renumber or leave a hole? | read it; the loop erases descending to be safe either way, but a hole would break `getRecord` |
-| ~~3~~ | ~~Does the harvest at `0x00811E1F` append to or replace the roster?~~ | **settled 2026-08-28 by measurement: the roster is replaced.** Four entries in, three survivors out, each carrying the upgrades it earned. The static "it appends" answer written earlier the same day was wrong — records are consumed at deployment by `0x0071AE2D`. See [`hero-permadeath.md`](hero-permadeath.md) |
 | 4 | Is `act+0x04` still the name at run time? | it is set by the constructor and copied by the act copy-constructor; confirm the copy-ctor at the vector push (`0x0093402E`) carries it |
 
-Question 3 is the one that can invalidate the feature rather than the code. **Settled 2026-08-28 by
-reading two saves:** an army's roster is *replaced* across a battle — its records are consumed as
+**The harvest at `0x00811E1F` replaces the roster** (measured 2026-08-28 by reading two saves;
+[`hero-permadeath.md`](hero-permadeath.md)): an army's roster is *replaced* across a battle — its records are consumed as
 they deploy (`0x0071AE2D`) and the harvest puts the survivors back, each carrying the upgrades it
 earned. Good news for these verbs: the roster a merge sees is a clean list of what the army
 currently has, not an accumulation. The one consequence to know is that a hero record leaving a
@@ -267,8 +266,8 @@ All static. Nothing here is confirmed until a scenario run shows an army actuall
 
 Comparable to `scenario-player-factions` (375 + 469 lines) and larger than `objectives-screen`
 (264). The runtime is the cost, exactly as [`bfme1-act-verbs.md`](bfme1-act-verbs.md) predicted —
-but less than it estimated, because the record model turned out to be shared between INI template
-and live roster, so no new data structure has to be invented.
+but less than it estimated, because the record model is shared between INI template and live
+roster, so no new data structure has to be invented.
 
 **`DespawnArmy` is the cheaper neighbour and shares all this scaffolding**: same table relocation,
 same side table, one `AsciiString` instead of five fields, and `0x006B9679` as the entire runtime.
@@ -302,21 +301,15 @@ cave contains no scalar parser at all. A row is called
 `__cdecl parse(INI *ini, void *instance, void *store, const void *userData)`, read off the
 dispatch at `0x0042D58D`.
 
-**`0x0096DF5D` appends a 16-byte record, not a 12-byte one.** A correction to
-[`living-world-parity.md`](living-world-parity.md) §2, which described
-`SetPlayerControlOfArmy`'s list as 12-byte entries; the vector strides by `0x10`
+**`0x0096DF5D` appends a 16-byte record, not a 12-byte one**: the vector strides by `0x10`
 (`0x0096DF7F`), the record being `{vtable, AsciiString, Bool, pad}`.
 
 ### What is still unknown
 
-Question 3 of §6 is **settled, 2026-08-28, by measuring two saves: the roster is replaced.** Its
-records are consumed as they deploy (`0x0071AE2D`) and the harvest puts the survivors back with the
-upgrades they earned — four entries went into a battle, three came out. A static argument written
-earlier the same day concluded "appends" from the absence of a clear call; it was wrong, and it is
-left in [`hero-permadeath.md`](hero-permadeath.md) with the correction rather than deleted.
-
-For these verbs that is the good outcome: the roster a merge reads is a clean list of what the army
-holds now. The one thing to know is that a `KindOf HERO` record leaving a roster is also filed on
+The roster is replaced across a battle (§6): records are consumed as they deploy (`0x0071AE2D`)
+and the harvest puts the survivors back with the upgrades they earned. For these verbs that is the
+good outcome: the roster a merge reads is a clean list of what the army holds now. The one thing to
+know is that a `KindOf HERO` record leaving a roster is also filed on
 the owning `LivingWorldPlayer` at `+0x1D4` (`0x006E4853`), a structure `MergePlayerArmy` does not
 touch — so moving a hero between armies is worth watching for a double entry in the hero pool.
 

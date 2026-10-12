@@ -12,21 +12,39 @@ the third a human who is not - the seat that kept being handed `PlyrCivilian`.
 from __future__ import annotations
 
 import pathlib
+import struct
 
 import pytest
 
 pytest.importorskip("unicorn", reason="the emulator harness needs unicorn")
 
+from unicorn.x86_const import (  # noqa: E402
+    UC_X86_REG_EAX,
+    UC_X86_REG_EIP,
+    UC_X86_REG_ESP,
+)
+
 from sage_patch import WotrBattleObserversPatch  # noqa: E402
 from sage_patch import addresses as ad  # noqa: E402
 from sage_patch.patches.wotr_battle_observers import (  # noqa: E402
+    FRAME_SLOT_INDEX,
     NAME_OFFSET,
+    OBSERVER_SIDE_NAME,
     SECTION_NAME,
     build_cave,
 )
 from sage_patch.utils import find_section  # noqa: E402
 from tests.sage_patch.test_wotr_battle_observers import synthetic_image  # noqa: E402
-from tests.sage_patch.wotr_world import Emulator, Seat, build_world  # noqa: E402
+from tests.sage_patch.wotr_world import (  # noqa: E402
+    HEAP_BASE,
+    HEAP_SIZE,
+    Emulator,
+    Seat,
+    build_world,
+)
+
+#: Scratch at the top of the synthetic heap, clear of what `build_world` allocates from its bottom.
+HEAP_SCRATCH = HEAP_BASE + HEAP_SIZE - 0x1000
 
 REAL_GAME_DAT = pathlib.Path(__file__).resolve().parents[2] / "game.dat"
 
@@ -193,6 +211,112 @@ def test_the_assign_hook_writes_the_replay_observer_literal(image, entries, cave
     emu.call(entries["hook_name"], esi=world.seats[0].address, ebx=0)
     emu.call(entries["hook_assign"], esi=world.seats[0].address)
     assert emu.assignments == [(pytest.approx(emu.assignments[0][0]), cave_va + NAME_OFFSET)]
+
+
+@pytest.mark.parametrize("slot", [0, 3, 7])
+def test_each_observer_seat_gets_a_side_name_of_its_own(image, entries, cave_va, slot):
+    """`ReplayObserver<slot + 1>`: every lookup from a side to a player is by name, so two seats
+    with one name resolve to one player - measured as two black screens and one observer seeing
+    every army."""
+    world, mem = _co_op()
+    emu = Emulator(image, world, mem)
+    emu.uc.mem_write(Emulator.FRAME - FRAME_SLOT_INDEX, struct.pack("<I", slot))
+    emu.call(entries["hook_name"], esi=world.seats[0].address, ebx=0)
+    emu.call(entries["hook_assign"], esi=world.seats[0].address)
+    name = bytes(emu.uc.mem_read(cave_va + NAME_OFFSET, 16))
+    assert name == OBSERVER_SIDE_NAME + str(slot + 1).encode() + b"\x00"
+
+
+def _ascii_string(emu: Emulator, text: bytes | None) -> int:
+    """An `AsciiString` holding `text` (null for None), returned as the address of its handle."""
+    handle = HEAP_SCRATCH
+    if text is None:
+        emu.uc.mem_write(handle, struct.pack("<I", 0))
+        return handle
+    data = handle + 0x10
+    body = struct.pack("<IHH", 1, len(text), len(text) + 1) + text + b"\x00"
+    emu.uc.mem_write(data, body)
+    emu.uc.mem_write(handle, struct.pack("<I", data))
+    return handle
+
+
+@pytest.mark.parametrize(
+    ("name", "observer"),
+    [
+        (b"ReplayObserver", True),  # the stock side, as a replay seats it
+        (b"ReplayObserver1", True),
+        (b"ReplayObserver8", True),
+        (b"ReplayObserver12", False),
+        (b"ReplayObserve", False),
+        (b"Player_2", False),
+        (b"replayobserver", False),  # the stock compare is case-sensitive, and so is this
+        (b"", False),
+        (None, False),
+    ],
+)
+def test_the_observer_test_accepts_the_stem_and_one_more_character(
+    image, entries, cave_va, name, observer
+):
+    world, mem = _co_op()
+    emu = Emulator(image, world, mem)
+    emu.uc.mem_write(HEAP_SCRATCH + 0x200, OBSERVER_SIDE_NAME + b"\x00")
+    literal = HEAP_SCRATCH + 0x200
+    handle = _ascii_string(emu, name)
+    emu.call(entries["hook_observer_name"], ecx=handle, args=(literal,))
+    # The stock callee is a compare: 0 for a match. `initFromSide` skips a human seat's set-up on 0.
+    assert (emu.eax() == 0) is observer
+    assert emu.uc.reg_read(UC_X86_REG_ESP) == Emulator.FRAME - 0x80, "ret 4, as the stock callee"
+
+
+#: The callee the hook stands in for, `AsciiString::compare(const char *)`, and the two
+#: `msvcr71` import thunks it reaches: `strlen` and `memcmp`, both cdecl.
+STOCK_OBSERVER_NAME_TEST = 0x00406585
+CRT_STRLEN_THUNK = 0x00A3CF10
+CRT_MEMCMP_THUNK = 0x00A3D01A
+
+
+def _answer_the_crt(emu: Emulator) -> None:
+    """`strlen` and `memcmp` in Python: the imports are not mapped, the routine around them is."""
+    uc = emu.uc
+
+    def arg(i: int) -> int:
+        esp = uc.reg_read(UC_X86_REG_ESP)
+        return struct.unpack("<I", uc.mem_read(esp + 4 + i * 4, 4))[0]
+
+    def ret(value: int) -> None:
+        esp = uc.reg_read(UC_X86_REG_ESP)
+        uc.reg_write(UC_X86_REG_EIP, struct.unpack("<I", uc.mem_read(esp, 4))[0])
+        uc.reg_write(UC_X86_REG_ESP, esp + 4)
+        uc.reg_write(UC_X86_REG_EAX, value & 0xFFFFFFFF)
+
+    def strlen(_uc, _address, _size, _user) -> None:
+        ret(bytes(uc.mem_read(arg(0), 0x100)).index(0))
+
+    def memcmp(_uc, _address, _size, _user) -> None:
+        left, right = (bytes(uc.mem_read(arg(i), arg(2))) for i in (0, 1))
+        ret((left > right) - (left < right))
+
+    for va, handler in ((CRT_STRLEN_THUNK, strlen), (CRT_MEMCMP_THUNK, memcmp)):
+        uc.hook_add(1 << 2, handler, begin=va, end=va)  # UC_HOOK_CODE
+
+
+@pytest.mark.skipif(not REAL_GAME_DAT.exists(), reason="runs the engine's own compare")
+@pytest.mark.parametrize(
+    "name", [b"ReplayObserver", b"ReplayObserve", b"ReplayObserver12", b"Player_2", b"", None]
+)
+def test_the_observer_test_answers_in_the_sense_the_stock_callee_does(image, entries, name):
+    """Every name the hook does not widen gets the answer the engine's routine gives it, zero or
+    not - the caller branches on that, so the sense is the contract."""
+    world, mem = _co_op()
+    answers = []
+    for routine in (STOCK_OBSERVER_NAME_TEST, entries["hook_observer_name"]):
+        emu = Emulator(image, world, mem)
+        _answer_the_crt(emu)
+        emu.uc.mem_write(HEAP_SCRATCH + 0x200, OBSERVER_SIDE_NAME + b"\x00")
+        emu.call(routine, ecx=_ascii_string(emu, name), args=(HEAP_SCRATCH + 0x200,))
+        answers.append(emu.eax() == 0)
+    assert answers[0] == answers[1]
+    assert answers[0] is (name == OBSERVER_SIDE_NAME)
 
 
 def test_the_assign_hook_leaves_a_fighting_seat_named_as_the_engine_named_it(image, entries):

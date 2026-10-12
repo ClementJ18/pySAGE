@@ -105,6 +105,10 @@ STOCK_LIMITS: dict[str, int] = {
     # overshoot is a crash; the commandset-limit patch sets it to 1, which makes the same INI a
     # cosmetic bug (blank slots) rather than a fatal one.
     "commandset.range_clamped": 0,
+    # Whether an object's earlier-declared slaughter contains take riders its stored (last
+    # declared) contain refuses. 0 on the stock build, where only the last contain is ever asked;
+    # the multi-contain patch sets it to 1.
+    "contain.secondary_slaughter": 0,
 }
 
 

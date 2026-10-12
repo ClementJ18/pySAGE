@@ -12,9 +12,8 @@ Every address below was read from the clean `sage_patch/engine/game.dat.backup`
 model of what an order does to a produced unit is incomplete - which is exactly what the flag is
 for. `sage-patch list` marks it `exp` and `apply` warns before it writes.
 
-Sections 1-4 are the reverse engineering as it was scoped. Section 5 is what was built: one edit
-shorter than the scope predicted, because the client gate turned out to be unnecessary (5.5), and
-one longer, because the banner needed moving too (5.6).
+Sections 1-4 are the reverse engineering. Section 5 is the patch: the client gate is unnecessary
+(5.5), and the banner needs moving too (5.6).
 
 **The feature.** Right-click a hero or a unit with a producing structure selected and have the
 structure's rally point follow *that object* instead of the patch of ground it happened to be
@@ -277,11 +276,9 @@ Which order to issue is the one genuinely open design choice:
 | move to the target's current position | `0x0066C4CA` with `target+0x38` | units walk to where the hero is at the moment they spawn, then stop. Cheapest, and cannot behave differently from a normal rally in any way the AI or the pathfinder has not already seen. **This is the form that works.** |
 | guard the target | `0x00771805` | units are meant to follow and defend, as they do for `MSG_DO_GUARD_OBJECT`. **Defective - see below.** |
 
-**The arm has two destinations, and that was the bug.** Reported from play: produced units walk to
-the hero and then back to the spot where the rally point was set on him. So the object order *was*
-taking - the walk to the hero is it working - and something else pulled them back afterwards.
-
-That something is the first instruction of the arm this patch was hooking:
+**The arm has two destinations, which decides where the hook sits.** The first instruction of the
+walk-to-the-point arm aims the unit's exit path at the stored rally point, before the move order
+is issued:
 
 ```
 008a3d14  mov  ecx, [ebp-4]              ; the container the unit is leaving
@@ -292,35 +289,33 @@ That something is the first instruction of the arm this patch was hooking:
 008a3d23  ...                            ; and only then the move order
 ```
 
-`Object` vtable `+0x244`, handed the stored rally point. The hook used to sit at `0x008A3D23`, so
-that call had already been made: the unit left the door with an exit path ending at the stored
-point *and* an order naming the target, and once it reached the target the first one reasserted
-itself. With the move form the two destinations are close enough to be invisible unless the target
-has moved since the order was given, which is why only the guard form looked broken.
+`Object` vtable `+0x244`, handed the stored rally point. A unit that gets that call and then an
+order naming the target leaves the door with an exit path ending at the stored point *and* an
+order naming the target; once it reaches the target the exit path reasserts itself and the unit
+walks back to the spot where the rally point was set. With the move form the two destinations are
+close enough to be invisible unless the target has moved since the order was given; with the guard
+form the walk back is plain.
 
-**The engine already knew not to do this.** Its own rally-at-object arm (`0x008A3CDE`, the
-slaughterhouse path) never makes that call - it sets two model conditions and goes straight to
-`aiEnter`. Hooking the *tail* of the walk-to-the-point arm inherited a step that belongs only to
-walking to a point.
+**The engine's own object arm does not make that call.** Its rally-at-object arm (`0x008A3CDE`,
+the slaughterhouse path) sets two model conditions and goes straight to `aiEnter`; the exit-path
+call belongs only to walking to a point.
 
-So the hook moved to `0x008A3D14`, the head of the arm, displacing the whole fifteen-byte call. A
-live, allied target now suppresses it; anything else replays all fifteen bytes and re-enters the
-stock arm after them, so a rejected target still costs nothing.
+So the hook sits at `0x008A3D14`, the head of the arm, displacing the whole fifteen-byte call. A
+live, allied target suppresses it; anything else replays all fifteen bytes and re-enters the
+stock arm after them, so a rejected target costs nothing.
 
-### The guard refusal that was not happening
+### The guard refusal that is not happening
 
-Before that, the arguments were checked and one was wrong: the command source was `CMD_FROM_AI`
-where the guard handler passes `CMD_FROM_PLAYER` (`push ebx` at `0x0077ABEA`). Corrected, without
-changing the symptom.
+The command source is `CMD_FROM_PLAYER`, as the guard handler passes it (`push ebx` at
+`0x0077ABEA`); the source does not change the symptom.
 
-Reading further suggested guard was being *refused*: `aiDoCommand` (`0x0066A7EC`, `AIUpdateInterface`
+Guard looks as if it could be *refused*: `aiDoCommand` (`0x0066A7EC`, `AIUpdateInterface`
 vtable slot 0) switches on the state id through the table at `0x0066B07C`, entry `0x1F` forwards to
 `AIUpdate::privateGuardObject` (module vtable `+0x100`, `0x00664B19`), and that opens with three
 gates - `Object::testStatus(38)`, the can-this-be-moved predicate at `0x00690E97`, and KindOf
 `PROJECTILE` - each of which makes it `return -1` having touched nothing.
 
-**That was not what was happening** - the units did reach the hero, so the order took. The check it
-produced is kept anyway, because it costs four instructions and closes a real hole:
+**It is not refused** - the units do reach the hero, so the order takes. The check is kept anyway, because it costs four instructions and closes a real hole:
 `privateGuardObject` records the guarded `ObjectID` at module `+0x64` on success (`0x00664B73`) and
 the wrapper does not hand its verdict back usably (`0x0077185F` clobbers `eax` on one edge), so the
 cave reads that field back, compares it against the id it asked for, and issues the move form when
@@ -328,8 +323,8 @@ they differ. A refused guard degrades to the form that works rather than to no o
 
 ### 5.5 The client needs no edit, and this is why
 
-The scope assumed `0x0069D4F7` (context kind `0x0E`) had to be relaxed, because it appears to demand
-a contain module plus `canRallyToSlaughter`. Reading its failure edge settles it the other way:
+`0x0069D4F7` (context kind `0x0E`) looks as if it must be relaxed, because it appears to demand a
+contain module plus `canRallyToSlaughter`. Reading its failure edge settles it the other way:
 
 ```
 0069d504  cmp  edi, ebx                  ; is there a target?
@@ -466,18 +461,14 @@ marker site does with the answer, both resume points, and the routines the cave 
 
 `--guard` selects `aiGuardObject` over the move; `detect` recovers which form a binary carries.
 
-The staging the scope proposed collapsed into a single change, because stage 3 turned out not to
-exist (5.5) and stage 4 was cheap enough to ship beside stage 2. Stage 5 turned out not to be
-optional and is 5.6 - though only its *placement* half; redrawing the banner continuously as the
-target walks is still open.
+The banner's *placement* is 5.6; redrawing it continuously as the target walks is still open.
 
 ## 9. Open questions
 
 - What module `+0x24` (interface `+0x04`) is for. Not required for the recommended design, but it is
   the one field in the class this reading does not account for, and interface slot `+0x30` reaches
   offsets that do not sit comfortably inside a `0x44`-byte object.
-- ~~The full set of indirect callers of interface slot `+0x1C`~~. Closed by hooking the setter
-  itself rather than its callers; see 5.3.
+
 - Whether `SpawnPointProductionExitUpdate` (26 uses in Edain, mostly spawner structures) should be
   covered. It is a separate class with its own layout, and the same five edits would have to be
   repeated for it.

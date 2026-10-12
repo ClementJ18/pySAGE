@@ -80,21 +80,29 @@ __all__ = [
     "CASTLE_MEMBER_CASTLE_ID_STAMP_BYTES",
     "CASTLE_PREFAB_RESOLVER_USES",
     "CASTLE_STATE_FADING",
-    "CONTAIN_GET_HORDE_IFACE",
-    "CONTAIN_GET_HORDE_IFACE_ENTRY",
-    "CONTAIN_GET_HORDE_IFACE_SLOT",
+    "CONTAIN_ANSWER_NO",
+    "CONTAIN_ANSWER_NO_BYTES",
+    "CONTAIN_ANSWER_YES",
+    "CONTAIN_ANSWER_YES_BYTES",
     "CONTAIN_EXIT_ALL_HORDE_TEST",
     "CONTAIN_EXIT_ALL_LOOP",
     "CONTAIN_EXIT_ALL_LOOP_BYTES",
     "CONTAIN_EXIT_ALL_ORDER_EXIT",
     "CONTAIN_EXIT_ALL_PASSENGERS",
     "CONTAIN_EXIT_ALL_WRAPPER_CALLS",
+    "CONTAIN_GET_HORDE_IFACE",
+    "CONTAIN_GET_HORDE_IFACE_ENTRY",
+    "CONTAIN_GET_HORDE_IFACE_SLOT",
+    "CONTAIN_IS_SLAUGHTER_SLOT",
+    "CONTAIN_IS_VALID_CONTAINER_FOR_SLOT",
     "CONTAIN_ITEM_LIST",
     "CONTAIN_ITEM_LIST_NODE_OBJECT",
     "CONTAIN_ITEM_LIST_WALK",
     "CONTAIN_ITEM_LIST_WALK_ENTRY",
     "CONTAIN_ITERATE_SLOT",
     "CONTAIN_REMOVE_ALL_SLOT",
+    "CONTAIN_RIDER_INTENT_RELEASE",
+    "CONTAIN_RIDER_INTENT_SLOT",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_POSITION_ENTRY",
     "CREATE_AND_FIRE_TEMP_WEAPON_AT_VICTIM",
@@ -109,6 +117,7 @@ __all__ = [
     "DIE_MODULE_IS_APPLICABLE_ENTRY",
     "DIE_MUX_IS_APPLICABLE",
     "DIE_MUX_IS_APPLICABLE_ENTRY",
+    "DRAWABLE_OBJECT",
     "EXPERIENCE_LEVELS_FOR_TEMPLATE",
     "EXPERIENCE_TRACKER_ADD_EXPERIENCE_POINTS",
     "FIRE_WEAPON_WHEN_DAMAGED_ON_DAMAGE",
@@ -129,6 +138,7 @@ __all__ = [
     "FWWD_REACTION_FIRE_RESUME",
     "FX_LIST_PLAY_AT_OBJECT",
     "GAME_LOGIC_DESTROY_OBJECT",
+    "GRANT_SCIENCE_UPGRADE_REGISTER_CALL",
     "HORDE_CONTAIN_BUILD_SLOTS_SLOT",
     "HORDE_CONTAIN_CREATE_PAYLOAD_CALL",
     "HORDE_CONTAIN_CREATE_PAYLOAD_CALL_BYTES",
@@ -145,6 +155,7 @@ __all__ = [
     "HORDE_CONTAIN_PRODUCED_GATE_BYTES",
     "HORDE_CONTAIN_PRODUCED_GATE_TEST",
     "HORDE_CONTAIN_PRODUCED_GATE_TEST_BYTES",
+    "HORDE_GARRISON_CONTAIN_INTERFACE_VTABLE",
     "HORDE_IFACE_ANY_MEMBER_ACCEPTS_SLOT",
     "HORDE_IFACE_ASSIGN_SLOT",
     "HORDE_IFACE_ASSIGN_SLOT_BYTES",
@@ -254,6 +265,8 @@ __all__ = [
     "OBJECT_FIELD_TABLE_REF_OPCODES",
     "OBJECT_FILTER_ALLOW",
     "OBJECT_FILTER_IS_VALID",
+    "OBJECT_FIND_MODULE",
+    "OBJECT_FIND_MODULE_ENTRY",
     "OBJECT_GET_COMMAND_SET_STRING",
     "OBJECT_GET_CONTROLLING_PLAYER",
     "OBJECT_GET_GETTING_BUILT_BEHAVIOR",
@@ -262,6 +275,7 @@ __all__ = [
     "OBJECT_GET_HEIGHT_ABOVE_TERRAIN_BYTES",
     "OBJECT_GET_HORDE_IFACE",
     "OBJECT_GET_MODIFIER_MULTIPLIER",
+    "OBJECT_GET_SPECIAL_POWER_MODULE",
     "OBJECT_GIVE_UPGRADE",
     "OBJECT_HAS_MODIFIER",
     "OBJECT_HAS_UPGRADE",
@@ -284,9 +298,9 @@ __all__ = [
     "OBJECT_IMAGE_UPGRADE_THE_CONTROL_BAR",
     "OBJECT_IMAGE_UPGRADE_THE_IMAGES",
     "OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE",
+    "OBJECT_IS_LOCALLY_CONTROLLED",
+    "OBJECT_IS_LOCALLY_CONTROLLED_BYTES",
     "OBJECT_MODULE_LIST",
-    "OBJECT_FIND_MODULE",
-    "OBJECT_FIND_MODULE_ENTRY",
     "OBJECT_POSITION",
     "OBJECT_POSITION_Z",
     "OBJECT_PRODUCER_ID",
@@ -358,7 +372,9 @@ __all__ = [
     "SHROUD_ORIGIN_Y",
     "SHROUD_RECORD_BASE",
     "SHROUD_RECORD_STRIDE",
+    "SLAUGHTER_HORDE_CONTAIN_INTERFACE_VTABLE",
     "SLEEPY_UPDATE_DISPATCH",
+    "SPECIAL_POWER_REFUND_UPGRADE_REGISTER_CALL",
     "TERRAIN_GET_LAYER_FOR_DESTINATION",
     "THE_PARTITION_MANAGER",
     "THE_SHROUD_MANAGER",
@@ -404,6 +420,7 @@ __all__ = [
     "TRANSPORT_CONTAIN_CREATE_PAYLOAD",
     "TRANSPORT_CONTAIN_CREATE_PAYLOAD_ENTRY",
     "TRANSPORT_CONTAIN_INITIAL_PAYLOAD",
+    "TUNNEL_CONTAIN_INTERFACE_VTABLE",
     "UPDATE_MODULE_DATA",
     "UPDATE_MODULE_OBJECT",
     "UPDATE_MODULE_SLEEP_FOREVER",
@@ -985,6 +1002,18 @@ OBJECT_IMAGE_UPGRADE_SELECT_DISPLACED_CALL = 0x00694BF8
 OBJECT_IMAGE_UPGRADE_BUTTON_HOOK = 0x0073D0BA
 OBJECT_IMAGE_UPGRADE_BUTTON_RESUME = 0x0073D0BF
 OBJECT_GET_COMMAND_SET_STRING = 0x0069156B
+# The GrantScienceUpgrade module's registration site: `AudioLoopUpgrade`'s `addModule` call, the
+# one after TooltipUpgrade's. `object-image-upgrade` owns TooltipUpgrade's call; the module itself
+# reuses the TooltipUpgrade twin above (`docs/grant-science-upgrade.md`).
+GRANT_SCIENCE_UPGRADE_REGISTER_CALL = 0x0065A82A
+# The SpecialPowerRefundUpgrade module's registration site: `RemoveUpgradeUpgrade`'s `addModule`
+# call, the one after AudioLoopUpgrade's, which `grant-science-upgrade` owns
+# (`docs/special-power-refund-upgrade.md`).
+SPECIAL_POWER_REFUND_UPGRADE_REGISTER_CALL = 0x0065A862
+# `Object::getSpecialPowerModule(const SpecialPowerTemplate *)` - `__thiscall`, `ret 4`. It walks
+# the object's module array and returns the `SpecialPowerModuleInterface *` whose power is that
+# template, or NULL. The `..._SPECIAL_POWER_COUNTDOWN` script actions find their module with it.
+OBJECT_GET_SPECIAL_POWER_MODULE = 0x0068C26D
 # `WeaponTemplate::isMeleeWeapon` - the whole function is `mov al, [ecx+0x125]; ret`. The offset is
 # row 45 of the weapon field table at 0x00C16DD8, which is `MeleeWeapon`.
 WEAPON_IS_MELEE = 0x00441B59
@@ -1274,6 +1303,11 @@ LIFETIME_START_FRAME = 0x24
 #: unowned object. It is `mov ecx,[this+0x31c] / jmp Team::getControllingPlayer`, which is what
 #: pins `Object+0x31c` as the team and therefore the object's mask as the one ending before it.
 OBJECT_GET_CONTROLLING_PLAYER = 0x0068B678
+#: `Object::isLocallyControlled()` whole - `eax` = 1 when `getControllingPlayer()` is
+#: `[ThePlayerList + PLAYER_LIST_LOCAL_PLAYER]`. The client's "is this mine": 52 direct callers
+#: across selection, the command translators, the control bar and feedback.
+OBJECT_IS_LOCALLY_CONTROLLED = 0x0068B749
+OBJECT_IS_LOCALLY_CONTROLLED_BYTES = bytes.fromhex("a12849de00568b7010e821ffffff2bc6f7d81bc0405ec3")
 #: `GameLogic`'s sleepy-update driver, the one site that calls an `UpdateModule`'s `update`. It
 #: reads `lea ecx,[module+0x10]`, takes the return as a **sleep in frames** (clamped to a minimum
 #: of 1) and stores `now + sleep` into the module's wake frame at `+0x14`. Both hooks depend on
@@ -1739,3 +1773,42 @@ CASTLE_BEHAVIOR_FACTION_PREFAB = 0x00798F70
 CASTLE_PREFAB_RESOLVER_USES = (0x0079B892, 0x0079B918)
 CASTLE_BEHAVIOR_UNPACK_EPILOGUE = 0x0079C16D
 CASTLE_BEHAVIOR_DESTRUCTOR = 0x0079AAA7
+
+# Several contain modules on one object, derived in `docs/multi-contain.md`. `OBJECT_CONTAIN`
+# holds one of them (the last declared, see `BEHAVIOR_GET_CONTAIN_SLOT`); the slots below are what
+# it takes to ask any of the others the same questions.
+
+#: `ContainModuleInterface::isValidContainerFor(Object *rider, Bool, Bool checkCapacity)`,
+#: `__thiscall`, `ret 0xc`, `al` the answer. It reads and never writes: the `OpenContain` core
+#: (`0x0086603B`) is status, `KindOf`, `PassengerFilter` and relationship tests, and the overrides
+#: that matter here (`SlaughterHordeContain` `0x008838C3`, `TunnelContain` `0x0088103B`) add more
+#: tests in front of it. With both flags clear it answers only "does this kind of rider belong in
+#: me", which leaves capacity to the caller's own question.
+CONTAIN_IS_VALID_CONTAINER_FOR_SLOT = 0x98
+#: The contain interface's "I slaughter what enters me", `__thiscall`, no arguments, `al`.
+#: `CONTAIN_ANSWER_NO` in `HordeGarrisonContain`'s vtable and every base; `SlaughterHordeContain`
+#: overrides it (and `+0x34`, the rally-to-slaughter answer) with `CONTAIN_ANSWER_YES`. The enter
+#: hint (`ACTION_MANAGER_ENTER_HINT`) is what reads it.
+CONTAIN_IS_SLAUGHTER_SLOT = 0x30
+#: `(Object *rider, Int phase)`, `__thiscall`, `ret 8`: one body shared by every contain class
+#: (`0x00867D20`), a map at `this+0x3C` from the rider's `ObjectID` to the phase of its approach.
+#: `AIEnterState::onEnter` records phase 0 when a rider sets out, and its `onExit` erases the entry
+#: with `CONTAIN_RIDER_INTENT_RELEASE` - a find-then-erase, so a no-op for a rider never recorded.
+CONTAIN_RIDER_INTENT_SLOT = 0x44
+CONTAIN_RIDER_INTENT_RELEASE = 2
+#: The contain-interface vtables (module `+0x20`) of the two classes the Edain use case pairs, and
+#: of their common base, as the module constructors stamp them: `0x008835D6` in
+#: `SlaughterHordeContain`'s (`0x008835AB`), `0x00880EB4` in `TunnelContain`'s (`0x00880E90`) and
+#: `0x0087D308` in `HordeGarrisonContain`'s.
+SLAUGHTER_HORDE_CONTAIN_INTERFACE_VTABLE = 0x00C5F0D0
+TUNNEL_CONTAIN_INTERFACE_VTABLE = 0x00C5DCE0
+HORDE_GARRISON_CONTAIN_INTERFACE_VTABLE = 0x00C5C9F0
+#: The two folded `Bool` answers the contain vtables share: `mov al, 1 / ret` (the same body as
+#: `DAMAGE_NUGGET_DEALS_DAMAGE_BODY`) and `xor al, al / ret`.
+CONTAIN_ANSWER_YES = 0x008BD372
+CONTAIN_ANSWER_YES_BYTES = bytes.fromhex("b001c3")
+CONTAIN_ANSWER_NO = 0x009188EB
+CONTAIN_ANSWER_NO_BYTES = bytes.fromhex("32c0c3")
+#: `Drawable+0xFC` - the `Object` a drawable belongs to, NULL for a client-only drawable. The
+#: selection is a list of drawables, and its walkers read each object through this.
+DRAWABLE_OBJECT = 0xFC

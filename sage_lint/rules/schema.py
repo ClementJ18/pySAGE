@@ -152,13 +152,14 @@ class SpuriousBlockLabelRule(Rule):
 
 
 class PatchedOutFieldRule(Rule):
-    """A field the mod's patched engine still parses but no longer acts on: the value is read
-    and then ignored, so whatever it says has no effect in game.
+    """A field the engine still parses but does not act on: the value is read and then
+    ignored, so whatever it says has no effect in game.
 
-    Only ever fires under a `.sagepatch` that declares one (`sage_ini.engine`, `[[noops]]`) -
-    a patch retiring a field it has replaced. Reported rather than dropped from the schema on
-    purpose: a retired field is not an unknown one, and saying which patch retired it is the
-    whole point. WARNING - it converts and loads fine, it just does nothing."""
+    Two sources: a `.sagepatch` that declares one (`sage_ini.engine`, `[[noops]]`) - a patch
+    retiring a field it has replaced - and a block's `stock_noops`, a field the stock engine
+    itself never uses (`ObjectCreationUpgrade.UpgradeObject`). Reported rather than dropped
+    from the schema on purpose: a retired field is not an unknown one, and saying why it does
+    nothing is the whole point. WARNING - it converts and loads fine, it just does nothing."""
 
     code = "patched-out-field"
 

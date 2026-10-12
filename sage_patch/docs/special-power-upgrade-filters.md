@@ -1,11 +1,12 @@
-# `SpecialPower ForbiddenUpgrades` - the `forbidden-upgrades` patch
+# `SpecialPower ForbiddenUpgrades` / `RequiredUpgrades` - the `special-power-upgrade-filters` patch
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`). The engine reading
 below is static; the patch's cave has been **executed under Unicorn** against stubbed engine
-routines (`tests/sage_patch/test_forbidden_upgrades.py`) and applied and verified against a real
-`game.dat`. **Runtime-verified in game**, 2026-09-22.
+routines (`tests/sage_patch/test_special_power_upgrade_filters.py`). The `ForbiddenUpgrades` half
+was applied and verified against a real `game.dat` and is **runtime-verified in game**
+(2026-09-22). The `RequiredUpgrades` half has **not been played yet**.
 
-**What a mod writes.** One key on `SpecialPower`, inert when absent:
+**What a mod writes.** Two keys on `SpecialPower`, each inert when absent:
 
 ```ini
 SpecialPower SpecialAbilityWordOfPower
@@ -13,16 +14,25 @@ SpecialPower SpecialAbilityWordOfPower
     ForbiddenObjectRange = 150
     ForbiddenUpgrades    = Upgrade_AntiMagicWard Upgrade_Consecrated
 End
+
+SpecialPower SpecialAbilityRallyToTheStandard
+    ...
+    ForbiddenObjectRange = 200
+    RequiredUpgrades     = Upgrade_BannerPlanted
+End
 ```
 
-A targeted cast is refused when **any** object within `ForbiddenObjectRange` of the cast point
-carries one of the listed upgrades as an object upgrade. An object-targeted cast is also refused
-when the target itself carries one.
+- **`ForbiddenUpgrades`:** a targeted cast is refused when **any** object within
+  `ForbiddenObjectRange` of the cast point carries one of the listed upgrades as an object upgrade.
+  An object-targeted cast is also refused when the target itself carries one.
+- **`RequiredUpgrades`** is the reverse: a targeted cast is refused **unless** some object within
+  `ForbiddenObjectRange` of the cast point carries one of the listed upgrades, or, for an
+  object-targeted cast, the target itself carries one.
 
 **Why it was cheap.** The engine already has almost this exact check, the `NO_FORBIDDEN_OBJECTS`
 radius scan: one call site, a stack `PartitionFilter` chain, one `ThePartitionManager` query. The
-patch runs that same query with a filter of its own. The one expensive part is that
-`SpecialPowerTemplate` has no room for a 144-byte mask, so the struct grows. That collides with
+patch runs that same query with a filter of its own, once per key. The one expensive part is that
+`SpecialPowerTemplate` has no room for two 144-byte masks, so the struct grows. That collides with
 `hero-mana` and `special-power-charges`, which grow it too (§4).
 
 ## 1. What the engine does today
@@ -110,53 +120,68 @@ exactly these.
 
 ## 2. Semantics
 
-- **`ForbiddenUpgrades = <Upgrade> ...`** is parsed by `INI_PARSE_UPGRADE_MASK`, which clears the
-  mask first, so an override line replaces the list. An empty mask turns the check off, and that
-  is stock behaviour.
-- **Radius** is the existing `ForbiddenObjectRange`. There is no new range keyword.
+- **`ForbiddenUpgrades = <Upgrade> ...`** and **`RequiredUpgrades = <Upgrade> ...`** are both
+  parsed by `INI_PARSE_UPGRADE_MASK`, which clears the mask first, so an override line replaces the
+  list. An empty mask turns that key's check off, and that is stock behaviour.
+- **Radius** is the existing `ForbiddenObjectRange`, for both keys. There is no new range keyword.
+- Both keys answer the same question, "does the target or anything in range carry one of these?".
+  `ForbiddenUpgrades` refuses on yes, `RequiredUpgrades` refuses on no. Forbidden is asked first,
+  and a refusal there skips the second scan.
 - **Every object in the area counts:** the caster, allies, enemies, neutrals. `ForbiddenObjectFilter`
   and `Flags = NO_FORBIDDEN_OBJECTS` are neither needed nor consulted. The stock check they drive
   still runs, first and unchanged.
 - **Only object upgrades count** (`Object+0x28C`). The player's completed upgrades do not.
-- **Location cast:** refused if an object within range of `where` carries a listed upgrade. With
-  no range there is no area, so this key never refuses it.
-- **Object cast:** refused if the target carries a listed upgrade, whatever the range. With a
-  range, it is also refused when an object within range of the target's position carries one.
+- **Location cast, `ForbiddenUpgrades`:** refused if an object within range of `where` carries a
+  listed upgrade. With no range there is no area, so this key never refuses it.
+- **Location cast, `RequiredUpgrades`:** allowed only if an object within range of `where`
+  carries a listed upgrade. With no range there is no area, so nothing can satisfy the list and
+  **every location cast is refused**. A location power that sets `RequiredUpgrades` needs a range.
+- **Object cast, `ForbiddenUpgrades`:** refused if the target carries a listed upgrade, whatever
+  the range. With a range, it is also refused when an object within range of the target's
+  position carries one.
+- **Object cast, `RequiredUpgrades`:** allowed if the target carries a listed upgrade, whatever
+  the range. With a range, it is also allowed when an object within range of the target's
+  position carries one. Otherwise it is refused.
 - The scan's head filter drops `DESTROYED` objects, exactly as the stock scan does.
 
 ## 3. The edits
 
-All of them are in `sage_patch/patches/forbidden_upgrades.py`, in one cave section
-named `.spforbu`.
+All of them are in `sage_patch/patches/special_power_upgrade_filters.py`, in one cave section
+named `.spupgf`.
 
-1. **The keyword row.** The 24-row table at `SPECIAL_POWER_FIELD_TABLE` is rebuilt in the cave
-   with one more row, `{ "ForbiddenUpgrades", INI_PARSE_UPGRADE_MASK, 0, 0x88 }`, and its two
-   imm32 references are repointed. The live rows are read out of the image (`resolve_table`), so
-   this composes with `special-power-music`.
-2. **The struct grows `0x88` -> `0x118`** at the three `push 0x88` allocation sites.
+1. **The keyword rows.** The 24-row table at `SPECIAL_POWER_FIELD_TABLE` is rebuilt in the cave
+   with two more rows, `{ "ForbiddenUpgrades", INI_PARSE_UPGRADE_MASK, 0, 0x88 }` and
+   `{ "RequiredUpgrades", INI_PARSE_UPGRADE_MASK, 0, 0x118 }`, and its two imm32 references are
+   repointed. The live rows are read out of the image (`resolve_table`), so this composes with
+   `special-power-music`.
+2. **The struct grows `0x88` -> `0x1A8`** at the three `push 0x88` allocation sites.
 3. **The constructor tail** (`0x007B200D`, `mov [esi+0x84], ebx`) jumps to a routine that replays
-   the store and zeroes the mask with `ebx`, looping on `ecx`, which the next stock instruction
-   overwrites.
-4. **The copy-constructor tail** (`0x007B1F53`) jumps to a routine that copies the mask from
+   the store and zeroes both masks (`0x88..0x1A7`, contiguous) with `ebx`, looping on `ecx`, which
+   the next stock instruction overwrites.
+4. **The copy-constructor tail** (`0x007B1F53`) jumps to a routine that copies both masks from
    `ebp` (the source) to `ebx`, looping on `ecx`/`eax`, then runs the displaced epilogue.
    `edi` has already been restored at that point.
 5. **The location gate, `0x0082E128`.** `call 0x82d2fd` becomes a call to a routine with the same
    arguments and the same `ret 0xc`. It runs the stock scan with `ecx` untouched and returns its
-   refusal unchanged. Otherwise it returns `!forbidden(NULL, where, t)`.
+   refusal unchanged. Otherwise it returns `!refused(NULL, where, t)`.
 6. **The object gate, `0x0082DA69`.** `call 0x82c366` (`__thiscall`, 1 argument, `ret 4`; a true
    result refuses the cast) becomes a call to a routine that runs the original first. If the
-   original returns true, so does the routine. Otherwise it returns `forbidden(target,
+   original returns true, so does the routine. Otherwise it returns `refused(target,
    &target->pos, t)`, reading `target` and `t` from the predicate's frame at `[ebp+0xc]` and
    `[ebp+0x14]`. Every early exit before `0x0082DA69` goes to the refuse arm, so every cast that
    can still succeed passes this call.
 
-`forbidden(target, where, t)` (stdcall, `ret 0xc`) calls `getFinalOverride(t)`. It returns false
-when the mask is empty (`UPGRADE_MASK_ANY`). If there is a target, it returns true when the target
-carries a listed upgrade (`UPGRADE_MASK_TEST_ANY`). If the range is above 0, it builds
-`{not-destroyed head -> cave filter}` on its stack and returns
+`refused(target, where, t)` (stdcall, `ret 0xc`) calls `getFinalOverride(t)` once, then asks
+`carries` for each non-empty mask (`UPGRADE_MASK_ANY`): true if `ForbiddenUpgrades` is carried,
+true if `RequiredUpgrades` is not, false otherwise.
+
+`carries(target, where, final, mask)` (stdcall, `ret 0x10`) returns true when there is a target
+and it carries an upgrade in `mask` (`UPGRADE_MASK_TEST_ANY`). Otherwise, if the range is above 0,
+it builds `{not-destroyed head -> cave filter}` on its stack and returns
 `PARTITION_GET_CLOSEST_OBJECT(where, range, 1, &head) != NULL`. The cave filter's vtable is
 `{0x00893738, allow, 0x0048DACD}`, sharing the stock outer slots, and its `allow(obj)` is
-`testForAny(obj+0x28C, mask)`.
+`testForAny(obj+0x28C, mask)`, with the mask pointer stored in the filter, so one filter class
+serves both keys.
 
 ## 4. Composition
 
@@ -173,16 +198,18 @@ carries a listed upgrade (`UPGRADE_MASK_TEST_ANY`). If the range is above 0, it 
 
 ## 5. Still open
 
-1. **Load order.** `parseUpgradeMask` resolves names when the block is parsed. If `SpecialPower`
-   blocks are parsed before the listed upgrades are defined, every name is an unknown upgrade and
-   the INI load fails. No stock `SpecialPower` names an upgrade, so there is no precedent. Load
-   one block to find out. If it fails, the fallback is storing the names as a string
+1. **Load order.** `parseUpgradeMask` resolves names when the block is parsed, so the listed
+   upgrades must be defined before the `SpecialPower` blocks. The in-game run of
+   `ForbiddenUpgrades` loaded, and `RequiredUpgrades` uses the same parser. If a mod's order ever
+   breaks this, the fallback is storing the names as a string
    (`utils.token_lists.build_list_parser`) and resolving them on first use.
 2. **Garrisoned and contained objects.** Whether `getClosestObject` sees an object inside a
    building or a horde depends on whether contained objects stay in the partition. The stock scan
    has the same answer, whatever it is.
 
 ## 6. Runtime checklist
+
+`ForbiddenUpgrades` (played 2026-09-22):
 
 - A location spell's cursor turns invalid over a unit that carries a listed object upgrade, and
   valid again once the upgrade is removed.
@@ -196,3 +223,15 @@ carries a listed upgrade (`UPGRADE_MASK_TEST_ANY`). If the range is above 0, it 
   the same way.
 - `hero-mana` or `special-power-charges` refuse to apply on top of it, and it refuses on top of
   them.
+
+`RequiredUpgrades` (not played yet):
+
+- A location spell's cursor is invalid everywhere until a carrier is within range of it, and
+  valid around the carrier.
+- A location power with `RequiredUpgrades` and no `ForbiddenObjectRange` can never be cast.
+- An object-targeted spell is allowed on a carrier with no range set, and refused on anything
+  else; with a range, it is also allowed on a neighbour of a carrier.
+- With both keys on one power, a forbidden carrier in range refuses even when the requirement is
+  met.
+- An override block that does not name the key keeps the base template's list.
+- The AI does not try to cast where the requirement is unmet.

@@ -54,8 +54,8 @@ one vtable dword, one field-table `imm32` and three name `imm32`s — plus a 100
   image being this module's own constructor and destructor, so slot 0 is repointed in place and no
   copy is needed at all. §5.
 - The one real risk is **state**, not the algorithm: the accumulator is logic state, so every peer
-  needs the same binary and replays do not cross. The module persisting nothing turned out to be
-  harmless — see §7. §7.
+  needs the same binary and replays do not cross. The module persisting nothing is harmless — see
+  §7.
 - **A map-script prototype could settle some of the design, but not the percentage rule.** The
   script layer has the ownership flip and a per-player unit count in an area, so "contest by
   presence" can be played before a byte is written — but the count is only ever exposed as a
@@ -213,8 +213,8 @@ every TickRate frames:
 
 This is the behaviour as requested, with three edges nailed down that the request leaves open:
 
-- **No contender decays, it does not halt.** The first build froze the bar, which left a flag
-  stuck at 90% indefinitely once the units that raised it wandered off. It now falls at the same
+- **No contender decays, it does not halt.** A frozen bar would leave a flag stuck at 90%
+  indefinitely once the units that raised it wandered off. It falls at the same
   `TickAmount` it rose at, flying the losing-the-claim flag so the art plays `CANCEL_CAPTURE` -
   the state whose animation lowers the banner - and at zero the claim, the capturing id and every
   capture condition clear together. All three ways to have no contender behave the same: an empty
@@ -233,7 +233,7 @@ going *up* is `START_CAPTURE` (which plays `CAPFLAG_UP` and carries the `LuaEven
 that raises the flag), a bar going *down* is `CANCEL_CAPTURE`, a full bar is `CAPTURED`, and an
 empty one is no condition at all. A halt holds whichever it already was.
 
-**`CAPTURING` (112) is deliberately never set**, and the first build got this wrong. It is a real
+**`CAPTURING` (112) is deliberately never set.** It is a real
 entry in the engine's name table, so setting it looks right and the mask reads back correctly —
 but the flag's art has no `AnimationState = CAPTURING`, and a condition no state names selects
 nothing. The drawable stays in `IdleUncaptured` with the flag down, and because `START_CAPTURE` is
@@ -259,7 +259,7 @@ binary for this document.
 | `Object+0x31C` | `m_team`; `Object+0x74` is `m_id` | `getControllingPlayer`'s first instruction |
 | `MAX_PLAYER_COUNT` = 20 | width of every per-player array | [`sage_patch.addresses`](../addresses/logic.py) |
 
-### 4.0 Three things the disassembly settled that the scope had guessed at
+### 4.0 Three things the disassembly settles
 
 | question | answer |
 |---|---|
@@ -283,9 +283,8 @@ both stock callers passing 1. It reads the current team, early-outs when unchang
 player list, writes `Object+0x31C` and then runs a long tail of handover bookkeeping. The team to
 pass is the contending unit's own `+0x31C`, so the module still needs no player-to-team lookup.
 
-**The first build called `0x0068BC01` instead, believing it to be `setTeam`. It is
-`Object::setID`**, and this is worth writing down because the disassembly reads exactly like an
-ownership change:
+**`0x0068BC01` is not `setTeam`. It is `Object::setID`**, and this is worth writing down because
+the disassembly reads exactly like an ownership change:
 
 ```
 0068bc04  mov  eax, [esi+0x74]       ; "the current team"        <- actually m_id
@@ -304,7 +303,7 @@ deregister, a store, a register. What kills it is one fact from outside the disa
 `0x0062902E` reads `[obj+0x74]` and erases that key from the map at `TheGameLogic+0xB4`;
 `0x0062BA64` reads it and inserts the object under it. It is an id-table re-key.
 
-The symptom in play was not a crash. The flag's owner never changed, so the flag's Lua — which
+Calling it in place of `setTeam` does not crash. The flag's owner never changes, so the flag's Lua — which
 picks the faction banner from a side name — kept resolving `Neutral` and fell into its `else`
 branch; meanwhile every capture handed the flag a *unit's* id and clobbered that unit's entry in
 `TheGameLogic`'s lookup table, so anything resolving that unit by id got the flag instead. A
@@ -351,7 +350,7 @@ once per module in a long run with `(newModule, newModuleData, 0, 0, &name, 1)`.
 What makes this the expensive option is not the registration, it is the **vtables**. A module
 instance carries three vptrs, and authoring a correct `UpdateModule` vtable from scratch means
 getting every inherited slot right — including the ones no module in this repo has ever had to
-identify. Rejected for v1.
+identify. Rejected.
 
 ### Option B — adopt a dead module (recommended)
 
@@ -484,7 +483,7 @@ That splits the design questions in two:
 If the share rule is the part you are confident about and the feel is the part you are not, the
 prototype is worth its afternoon. If it is the other way round, skip it and build the patch.
 
-## 6. What was built
+## 6. The patch
 
 Eight edited sites and one cave. Every stock byte at every site is asserted before it is written,
 so the patch fails loudly on anything that is not this build.
@@ -510,37 +509,17 @@ matching-member count, bucketed by `Player+0x54`; the leader and whether a tie b
 as `best * 100 >= total * CaptureShare`; the accumulator; `setTeam` at 100; and the model
 conditions, propagated through `0x0068B53C` only when they actually change.
 
-### 6.0 Two bugs that only a running game found
+### 6.0 The frame layout
 
-Both shipped, both verified, both disassembled correctly, and neither was visible to any static
-check. They are recorded because the *class* of mistake matters more than the instances.
+`counts[]` is based at `[ebp-0x90]` and twenty dwords reach `[ebp-0x44]`, with `teams[]` beside it.
+The routine's scalars — "was `ObjectFilter` written", "the flag's own player", "is the claim being
+taken away" — live *below* both arrays at `-0xE4`, `-0xE8` and `-0xEC`. A scalar inside either
+array is silent: a `Player*` stored into `counts[18]` elects player 18 as the leader by a landslide,
+`teams[18]` is empty, and the bar fills, `CAPTURED` is applied and the ownership flip is skipped
+every time. `TestFrameLayout` asserts on the emitted code that no scalar access falls inside either
+array.
 
-**The wrong function.** The first build called `0x0068BC01` believing it to be `setTeam`; it is
-`Object::setID` (§4.1). Caught by a fact measured outside the disassembly.
-
-**The frame collision.** `counts[]` is based at `[ebp-0x90]` and twenty dwords reach `[ebp-0x44]`,
-so `-0x44`, `-0x48` and `-0x4C` *are* `counts[19]`, `counts[18]` and `counts[17]`. Three scalars
-added after the first draft — "was `ObjectFilter` written", "the flag's own player", "is the claim
-being taken away" — were placed exactly there. Storing the flag's `Player*` wrote a pointer into
-`counts[18]`; the tally elected 18 as the leader by a landslide, `teams[18]` was empty, and so the
-bar filled to 100, `CAPTURED` was applied, and the ownership flip was skipped every single time.
-
-What found it was reading the module's own instance out of a live match through
-[`sage_live`](../../sage_live/README.md): walking `TheGameLogic`'s object table to the flag, its
-module array to the adopted module, and then four dwords —
-
-```
-+0x20 countdown = 1
-+0x24 progress  = 100
-+0x28 claimant  = 18     <- there is no player 18
-+0x2C applied   = 0x00800000
-```
-
-`claimant = 18` is not a value any correct run can produce, and it named the offending slot
-outright. The scalars now live *below* both arrays at `-0xE4`, `-0xE8` and `-0xEC`, and
-`TestFrameLayout` asserts on the emitted code that no scalar access falls inside either array.
-
-### 6.02 The command set, and two wrong turns before it
+### 6.02 The command set
 
 `CommandSetUpgrade`'s apply routine asks its own vslot 0 whether the trigger is satisfied and
 then writes the module's `CommandSet` (`ModuleData+0x138`) into **`Object+0x43C`**, the object's
@@ -556,23 +535,22 @@ command-set override:
 
 Nothing re-runs it when an object changes hands, so a captured structure keeps whatever override
 it had - for a neutral shipyard, none at all, hence the template's `GenericSelfRepairCommandSet`.
-Re-running it under the new owner is the fix. Two things hid it, and each cost a live test:
+Re-running it under the new owner is the fix. Two traps sit around it:
 
 **The subobject.** The routine is slot `+0x20` of the interface vtable at `module+0x10`. Every
 generic module-array walk in the engine dispatches through the vtable at `module+0` -
 `Object::onCapture` (`0x00696F0A`) calls `+0x24` there, the upgrade refresh at `0x006902FA` calls
-`+0x20` there. Neither can reach it, so a build that called `0x006902FA` on the captured object
-landed on an unrelated slot and did nothing whatsoever.
+`+0x20` there. Neither can reach it, so calling `0x006902FA` on the captured object lands on an
+unrelated slot and does nothing whatsoever.
 
 **The sibling class.** `0x00C6FD18` and `0x00C6DEF8` are two upgrade modules with an *identical*
-interface layout, differing only at slots `+0x18` and `+0x20`. Reading a constructor and assuming
-which class it belonged to picked the wrong one, giving a vtable check that never matched. What
-settled it was the live object: of the `ShipWright`'s thirty-four modules, **seven** carry
+interface layout, differing only at slots `+0x18` and `+0x20`, so reading a constructor does not
+say which is which. The live object does: of the `ShipWright`'s thirty-four modules, **seven** carry
 `0x00C6DEF8` at `+0x10`, each with a non-null `CommandSet` at `ModuleData+0x138`. It also sits
 directly below `CommandSetUpgrade`'s own `ModuleData` vtable (`0x00C6DF40`) and field-parse table
 (`0x00C6DF70`).
 
-The module now walks the captured object's module array, checks each entry's `+0x10` against
+The module walks the captured object's module array, checks each entry's `+0x10` against
 `0x00C6DEF8`, and calls `0x008B7CFA` on the interface. Both the flag and every `LINKED_TO_FLAG`
 structure go through it.
 
@@ -704,10 +682,9 @@ null source whenever a relationship mask is set. The source passed is the **flag
 controlling player, fetched once per tick, so `ALLIES` / `ENEMIES` / `SAME_PLAYER` read relative
 to whoever holds the flag.
 
-### 6.2 `xfer`, and why it turned out not to be needed
+### 6.2 `xfer`, and why it is not needed
 
-The scope flagged this as one of the two hard parts. It is not, and the reasoning is worth
-recording because the instinct is to write one.
+The instinct is to write one; it is not needed.
 
 The module's crc / xfer / loadPostProcess slots (`0x00C65348` `+0x14`..`+0x20`) are all
 `0x0063F3BF`, a bare `ret`: the stock module persists nothing, and the patch leaves that alone.
@@ -756,13 +733,10 @@ model's *or* one this surface creates.
   plus the model condition is the whole of "captured" as far as the radar, the shroud and the UI
   are concerned — is still open. It is the first thing to check in a live match.
 
-## 8. What v1 should not include
+## 8. Not included
 
-- `CountHordeMembers = No`. Always count members; add the keyword when someone asks.
-- Decay when the flag is empty. It is a fifth keyword and it changes the feel a lot; settle it in
-  the Lua prototype first.
+- `CountHordeMembers = No`. Members are always counted; the keyword can be added when someone asks.
 - `InitialCaptureBonus`, capture FX, capture sounds, and anything else the stock capture pays
-  out. Get the ownership flip right, then decide which of the stock trimmings are worth
-  reproducing.
+  out.
 - Any interaction with the stock `Command_CaptureBuilding` path. Leaving both alive is free;
   making them exclusive is a second mechanism.

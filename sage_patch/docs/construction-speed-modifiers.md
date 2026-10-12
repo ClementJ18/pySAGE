@@ -11,9 +11,8 @@ which claims that settled and which are still static-only.
   - **`PRODUCTION_UNIT`** — objects coming out of a production queue only.
   - **`PRODUCTION_UPGRADE`** — upgrades researching in a production queue only.
   - **`PRODUCTION_CONSTRUCTION`** — structure construction only.
-- **A fifth keyword, `PRODUCTION_HERO`, was built and then withdrawn.** It was correct about
-  *which* queue entries are heroes and wrong about what moves them; §2.2 is the post-mortem. Do not
-  re-add it at the queue site.
+- **There is no `PRODUCTION_HERO`.** Hero entries are identifiable at the queue site, but the
+  accrual does not move them; §2.2 says why. Do not add it at the queue site.
 - **Status: implemented as `production-split`**
   ([`../patches/production_split.py`](../patches/production_split.py)), applying and verifying
   against the real `game.dat` and composing in either order with `commandset-limit` and
@@ -198,10 +197,9 @@ not a `ThingTemplate`, which is why `PRODUCTION_UPGRADE` needs nothing beyond th
 Kind 3 reaches the accrual as well — and that is the trap §2.2 documents. Reaching the accrual and
 being *completed* by it are different things.
 
-### 2.2 Why there is no `PRODUCTION_HERO` — a post-mortem
+### 2.2 Why there is no `PRODUCTION_HERO`
 
-**This section describes a keyword that was built, shipped into a live test, and removed.** It is
-kept because the mistake is entirely reasonable from static reading and would be made again.
+A hero keyword at the queue site is entirely reasonable from static reading, and wrong.
 
 Kind 3 is chosen in `queueCreateUnit` (`0x008A11D2`, interface vtable slot `+0x20`) by the second
 argument alone:
@@ -215,7 +213,7 @@ argument alone:
 
 All of that is true, and a keyword keyed on it is correctly *scoped*: verified live, both a
 first-time recruit and a revive of a dead hero are kind-3 entries, and both come from the ledger at
-`Player+0x758`. The error was assuming that scaling the accrual would therefore move them.
+`Player+0x758`. But scaling the accrual does not move them.
 
 **It does not, because kind 3 does not complete off the accrual.** Immediately after the
 total-time call, `ProductionUpdate::update` branches on the kind and sends heroes somewhere else
@@ -499,7 +497,7 @@ Shared consequences:
   `mov ecx, [esi-8]` says.
 - **The queue kinds are what §2.1 says.** `GondorBeregond` and `GondorBoromir_mod` both read
   `entry+0x04 == 3` while queued in a `GondorBarracks`, confirming the ledger path.
-- **But kind 3 does not complete off the accrual**, which retired `PRODUCTION_HERO`. See §2.2 for
+- **But kind 3 does not complete off the accrual**, which is why there is no `PRODUCTION_HERO`. See §2.2 for
   the measurement and for where a working hero keyword would have to hook instead.
 
 Still open:

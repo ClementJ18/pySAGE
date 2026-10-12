@@ -13,9 +13,17 @@ mesh molds.
 - **Fences** place the Object Palette's object along a drag at Fence options' spacing
   (27.35 by default, `FenceTool::FenceTool`), each turned along the line; stretched, the spacing
   is adjusted so the row ends where the drag does.
-- **Ramps** set the heights across a drag, its Ramp Width (20 by default) wide, to a straight slope
-  from the ground at its start to the ground at its end: a choice, the Ramp tool's code is not
-  read.
+- **Ramps**, as Ramp Options' Apply builds them (`0x005A4130`): every heightmap sample whose
+  position lies inside the rectangle Ramp Width (20 by default, 500 at most, `0x005A38B9`) across
+  from the drag's start to its end (a flood fill from its centre, `0x006B1110`) takes the height of
+  the straight line between the ground at the two ends, measured where the drag was made, at the
+  sample's place along the drag (`0x00BFAFF0`), truncated to stored units. Writing a height
+  (`setHeight`, `0x00675B50`) also sets the cliff state of the four cells it is a corner of
+  (`0x007725E0`): a cell whose corner heights spread by more than 250.88 stored units (9.8 ft)
+  is a cliff. The cliff state is the saved impassable layer (on the corpus, all but a handful of
+  such cells are stored impassable), so a ramp makes cells it leaves gentle passable and cells it
+  leaves steep impassable, painted or not. Corners past the end of the heightmap read as 0, and
+  the corner past a row's last sample is the next row's first, as `0x007725E0` indexes them.
 - **Borders** are the heightmap's border records: every corpus border starts at (0, 0) and its
   other corner is a size in cells (on 981 of 1,646, the playable area). A map may have several;
   scripts switch between them.
@@ -54,13 +62,16 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DEFAULT_FENCE_SPACING",
+    "CLIFF_SPREAD",
     "DEFAULT_RAMP_WIDTH",
     "DEFAULT_SCORCH_SIZE",
+    "MAX_RAMP_WIDTH",
     "MOLD_FOLDER",
     "NEUTRAL_OWNER",
     "SCORCH_TEMPLATE",
     "SCORCH_TYPES",
     "GroveOptions",
+    "CellPatch",
     "HeightPatch",
     "MoldMode",
     "MoldOptions",
@@ -77,7 +88,9 @@ __all__ = [
     "new_scorch",
     "pick_tree",
     "playable_size",
-    "ramp_patch",
+    "RampEdit",
+    "cliff_states",
+    "ramp_edit",
     "rectangle_points",
     "remove_border",
 ]
@@ -87,6 +100,10 @@ SCORCH_TYPES = ("Scorch 1", "Scorch 2", "Scorch 3", "Scorch 4")
 DEFAULT_SCORCH_SIZE = 20.0
 DEFAULT_FENCE_SPACING = 27.35
 DEFAULT_RAMP_WIDTH = 20.0
+# Ramp Options sets a wider entry back to this (`0x005A38C9`).
+MAX_RAMP_WIDTH = 500.0
+# A cell whose corner heights spread by more than this, in stored units, is a cliff (`0x007727B3`).
+CLIFF_SPREAD = 250.88
 NEUTRAL_OWNER = "/team"
 MOLD_FOLDER = "data/editor/molds"
 # A click's grove spreads its trees over a disc this many world units across per tree's worth of
@@ -276,18 +293,58 @@ class HeightPatch:
     values: np.ndarray
 
 
-def ramp_patch(
-    grid: TerrainGrid, start: tuple[float, float], end: tuple[float, float], width: float
-) -> HeightPatch | None:
-    """The heights of a ramp `width` world units across from `start` to `end`: each sample within
-    half the width of the line takes the height of a straight slope from the ground at the start
-    to the ground at the end. None when no sample is within reach."""
-    from sage_worldbuilder.terrain.surface import ground_height  # noqa: PLC0415
+@dataclass(frozen=True)
+class CellPatch:
+    """A rectangle of a cell layer, `values[row, column]` from cell `(x0, y0)`."""
 
-    h0 = ground_height(grid, *start) / FEET_PER_HEIGHT_UNIT
-    h1 = ground_height(grid, *end) / FEET_PER_HEIGHT_UNIT
+    x0: int
+    y0: int
+    values: np.ndarray
+
+
+@dataclass(frozen=True)
+class RampEdit:
+    """What applying a ramp writes: the heights, and the impassable layer of the cells around
+    them (None when the map has no such layer)."""
+
+    heights: HeightPatch
+    impassable: CellPatch | None
+
+
+def cliff_states(heights: np.ndarray, cells_x: np.ndarray, cells_y: np.ndarray) -> np.ndarray:
+    """Whether each cell is a cliff: the spread of its four corner heights is over
+    `CLIFF_SPREAD`. Corners are read by flat index the way `0x007725E0` does, so one past the end
+    of the heightmap reads 0 and one past a row's end is the next row's first sample."""
+    rows, columns = heights.shape
+    count = rows * columns
+    flat = np.append(heights.ravel().astype(np.float64), 0.0)
+    base = np.asarray(cells_y) * columns + np.asarray(cells_x)
+    corners = np.stack(
+        [
+            flat[np.minimum(index, count)]
+            for index in (base, base + 1, base + columns, base + columns + 1)
+        ]
+    )
+    return (corners.max(axis=0) - corners.min(axis=0)) > CLIFF_SPREAD
+
+
+def ramp_edit(
+    grid: TerrainGrid,
+    impassable: np.ndarray | None,
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    width: float,
+) -> RampEdit | None:
+    """The ramp `width` world units across from `start` to `end`, each `(x, y, ground height in
+    feet)`: the heights of the samples inside it, and the cliff state of every cell one of them
+    is a corner of. None when the ends coincide or no sample is inside."""
+    (ax, ay, z0), (bx, by, z1) = start, end
+    dx, dy = bx - ax, by - ay
+    length = math.hypot(dx, dy)
+    if length == 0 or width <= 0:
+        return None
     half = width / 2
-    cells = [grid.world_to_cell(*point) for point in (start, end)]
+    cells = [grid.world_to_cell(ax, ay), grid.world_to_cell(bx, by)]
     reach = half / WORLD_UNITS_PER_CELL
     x0 = max(0, math.floor(min(c[0] for c in cells) - reach))
     y0 = max(0, math.floor(min(c[1] for c in cells) - reach))
@@ -298,22 +355,39 @@ def ramp_patch(
     columns, rows = np.meshgrid(np.arange(x0, x1 + 1), np.arange(y0, y1 + 1))
     wx = (columns - grid.border) * WORLD_UNITS_PER_CELL
     wy = (rows - grid.border) * WORLD_UNITS_PER_CELL
-    ax, ay = start
-    dx, dy = end[0] - ax, end[1] - ay
-    length = dx * dx + dy * dy
-    t = (
-        np.zeros(wx.shape)
-        if length == 0
-        else np.clip(((wx - ax) * dx + (wy - ay) * dy) / length, 0, 1)
-    )
-    distance = np.hypot(wx - (ax + t * dx), wy - (ay + t * dy))
-    inside = distance <= half
+    along = ((wx - ax) * dx + (wy - ay) * dy) / (length * length)
+    across = np.abs((wx - ax) * dy - (wy - ay) * dx) / length
+    inside = (along >= 0) & (along <= 1) & (across <= half)
     if not inside.any():
         return None
     values = grid.heights[y0 : y1 + 1, x0 : x1 + 1].astype(np.int64)
-    slope = np.clip(np.floor(h0 + t * (h1 - h0) + 0.5), 0, MAX_HEIGHT)
+    slope = np.clip(np.trunc((z0 + along * (z1 - z0)) / FEET_PER_HEIGHT_UNIT), 0, MAX_HEIGHT)
     values[inside] = slope[inside]
-    return HeightPatch(x0, y0, values.astype(np.uint16))
+    heights = HeightPatch(x0, y0, values.astype(np.uint16))
+    if impassable is None:
+        return RampEdit(heights, None)
+    after = grid.heights.copy()
+    after[y0 : y1 + 1, x0 : x1 + 1] = heights.values
+    # A cell is touched when any of its corners - itself and its +x, +y and +x+y neighbours -
+    # was written: grow the written samples one cell down and to the left.
+    touched = np.zeros((inside.shape[0] + 1, inside.shape[1] + 1), dtype=bool)
+    touched[1:, 1:] |= inside
+    touched[1:, :-1] |= inside
+    touched[:-1, 1:] |= inside
+    touched[:-1, :-1] |= inside
+    cx0, cy0 = x0 - 1, y0 - 1
+    layer_rows, layer_columns = impassable.shape
+    left, bottom = max(0, -cx0), max(0, -cy0)
+    right = min(touched.shape[1], layer_columns - cx0)
+    top = min(touched.shape[0], layer_rows - cy0)
+    touched = touched[bottom:top, left:right]
+    cx0, cy0 = cx0 + left, cy0 + bottom
+    cell_rows, cell_columns = touched.shape
+    before = impassable[cy0 : cy0 + cell_rows, cx0 : cx0 + cell_columns]
+    ys, xs = np.nonzero(touched)
+    states = np.array(before, dtype=bool)
+    states[ys, xs] = cliff_states(after, xs + cx0, ys + cy0)
+    return RampEdit(heights, CellPatch(cx0, cy0, states))
 
 
 def playable_size(map: Map) -> tuple[int, int]:

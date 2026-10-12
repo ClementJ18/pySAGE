@@ -1,7 +1,9 @@
 """Concrete `Patch` implementations."""
 
+from sage_patch.patches.ai_build_queue_skip import AiBuildQueueSkipPatch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
+from sage_patch.patches.ai_farm_kill_gate import AiFarmKillGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.ai_team_size import AiTeamSizePatch
@@ -36,6 +38,10 @@ from sage_patch.patches.faction_variants import FactionVariantsPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
+from sage_patch.patches.grant_science_upgrade import (
+    GrantScienceUpgradePatch,
+    GrantScienceUpgradeWorldbuilderPatch,
+)
 from sage_patch.patches.healing_received import HealingReceivedPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
@@ -46,6 +52,7 @@ from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
 from sage_patch.patches.mount_health_ratio import MountHealthRatioPatch
 from sage_patch.patches.mount_swap_eject import MountSwapEjectPatch
+from sage_patch.patches.multi_contain import MultiContainPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
 from sage_patch.patches.object_image_upgrade import (
@@ -67,6 +74,10 @@ from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.special_power_refund_upgrade import (
+    SpecialPowerRefundUpgradePatch,
+    SpecialPowerRefundUpgradeWorldbuilderPatch,
+)
 from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
@@ -78,10 +89,13 @@ from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
+from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 
 __all__ = [
+    "AiBuildQueueSkipPatch",
     "AiCommandNullTargetPatch",
     "AiConstructionGatePatch",
+    "AiFarmKillGatePatch",
     "AiFlagCaptureGatePatch",
     "AiReviveGatePatch",
     "AiTeamSizePatch",
@@ -100,6 +114,8 @@ __all__ = [
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
     "GiveUpgradeAllPatch",
+    "GrantScienceUpgradePatch",
+    "GrantScienceUpgradeWorldbuilderPatch",
     "HeadlessPatch",
     "HealingReceivedPatch",
     "HideModifierFxPatch",
@@ -117,6 +133,7 @@ __all__ = [
     "MapListSymbolsPatch",
     "MountHealthRatioPatch",
     "MountSwapEjectPatch",
+    "MultiContainPatch",
     "MultiExecuteGatePatch",
     "MultiSelectGroupPatch",
     "ObjectivesScreenPatch",
@@ -139,6 +156,8 @@ __all__ = [
     "SkirmishReplayPatch",
     "SmartRallyPatch",
     "SpawnUnionPatch",
+    "SpecialPowerRefundUpgradePatch",
+    "SpecialPowerRefundUpgradeWorldbuilderPatch",
     "SpellStoreUpgradePatch",
     "SpellRechargeTargetsPatch",
     "SpellbookCommandSetRefreshPatch",
@@ -152,4 +171,5 @@ __all__ = [
     "UpgradeAliasPatch",
     "UpgradeGrantListsPatch",
     "WotrBattleObserversPatch",
+    "WotrLobbySlotsPatch",
 ]

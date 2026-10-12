@@ -237,9 +237,8 @@ wholesale.
 
 **Schema v2 appends eight more**, read off the `Player` rather than its keeper (§4.1), for
 `58` Integers — 247 bytes per player, still inside the format's 255-values-per-pair ceiling.
-Growing the record moved the section's `FILE*` slot from `+0xF8` to `+0x120` and the code from
-`+0x100` to `+0x140`: the record now ends at `+0x117`, and a record that overran the handle
-would corrupt it mid-loop, so the test suite asserts the gap.
+The record ends at `+0x117`, the section's `FILE*` slot sits at `+0x120` and the code at `+0x140`;
+a record that overran the handle would corrupt it mid-loop, so the test suite asserts the gap.
 
 The player number is `Player+0x54`, exactly as `replay-outcome` writes it, so
 `ReplayFile.slot_index` maps the chunk with no new rule.
@@ -248,7 +247,7 @@ The player number is `Player+0x54`, exactly as `replay-outcome` writes it, so
 
 | argument | field | source | why it is not derivable |
 |---|---|---|---|
-| 50 | `faction_name_key` | `Player+0x34` → `PlayerTemplate+0x10` | the **resolved** faction. The header's slot carries the *lobby* value, so a `Random` seat never resolves in it — and AI difficulty, contrary to §7's old claim, the header already records |
+| 50 | `faction_name_key` | `Player+0x34` → `PlayerTemplate+0x10` | the **resolved** faction. The header's slot carries the *lobby* value, so a `Random` seat never resolves in it. AI difficulty the header already records |
 | 51 | `resources` | `Player+0x94` | the spendable balance. `money_spent` carries a setup charge never deducted from it (below), so only this says what a seat could afford |
 | 52–53 | `power_points`, `power_points_total` | `Player+0x24`, `+0x1C` | spellbook economy; only `+0x24` falls on a purchase |
 | 54–57 | `command_points_used`, `_cap`, `_bonus`, `_hard_cap` | `Player+0x68`, `+0x64`, `+0x6C`, `+0x70` | the army ceiling actually played under |
@@ -321,10 +320,10 @@ whose layout moved.
 
 ### Open items
 
-1. ~~**Record a match and read it back.**~~ **Done for v1** (see Status). The destroyed arrays
-   reconcile with the opponent's losses to within a gap that §2.3 now explains structurally.
-   Still unmeasured: `units_built` against what the score screen actually shows, which needs a
-   screenshot of the same match. **Redo for v2** — nothing has been recorded under the new tail.
+1. **Record a v2 match and read it back.** Nothing has been recorded under the v2 tail. The v1
+   recording's destroyed arrays reconcile with the opponent's losses to within a gap that §2.3
+   explains structurally. Still unmeasured: `units_built` against what the score screen actually
+   shows, which needs a screenshot of the same match.
 2. **Play a patched replay back in the game.** The playback reader (`0x0077DC91`) appends every
    chunk to `TheCommandList` except types `0x3E8` and `0x1D`, and `updatePlayback` (`0x0077E100`)
    reads by timecode — so chunks after the `0x1D` marker *are* read and *are* appended. An
@@ -342,11 +341,14 @@ The catalogue this patch came out of, unbuilt, in the order worth building:
 | type | record | what it answers | why it is not here yet |
 |---|---|---|---|
 | `0x7D2` | name dictionary | what every id in this file means, without the game that made it | needs a used-id bitmap on the write path |
-| ~~`0x7D4`~~ | ~~setup truth~~ | — | **shipped in schema v2's `0x7D3` tail instead** (§4.1): the resolved faction is a per-player fact written in the loop that already has the `Player`, so a second record per player bought nothing. AI difficulty needed no patch at all — the replay header's slot already carries it, which this table previously got wrong |
+
 | `0x7D5` | hero ledger | which hero, by name — the one content order static data cannot resolve | mid-game hook, so item 2 above gates it |
 | `0x7D7` | periodic samples | economy and army curves over the match | mid-game, and needs the money/CP reads |
 | `0x7D6` | object census | what every runtime `ObjectId` was; where things died | volume: needs a `KindOf` + owner filter |
 | `0x7D8` | button press log | which button was pressed, disambiguating the overloaded `0x417` | largely redundant if `0x7D5` and `0x7D6` ship |
+
+Setup truth (the resolved faction) needs no record of its own: it is in schema v2's `0x7D3` tail
+(§4.1), and AI difficulty is already in the replay header's slot.
 
 ## Address index
 

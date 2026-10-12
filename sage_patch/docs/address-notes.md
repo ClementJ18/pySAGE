@@ -74,10 +74,9 @@ section 5.
 
 `ThePartitionManager` and `TheShroudManager`, the two subsystems holding visibility state.
 
-⚠ **`THE_PARTITION_MANAGER` used to read `0x00DE4358`, which is `TheShroudManager`.** The old
-value came from reading the registration block as "the object built immediately after the name
-string is pushed"; the block actually pushes each name *after* storing the object it names, so
-that reading was one slot late. The decisive instruction is the `setName` call site, which
+⚠ **`0x00DE4358` is `TheShroudManager`, not `ThePartitionManager`.** Reading the registration
+block as "the object built immediately after the name string is pushed" lands one slot late: the
+block pushes each name *after* storing the object it names. The decisive instruction is the `setName` call site, which
 reloads the global it is about to name:
 
     0x0062CEB3  mov [0x00DE4354], eax      ; store the object
@@ -273,7 +272,7 @@ special-ability modules all call these, so a gate inside them reaches every cast
 Bool checkSource)` is `ret 0x1c`; `...AtObject(Object *caster, Object *target, cmdSource,
 SpecialPowerTemplate *, cmdOptions, Bool checkSource)` is `ret 0x18`, keeps an `ebp` frame
 throughout, and never writes its `target` (`[ebp+0xc]`) or template (`[ebp+0x14]`)
-argument. See `docs/forbidden-upgrade-filter.md`.
+argument. See `docs/special-power-upgrade-filters.md`.
 
 ## `OBJECT_FIELD_TABLE`
 
@@ -1189,7 +1188,7 @@ template's engine-assigned id: a dedicated setter at `0x006CFBC7`, a down-counti
 allocator at `0x00DA18E4`, ~15 readers, and the ControlBar pushes it into build orders
 (`0x00940948`). An override *swaps* ids so the new template inherits the old one's identity.
 
-That is the second apparent hole in a template that turned out to be a real member - see
+That is the second apparent hole in a template that is a real member - see
 `PlayerTemplate+0x34` in `docs/second-resource.md` §1.2 - and it is why `BuildCost2` is keyed
 in a cave rather than stored on the template.
 

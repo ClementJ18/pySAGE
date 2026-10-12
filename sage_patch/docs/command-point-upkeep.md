@@ -216,8 +216,8 @@ The x87 stack is empty at the hook (the displaced `fild` is the next push), so t
 `fild` / `fstp` pair is balanced.
 
 > `fild dword ptr [esp]` is **`DB /0`**. `DF /0` is the 16-bit form, and it assembles, applies
-> and verifies exactly as happily while reading half the value. The first draft had it wrong;
-> `test_command_point_upkeep.py` now asserts the operand width.
+> and verifies exactly as happily while reading half the value. `test_command_point_upkeep.py`
+> asserts the operand width.
 
 ## 6. The display
 

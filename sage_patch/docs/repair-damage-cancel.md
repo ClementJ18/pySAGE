@@ -114,7 +114,7 @@ replaced on the next update. §5 shows that happening.
 (`WorkerName = ElvenWorkerNoSelect_Lorien`, `SpawnTimer = DEFAULT_STRUCTURE_HEALDELAY`, 180) under
 attack while its worker repaired it.
 
-- **With only the `SpawnTimer` gate erased**, which was the first version of this patch: the
+- **With only the `SpawnTimer` gate erased:** the
   structure's `+0x12` read `0` and it carried no `UNDERGOING_REPAIR`, while the worker (id 408,
   the structure's producer at `Object+0x7C`) stayed `WORKER_REPAIRING` throughout. The cancel ran
   and had nothing to stop. The structure's `Object+0x458` bit 0 was set.

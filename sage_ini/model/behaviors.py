@@ -708,21 +708,6 @@ class DominateEnemySpecialPower(SpecialPowerModuleBehavior):
     Instant: Bool
 
 
-class LevelGrantSpecialPower(SpecialPowerModuleBehavior):
-    UnpackingVariation: Int
-    StartAbilityRange: Float
-    UnpackTime: Int
-    PreparationTime: Int
-    FreezeAfterTriggerDuration: Int
-    Experience: Int
-    RadiusEffect: Float
-    AcceptanceFilter: ObjectFilter
-    LevelFX: FXList
-    UseKindOf: Bool
-    AffectsKindOf: List[KindOf]
-    PackTime: Int
-
-
 class UpgradeBehavior(Behavior):
     TriggeredBy: List[Upgrade]
     ConflictsWith: List[Upgrade]
@@ -838,6 +823,15 @@ class ScaleWallSpecialAbilityUpdate(SpecialAbilityUpdate):
 class WeaponSetSpecialAbilityUpdate(SpecialAbilityUpdate):
     WeaponsetEffectDuration: Int
     WhichWeaponSet: Int
+
+
+# The engine builds this on SpecialAbilityUpdate (module data, field table and ability tick), so
+# it takes every SpecialAbilityUpdate field, IgnoreFacingCheck included.
+class LevelGrantSpecialPower(SpecialAbilityUpdate):
+    Experience: Int
+    RadiusEffect: Float
+    AcceptanceFilter: ObjectFilter
+    LevelFX: FXList
 
 
 class FlingPassengerSpecialAbilityUpdate(Behavior):
@@ -2843,7 +2837,7 @@ class UnpauseSpecialPowerUpgrade(UpgradeBehavior):
 
 
 class ObjectCreationUpgrade(UpgradeBehavior):
-    UpgradeObject: Object
+    UpgradeObject: ObjectCreationList
     Delay: Int
     RemoveUpgrade: Upgrade
     GrantUpgrade: Upgrade
@@ -2854,6 +2848,13 @@ class ObjectCreationUpgrade(UpgradeBehavior):
     FadeInTime: Int
     UseBuildingProduction: Bool
     DeathAnimAndDuration: AnimAndDuration
+
+    # The OCL is looked up at load, but neither the upgrade step (0x008B8281) nor the update
+    # (0x008B8464) reads it; the routine that fires it (0x008B838D) is never called.
+    stock_noops = {
+        "UpgradeObject": "the engine never fires this OCL; spawn an object through ThingToSpawn "
+        "instead (an egg whose death OCL creates the list)",
+    }
 
 
 class LocomotorSetUpgrade(UpgradeBehavior):

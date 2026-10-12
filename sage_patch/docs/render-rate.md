@@ -1,29 +1,9 @@
 # Raising the frame rate without speeding the game up
 
-> ⚠ **§8's verdict was wrong, and §3.3/§3.4 are false on the binary the game runs.**
-> The patch was withdrawn on three symptoms. Measured in a live match on 2026-08-20: one was a
-> one-dword bug, one was an artifact of how the test was applied, and one is a real engine defect
-> this patch does not cause — the spell store's state messages are dropped by the movie and never
-> repeated (§9.6), diagnosed and proved by intervention at 60 fps, and now fixed by a second cave.
-> **[§9](#9-what-a-live-match-actually-measured) is the
-> measurement and the current verdict, and is the part of this document to read first** —
-> it corrects §3.2, §3.3, §3.4 and §8 in specific places, and those sections are left standing only
-> so the corrections have something to point at.
->
-> ⚠ **The multiplayer stutter had a cause and a one-byte fix, applied 2026-08-24.** §3.2's recompute
-> gate repeats §9.2's mistake, so the interpolation alpha's denominator ratchets upward all match
-> on a networked client. Measured on both peers of one live match: the ratio reads **14 on the host
-> and 31 on the off-host** against a wrap of 12, and the off-host's boundary frame moves **20x** a
-> normal frame's motion where a correct build moves 2.0x.
-> **[§9.10](#910-the-alphas-denominator-ratchets-on-a-networked-client-and-never-resets) is the
-> measurement**, and it is what §9.9's flat-5.000-Hz match was missing. §9.9 remains separately
-> true and is the other half of "multiplayer must work".
-
-Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR); the file offset
-is `VA - 0x400000` for everything cited here. Read **statically** on 2026-08-18 with `pefile` +
-`capstone` from `sage_patch/engine/game.dat.backup` (11,346,432 bytes) — see
-[§0](#0-which-game-dat) for why that file and not the one in the repo root — and confirmed against
-the running process with `sage_live`.
+Engine build `2.01.2614.37001`, Edain's binary. Addresses are VAs (ImageBase `0x400000`, no ASLR);
+the file offset is `VA - 0x400000` for everything cited here. Read **statically** with `pefile` +
+`capstone` and measured in live matches with `sage_live` (§9). [§0](#0-which-game-dat) explains why
+the binary the game runs differs from stock in exactly the code this patch is about.
 
 **The complaint.** The game draws at 30 fps, and raising `FramesPerSecondLimit` to get more makes
 everything run faster instead.
@@ -31,28 +11,25 @@ everything run faster instead.
 **What the engine actually does: frame rate and simulation rate are not the same clock, and the
 two are already decoupled.** SAGE here simulates at **5 logic frames per second** and draws at
 **30 client frames per second**, keeps a sub-frame counter on `TheGameEngine`, and hands the render
-path an **interpolation alpha** at `TheGameEngine+0x3C` that seven sites already lerp transforms
-with. What welds them together is one comparison: the wrap that ends a logic frame is written
-against a **literal 6** instead of against the ratio the engine derives from the two rates.
+path an **interpolation alpha** at `TheGameEngine+0x3C` that the drawable and animation code
+already lerps with. What welds them together is one comparison: the wrap that ends a logic frame is
+written against a **literal 6** instead of against the ratio the engine derives from the two rates.
 
 **Where that leads.** Moving the client rate and that literal together holds the simulation near
-its rate at any frame rate, and genuinely buys smoothness — §9 measures a rendered drawable taking
+its rate at any frame rate, and genuinely buys smoothness — §9.1 measures a rendered drawable taking
 **11 distinct interpolated positions per logic frame at 60 fps against 5 at stock**. Some client
-content really is **authored in client frames** and advanced one unit per client frame, which is
-the residual cost; §9 narrows that from "a great deal of client content" to one measured
-subsystem.
+content is **authored in client frames** and advanced one unit per client frame (§8); the patch
+decouples each such subsystem that was measured to matter.
 
-- **Status: designed, built, run, withdrawn — and the withdrawal was mostly wrong.** §1–§4 are
-  the reverse engineering and are sound apart from §3.2, whose edit is a live defect (§9.10).
-  §3.3 and §3.4 are sound *about stock* and false about the binary the game runs (§0 explains why;
-  §9 measures it). §8's diagnosis does not survive §9's measurements.
-- **Cost, as built:** four immediate bytes, two dwords, four floats and two 0x28-byte caves — the
-  first since §9.4, the second since §9.6. It is the registered `render-rate` patch; `sage-patch
-  apply render-rate --fps 60` is the whole build.
-- **What is actually still broken:** a 7–11% simulation slowdown (§9.5), a handful of unrescaled
-  constants (§9.7), and §9.9's rendered-frame clock, which is what still stands between this and
-  network play. §9.10's recompute gate — the multiplayer stutter — is fixed. The particle rate is fixed on both of its clocks - the CPU one (§9.4, measured live) and the GPU one (§9.11, built and confirmed in play). Everything
-  else §8 blamed has been accounted for.
+- **Status: registered as `render-rate`, played, including network matches between peers at
+  different frame rates with no desync** (§9.9). `sage-patch apply render-rate --fps 60` is the
+  whole build.
+- **What it writes:** the client rate and four derived floats, the wrap, the recompute gate, three
+  timecode strides, Edain's latch divisor, four GPU-particle clock multiplies, and three jumps into
+  a `.fxrate` cave — the particle rate gate and the two halves of the spell-store fix (§4).
+- **What is still open:** a 4–11% simulation slowdown (§9.5), a handful of unrescaled constants
+  (§9.7), the two flipbook sites (§9.11), and the rendered-frame clock (§9.9), which is real
+  arithmetic but not a barrier to network play. §10 is the list.
 - **A 60 fps build must also raise the frame limiter** (§9.3): Edain's `GameData` sets
   `FramesPerSecondLimit = 30` where no patch reaches it, and a cold start on a 60 fps binary
   otherwise runs the whole game at half speed.
@@ -70,10 +47,12 @@ subsystem.
   itself to `GameEngine+0x0C` (`FramesPerSecondLimit`) and calls `GameEngine::update` once per
   iteration; `0x0063264A` compares the sub-frame counter against **6** and, when it passes, runs
   the simulation. That is the whole coupling.
-- **Almost everything else already derives the ratio properly.** The sub-frame predicate at
-  `0x0063252F` and the catch-up loop at `0x00632A95` both compute `clientRate / logicRate` at
-  runtime and behave correctly at any ratio of 6 or more — **neither needs an edit**. Only two
-  literals and the timecode stride do.
+- **The recompute gate must equal the wrap.** `+0x38` is re-derived only on the sub-frame index the
+  gate names; stock has gate 6 and wrap 6, and the patch keeps the two equal (§3.2). On a networked
+  client anything else lets the alpha's denominator ratchet upward all match (§9.10).
+- **Edain's binary is not stock in the pacing code.** Its latch predicate divides by a global at
+  `0x00ECA400`, and its catch-up loop always runs (§0, §3.3, §3.4). The patch rescales the divisor so
+  the latch keeps firing (§9.2) and refuses any binary without that predicate.
 - **The simulation is untouched.** The logic rate does not move, `GameLogic::update` still advances
   its frame counter five times a second, and no simulation state depends on the sub-frame index.
 - **There is no "uncapped".** The wrap counts frames, not milliseconds. [§6](#6-what-uncapped-would-cost)
@@ -81,11 +60,12 @@ subsystem.
 
 ## 0. Which `game.dat`
 
-**The `game.dat` in the repo root is not stock**, and two of its differences are inside the pacing
-code this patch is about. Diffed against `sage_patch/engine/game.dat.backup` it has
-eleven differing runs, including:
+**Edain's `game.dat` is not stock**, and two of its differences are inside the pacing code this
+patch is about. The repo-root `game.dat` and the installed `C:\RotWK\game.dat` are byte-identical
+to each other; diffed against the stock `sage_patch/engine/game.dat.backup` they have eleven
+differing runs, including:
 
-| VA | backup | repo root |
+| VA | stock | Edain |
 |---|---|---|
 | `0x00632537` | `idiv dword [0x00D9F608]` (the logic rate) | `idiv dword [0x00ECA400]` |
 | `0x00ECA400` | `0` | `8` |
@@ -93,13 +73,13 @@ eleven differing runs, including:
 | `0x0084B43D`+ | — | ~60 bytes rewritten in the LAN transport |
 
 The first two turn the sub-frame predicate of §3.3 from "fire on sub-frame 1" into "fire on
-sub-frame 2"; the third hardcodes the catch-up bound of §3.4 and leaves two instructions before it
-dead. Anything derived from that file about *this* area has to be re-derived, and was.
+sub-frame 2"; the third hardcodes the catch-up bound of §3.4 so the loop always runs, and leaves two
+instructions before it dead.
 
-**No site this patch writes is in a differing run**, so it applies identically to both files —
-checked again for §9.6's `0x00822890`, which is byte-identical in both. Worth asserting against
-every `game.dat` in the tree rather than against one of them, for anything that edits this area
-next.
+**The patch targets the Edain binary.** It asserts the predicate's `idiv dword [0x00ECA400]` as an
+anchor and writes the divisor (§9.2), so it refuses the stock build. No other site it writes is in a
+differing run — `0x00822890` (§9.6) included. Anything that edits this area should assert against
+every `game.dat` in the tree rather than against one of them.
 
 ## 1. The two rates
 
@@ -163,7 +143,7 @@ other user of that accessor. So the field stays INI's, and the patch says so lou
 
 ```asm
 00632601  mov  ecx, [esi+0x34]         ; the sub-frame counter
-00632604  cmp  ecx, 6                  ; <-- literal  (patched: 1)
+00632604  cmp  ecx, 6                  ; <-- the recompute gate  (patched: the ratio)
 00632607  jne  0x632622
 00632609  cmp  byte [esi+0x40], 0      ;   the "rates changed" latch
 0063260f  mov  eax, [0x00d9f60c]       ;   client rate
@@ -196,36 +176,33 @@ Run the loop at 60 and the counter passes 6 ten times a second. **That is the bu
 ### 3.1 The alpha
 
 `0x0063256F`, on every sub-frame: `+0x3C = clamp(+0x34 / +0x38, 0, 1)`. Seven sites read it,
-several feeding the lerp at `0x00B27C80` — `0x00671755` lerps a drawable transform, `0x00676688`
-and `0x00676739` two vector pairs each, `0x004B523C`/`0x004B6C1C`/`0x004B6F81` W3D animation, and
+several feeding the lerp at `0x00B27C80` — `0x00671755` lerps a drawable transform (the dormant
+path; the live one is `0x006765C4`, §9.1), `0x00676688` and `0x00676739` two vector pairs each, `0x004B523C`/`0x004B6C1C`/`0x004B6F81` W3D animation, and
 `0x008A037D` a counter readout. Nine more sites read `+0x38` itself to turn a per-logic-frame rate
 into a per-client-frame increment. **All sixteen follow the ratio for free**, which is why this
 patch re-parameterises rather than builds.
 
-### 3.2 Why the recompute gate becomes 1, not the ratio
-
-> ⚠ **False on the binary the game runs, and the reason multiplayer stutters.** Sub-frame 1 is
-> **not** "the only index that always occurs" — it is an index that never occurs, for exactly the
-> reason §9.2 gives about the predicate. Gated on it, the recompute never runs, `+0x38` is left to
-> `0x006323D2`'s one-way `inc`, and the interpolation alpha divides by a number that climbs all
-> match on a networked client. See [§9.10](#910-the-alphas-denominator-ratchets-on-a-networked-client-and-never-resets),
-> which measures it. The gate wants the ratio after all; the paragraph below is the mistake.
+### 3.2 The recompute gate takes the ratio
 
 `+0x38` is initialised to **1** by the constructor (`0x0063A4DE`), not to 6 — the ratio only
-becomes real when the recompute at `0x0063260F` fires, which stock gates on the sub-frame index
-reaching 6. Keyed to the ratio that gate would work at every rate of 30 and above and silently stop
-working below it. Keyed to **1** it fires once per logic frame at every rate, because sub-frame 1
-is the only index that always occurs. One byte, strictly more robust than what it replaces.
+becomes real when the recompute at `0x0063260F` fires, and it fires only when the rates-changed
+latch at `+0x40` is set **and** the sub-frame counter equals the imm8 at `0x00632606`. Stock has
+that gate at 6 and the wrap at 6: the recompute runs on the sub-frame that ends each logic frame.
 
-### 3.3 The sub-frame predicate needs no edit
+The patch keeps that relationship and moves both to the ratio. **The gate must name a sub-frame that
+client code actually reaches, and 1 is not one**: on Edain's binary the catch-up loop (§3.4) steps
+the counter from 1 to 2 inside the same logic step that wraps it, so a gate of 1 never fires (§9.2
+measures the counter). With the recompute dead, `+0x38` is left to `0x006323D2`'s one-way `inc`,
+which runs only on a networked peer, and the alpha's denominator ratchets upward all match —
+§9.10 measures it and what it does to motion. Keyed to the ratio, the gate fires once per logic
+frame and re-derives `+0x38`, clearing whatever the network inflated.
 
-> ⚠ **False on the binary the game runs.** True of `game.dat.backup` only. The installed
-> binary divides by `[0x00ECA400]` = 8 rather than by the logic rate (§0), so the answer is
-> `subFrame == 2` at rate 30 and `subFrame == 1` at rate 60 — and **sub-frame 1 never occurs**
-> where client code can see it. This is what froze every animation and is why the patch was
-> withdrawn. See [§9.2](#92-the-stuck-animations-were-one-dword).
+A gate keyed to the ratio would stop working below rate 30, where the ratio is smaller than the
+first reachable sub-frame. The patch floors `fps` at 35 (§4), so no rate it permits is affected.
 
-`0x0063252F`, called from eleven client sites:
+### 3.3 The sub-frame predicate
+
+`0x0063252F`, called from eleven client sites. On stock:
 
 ```asm
 0063252f  mov  eax, [0x00d9f60c] / cdq / idiv dword [0x00d9f608]   ; ratio
@@ -234,22 +211,26 @@ is the only index that always occurs. One byte, strictly more robust than what i
 00632546  idiv esi                     ; ratio <  6 -> return subFrame == (6 / ratio)
 ```
 
-At any ratio of 6 or more it answers `subFrame == 1` — once per logic frame, at every rate this
-patch allows. The `6` at `0x0063253C` is a floor for *slow* clients, not the ratio. Four of the
-eleven callers were read (`0x004B51F4`, `0x004ED6AB`, `0x0083BA12`, `0x008A0368`) and all four are
-the client-side latch of §3.1: `if (predicate) previous = current;` then `previous + alpha * rate`.
+At any ratio of 6 or more it answers `subFrame == 1` — once per logic frame. The `6` at
+`0x0063253C` is a floor for *slow* clients, not the ratio.
 
-### 3.4 The catch-up loop needs no edit either
+**Edain's binary divides by `[0x00ECA400]` = 8 instead of by the logic rate** (§0). At rate 30 the
+quotient is 3 and the predicate answers `subFrame == 2`, which is reachable; at rate 60 it is 7 and
+the predicate answers `subFrame == 1`, which never occurs where client code can see it. Every
+caller is a `previous = current` latch (`if (predicate) previous = current;` then
+`previous + alpha * rate`), so a predicate that never fires freezes animations. The patch rescales
+the divisor so the quotient stays 3 at any rate (§9.2).
 
-> ⚠ **False on the binary the game runs.** The installed binary replaces the `cmp ecx, 6 /
-> jge` escape with `mov eax, 2 / jmp`, so the loop **always runs** one extra
-> `GameLogic::update(2)` per logic frame. That makes the effective ratio 5-of-6 at rate 30 and
-> 11-of-12 at 60, which is where §9.5's simulation slowdown comes from — and `0x00632ACF`, one
-> of the three strides this patch edits, lives inside it.
+### 3.4 The catch-up loop
 
-`0x00632A95` computes the ratio the same way and `0x00632AA3`'s `cmp ecx, 6 / jge 0x632B03` skips
-the whole loop when it is 6 or more. It exists to run *extra* logic steps for a client slower than
-6× the logic rate, and stays dormant at every rate this patch allows.
+`0x00632A95` exists to run *extra* logic steps for a client slower than 6× the logic rate. On stock,
+`0x00632AA3`'s `cmp ecx, 6 / jge 0x632B03` skips it at every ratio of 6 or more.
+
+**Edain's binary replaces that escape with `mov eax, 2 / jmp`** (§0), so the loop **always runs**
+one extra `GameLogic::update(2)` per logic frame and bumps the sub-frame counter from 1 to 2 before
+any client code reads it. That makes the effective ratio 5-of-6 at rate 30 and 11-of-12 at 60,
+which is where §9.5's simulation slowdown comes from, and it is why sub-frame 1 is unobservable
+(§3.2, §3.3). `0x00632ACF`, one of the three strides this patch edits, lives inside it.
 
 ### 3.5 The timecode stride
 
@@ -264,10 +245,15 @@ one-byte immediate each, and `max` so that a modest rate still writes the stock 
 | site | stock | patched | why |
 |---|---|---|---|
 | `0x00D9F60C` | `30` | `fps` | the client rate |
-| `0x00D9F620`/`24`/`28`/`2C` | derived from 30 | derived from `fps` | animation, audio and UI timing read them |
+| `0x00D9F620`/`24`/`28`/`2C` | derived from 30 | derived from `fps` | animation, audio and UI timing read them (§1) |
 | `0x0063264A` | `cmp eax, 6` | `cmp eax, ratio` | **the wrap** |
-| `0x00632604` | `cmp ecx, 6` | `cmp ecx, 1` | recompute the ratio every logic frame (§3.2) |
+| `0x00632604` | `cmp ecx, 6` | `cmp ecx, ratio` | the recompute gate, kept equal to the wrap (§3.2) |
 | `0x0062ECC6`, `0x00632631`, `0x00632ACF` | `imul …, 10` | `imul …, max(10, ratio)` | §3.5 |
+| `0x00ECA400` | `8` | `8` if `fps // 8 == 3`, else `fps // 3` | keeps the latch predicate on sub-frame 2 (§9.2) |
+| `0x005F515F` | the cinematics-flag test | `jmp` to the `.fxrate` particle gate | CPU particles step at the authored 30 (§9.4) |
+| `0x007B1102`, `0x007B1160`, `0x007B12FE`, `0x007B140B` | `imul eax, [clientRate]` | `imul eax, eax, 30` + `nop`s | GPU particles age at the authored 30 (§9.11) |
+| `0x00822890` | `mov byte [ecx+0x2A0], 1` | `jmp` to the spell-store state reset | invalidates the button cache and stamps the time (§9.6) |
+| `0x008231CA` | the button loop's head | `jmp` to the spell-store deferral | holds the sends for 500 ms (§9.6) |
 | `0x00D9F608` | `5` | `5` | **asserted, never written** |
 
 `ratio = fps / 5`, and `fps` must be a multiple of 5 so a whole number of client frames fits in a
@@ -276,17 +262,17 @@ so allowing 30 would make `detect` report every unpatched binary as carrying the
 is **635** (ratio 127), because the ratio and the stride are *signed* imm8s — at 128 the wrap's
 constant decodes as −128 and the simulation never advances at all.
 
-The logic-rate row is an assertion written as an edit whose "new" bytes equal its "old" ones, so a
-build that does not simulate at 5 Hz fails before the client rate is raised against a denominator
-this patch guessed at.
+The logic rate is asserted rather than written, so a build that does not simulate at 5 Hz fails
+before the client rate is raised against a denominator this patch guessed at. The latch predicate's
+bytes at `0x0063252F` and the four places the cave rejoins engine code are asserted the same way.
 
 **`FramesPerSecondLimit` must match `fps`.** The patch owns the client rate; INI owns the pace, for
 the reason in §2. If they disagree the game runs at the wrong speed — `verify` reports the rate the
-binary was built for, and that is the number to put in `GameData`.
+binary was built for, and that is the number to put in `GameData` (§9.3).
 
 ## 5. Proving it rather than believing it
 
-Five of the six numbers, left behind while the others move, produce a game that is subtly the wrong
+Some of the rate numbers, left behind while the others move, produce a game that is subtly the wrong
 speed rather than one that crashes. So the acceptance test is a **measurement**, not an impression:
 
 1. **The logic rate.** Run a known map for a wall-clock minute and read `[[TheGameLogic]+0x40]`
@@ -296,14 +282,12 @@ speed rather than one that crashes. So the acceptance test is a **measurement**,
 2. **The replay corpus.** Record on the patched build and parse with `sage_replay`. Timecodes must
    still be **0.20 s** apart. 0.10 means the simulation moved.
 3. **Smoothness.** Compare a panning camera and a marching horde at 30 and at 60. §3.1's sixteen
-   sites are what should make the difference visible; anything that steps a visual quantity per
-   client frame with a *hardcoded* increment rather than by reading `+0x38` will run at double
-   speed instead. None was found among the sites examined, and no exhaustive sweep for that pattern
-   was done.
-4. **Determinism.** Two peers, one patched and one stock, same seed — or a stock replay played back
-   on a patched build. §3.3 is the reason to expect this to hold; the seven unread `0x0063252F`
-   callers (`0x00461EBD`, `0x0048E2D3`, `0x004B6BE6`, `0x0064871C`, `0x006487F3`, `0x006759BB`,
-   `0x0083BA12`) are the reason to check rather than assume.
+   sites are what make the difference visible; anything that steps a visual quantity per client
+   frame with a *hardcoded* increment rather than by reading `+0x38` runs at double speed instead.
+   `sage_patch/scripts/census_client_rate.py` classifies the readers of the client frame (§9).
+4. **Determinism.** Two peers on the same build and the same `fps`, compared with
+   `sage-live desync-watch`. All ten `0x0063252F` callers are client-side latches (§9.2), so the
+   predicate does not reach simulation state; §9.5 and §9.9 are what can.
 
 ## 6. What "uncapped" would cost
 
@@ -326,8 +310,7 @@ genuinely uncapped build needs the wrap driven by the wall clock, and that is a 
   established rather than assumed.
 
 Two caves, roughly 150 bytes, new state, and a wall clock introduced into a path adjacent to
-lockstep — against a patch that is currently four immediate bytes and a constant. It is worth
-doing only after §5 has been run on this one.
+lockstep. It would also remove §9.9's rendered-frame term outright.
 
 ## 7. What this does not buy
 
@@ -354,17 +337,18 @@ that constant.
 | `0x00DE4324` | `TheGameEngine`; `+0x0C` maxFPS, `+0x34` sub-frame, `+0x38` ratio, `+0x3C` alpha |
 | `0x0063A49C` | its constructor — `+0x0C = 0`, `+0x38 = 1` (§3.2) |
 | `0x00BD84E0` | the `GameEngine` vtable (`+0x28` update, `+0x48` setFPS, `+0x98` logic step) |
-| `0x006325A0` | the sub-frame advance; owns `0x00632604` and `0x0063264A` |
-| `0x0063252F` | the sub-frame predicate — needs no edit (§3.3) |
+| `0x006325A0` | the sub-frame advance; owns the recompute gate `0x00632604` and the wrap `0x0063264A` |
+| `0x0063252F` | the sub-frame predicate (§3.3) |
 | `0x0063256F` | the alpha computation |
-| `0x006329B0` | vtable `+0x98` — the logic step and the dormant catch-up loop (§3.4) |
+| `0x006329B0` | vtable `+0x98` — the logic step and the catch-up loop (§3.4) |
 | `0x0062E4E8` | `GameLogic::update`; `0x0062E577` increments the frame counter |
 | `0x0062EC4B` / `0x0062EC55` | the `n == 1` gate and the object sweep behind it |
 | `0x0062ECC6` / `0x00632631` / `0x00632ACF` | the timecode stride (§3.5) |
 | `0x00B27C80` | the lerp the alpha is handed to |
 | `0x00ECA400` | Edain's latch-predicate divisor — one reader, `0x00632535` (§9.2) |
-| `0x006765C4` | the Drawable interpolation that actually runs (§9.1) |
-| `0x00632606` | the recompute gate's imm8 - the multiplayer stutter, 1 -> ratio (§9.10) |
+| `0x006765C4` | the Drawable interpolation that runs (§9.1); `0x0067171D` is the dormant twin |
+| `0x00822890` / `0x008231CA` | the spell store's `OnInitialized` tail and button-loop head - the two §9.6 hooks |
+| `0x00632606` | the recompute gate's imm8 - the ratio, like the wrap (§3.2, §9.10) |
 | `0x0063239D` | the network ratio stretch; `0x006323A6` its null-net early-out (§9.10) |
 | `0x006323D2` | `inc dword [esi+0x38]` - the one-way writer of the alpha's denominator |
 | `0x00632450` | its sole caller |
@@ -380,134 +364,49 @@ that constant.
 | `0x00C31A84` | the `ParticleSystemType` name table; `GPU_PARTICLE` is **7**, template `+0xC` (§9.11) |
 | `0x00C82D10` | the `GpuDraw` field table - `FramesPerRow` `+0xC`, `TotalFrames` `+0x10`, `DetailTexture` `+0x14`, `SpeedMultiplier` `+0x18` |
 
-## 8. Why this approach does not work, and what would
+## 8. Frame-counted client content
 
-**Run in game at `--fps 60` with `FramesPerSecondLimit = 60`. Three symptoms, one cause.**
+**Some client-side content is authored in client frames, and the engine advances it one unit per
+client frame.** Particle lifetimes and burst delays, W3D animation cursors, and APT movie playback
+are counted that way. Doubling the client frame rate therefore halves the wall-clock duration of
+each one that is not decoupled — FX at twice speed, animations off their intended timing, and
+one-shot APT messages racing the movie that should receive them (§9.6).
 
-- Particle **FX play at exactly twice speed**.
-- Unit **animations stick** — some frozen in idle, some frozen mid-walk, attack animations
-  unaffected.
-- The **spell store is dead**: no power can be clicked to purchase.
-
-### What is provably right
-
-Read out of the live process with `sage_live`'s `ProcessMemory`, mid-match:
-
-```
-[0x00D9F608] logic rate  = 5          [0x00D9F60C] client rate = 60
-TheGameEngine+0x0C maxFPS = 60        +0x38 ratio = 12
-+0x34 sub-frame cycles 1..12          +0x3C alpha sweeps 0.083 .. 1.000 in twelfths
-client frame advancing 62/s           logic frame advancing ~5.2/s
-```
-
-Every number the patch is responsible for is exactly what §3 and §4 intend. The wrap holds the
-simulation near 5 Hz; the interpolation alpha, which is the mechanism the whole design rests on,
-sweeps smoothly across twelve sub-frames instead of six. **The pacing core is correct and is not
-the defect.**
-
-(The ~4% overshoot — 5.2 Hz rather than 5.0 — is the frame limiter's `ftol` at `0x0063A1AD`
-truncating `1000/60 = 16.67` to 16 ms, so the loop runs at 62.5 fps rather than 60. Stock has the
-same rounding at `1000/30 → 33`, where it costs 1%. It is not this patch's doing beyond making the
-truncation proportionally larger.)
-
-### The cause
-
-**A large amount of client-side content is authored in client frames, and the engine advances it
-one unit per client frame.** Particle lifetimes and burst delays, W3D animation cursors, and APT
-movie playback are all counted that way. Doubling the client frame rate therefore halves the
-wall-clock duration of every one of them — which is exactly "FX at twice speed", and the same
-mechanism running animations and UI movies off their intended timing.
-
-**No constant can fix this.** §1's derived floats rescale the conversions that go *seconds → client
+**No constant fixes this.** §1's derived floats rescale the conversions that go *seconds → client
 frames*; they do nothing for content whose duration is already a frame count in the mod's INI and
 in its `.apt`/`.w3d` assets. Those numbers live outside the binary.
 
-That is the fatal objection to the design. The client frame rate is not a free parameter here: in
-this engine one loop iteration is one client frame is one draw, so raising the draw rate
-necessarily raises the rate at which frame-counted client content advances.
+**And a "client content at 30, render at 60" split would buy nothing.** The live drawable
+interpolation (`0x006765C4`, §9.1) is recomputed once per client frame and cached against the
+client frame at `+0x244`. Gate the client update to every second iteration and the stamp does not
+change between the two draws, the cached `+0x208` is returned unchanged, and the second draw is a
+duplicate frame. The extra client frames are what produce new interpolated positions, so they have
+to stay.
 
-### What would work — and what would not
+So the split runs the other way: **the client frame advances on every drawn iteration, and each
+frame-counted subsystem is decoupled from it individually**, with its own divider or a fractional
+step. The CPU particle rate (§9.4), the GPU particle clock (§9.11) and the spell store's state
+delivery (§9.6) are the subsystems this patch decouples; §9.7 lists the constants that are not yet
+rescaled.
 
-**First, the mechanism that decides this, because it is easy to get backwards.**
-`Drawable::getInterpolatedTransform` at `0x0067171D` is where the alpha becomes a position:
+## 9. What live matches measured
 
-```asm
-0067171d  push esi                     ; esi = the Drawable
-00671720  mov  ecx, [0x00de4388]       ; TheGameClient
-00671728  call [eax+0x7c]              ;   -> the CLIENT frame
-0067172b  cmp  [esi+0x378], eax
-00671733  lea  eax, [esi+0x1a0]        ;   not interpolating -> the current matrix
-00671746  cmp  [esi+0x204], eax        ; already computed this CLIENT frame?
-0067174c  je   0x671788                ;   -> return the cache
-0067175a  fld  dword [0x00de4324+0x3c] ; the alpha
-0067176f  call 0xb27c80                ; lerp(+0x170 previous, +0x1a0 current) -> +0x1d0
-00671782  mov  [esi+0x204], eax        ; stamp it with the client frame
-00671788  lea  eax, [esi+0x1d0]
-```
-
-| Drawable | field |
-|---|---|
-| `+0x170` | the previous logic frame's matrix |
-| `+0x1A0` | the current logic frame's matrix |
-| `+0x1D0` | the interpolated matrix the render path uses |
-| `+0x204` | the **client frame** the interpolation was last computed on |
-| `+0x378` | the frame past which this drawable interpolates at all |
-
-> ⚠ **Wrong function.** `0x0067171D` has exactly one caller on the running binary, behind a
-> per-drawable flag, and its stamp reads `0xFFFFFFFF` on every live drawable — it never runs.
-> The live path is `0x006765C4` and its fields are different; see [§9.1](#91-the-interpolation-this-document-documents-is-dead-code).
-> The *reasoning* below survives; only the addresses are wrong.
-
-**So interpolation is recomputed once per client frame and cached against the client frame.**
-Two consequences, and the second is the one that matters:
-
-1. **Raising the client rate really does buy smoothness.** More client frames means more distinct
-   values of `+0x1D0` between two logic frames — the extra frames are new positions, not duplicate
-   ones. The withdrawn patch was not merely drawing more often; it was genuinely interpolating
-   finer, which is why the motion it produced was correct even while everything else broke.
-2. **A "client content at 30, render at 60" split would buy nothing at all.** Gate the client
-   update to every second iteration and `+0x204` does not change between the two draws, the cache
-   at `+0x1D0` is returned unchanged, and the second draw is a duplicate frame. The three-rate
-   design this section previously proposed is therefore **wrong**, and would have cost a cave and
-   a week to discover that.
-
-The split has to run the other way:
-
-- **The client frame must advance on every drawn iteration**, so `+0x204` changes and the
-  interpolation refreshes. That is the thing producing the smoothness and it cannot be slowed down.
-- **Frame-counted content must be decoupled from it** — particle lifetimes and burst delays, W3D
-  animation cursors, APT movie playback — so that each still advances at its authored 30 Hz while
-  the client frame runs at 60.
-
-That is per-subsystem work: every consumer that treats "one client frame" as its unit of time needs
-either its own divider or a fractional step, and each is its own piece of reverse engineering. It is
-the honest price of this feature on this engine, and it is a great deal more than the four
-immediates this document started with.
-
-The patch was unregistered and its module and tests deleted; this document is what remains of it,
-and is deliberately kept, because the reverse engineering above is correct and the negative results
-— both the fatal one in this section and the corrected design that follows it — are the expensive
-part to rediscover.
-
-## 9. What a live match actually measured
-
-Run in a real skirmish on **2026-08-20**, on the installed `game.dat` — which is byte-identical to
-the repo-root one (§0), so everything here is about the binary the game *runs*, not the backup the
-rest of this document was read from. Two instruments, both committed:
+First run in a real skirmish on **2026-08-20**, on the installed `game.dat` — which is
+byte-identical to the repo-root one (§0), so everything here is about the binary the game *runs*.
+Two instruments:
 
 - `examples/sage_live/render_rate_probe.py` — read-only, needs no patch.
 - `examples/sage_live/set_render_rate.py` — flips a running process between rates, so one match
   can be measured at both. Its limits are in §9.3, and they matter.
 
-The census that §5.3 promised and never ran is `sage_patch/scripts/census_client_rate.py`: 77
-readers of `GameClient::getFrame()`, classified by what they do with the value. Most of §9 below
-started as a census row.
+`sage_patch/scripts/census_client_rate.py` is the census: 77 readers of `GameClient::getFrame()`,
+classified by what they do with the value. Most of §9 below started as a census row.
 
-### 9.1 The interpolation this document documents is dead code
+### 9.1 The interpolation that runs
 
-`Drawable::getInterpolatedTransform` (`0x0067171D`, §8) has **one** caller on this binary, behind
-`cmp byte [edi+0x43F], 0`, and its stamp `+0x204` reads `0xFFFFFFFF` on all 615 drawables in a live
-match. Its matrices are identity. It never runs.
+`Drawable::getInterpolatedTransform` (`0x0067171D`) looks like the interpolation and is not: it
+has **one** caller on this binary, behind `cmp byte [edi+0x43F], 0`, and its cache stamp `+0x204`
+reads `0xFFFFFFFF` on all 615 drawables in a live match. Its matrices are identity. It never runs.
 
 The live path is **`0x006765C4`**, structurally identical and at different offsets:
 
@@ -519,10 +418,7 @@ The live path is **`0x006765C4`**, structurally identical and at different offse
 | `+0x3A4` | last logic frame moved; two frames stale and it snaps instead of interpolating |
 | `+0x40C` `+0x418` `+0x424` `+0x430` | four Vec3s fed to a spline (`0xA3ED38`) that overwrites the output's translation |
 
-So §8's *reasoning* survives intact, including its correction that a "client content at 30, render
-at 60" split would return duplicate frames. Only its addresses were wrong.
-
-**The feature's premise is confirmed.** Recompute counts per logic frame, same drawable addresses,
+**The feature's premise holds.** Recompute counts per logic frame, same drawable addresses,
 both rates:
 
 | drawable | at 60 | at 30 |
@@ -558,13 +454,13 @@ were 2..6 at rate 30 and 2..12 at rate 60, **never 1**.
 So at 60 the predicate names a sub-frame that never occurs, every latch behind it stops firing, and
 animations freeze. Holding the quotient at 3 keeps the answer on sub-frame 2 at any rate:
 `[0x00ECA400] = 8 if fps//8 == 3 else fps//3` — 20 at 60 fps. **One dword.** Confirmed in game:
-that change alone unfroze them, with nothing else altered.
+that change alone keeps them running at 60, with nothing else altered.
 
 `[0x00ECA400]` has exactly one reader in the whole image (`idiv` at `0x00632535`), so the edit
 cannot affect anything else. All ten predicate callers were read; every one is a
-`previous = current` latch, which also retires §5.4's "seven unread callers" determinism worry.
+`previous = current` latch.
 
-### 9.3 The double-speed animations were the measurement, not the patch
+### 9.3 The render clock, and the frame limiter
 
 ```asm
 00BC146C  mov  eax, 0x3E8              ; 1000
@@ -581,10 +477,11 @@ timing. Because it runs at startup, a live poke of the client rate cannot reach 
 | `[0x00DC7A8C]` | 33 (stale) | **16** |
 | render clock | **2.06x** real time | **1.00x** |
 
-A file-patched build computes it from 60 and is correct. **This is the general hazard of the live
-toggle**: the census counted **436** CRT initialisers reading the client rate, and only the shapes
-one goes looking for get found. The toggle now carries `[0x00DC7A8C]` explicitly, but treat it as
-good-for-logic, not-proof-for-timing. Anything timed wants a file build and a cold start.
+A file-patched build computes it from 60 and is correct; a live toggle shows double-speed animations
+the patch does not cause. **This is the general hazard of the live toggle**: the census counted
+**436** CRT initialisers reading the client rate, and only the shapes one goes looking for get
+found. `set_render_rate.py` carries `[0x00DC7A8C]` explicitly, but treat it as good-for-logic,
+not-proof-for-timing. Anything timed wants a file build and a cold start.
 
 **And the file build has the mirror-image trap.** Edain's `GameData` sets
 `FramesPerSecondLimit = 30`, inside the `.big` archives where no patch reaches it, and that number
@@ -594,29 +491,22 @@ speed**: measured 2026-08-20 at 30.33 client fps and **2.67 Hz logic**, against 
 limiter was raised. Nothing looks broken; it just runs slow, which is the failure mode hardest to
 notice and easiest to blame on the patch.
 
-The live toggle writes `+0x0C` itself, which is why this never surfaced in §9.1–§9.4's first
-runs and surfaced immediately the first time a build was tested cold.
+The live toggle writes `+0x0C` itself, so only a cold start on a file build shows this.
 
 **So the binary is half the deliverable.** `FramesPerSecondLimit` in the mod's `GameData` has to
 be set to the same number the build was made with — the patch's description says so for exactly
-this reason, and §4 has said so from the start; what §9 adds is what going without actually looks
-like, which is not a warning, an error or a crash but a game quietly running at half speed. Ship
-the two together.
+this reason. Going without is not a warning, an error or a crash but a game quietly running at half
+speed. Ship the two together.
 
 Two escape hatches, for when the `.big` is not being rebuilt. `examples/sage_live/set_limiter.py`
-raises the field in a running process, which is what §9.4's measurements used. And the build
-could carry it by sourcing `+0x0C` from the client rate rather than from `GlobalData+0x28` at
+raises the field in a running process. And a build could carry it by sourcing `+0x0C` from the client rate rather than from `GlobalData+0x28` at
 `0x00779DCF` — **not** by patching the folded accessor at `0x0066F0FD`, which §2 rules out.
 
 ### 9.4 The particle rate: the mechanism, and the fix
 
-FX running fast on an otherwise-correct build is §8's objection, and it is genuine. It is also
-**one site**, not the open-ended per-subsystem project §8 feared.
-
-> ⚠ **An earlier draft of this section had the mechanism half wrong.** It read
-> `ParticleSystemManager::update`'s frame gate as always-on. The gate is real, but it is
-> *conditional*, and on a normal launch the condition is false — so the gate never runs and the
-> rate comes from somewhere else. What follows is the corrected reading.
+FX running fast on an otherwise-correct build is §8's problem in its plainest form, and for CPU
+particles it is **one site**. `ParticleSystemManager::update` has a per-client-frame gate, but it
+is *conditional*, and on a normal launch the condition is false:
 
 ```asm
 005F515F  mov  eax, [0x00DE4364]    ; TheGlobalData
@@ -696,11 +586,11 @@ cave writes — against `TheGameClient+0x10`:
 | **steps per client frame** | **0.500** |
 
 `1.000` is the defect; `0.500` at rate 60 is the cave. Confirmed by eye at the same time — a
-burning siege works looked right, where the same scene ran at double speed before. Sampled with
+burning siege works looks right, where without the cave the same scene runs at double speed. Sampled with
 `examples/sage_live/fx_step.py`, which reads the same two counters against each other and needs
 no patch of its own to say which side of the fix a binary is on.
 
-### 9.5 The simulation runs slow, and §4 does not account for it
+### 9.5 The simulation runs slow
 
 | client rate | measured logic rate |
 |---|---|
@@ -709,19 +599,21 @@ no patch of its own to say which side of the fix a binary is on.
 
 Two causes, both outside §4's arithmetic. §3.4's always-running catch-up loop bumps the sub-frame
 counter an extra time per logic frame, making the effective ratio **5-of-6** at rate 30 and
-**11-of-12** at 60 — which is also why the logic rate is 6 Hz rather than the 5 this document
-assumes throughout. And the frame limiter truncates `1000/60` to 16 ms (`ftol` at `0x0063A1AD`),
+**11-of-12** at 60 — which is also why Edain's logic rate is 6 Hz at rate 30 rather than 5. And
+the frame limiter truncates `1000/60` to 16 ms (`ftol` at `0x0063A1AD`),
 costing a further 4%.
 
-A 7-11% speed change shifts replay timing and is a real defect. Fixing it means making the wrap
-account for the catch-up loop's extra increment, which is a different edit from §4's.
+Against Edain's own 6 Hz at rate 30, rate 60 runs 4–11% slow, varying with the frame rate the
+machine actually achieves (§9.9). It shifts replay timing and is a real defect. Fixing it means
+making the wrap account for the catch-up loop's extra increment, which is a different edit from
+§4's.
 
-### 9.6 The dead spell store: the engine caches an intention it never confirms
+### 9.6 The spell store: the engine caches an intention it never confirms
 
-§8's third symptom is **real, is a genuine defect, and is not this patch's** — it reproduces on a
-stock binary using Edain's debug `x2 speed` button, which moves no rate constant at all. It was
-recorded here as "a pre-existing engine bug triggered by a faster client, mechanism unknown".
-The mechanism was found on 2026-08-20 and proved by intervention in a live 60 fps match.
+Without the fix, the spellbook at 60 fps can open with nothing purchasable however many points the
+player has. **It is a genuine engine defect, and not this patch's** — it reproduces on a stock
+binary using Edain's debug `x2 speed` button, which moves no rate constant at all. A faster client
+only makes it likely. The mechanism was proved by intervention in a live 60 fps match on 2026-08-20.
 
 **The two halves, and the gap between them.**
 
@@ -750,8 +642,8 @@ which is what a spellbook with nothing lit actually is.
 **Why the client rate decides it.** The losing side of the race is measured in *movie* frames — the
 clip's construction and its ten-frame intro both advance one frame per client frame — while the
 engine's first `update` pass is not. Doubling the client rate moves the two relative to each other,
-which is precisely §8's "APT movie playback is authored in client frames" arriving as a dropped
-one-shot message rather than as something playing at double speed.
+which is §8's "APT movie playback is authored in client frames" arriving as a dropped one-shot
+message rather than as something playing at double speed.
 
 **Proved by intervention.** In a live match at rate 60 with the book showing nothing purchasable,
 writing a sentinel over the twenty cache dwords at `this+0x2AC` forced `update` to re-send every
@@ -764,7 +656,7 @@ engine held the correct answer: `0x005FED5B` passed for the two affordable power
 and points were right, `AptSpellStore::InputEnabled` (`0x00822974`) read `"1"`, and the closing
 latch at `this+0x2A2` was clear. The failure is entirely in delivery.
 
-**The fix, and it ships in this patch.** Two hooks, because one is not enough.
+**The fix ships in this patch.** Two hooks, because one is not enough.
 
 - `AptSpellStore::OnInitialized` (`0x0082285B`) already resets `+0x2A2`, `+0x348`, `+0x34C`,
   `+0x350` and `+0x354` and simply omits the button array. The patch takes over the seven-byte
@@ -773,15 +665,15 @@ latch at `this+0x2A2` was clear. The failure is entirely in delivery.
   `GetTickCount`, and rejoins the handler's own `ret`.
 - `update`'s button loop head (`0x008231CA`, ten bytes; the one branch that reaches it targets its
   first byte, so it lands on the hook too) jumps to a second routine that compares the tick against
-  that stamp and, until **1000 ms** have passed, takes the loop's own "all twenty done" exit. Only
+  that stamp and, until **500 ms** have passed, takes the loop's own "all twenty done" exit. Only
   the button states wait; the layout, help text and description still run every pass.
 
-**Invalidating the cache on its own is a no-op, and was tried first.** `OnInitialized` is what sets
-`+0x2A0`, the flag `update` checks before it does anything — so the first update after it is the
-same pass the original send was already happening on, and stamping the cache there moves nothing.
-Built, installed and measured at 60: no change. The deferral is the half that does the work, and
-the invalidation is what makes the deferred pass send all twenty rather than only those whose
-computed state happens to differ from constructor garbage.
+**Invalidating the cache on its own is a no-op.** `OnInitialized` is what sets `+0x2A0`, the flag
+`update` checks before it does anything — so the first update after it is the same pass the
+original send was already happening on, and stamping the cache there moves nothing; measured at
+60, it changes nothing. The deferral is the half that does the work, and the invalidation is what
+makes the deferred pass send all twenty rather than only those whose computed state happens to
+differ from constructor garbage.
 
 **Why a clock and not a count of passes.** `update` runs off whatever pump is turning, and while
 the panel is up that is the modal `Sleep(5)` spin rather than the client frame — so a pass count
@@ -789,17 +681,16 @@ would mean a different wall-clock wait at every rate, which is the exact class o
 is about. The subtract and the compare are unsigned, which is what makes them right across
 `GetTickCount`'s 49-day wrap.
 
-**The visible cost is a blank spellbook for the first second after it opens.** One second is a
-guess, not a measurement: what is actually needed is however long the movie takes to build its
-clips and run each one's ten-frame `_fade_in`, and nobody has measured that. If the book comes up
-correct it is long enough; if it comes up blank and stays blank, the number is the first thing to
-raise, and `DEFER_MS` is where it lives.
+**The visible cost is a blank spellbook for the first half-second after it opens.** The delay is
+not derived from a measurement: what is actually needed is however long the movie takes to build
+its clips and run each one's ten-frame `_fade_in`. If the book comes up blank and stays blank, the
+number is the first thing to raise, and `DEFER_MS` is where it lives.
 
 **This fix is not rate-specific**, and folding it into `render-rate` is a deliberate choice rather
 than a technical one: the same race can tip on a stock 30 fps build, where nothing installs this.
 Reaching those installs means giving it a patch of its own.
 
-**Three behaviours that were misread as the bug, and are not.** All three are real, all three were
+**Three behaviours that look like the bug, and are not.** All three are real, all three were
 measured, and none of them is rate-dependent:
 
 - **Opening the panel stops the game.** `GameEngine::update` (`0x0044181F`) tail-calls the normal
@@ -836,29 +727,33 @@ last live frame as though it were a diagnosis.
   `0x00450119`) and a once-per-second gate (`frame % 30` at `0x0044B8C2`). Only `0x006A2451`
   derives its cadence correctly. Full table from the census script.
 
+### 9.8 The pacing core
+
+Read out of the live process with `sage_live`'s `ProcessMemory`, mid-match at `--fps 60` with
+`FramesPerSecondLimit = 60`:
+
+```
+[0x00D9F608] logic rate  = 5          [0x00D9F60C] client rate = 60
+TheGameEngine+0x0C maxFPS = 60        +0x38 ratio = 12
+client frame advancing 62/s           logic frame advancing ~5.2/s
+```
+
+Every number the patch is responsible for is what §3 and §4 intend: the wrap holds the simulation
+near its rate, and the interpolation alpha sweeps each logic frame in twelfths instead of sixths.
+
+(The overshoot in the client rate — 62.5 rather than 60 — is the frame limiter's `ftol` at
+`0x0063A1AD` truncating `1000/60 = 16.67` to 16 ms. Stock has the same rounding at `1000/30 → 33`,
+where it costs 1%. §9.5 is what the logic rate does with it.)
+
 ### 9.9 The simulation rate is a function of each machine's frame rate — and it does not end multiplayer
 
-**Superseded in its conclusion, kept for its arithmetic.** The identity below is real and still
-governs the design. What this section originally concluded from it — that mixed hardware cannot
-play together — was tested directly on 2026-08-26 and did not hold; see
-[the mixed-rate match](#mixed-frame-rates-played-clean--2026-08-26) at the end. The 2026-08-23
-failure that motivated it is accounted for by §9.10, which was found and fixed afterwards. Read
-the rest of this section as the mechanism, not as the ceiling.
+The identity below is real arithmetic. A match between peers at different achieved frame rates
+played clean ([below](#mixed-frame-rates-played-clean--2026-08-26)), so it is not a barrier to
+network play — lockstep absorbs it.
 
-Observed on 2026-08-23 in a real online match between two Edain installs carrying the 60 fps build,
-after a control match on the 30 fps build (the same patch set minus `render-rate`) ran clean:
-
-| machine | rendered | reported |
-|---|---|---|
-| host | 60 fps | "everything badly stutters" |
-| off-host (weaker) | above 30, not 60 — in single player too | smooth, but the match feels 30 |
-
-Then a desync, with animation glitches before it.
-
-**§9.5 measured this and read it as a constant.** Its three runs at client rate 60 came back
-**5.75, 5.60 and 5.33 Hz** — and attributed the gap to the catch-up loop plus `ftol` truncation,
-which are both fixed costs. Fixed costs do not vary by 8% across three runs on one machine. What
-varies is the frame rate that machine was actually achieving.
+**§9.5's three runs vary by 8% on one machine** — 5.75, 5.60 and 5.33 Hz at client rate 60. The
+catch-up loop and the `ftol` truncation are fixed costs and cannot vary; what varies is the frame
+rate that machine was actually achieving.
 
 **The wrap counts client frames, not milliseconds** ([§3.2](#3-where-a-loop-iteration-becomes-a-logic-frame)),
 and the limiter is a *ceiling* the loop reaches only if the machine can render that fast
@@ -874,12 +769,11 @@ sustaining 45 fps simulates at `45/11 ≈ 4.1 Hz` while a client sustaining 60 s
 `≈ 5.5 Hz`. Back-solving §9.5's own numbers through the 11-of-12 effective ratio gives 63, 62 and
 59 rendered fps — a machine hovering around its 60 cap, which is exactly what that test box was.
 
-**Consequences, in order of how bad they are.**
+**Consequences.**
 
-- **Every peer simulates at a different speed, set by its graphics performance.** Lockstep holds
-  them together by stalling whoever is ahead, which is what the host reported: it renders 60,
-  wants 5.5 Hz, and spends the match waiting for a peer that can only supply 4.1. The stutter is
-  not a rendering problem, it is the network layer throttling a client that is running too fast.
+- **Every peer wants a different speed, set by its graphics performance.** Lockstep holds them
+  together by stalling whoever is ahead: a peer that renders 60 and wants 5.5 Hz waits for one that
+  can only supply 4.1.
 - **The sub-frame counter now advances a machine-dependent number of times per logic frame.**
   §3.4's catch-up loop runs to make up the difference, so how many sub-frames elapse inside one
   logic frame depends on how many frames got dropped. Any simulation value derived from that
@@ -891,12 +785,10 @@ sustaining 45 fps simulates at `45/11 ≈ 4.1 Hz` while a client sustaining 60 s
   problem is not the number — it is that the logic clock is denominated in rendered frames. Two
   machines with different GPUs disagree by construction.
 
-**That was read, at the time, as putting the ceiling at single-player and replays.** The
-measurement below and the mixed-rate match at the end of this section both say otherwise: the
-divergence is real arithmetic, but it is bounded and the game absorbs it. The wall-clock wrap
+The divergence is bounded and the game absorbs it (below). The wall-clock wrap
 [§6](#6-what-uncapped-would-cost) scopes — logic frames ending on elapsed milliseconds rather than
-on a count of draws — would remove the term entirely and is still the right shape for this
-eventually. It is no longer a prerequisite for playing a match.
+on a count of draws — would remove the term entirely, but it is not a prerequisite for playing a
+match.
 
 #### What a machine that *does* hold 60 measures — and what it does not explain
 
@@ -915,50 +807,43 @@ logic frame for an entire match:
 is conditional and its condition matters: a client that sustains its target rate paces *exactly*
 right, for a long match, at a realistic object count. The four early stalls are the map settling.
 
-This is counter-evidence to the strength of the claim, not to the claim. `logic rate = achieved
-fps / ratio` still follows from the wrap counting draws, and a client that cannot hold 60 must
-still run slow. But **the machine this was measured on holds 60, and nothing degraded** — so
-§9.9's mechanism is not, on its own, an explanation for a stuttering or desyncing match on
-hardware that keeps up. Do not reach for it before checking that the peer in question is actually
-dropping frames.
+`logic rate = achieved fps / ratio` still follows from the wrap counting draws, and a client that
+cannot hold 60 still runs slow. But **a machine that holds 60 paces exactly** — so this mechanism
+is not, on its own, an explanation for a stuttering or desyncing match on hardware that keeps up.
+Check that the peer in question is actually dropping frames before reaching for it.
 
-**And it did not reproduce the desync.** That match ran 18.5 minutes with `TheGameLogic+0x1BC`
-clear throughout, and ended in a **client crash** rather than a mismatch — one of five that
-evening, two of which wrote no minidump at all. Whatever ends these sessions, this measurement
-does not show it being the pacing.
+That match ran 18.5 minutes with `TheGameLogic+0x1BC` (the desync latch) clear throughout, and
+ended in a **client crash** rather than a mismatch, unexplained by anything here (§10).
 
 #### Mixed frame rates played clean — 2026-08-26
 
-The test this section's conclusion asked for, and the one §9.8 item 1 said to run once §9.10 was
-in: online play on the 60 fps build **between peers that were not sustaining the same frame
-rate** — the exact condition the identity above predicts should diverge. It played clean. No
-desync, and none of the 2026-08-23 stutter.
+Online play on the 60 fps build **between peers that were not sustaining the same frame rate** —
+the exact condition the identity above predicts should diverge. It played clean: no desync, and no
+stutter.
 
 That is the discriminating case. Two peers both holding 60 would not have exercised the mechanism
 at all; peers at different achieved rates do, and the divergence did not surface as anything a
 player or the lockstep layer objected to.
 
-**What this settles, and what it does not.** It settles the conclusion: **the rendered-frame clock
-is not a barrier to network play**, and §9.10's recompute gate was indeed "the whole of what was
-reported" on 2026-08-23, as §9.8 item 1 guessed it might be. It does not overturn the arithmetic —
-`logic rate = achieved fps / ratio` still follows from the wrap counting draws, and a peer that
-drops frames still simulates slower than one that does not. What is now known is that lockstep
-absorbs that difference the way it absorbs ordinary network jitter, rather than compounding it.
+**What this settles, and what it does not.** **The rendered-frame clock is not a barrier to network
+play**; the multiplayer stutter is §9.10's, not this. The arithmetic stands — a peer that drops
+frames still simulates slower than one that does not — and lockstep absorbs that difference the way
+it absorbs ordinary network jitter, rather than compounding it.
 
 **Evidentiary status: field observation, not instrumented.** Per-peer achieved frame rates were
 not recorded, and `desync-watch` was not run on both sides. Two things would upgrade it — logging
 `TheGameLogic+0x1BC` on both peers across a match, and sampling each peer's achieved rate to put
-numbers on how far apart they actually were. Neither is needed to retire the "single-player only"
-framing; both would be needed before anyone quotes a bound on how far apart peers can drift.
+numbers on how far apart they actually were. Both would be needed before anyone quotes a bound on
+how far apart peers can drift.
 
 ### 9.10 The alpha's denominator ratchets on a networked client, and never resets
 
-**This is the mechanism §9.9's last subsection went looking for and did not find.** That match held
-a flat 5.000 Hz for 18.5 minutes and still played badly, which rules out the logic rate as the
-cause. The logic rate was never the problem. The **interpolation alpha's denominator** was.
+**Why the recompute gate takes the ratio (§3.2).** With the gate keyed to a sub-frame client code
+never reaches, a networked client's motion stutters while its logic rate holds a flat 5.000 Hz. The
+logic rate is not the problem; the **interpolation alpha's denominator** is.
 
-Reported 2026-08-24 from a multiplayer test on the 60 fps build, and the symptom split is the
-whole clue:
+Measured 2026-08-24 in a multiplayer match on a 60 fps build with the gate at 1, and the symptom
+split is the whole clue:
 
 | what | off-host | host |
 |---|---|---|
@@ -985,17 +870,14 @@ So `+0x38` is not a reporting field. It is the divisor that scales every interpo
 (`0x006765C4`) and all three W3D animation lerps (`0x004B523C`, `0x004B6C1C`, `0x004B6F81`).
 "Idle fine, movement and attack broken" says the alpha is wrong, which says `+0x38` is wrong.
 
-**Two sites write it. On this build one is dead and the other only runs off-host.**
+**Two sites write it. With the gate at 1, one is dead and the other only runs on a networked peer.**
 
 - **`0x0063260F`, the recompute**, sets `+0x38 = clientRate / logicRate`. It needs the
-  rates-changed latch at `+0x40` **and** the sub-frame index named by the imm8 at `0x00632606` —
-  the byte [§3.2](#32-why-the-recompute-gate-becomes-1-not-the-ratio) moved from 6 to **1**.
-  §3.2's argument for 1 was "sub-frame 1 is the only index that always occurs", and
-  [§9.2](#92-the-stuck-animations-were-one-dword) **already disproved exactly that premise**: the
-  hardcoded catch-up at `0x00632A9B` runs `inc dword [ebp+0x34]` (`0x00632AC0`) inside the same
-  logic step, so the counter is 2 before any other code sees it — measured over 373 frames. §9.2
-  repaired the *predicate* through `[0x00ECA400]` and left the identical false premise standing
-  here. **The recompute has never run on a 60 fps build.**
+  rates-changed latch at `+0x40` **and** the sub-frame index named by the imm8 at `0x00632606`.
+  Sub-frame 1 never occurs where that gate can see it: the hardcoded catch-up at `0x00632A9B` runs
+  `inc dword [ebp+0x34]` (`0x00632AC0`) inside the same logic step, so the counter is 2 before any
+  other code sees it — measured over 373 frames ([§9.2](#92-the-stuck-animations-were-one-dword)).
+  **Gated on 1, the recompute never runs.**
 
 - **`0x006323D2`, `inc dword [esi+0x38]`**, inside `0x0063239D` (sole caller `0x00632450`). It
   grows the ratio when the sub-frame has outrun it and the peer-lag readout at net vtable `+0x58`
@@ -1005,15 +887,15 @@ So `+0x38` is not a reporting field. It is the divisor that scales every interpo
 
 One writer is disabled and the other only counts up. `+0x38` is a ratchet.
 
-**That is why every measurement in §9 missed it.** §9.1 through §9.7 were taken in single-player,
-where `0x0063239D` early-outs and `+0x38` sits where it was. And §9.1's headline — recomputes
+**That is why no single-player measurement shows it.** In single-player `0x0063239D` early-outs
+and `+0x38` sits where it was. And §9.1's headline — recomputes
 doubling from 5 to 11 — counts `0x006765C4`'s cache stamp, which advances once per client frame no
 matter what the alpha evaluates to. Eleven recomputes with a wrong alpha and eleven with a right
 one are the same number.
 
-**Measured 2026-08-24**, live, in a networked match on the 60 fps build, with the `measure_network`
-measurement of `examples/sage_live/render_rate_probe.py`. This first capture turned out to be the *host* -
-the milder half; the off-host reading is in the two-machine table below and is four times worse:
+**Measured 2026-08-24**, live, on the *host* of that networked match, with the `measure_network`
+measurement of `examples/sage_live/render_rate_probe.py`. The host is the milder half; the off-host
+reading is in the two-machine table below:
 
 ```
 rates
@@ -1055,27 +937,21 @@ further the denominator drifts and the worse the skip gets. A reading of 14 is a
 number that only goes up, and the off-host was at **31** in the same match. **This is a defect that grows with match length, which is what
 distinguishes it from anything §9 measured in a three-second window.**
 
-**The host is fine for the same reason it is a ratchet.** Both peers hold a network object, so
+**The host looks fine for the same reason it is a ratchet.** Both peers hold a network object, so
 `0x0063239D` is reachable on both — but its `inc` is gated on the peer-lag readout, and the peer
 that spends the match waiting on frames is the one that trips it. Single-player and replays never
 trip it at all, which is why
-[§9.1](#91-the-interpolation-this-document-documents-is-dead-code)'s "confirmed by eye: motion at
-60 looks smooth" was honestly reported and locally true.
+single-player motion at 60 looks smooth.
 
-**The fix is the imm8 at `0x00632606`: 1 → the ratio. Applied 2026-08-24**, in `render_rate.py`'s
-`_edits`, one changed expression — the gate now takes `ratio` alongside the wrap instead of a
-literal 1. `TestTheGateAndTheWrapAgree` asserts the two hold the same byte at 35, 60, 120, 300 and
-635 fps, that the gate equals the ratio, and that it is never 1 again. **Built and unit-tested; not
-yet played.** The reading to take after a match is the same one above: `+0x38` should sit at 12 and
-stay there, and `boundary_spike` should read 2.0x on both peers. That restores the stock relationship —
-stock's gate of 6 equals stock's wrap of 6 — so the recompute fires on the sub-frame that ends the
-logic frame and re-derives `+0x38` every logic frame, clearing whatever the network inflated. §3.2
-rejected keying the gate to the ratio because it "would silently stop working below rate 30";
-`render_rate.py` already floors the patch at 35 fps, so that objection does not reach any rate this
-patch permits. **§3.2's reasoning should be struck rather than amended**: it was wrong on this
-binary for the same reason §9.2 was, and the two are the same mistake made twice.
+**The patch sets the imm8 at `0x00632606` to the ratio**, the same byte as the wrap (§3.2, §4).
+`TestTheGateAndTheWrapAgree` asserts the two hold the same byte at 35, 60, 120, 300 and 635 fps.
+That restores the stock relationship — stock's gate of 6 equals stock's wrap of 6 — so the
+recompute fires on the sub-frame that ends the logic frame and re-derives `+0x38` every logic frame,
+clearing whatever the network inflated. Networked matches on the patched build have played clean
+(§9.9). The reading that confirms it on a given match is the one above: `+0x38` should sit at 12 and
+stay there, and `boundary_spike` should read 2.0x on both peers.
 
-**What this does not fix.** [§9.9](#99-the-simulation-rate-is-a-function-of-each-machines-frame-rate-and-that-ends-multiplayer)
+**What this does not fix.** [§9.9](#99-the-simulation-rate-is-a-function-of-each-machines-frame-rate--and-it-does-not-end-multiplayer)
 is untouched. The logic clock is still counted in rendered frames, so a peer that cannot hold its
 target rate still simulates slow — the run above shows it, 55 rendered fps against a 60 cap. §9.10
 is the *stutter*; §9.9 is the *divergence*, and it needs the wall-clock wrap
@@ -1109,19 +985,21 @@ frame spans 12 sub-frames, so a drawable covers 39% of each step and then jumps 
 in a single client frame. The host's 14 is the same defect at a quarter of the severity, which is
 why it was reported as fine rather than as broken — it *is* wrong, just not visibly so.
 
-**Read the last row, not the one above it.** The raw gap overstates things, because a healthy build
-has a gap too: the catch-up loop eats sub-frame 1, so the alpha starts at `2/ratio` and the boundary
-frame always moves double. Measured against the frames either side of it:
+**Read the last row, not the one above it.** The raw gap overstates things, because Edain's binary
+has a gap even with the gate right: the catch-up loop eats sub-frame 1, so the alpha starts at
+`2/ratio` and the boundary frame always moves double. Measured against the frames either side of
+it:
 
 | build | ratio | normal step | boundary jump | spike |
 |---|---|---|---|---|
-| stock 30 | 6 | 0.167 | 0.333 | **2.0x** |
-| 60 with the gate fixed | 12 | 0.083 | 0.167 | **2.0x** |
-| host, as shipped | 14 | 0.071 | 0.286 | 4.0x |
-| off-host, as shipped | 31 | 0.032 | 0.645 | **20.0x** |
+| Edain 30 | 6 | 0.167 | 0.333 | **2.0x** |
+| 60, gate = ratio | 12 | 0.083 | 0.167 | **2.0x** |
+| host, gate = 1 | 14 | 0.071 | 0.286 | 4.0x |
+| off-host, gate = 1 | 31 | 0.032 | 0.645 | **20.0x** |
 
-A correct build spikes exactly 2.0x at *any* rate — that is what "the ratio and the wrap agree"
-means, and it is why stock's 33% gap has never been visible to anyone. The off-host is spiking
+With the ratio and the wrap agreeing, Edain's binary spikes exactly 2.0x at *any* rate — the same
+as it does at 30 without this patch. True stock, whose catch-up loop is dormant, spikes 1.0x; the
+residual 2.0x is its own defect, fixed by [`interpolation-alpha`](interpolation-alpha.md). The off-host is spiking
 **twenty times** a normal frame's motion, 4.8 times a second. That is not a subtle artifact.
 
 **`+0x44` corroborates the mechanism rather than contradicting it.** The host's high-water reads
@@ -1154,8 +1032,8 @@ section's finding.
 
 ### 9.11 GPU particles keep a second clock, and §9.4's cave does not reach it
 
-**Read statically on 2026-08-26 and confirmed in a live paused match on 2026-08-27** — the
-measurement is at the end of this section. The sites below are byte-identical in the repo's
+**Read statically and confirmed in a live paused match on 2026-08-27** — the measurement is at the
+end of this section. The sites below are byte-identical in the repo's
 `game.dat` and in `C:\RotWK\game.dat`, so the reading applies to both.
 
 §9.4 fixed the particle rate by gating `ParticleSystemManager::update`, which walks the system list
@@ -1212,7 +1090,7 @@ is the `GpuDraw` block's own business (`FramesPerRow` `+0xC`, `TotalFrames` `+0x
 `DetailTexture` `+0x14`, `SpeedMultiplier` `+0x18`), and it is a *separate* symptom from size —
 expect the flipbook to run at the wrong speed, not to change the particle's dimensions.
 
-**The fix, built and confirmed in play on 2026-08-27.** `imul eax, [0x00D9F60C]` (seven bytes)
+**The fix, confirmed in play.** `imul eax, [0x00D9F60C]` (seven bytes)
 becomes `imul eax, eax, 30` (three bytes plus four `nop`) at each of the four GPU-particle sites —
 a byte edit rather than a cave, an identity at rate 30, and the one edit in this patch that is
 deliberately *not* a function of `fps`, because the number it writes is what the content was
@@ -1225,13 +1103,12 @@ against the authored 30. Removing that residual means changing how the W3D clock
 which every other consumer of that clock would feel — a different patch, and not obviously one
 worth having.
 
-**The two `0x007FB2xx` sites were left alone and no symptom followed.** They take the same
-multiply in the flipbook path, so the prediction was a sprite sheet running at the wrong speed;
-after the four-site fix the effects were reported correct with those two untouched. That is the
-absence of a reported symptom rather than a measurement — nobody has put a number on what the
-flipbook does at 60 — so it stays an open thread rather than a closed one.
+**The two `0x007FB2xx` sites are left alone, and no symptom has been reported.** They take the same
+multiply in the flipbook path, so the prediction is a sprite sheet running at the wrong speed; with
+the four-site fix the effects are reported correct. That is the absence of a reported symptom rather
+than a measurement — nobody has put a number on what the flipbook does at 60.
 
-**One correction that falls out of this and belongs elsewhere.** The engine's
+**The engine's numbering differs from `sage_ini`'s.** The engine's
 `ParticleSystemType` name table is at `0x00C31A84`, and the indices are
 `NONE=0, PARTICLE=1, DRAWABLE=2, STREAK=3, VOLUME_PARTICLE=4, SMUDGE=5, TERRAIN_PARTICLE=6,
 GPU_PARTICLE=7, GPU_TERRAINFIRE=8` — the default is `PARTICLE`, which is why `0x005FACCB` skips
@@ -1240,7 +1117,8 @@ surveyed from the corpus rather than from the binary and numbers its members dif
 
 #### Measured in a paused match on 2026-08-27
 
-Confirmed live, in a 60 fps build with `BarrageExplosion` on screen and the game paused. Every
+Read live, in a 60 fps build without the four-site fix, with `BarrageExplosion` on screen and the
+game paused. Every
 number below is an absolute counter, which is why a paused game reads them as well as a running
 one — and better, because nothing moves between reads.
 
@@ -1289,62 +1167,22 @@ but it is reached in half the time, so at every instant of the visible effect th
 **twice as far along its growth curve as it should be**. The size columns above are that gap
 measured at one paused instant, 7 frames into an effect that has 23 to go.
 
-### 9.8 Verdict
+## 10. Status and open items
 
-**The directive is "multiplayer must work", so this section is now a list of what stands between
-here and that, rather than a list of reasons the patch stays in single-player.**
+The patch is registered and played, including network matches between peers at different achieved
+frame rates with no desync (§9.9). The pacing core (§9.8), the latch predicate (§9.2), the recompute
+gate (§9.10), both particle clocks (§9.4, §9.11) and the spell store (§9.6) are in it.
 
-The design works. What killed it was one dword, one artifact of how it was tested, and one real
-engine defect that this patch does not cause but now fixes (§9.6: the spell store's state
-messages are dropped by the movie and never repeated; the second cave re-sends them from
-`AptSpellStore::OnInitialized`). The particle rate (§9.4) — the one defect that was really the feature's
-own — is a 0x28-byte cave, and it measures 0.500 steps per client frame in a running match, which
-is exactly right.
+Open:
 
-The list below is a real but bounded one, and still not the "per-subsystem work, the honest price
-of this feature" §8 concluded with — §9.10 adds an item to it, but the item is one byte.
-
-**Nothing on this list now blocks network play.** Both things that did have been answered: §9.10
-was the stutter and it is fixed, and §9.9's divergence was tested on 2026-08-26 between peers at
-different frame rates and played clean. Items 1 and 2 record how each was closed; the rest are
-open but none of them is a barrier to a match.
-
-1. **§9.10's recompute gate — the multiplayer stutter. Fixed 2026-08-24; confirmed 2026-08-26.**
-   `0x00632606` goes from 1 to the ratio. The alpha's denominator was left to a one-way
-   `inc` that only runs on a networked peer, so it ratchets past the wrap and the boundary frame
-   moves many times a normal frame's motion, five times a second, getting worse the longer the
-   match runs. Measured on both peers of one live match: ratio **14 on the host** and **31 on the
-   off-host** against a wrap of 12, a **4.0x** and a **20.0x** boundary spike where a correct build
-   at any rate is 2.0x. The edit is in, the suite covers it, and the 2026-08-26 match played
-   clean — so the fix holds in the case that produced the report. This explains the reported
-   symptom exactly, including why idle animations were unaffected and why the host was fine, and
-   it is the reason §9.9's flat-5.000-Hz match still played badly. Still outstanding, and now only
-   for completeness: the probe run on both sides of a match to put numbers on the fixed build.
-2. **§9.9's rendered-frame clock — the divergence. Real arithmetic, not a barrier. Closed
-   2026-08-26.** The logic clock is counted in draws, so a peer that cannot hold its target rate
-   simulates slower than one that can. Two measurements bound it: a machine that *does* hold 60
-   paced flat for 18.5 minutes, and a match between peers at *different* achieved rates — the
-   condition the identity predicts should diverge — played clean. Lockstep absorbs the difference
-   the way it absorbs ordinary jitter. The wall-clock wrap §6 scopes would remove the term
-   outright and is still the better design, but it is no longer a prerequisite. The field
-   observation is uninstrumented; §9.9 records what would upgrade it.
-3. **§9.3's limiter.** The build is only half the deliverable; `FramesPerSecondLimit` has to move
-   with it. That is an INI change rather than a patch, but it is a thing a registered patch would
-   have to say out loud, because going without is silent.
-4. **§9.5's 7–11%.** It shifts replay timing, so every peer and every recording is affected — and
-   in a network game it is a per-peer offset, which makes it a determinism concern rather than only
-   a timing one.
-5. **§9.7's constants.** Bounded, listed, and none observed to cause anything yet.
-6. **§9.11's GPU particle clock.** `Type = GPU_PARTICLE` systems never went through §9.4's cave;
-   they read the W3D millisecond clock and multiply it by the live client rate at four sites, so
-   they age at the client rate rather than at the authored 30. **Measured live on 2026-08-27:
-   1.920 GPU ticks per §9.4 tick** at rate 60, and `BarrageExplosion`'s particles die 30 client
-   frames after birth - 0.50 s where the author wrote 1.00 s. **Fixed 2026-08-27** by a seven-byte
-   edit at each of the four sites, rebuilt into the mod's `game.dat`, and confirmed correct in
-   play.
-7. **A match end to end.** Now partly answered: §9.9's 18.5-minute run is a real match, and it
-   ended in a client crash that this measurement does not explain. That crash is still open and is
-   not accounted for by anything in §9.
-
-It stays unregistered until at least 1 and 3 are done and a two-machine match has been played and
-probed on both sides.
+1. **§9.5's 4–11% slowdown.** It shifts replay timing, so every peer and every recording is
+   affected; in a network game it is a per-peer offset, which makes it a determinism concern rather
+   than only a timing one. The fix is a wrap that accounts for the catch-up loop's extra increment.
+2. **§9.7's constants.** Bounded, listed, and none observed to cause anything.
+3. **§9.11's flipbook sites** (`0x007FB2CE`, `0x007FB334`), unmeasured at 60.
+4. **§9.9's rendered-frame clock.** Real arithmetic, absorbed by lockstep; the wall-clock wrap of §6
+   would remove it. The mixed-rate observation is uninstrumented, and §9.9 records what would
+   upgrade it.
+5. **§9.3's limiter.** Not a defect but a deployment requirement: `FramesPerSecondLimit` has to move
+   with the build, and going without is silent.
+6. **The 18.5-minute match's client crash** (§9.9) is unexplained by anything in §9.

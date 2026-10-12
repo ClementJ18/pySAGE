@@ -27,6 +27,7 @@ from sage_worldbuilder.dressing import (
     DEFAULT_FENCE_SPACING,
     DEFAULT_RAMP_WIDTH,
     DEFAULT_SCORCH_SIZE,
+    MAX_RAMP_WIDTH,
     SCORCH_TYPES,
     GroveOptions,
     MoldMode,
@@ -57,6 +58,7 @@ def _note(text: str) -> QLabel:
 
 class DressingOptionsPanel(QWidget):
     mold_apply_requested = pyqtSignal()
+    ramp_apply_requested = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -136,11 +138,16 @@ class DressingOptionsPanel(QWidget):
 
         ramp = QWidget()
         form = QFormLayout(ramp)
-        self.ramp_width_box = _spin(1.0, 1000.0, DEFAULT_RAMP_WIDTH)
+        self.ramp_width_box = _spin(1.0, MAX_RAMP_WIDTH, DEFAULT_RAMP_WIDTH)
         form.addRow("Ramp width", self.ramp_width_box)
+        self.ramp_apply = QPushButton("Apply")
+        self.ramp_apply.clicked.connect(self.ramp_apply_requested.emit)
+        form.addRow(self.ramp_apply)
         form.addRow(
             _note(
-                "Drag from one end of the ramp to the other: the ground under it becomes a slope."
+                "Drag from one end of the ramp to the other, then Apply: the ground inside "
+                "becomes a straight slope between the heights at the two ends. Cells left "
+                "steeper than 9.8 ft corner to corner become impassable, the rest passable."
             )
         )
         self._add_page("ramp", "Ramp Options", ramp)

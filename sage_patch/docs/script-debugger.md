@@ -302,25 +302,25 @@ needs the map both ways:
   does this, and is cheap enough to re-read every poll - which is how the editor sees a one-shot
   fire without any hook.
 
-## 6. Open, in spike order
+## 6. Spike results
 
-1. ~~**Walk the tree against a real game**~~ - confirmed 2026-09-18 on an Edain skirmish of
+1. **Walking the tree against a real game** - confirmed 2026-09-18 on an Edain skirmish of
    `map edain linhir` (5 sides, 883 scripts, groups nested four deep): all 34 of the map's own
    scripts matched on every flag and the delay, none missing; the other 837 are AI-library and
    music scripts. A fired one-shot (`KI Brutal`) read authored-active, live-inactive. Counters,
    timers and flags read with their scopes. `--watch` confirmed `+0x3C = frame + delay * 5` (1 s
    rescheduled 5 frames on, 30 s 150). A moving `+0x3C` means *evaluated*, not *fired*: it is
    set before the conditions run.
-2. ~~**The scheduling list**~~ - answered statically: it is the `ScriptList` node chain, and every
+2. **The scheduling list** - answered statically: it is the `ScriptList` node chain, and every
    path reaches `runScript` (§2).
-3. ~~**`Script+0x10` and `0x00609C3A`**~~ - the fire-actions-sequentially path (§2).
-4. ~~**Which of the 87 `AppendMessage` sites carry what**~~ - not needed: every condition is
+3. **`Script+0x10` and `0x00609C3A`** - the fire-actions-sequentially path (§2).
+4. **Which of the 87 `AppendMessage` sites carry what** - not needed: every condition is
    judged through one call, `0x00609395`, which the condition watch wraps (§2.3).
-5. ~~**Where the frame gate sits**~~ - `0x006325C4`, not `0x0044B897` (§1.1). Held, the logic
-   frame freezes while the client keeps being called; confirmed live. Still to eyeball: that
+5. **Where the frame gate sits** - `0x006325C4`, not `0x0044B897` (§1.1). Held, the logic
+   frame freezes while the client keeps being called; confirmed live. **Open:** eyeball that
    the camera moves and the screen animates while held (the numbers say the client runs; a person
    should confirm what it draws).
-6. ~~**Patch in memory, not on disk**~~ - `LivePatcher`: `VirtualAllocEx` caves, every code write
+6. **Patch in memory, not on disk** - `LivePatcher`: `VirtualAllocEx` caves, every code write
    done with the process suspended (`NtSuspendProcess`) after checking the site holds its stock
    bytes, and undone on detach only where the site still holds ours. Confirmed live with the gate.
 

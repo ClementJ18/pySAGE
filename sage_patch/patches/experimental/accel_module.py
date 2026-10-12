@@ -13,7 +13,7 @@ first device call. The DLL has to come from a build that works on a `game.dat` o
 patched (`../../docs/accel-module.md` §2): it identifies a build by a hash over all of `.text`,
 which any patch changes.
 
-Derived from OH1A's `bfme2_accel.dll`, with his permission (`../../docs/accel-port.md` §4).
+Derived from OH1A's `bfme2_accel.dll`, with his permission (`../../docs/accel-port.md` §3).
 """
 
 from __future__ import annotations

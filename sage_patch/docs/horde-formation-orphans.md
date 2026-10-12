@@ -303,6 +303,67 @@ to attribute a single order during a battle - hundreds of resolutions per second
 them - so the next instrument wants a ring buffer of `(attacker, victim, outcome)`, not
 last-value fields.
 
+## 6d. Cause side: how a horde finishes forming, and how it can fail to
+
+Static only, from this repo's `game.dat`; none of it has been checked against a running game yet.
+
+**What the ghost's status says.** `QUEUE_EXIT_FINISH` (`0x008A3BF8`, see
+[`horde-exit-absorption.md`](horde-exit-absorption.md)) takes a horde off `UNDER_CONSTRUCTION` and
+`UNSELECTABLE` once its whole production entry has left the door. Ghost 7086 had both cleared and
+still carried `IS_LEAVING_FACTORY`; healthy 8823 still had all three. So the door finished and
+the horde's own completion did not.
+
+**The horde's completion lives in `HordeAIUpdate::update`** (`0x0089E2D0`, vtable slot at
+`0x00C66D3C`). The block `0x0089E370`-`0x0089E3E8` runs only when all of these hold:
+
+| gate | at | meaning |
+|---|---|---|
+| not busy | `0x0089E363` → `0x00664485` | AI is idle, or `[ai+0x1FC]` is 0, and `[ai+0x3B7]` is clear. Walks up to a non-horde container's AI first |
+| old enough | `0x0089E37B` → `0x0068B645` | `[[obj+0x248]+0x44] < frame - LOGIC_FRAMES_PER_SECOND` |
+| still flagged | `0x0089E38A` | the horde is `IS_LEAVING_FACTORY` |
+| nobody leaving | `0x0089E3A1`, iface `+0xA0` → `0x0086FA01` | see below |
+
+It then clears `IS_LEAVING_FACTORY` (`0x0089E3B4`), asks iface `+0x248` for a gather point, runs
+iface `+0x10` and moves the horde there.
+
+**Iface `+0xA0` (`0x0086FA01`) also says "still leaving" when the horde knows of no units.** It
+walks the member list and a pending map (iface `+0x54`, an `std::map` of `ObjectID`, size at
+`+0x58`) and returns true if any is `IS_LEAVING_FACTORY`, but it ends `test bl,bl / sete al`, so it
+**returns true when both are empty** too. A horde with no members and an empty pending map
+therefore never passes the gate: `IS_LEAVING_FACTORY` stays set forever, which is exactly 7086.
+
+**Iface `+0x10` (`0x008759FF`) is the absorb step.** It drains the pending map (at most 100
+passes). An id whose object is gone is erased (`0x00875A7A`). A live one passing `0x006916BF`
+(`!(obj+0x1C8 & 0x10)`, a private-status bit) is added through module `+0x98` and moved into
+formation. One that fails is left in the map.
+
+**The pending map is erased in four places** (helper `0x008720C2`):
+
+| at | what |
+|---|---|
+| `0x0087381C`, `0x0087399B` | the add-member and remove-member paths (they also maintain `+0x60` and the slot list `+0x78`) |
+| `0x00875A7A` | the absorb step, for an object that no longer exists |
+| `0x00875817`, in `0x008757FC` | `HordeContain` **module** vtable slot `+0x98` (`0x00C5B690`, `0x00C5C320`, `0x00C5D488`): erase one unit from the pending map without adding it, then notify iface `+0x9C`/`+0x174` |
+
+`0x008757FC` is the only path that drops a pending unit without making it a member, so it is the
+first thing to instrument. Its callers go through a vtable and are not yet identified.
+
+**Orders during forming.** `HordeAIUpdate::aiDoCommand` (`0x0089E169`) asks iface `+0xF0`
+whether the horde is forming. If it is, `0x0089DF11` picks commands that are **swallowed**
+(the drop §6a measured), and `0x0089DE81` picks commands that call iface `+0x60` and set
+`[0x00DE7744]+0x28`. For the command types in its switch at `0x0089E213` (indices
+0, 1, 3, 4, 6-9, 11, 12, 14, 15, 23, 24, 36, 50-52, 54, 56, 65, 66, 78), a horde that is not
+inside a flagged container **clears its own `IS_LEAVING_FACTORY`** (`0x0089E256`) and calls iface
+`+0x14` (`0x0087594C`), which absorbs (`+0x10`) and then re-orders every member's AI. The AI
+issues commands to `AIUpdate` directly, so it can reach these paths when the player can't.
+
+**More producer→horde redirects.** Besides `0x006681D0` and `Object::getHorde` (`0x00693A44`),
+five more inlined copies test `KINDOF HORDE` on the producer: `0x008BCCEE`, `0x008C6F46`,
+`0x008D0FBE` (a per-object filter callback at `0x008D0F6C` that skips or **redirects to the
+horde**), `0x008D1CA7` and `0x008D1FD9` (a partition scan, vtable `0x00C76834`, that **skips**
+any object whose producer is a horde). The `horde-orphan-target` gate covered none of these.
+Which of them, if any, refuses the attack is open; §6c already shows `aiAttackObject` does not.
+
 ## 7. Patch options
 
 All byte windows below were read out of this repo's `game.dat` and verified as originals, so

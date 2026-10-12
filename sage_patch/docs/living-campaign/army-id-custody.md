@@ -45,10 +45,9 @@ reach it are the two zeroing stores in constructors (`0x00699C76`, `0x00679E79`)
 `test byte [reg + 0x458], 1` sites elsewhere read other classes that happen to share the
 displacement. On an `Object` this filter never rejects anything.
 
-This supersedes the "still unidentified, mirrored anyway" note on `OBJECT_ARMY_EXCLUDED` in
-[`../map-transition.md`](../map-transition.md): the live census that found it set on
-`FarmTemplate`, `GondorSpellBook` and `EdainTroopSpawnPoint` is not reproduced by any write site
-in the binary, so that reading needs re-measuring before anything depends on it.
+[`../map-transition.md`](../map-transition.md)'s live census found the bit set on
+`FarmTemplate`, `GondorSpellBook` and `EdainTroopSpawnPoint`; no write site in the binary reproduces
+that, so the census reading needs re-measuring before anything depends on it.
 
 ## Who writes the army id
 
@@ -256,8 +255,7 @@ For each id in that vector, `findArmyRoster(id)` (`0x0080FAD4`) gives the roster
 gives its **team**, which is how `assignObjectToArmy` sets an object's team in the first place. So
 the fallback is the army in the battle whose roster's team belongs to the same player as the
 object — exact, bounded by the handful of armies in a battle, and entirely engine-derived. That is
-better than walking the object list for a sibling that happens to hold an id, which was the earlier
-suggestion here.
+better than walking the object list for a sibling that happens to hold an id.
 
 ### The script action is not a way round it
 

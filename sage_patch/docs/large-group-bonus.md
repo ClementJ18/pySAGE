@@ -45,10 +45,6 @@ sage-patch apply large-group-bonus --keyword LooseObjects --in ... --out ...
 sage-patch verify large-group-bonus game.dat
 ```
 
-**This supersedes `large-group-bonus-filter`.** That patch put its flag in the `ModuleData`'s
-alignment padding and defaulted it with a constructor shim; this one grows the structure instead,
-so the flag moves to `+0x152` and the shim is gone. A binary carrying the older patch is refused by
-the anchor at `0x0064d139` rather than patched on top of, and has to be rebuilt from a clean image.
 
 ## 1. The module as it stands
 
@@ -416,10 +412,9 @@ cave_alloc:
 
 **The zeroing is the defaults.** `operator new` does not zero; `parseUpgradeMask` memsets the mask
 it is handed, so a block that writes a mask keyword would be fine either way, but a block that
-writes none never reaches a parser at all. Zeroing here is also what removes the constructor shim
-the previous version of this patch needed for its one byte: the stock ctor writes nothing past
-`+0x2c`, so `0x0064d139` keeps calling the engine's own constructor and the patch hooks one site
-fewer than it used to.
+writes none never reaches a parser at all. Zeroing here also means no constructor shim is needed:
+the stock ctor writes nothing past `+0x2c`, so `0x0064d139` keeps calling the engine's own
+constructor.
 
 `sizeof` is read nowhere else, and `0x00893b36` deletes with the **unsized** `operator delete`
 (`push esi; call 0x42f6a0`), so the growth ends here. The `ModuleData` is template-side parse data
@@ -790,10 +785,8 @@ have it".
   side, so **every peer must run the same patched binary** and replays do not cross — the same rule
   as `production-condition` and `spawn-union`. And, as with `terrain-resource-exp` and
   `queue-ignore-cp`, the new keywords are an INI **parse error** on a stock build, not a warning.
-- **It supersedes `large-group-bonus-filter`.** The flag moved from `+0x19` to `+0x152` and the
-  constructor shim is gone, so a binary carrying that patch cannot be upgraded in place: the anchor
-  at `0x0064d139` refuses it, and the build has to be redone from a clean image. Manifests naming
-  `large-group-bonus-filter` need the new name.
+- **It replaces the retired `large-group-bonus-filter`.** The anchor at `0x0064d139` refuses a
+  binary carrying that patch; rebuild from a clean image, and rename it in manifests.
 - **Conflicts.** Nothing else in the current `PATCHES` registry touches `0x0064d122`, `0x0089375b`,
   `0x0089390f`, `0x00893946`, `0x008939db` or the tables at `0x00c639d8` / `0x00c63870`. The
   nearest neighbour is `banner-filter`, which lives in `0x0089a7xx`–`0x0089aexx`. Verified composing
@@ -805,15 +798,14 @@ have it".
   five engine helpers the cave calls, none of which the patch writes anything that would otherwise
   catch.
 
-### 8.1 The wrapper's `+4` is not free — the crash this shipped with
+### 8.1 The wrapper's `+4` is not free
 
-The first build of this patch parked the owning `Object` in the partition-filter wrapper's `+4`
-slot, on the reasoning that `update` zeroes it at `0x0089393f` and the stock `allow` reads only
-`+8` and `+0xc`. Both halves of that are true and the conclusion is wrong: `+4` is the `next`
-pointer of the intrusive filter list, and the zero is the terminator, not a spare dword.
+The partition-filter wrapper's `+4` looks like a spare slot: `update` zeroes it at `0x0089393f` and
+the stock `allow` reads only `+8` and `+0xc`. It is not: `+4` is the `next` pointer of the
+intrusive filter list, and the zero is the terminator.
 
-What a crash dump of `Object AngmarThrallMaster` with `CountLooseObjects = Yes` showed, frame by
-frame:
+Parking the owning `Object` there crashes. A dump of `Object AngmarThrallMaster` with
+`CountLooseObjects = Yes` and the owner in `+4`, frame by frame:
 
 | where | what |
 |---|---|
@@ -823,14 +815,12 @@ frame:
 | `eip` | `0x70557265` — the bytes `erUp`, from the string `"PlayerUpgrade"` at `0x00c272b0` |
 
 So the failure is immediate and total: the first poll of the first such module, on the third
-`append` call, before `iterateObjectsInRange` is even entered. There is no partial-success mode to
-misread it as, which is worth knowing — a `LargeGroupBonusUpdate` that writes `CountLooseObjects`
-either works or takes the process down on the update tick after the object spawns.
+`append` call, before `iterateObjectsInRange` is even entered.
 
-The fix is §6.4: the owner goes into the grown `ModuleData` at `+0x154`, and `allow` reaches it
+The owner therefore goes into the grown `ModuleData` at `+0x154` (§6.4), and `allow` reaches it
 back through the `ObjectFilter` handle the wrapper already carries at `+8`. Nothing this patch
-writes touches `+4` any more, and `ANCHORS` now pins `append` and its three call sites so the fact
-that `+4` is load-bearing is asserted against the binary rather than remembered.
+writes touches `+4`, and `ANCHORS` pins `append` and its three call sites so the fact that `+4` is
+load-bearing is asserted against the binary rather than remembered.
 
 **The same reasoning is wrong wherever it appears.** `give-upgrade-all` parks a porter in the
 `DeliverUpgrade` search functor's `+4` at `0x0089ff17`, and that functor is chained by the same

@@ -39,6 +39,7 @@ from sage_patch.patches import (
     MapListSymbolsPatch,
     MountHealthRatioPatch,
     MountSwapEjectPatch,
+    MultiContainPatch,
     MultiExecuteGatePatch,
     MultiSelectGroupPatch,
     PlayerHealFilterPatch,
@@ -62,6 +63,7 @@ from sage_patch.patches import (
     UpgradeDescriptionPatch,
     UpgradeGrantListsPatch,
     WotrBattleObserversPatch,
+    WotrLobbySlotsPatch,
 )
 from sage_patch.sagepatch import generate
 
@@ -90,6 +92,7 @@ __all__ = [
     "MapListSymbolsPatch",
     "MountHealthRatioPatch",
     "MountSwapEjectPatch",
+    "MultiContainPatch",
     "MultiExecuteGatePatch",
     "MultiSelectGroupPatch",
     "Patch",
@@ -113,6 +116,7 @@ __all__ = [
     "UpgradeAliasPatch",
     "UpgradeGrantListsPatch",
     "WotrBattleObserversPatch",
+    "WotrLobbySlotsPatch",
     "apply_patches",
     "generate",
 ]

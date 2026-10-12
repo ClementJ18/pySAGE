@@ -189,12 +189,11 @@ The cheapest test that discriminates, all on `C:\RotWK` with the
 
 Experiment 3 needs no patch and no dump, and on its own decides whether §4 is the right patch.
 
-## Corrections made alongside
+## Related findings
 
-[`force-battle.md`](force-battle.md) §"`SpawnArmy`'s `Position` is snapped" had the two lists
-swapped: a hero army takes the `HeroArmySpot` lists (`+0x104` / `+0x1A0`), and a hero-less one the
-`GarrisonArmySpot` lists (`+0x110` / `+0x1AC`). Its open question 4 is answered by `0x007F2199`
-above. Release is per army and searches every spot, but the move-snap pass releases only from the
+A hero army takes the `HeroArmySpot` lists (`+0x104` / `+0x1A0`), and a hero-less one the
+`GarrisonArmySpot` lists (`+0x110` / `+0x1AC`) — [`force-battle.md`](force-battle.md) §"`SpawnArmy`'s
+`Position` is snapped". Its open question 4 is answered by `0x007F2199` above. Release is per army and searches every spot, but the move-snap pass releases only from the
 army's *current* region (`ARMY_UPDATE_REGION` at `0x006B4621`). So a teleported `UseArmy` that never
 released its old spot leaves that spot occupied by an absent army, which is one more way a region
 can run out of spots.

@@ -14,7 +14,7 @@ given the construction gate its sibling already has - without which it would res
 *starts* rather than when it finishes. **Static-verified**: it
 applies, verifies and disassembles as intended, and both sites are confirmed against the real
 binary. The resumption itself has not been watched in a running game; what a running game has
-settled is the `ecx` contract in §6.2, which the first build got wrong and crashed on.
+settled is the `ecx` contract in §6.2.
 
 ## 1. The symptom
 
@@ -285,12 +285,11 @@ cave calls out twice before it jumps there, and a `__thiscall` callee leaves *it
 the cave has just written and the stock code at `0x0089F4A0` reads back. The sleep arm needs no such
 reload: `0x0089F6CB` loads `ecx` from the SEH slot itself on the way into the epilogue.
 
-**This is the crash the first build shipped with**, and it is worth recording as a shape rather than
-as an incident. Two dumps from 2026-09-11 in the Edain install both fault in these three
-instructions: one at `0x0089F46E` with `ecx` holding the `GettingBuiltBehavior` the gate had just
+**Without the reload the game crashes**, and the shape is worth knowing. Two dumps from a build
+that skipped it, in the Edain install, both fault in these three instructions: one at `0x0089F46E` with `ecx` holding the `GettingBuiltBehavior` the gate had just
 asked (`[that+0x10]` is zero, so `call [0]`), and one at `0x0089F46C` with `ecx = 2`, the
 `OBJECT_STATUS_UNDER_CONSTRUCTION` argument left behind by `Object::testStatus` on the other arm.
-Neither is a rare path: the gate answers "finished" for every completed structure, so the game died
+Neither is a rare path: the gate answers "finished" for every completed structure, so the game dies
 on the first aura tick of the first match. A displaced block's register contract runs to the
 *resume point*, not to the end of the displaced bytes.
 
@@ -461,8 +460,8 @@ it needs are both out of `rel8` range. And the module has to be given a construc
 the effectively-dead flag it tests clears on the first frame of a repair — see §6.2, which has the
 bytes and the evidence.
 
-**Risk.** Low, and lower than the passive half's, because the exposure turned out to be structures
-rather than heroes. The failure mode is an aura that resumes when it should not, not a crash.
+**Risk.** Low, and lower than the passive half's, because the exposure is structures rather than
+heroes. The failure mode is an aura that resumes when it should not, not a crash.
 
 **Status: built, in the same patch.** The remaining unknown is the one the passive half has too:
 the resumption has not been watched in a running game.

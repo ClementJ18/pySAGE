@@ -1,5 +1,5 @@
-"""Add `ForbiddenUpgrades` to `SpecialPower`: refuse a targeted cast near an object carrying one of
-the listed upgrades.
+"""Add `ForbiddenUpgrades` and `RequiredUpgrades` to `SpecialPower`: refuse a targeted cast near an
+object carrying one of the forbidden upgrades, or unless one carrying a required upgrade is there.
 
 The gate is in both targeted-cast predicates on `TheActionManager`
 (`CAN_DO_SPECIAL_POWER_AT_LOCATION`, `CAN_DO_SPECIAL_POWER_AT_OBJECT`), whose callers are the
@@ -7,7 +7,7 @@ cursor, the AI and ability modules, so all three are refused alike. It reads onl
 Conflicts with `hero-mana` and `special-power-charges`, which grow `SpecialPowerTemplate` the same
 way; each refuses the others before writing anything.
 
-Derivation: `../docs/forbidden-upgrade-filter.md`.
+Derivation: `../docs/special-power-upgrade-filters.md`.
 """
 
 from __future__ import annotations
@@ -60,33 +60,44 @@ from .utils.field_tables import Entry, entries_before, read_field_table, resolve
 
 __all__ = [
     "ANCHORS",
-    "KEYWORD",
-    "MASK_OFFSET",
+    "FORBIDDEN_KEYWORD",
+    "FORBIDDEN_OFFSET",
+    "KEYWORDS",
     "MASK_SIZE",
     "NEW_TEMPLATE_SIZE",
     "OBJECT_GATE_CALL",
     "OBJECT_GATE_CALL_BYTES",
     "OBJECT_GATE_TARGET",
+    "REQUIRED_KEYWORD",
+    "REQUIRED_OFFSET",
     "SECTION_NAME",
     "TEMPLATE_CTOR_TAIL",
     "TEMPLATE_CTOR_TAIL_BYTES",
     "TEMPLATE_CTOR_TAIL_RESUME",
-    "ForbiddenUpgradesPatch",
+    "SpecialPowerUpgradeFiltersPatch",
     "build_table",
 ]
 
 #: 8 chars max: the PE name field truncates silently past 8.
-SECTION_NAME = ".spforbu"
+SECTION_NAME = ".spupgf"
 
 #: CNT_CODE | CNT_INITIALIZED_DATA | MEM_EXECUTE | MEM_READ | MEM_WRITE, as every cave here.
 _CHARACTERISTICS = 0xE0000060
 
-KEYWORD = "ForbiddenUpgrades"
+FORBIDDEN_KEYWORD = "ForbiddenUpgrades"
+REQUIRED_KEYWORD = "RequiredUpgrades"
 
-#: The mask, appended past `UnitCostDeathType` at `+0x84`. One `UpgradeMaskType` is 36 dwords.
-MASK_OFFSET = SPECIAL_POWER_TEMPLATE_SIZE
+#: The two masks, appended past `UnitCostDeathType` at `+0x84`. One `UpgradeMaskType` is 36 dwords.
 MASK_SIZE = PLAYER_COMPLETED_UPGRADE_MASK_WORDS * 4
-NEW_TEMPLATE_SIZE = MASK_OFFSET + MASK_SIZE
+FORBIDDEN_OFFSET = SPECIAL_POWER_TEMPLATE_SIZE
+REQUIRED_OFFSET = FORBIDDEN_OFFSET + MASK_SIZE
+NEW_TEMPLATE_SIZE = REQUIRED_OFFSET + MASK_SIZE
+
+#: Each keyword and the template offset its row writes, in table order.
+KEYWORDS: tuple[tuple[str, int], ...] = (
+    (FORBIDDEN_KEYWORD, FORBIDDEN_OFFSET),
+    (REQUIRED_KEYWORD, REQUIRED_OFFSET),
+)
 
 #: The constructor's last field store, `mov dword [esi+0x84], ebx`, six bytes and not a branch
 #: target. `esi` is the template and `ebx` is the constructor's zero throughout; `ecx` is
@@ -147,13 +158,14 @@ FINGERPRINT: dict[str, int] = {
 }
 
 
-def build_table(entries: tuple[Entry, ...], keyword_va: int) -> bytes:
-    """The rebuilt field-parse table: the live rows verbatim, the new row, the terminator. The
+def build_table(entries: tuple[Entry, ...], keyword_vas: tuple[int, ...]) -> bytes:
+    """The rebuilt field-parse table: the live rows verbatim, the new rows, the terminator. The
     live rows are copied rather than rewritten because every pointer in them is absolute."""
     table = bytearray()
     for entry in entries:
         table += struct.pack("<IIII", *entry)
-    table += struct.pack("<IIII", keyword_va, INI_PARSE_UPGRADE_MASK, 0, MASK_OFFSET)
+    for keyword_va, (_keyword, offset) in zip(keyword_vas, KEYWORDS, strict=True):
+        table += struct.pack("<IIII", keyword_va, INI_PARSE_UPGRADE_MASK, 0, offset)
     return bytes(table) + bytes(FIELD_PARSE_STRIDE)
 
 
@@ -173,13 +185,13 @@ def _emit_allow(a: Asm) -> None:
 
 
 def _emit_ctor(a: Asm) -> None:
-    """The constructor tail: replay the displaced store, then zero the mask from its top dword
-    down, `ecx` counting the byte offset within it."""
+    """The constructor tail: replay the displaced store, then zero both masks from the top dword
+    down, `ecx` counting the byte offset within them."""
     a.label("ctor")
     a.emit(TEMPLATE_CTOR_TAIL_BYTES)  # mov [esi+0x84], ebx         ; the displaced store
-    a.emit(0xB9, u32(MASK_SIZE - 4))  # mov ecx, 0x8c
+    a.emit(0xB9, u32(2 * MASK_SIZE - 4))  # mov ecx, 0x11c
     a.label("ctor_loop")
-    a.emit(0x89, 0x9C, 0x0E, u32(MASK_OFFSET))  # mov [esi+ecx+0x88], ebx   ; ebx is zero
+    a.emit(0x89, 0x9C, 0x0E, u32(FORBIDDEN_OFFSET))  # mov [esi+ecx+0x88], ebx   ; ebx is zero
     a.emit(0x83, 0xE9, 0x04)  # sub ecx, 4
     a.jcc_short(JNS, "ctor_loop")
     a.jmp_absolute(TEMPLATE_CTOR_TAIL_RESUME)
@@ -190,55 +202,46 @@ def _emit_copy(a: Asm) -> None:
     `edi` has already been restored - so the loop runs on `ecx` and `eax`, which the displaced
     epilogue overwrites anyway."""
     a.label("copy")
-    a.emit(0xB9, u32(MASK_SIZE - 4))  # mov ecx, 0x8c
+    a.emit(0xB9, u32(2 * MASK_SIZE - 4))  # mov ecx, 0x11c
     a.label("copy_loop")
-    a.emit(0x8B, 0x84, 0x0D, u32(MASK_OFFSET))  # mov eax, [ebp+ecx+0x88]
-    a.emit(0x89, 0x84, 0x0B, u32(MASK_OFFSET))  # mov [ebx+ecx+0x88], eax
+    a.emit(0x8B, 0x84, 0x0D, u32(FORBIDDEN_OFFSET))  # mov eax, [ebp+ecx+0x88]
+    a.emit(0x89, 0x84, 0x0B, u32(FORBIDDEN_OFFSET))  # mov [ebx+ecx+0x88], eax
     a.emit(0x83, 0xE9, 0x04)  # sub ecx, 4
     a.jcc_short(JNS, "copy_loop")
     a.emit(SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES)  # mov eax, ebx / pops / ret 4
 
 
-def _emit_check(a: Asm) -> None:
-    """`Bool forbidden(Object *target, Coord3D *where, SpecialPowerTemplate *)` - stdcall,
-    `ret 0xc`, `al = 1` when the key refuses the cast. `target` may be NULL (a location
-    cast). Preserves `ebx`, `esi` and `edi`.
+def _emit_carries(a: Asm) -> None:
+    """`Bool carries(Object *target, Coord3D *where, SpecialPowerTemplate *final, mask)` -
+    stdcall, `ret 0x10`, `al = 1` when the target or anything in range carries an upgrade in
+    `mask`. `target` may be NULL (a location cast). Preserves `ebx`, `esi` and `edi`.
 
-        t = getFinalOverride(template); mask = &t->ForbiddenUpgrades
-        if !mask.any():                                   allowed
-        if target and target->upgrades.testForAny(mask): forbidden
-        if !(t->ForbiddenObjectRange > 0):                allowed
+        if target and target->upgrades.testForAny(mask): yes
+        if !(final->ForbiddenObjectRange > 0):           no
         head = {NotDestroyed, &f};  f = {this cave's filter, NULL, mask}
-        forbidden = ThePartitionManager->getClosestObject(where, range, 1, &head) != NULL
+        yes = ThePartitionManager->getClosestObject(where, range, 1, &head) != NULL
     """
-    a.label("check")
-    a.emit(0x53)  # push ebx
+    a.label("carries")
     a.emit(0x56)  # push esi
     a.emit(0x57)  # push edi
-    # [esp+0x10] = target, [esp+0x14] = where, [esp+0x18] = template
-    a.emit(0x8B, 0x4C, 0x24, 0x18)  # mov ecx, [esp+0x18]
-    a.call_absolute(GET_FINAL_OVERRIDE)  # eax = the template an override chain ends at
-    a.emit(0x8B, 0xF0)  # mov esi, eax
-    a.emit(0x8D, 0xBE, u32(MASK_OFFSET))  # lea edi, [esi+0x88]       ; the mask
-    a.emit(0x8B, 0xCF)  # mov ecx, edi
-    a.call_absolute(UPGRADE_MASK_ANY)  # al = any bit set
-    a.emit(0x84, 0xC0)  # test al, al
-    a.jcc(JE, "check_allowed")  # an empty list is stock behaviour
+    # [esp+0xc] = target, [esp+0x10] = where, [esp+0x14] = final, [esp+0x18] = mask
+    a.emit(0x8B, 0x74, 0x24, 0x14)  # mov esi, [esp+0x14]
+    a.emit(0x8B, 0x7C, 0x24, 0x18)  # mov edi, [esp+0x18]
 
-    a.emit(0x8B, 0x44, 0x24, 0x10)  # mov eax, [esp+0x10]           ; target
+    a.emit(0x8B, 0x44, 0x24, 0x0C)  # mov eax, [esp+0xc]            ; target
     a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc_short(JE, "check_area")
+    a.jcc_short(JE, "carries_area")
     a.emit(0x57)  # push edi                                          ; the mask
     a.emit(0x8D, 0x88, u32(OBJECT_UPGRADE_MASK))  # lea ecx, [eax+0x28c]
     a.call_absolute(UPGRADE_MASK_TEST_ANY)  # ret 4
     a.emit(0x84, 0xC0)  # test al, al
-    a.jcc(JNE, "check_forbidden")
+    a.jcc(JNE, "carries_yes")
 
-    a.label("check_area")
+    a.label("carries_area")
     a.emit(0xF3, 0x0F, 0x10, 0x46, SPECIAL_POWER_FORBIDDEN_OBJECT_RANGE)  # movss xmm0, [esi+0x7c]
     a.emit(0x0F, 0x57, 0xC9)  # xorps xmm1, xmm1
     a.emit(0x0F, 0x2F, 0xC1)  # comiss xmm0, xmm1
-    a.jcc(JBE, "check_allowed")  # no range (or NaN): no area to scan
+    a.jcc(JBE, "carries_no")  # no range (or NaN): no area to scan
 
     # Two filters on the stack, chained head -> ours:
     #   [esp+0x00] head.vtable = not-destroyed  [esp+0x04] head.next = &ours
@@ -255,22 +258,68 @@ def _emit_check(a: Asm) -> None:
     a.emit(0x50)  # push eax                                          ; filters
     a.emit(0x6A, 0x01)  # push 1                                      ; distType, as stock
     a.emit(0xFF, 0x76, SPECIAL_POWER_FORBIDDEN_OBJECT_RANGE)  # push [esi+0x7c]   ; range
-    a.emit(0xFF, 0x74, 0x24, 0x34)  # push [esp+0x34]                 ; where
+    a.emit(0xFF, 0x74, 0x24, 0x30)  # push [esp+0x30]                 ; where
     a.emit(0x8B, 0x0D, u32(THE_PARTITION_MANAGER))  # mov ecx, [ThePartitionManager]
     a.call_absolute(PARTITION_GET_CLOSEST_OBJECT)  # ret 0x10, eax = Object* or NULL
     a.emit(0x83, 0xC4, 0x14)  # add esp, 0x14
     a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc_short(JNE, "check_forbidden")
+    a.jcc_short(JNE, "carries_yes")
+
+    a.label("carries_no")
+    a.emit(0x32, 0xC0)  # xor al, al
+    a.jmp_short("carries_out")
+    a.label("carries_yes")
+    a.emit(0xB0, 0x01)  # mov al, 1
+    a.label("carries_out")
+    a.emit(0x5F)  # pop edi
+    a.emit(0x5E)  # pop esi
+    a.emit(0xC2, 0x10, 0x00)  # ret 0x10
+
+
+def _emit_check(a: Asm) -> None:
+    """`Bool refused(Object *target, Coord3D *where, SpecialPowerTemplate *)` - stdcall,
+    `ret 0xc`, `al = 1` when either key refuses the cast. Preserves `ebx`, `esi` and `edi`.
+
+        t = getFinalOverride(template)
+        if t->ForbiddenUpgrades.any() and carries(target, where, t, forbidden):  refused
+        if t->RequiredUpgrades.any() and !carries(target, where, t, required):   refused
+        allowed
+    """
+    a.label("check")
+    a.emit(0x56)  # push esi
+    a.emit(0x57)  # push edi
+    # [esp+0xc] = target, [esp+0x10] = where, [esp+0x14] = template
+    a.emit(0x8B, 0x4C, 0x24, 0x14)  # mov ecx, [esp+0x14]
+    a.call_absolute(GET_FINAL_OVERRIDE)  # eax = the template an override chain ends at
+    a.emit(0x8B, 0xF0)  # mov esi, eax
+
+    for mask_offset, refuse_on, skip in (
+        (FORBIDDEN_OFFSET, JNE, "check_required"),
+        (REQUIRED_OFFSET, JE, "check_allowed"),
+    ):
+        a.emit(0x8D, 0xBE, u32(mask_offset))  # lea edi, [esi+mask_offset]
+        a.emit(0x8B, 0xCF)  # mov ecx, edi
+        a.call_absolute(UPGRADE_MASK_ANY)  # al = any bit set
+        a.emit(0x84, 0xC0)  # test al, al
+        a.jcc(JE, skip)  # an empty list is stock behaviour
+        a.emit(0x57)  # push edi                                      ; mask
+        a.emit(0x56)  # push esi                                      ; final
+        a.emit(0xFF, 0x74, 0x24, 0x18)  # push [esp+0x18]             ; where
+        a.emit(0xFF, 0x74, 0x24, 0x18)  # push [esp+0x18]             ; target
+        a.call("carries")
+        a.emit(0x84, 0xC0)  # test al, al
+        a.jcc(refuse_on, "check_refused")
+        if skip == "check_required":
+            a.label("check_required")
 
     a.label("check_allowed")
     a.emit(0x32, 0xC0)  # xor al, al
     a.jmp_short("check_out")
-    a.label("check_forbidden")
+    a.label("check_refused")
     a.emit(0xB0, 0x01)  # mov al, 1
     a.label("check_out")
     a.emit(0x5F)  # pop edi
     a.emit(0x5E)  # pop esi
-    a.emit(0x5B)  # pop ebx
     a.emit(0xC2, 0x0C, 0x00)  # ret 0xc
 
 
@@ -288,7 +337,7 @@ def _emit_location_gate(a: Asm) -> None:
     a.emit(0xFF, 0x74, 0x24, 0x0C)  # push [esp+0xc]                ; where
     a.emit(0x6A, 0x00)  # push 0                                      ; no target
     a.call("check")
-    a.emit(0x34, 0x01)  # xor al, 1                                   ; forbidden -> refused
+    a.emit(0x34, 0x01)  # xor al, 1                                   ; refused -> not allowed
     a.label("location_gate_out")
     a.emit(0xC2, 0x0C, 0x00)  # ret 0xc
 
@@ -296,7 +345,7 @@ def _emit_location_gate(a: Asm) -> None:
 def _emit_object_gate(a: Asm) -> None:
     """Stands in for the object predicate's `call 0x0082C366`: one argument, `ret 4`, and a
     true result refuses the cast - so the wrapper returns the stock true unchanged and otherwise
-    answers whether this key forbids the target."""
+    answers whether either key refuses the target."""
     a.label("object_gate")
     a.emit(0xFF, 0x74, 0x24, 0x04)  # push [esp+4]                  ; the caster
     a.call_absolute(OBJECT_GATE_TARGET)
@@ -317,12 +366,13 @@ def _emit_object_gate(a: Asm) -> None:
 def _emit(a: Asm, entries: tuple[Entry, ...]) -> None:
     """The whole cave. Data first, and the filter's `allow` ahead of its vtable, so everything
     that names an address by value can ask `Asm.label_va` for one already placed."""
-    a.label("keyword")
-    a.emit(KEYWORD.encode("ascii") + b"\x00")
+    for index, (keyword, _offset) in enumerate(KEYWORDS):
+        a.label(f"keyword_{index}")
+        a.emit(keyword.encode("ascii") + b"\x00")
     while len(a.buf) % 4:
         a.emit(0x00)
     a.label("table")
-    a.emit(build_table(entries, a.label_va("keyword")))
+    a.emit(build_table(entries, tuple(a.label_va(f"keyword_{i}") for i in range(len(KEYWORDS)))))
 
     _emit_allow(a)
     while len(a.buf) % 4:
@@ -336,23 +386,27 @@ def _emit(a: Asm, entries: tuple[Entry, ...]) -> None:
 
     _emit_ctor(a)
     _emit_copy(a)
+    _emit_carries(a)
     _emit_check(a)
     _emit_location_gate(a)
     _emit_object_gate(a)
 
 
-class ForbiddenUpgradesPatch(Patch):
-    """Refuse a targeted special power near, or on, an object carrying a listed upgrade."""
+class SpecialPowerUpgradeFiltersPatch(Patch):
+    """Refuse a targeted special power near or on a carrier of a forbidden upgrade, or away from
+    every carrier of a required one."""
 
-    name = "forbidden-upgrades"
+    name = "special-power-upgrade-filters"
     author = "officialNecro"
-    runtime_verified = "yes"
+    runtime_verified = "partly"
     description = (
         "SpecialPower ForbiddenUpgrades = <Upgrade> ... refuses a targeted cast when any object "
         "within ForbiddenObjectRange of the cast point carries one of the listed upgrades as an "
         "object upgrade, the caster included; an object-targeted cast is also refused when the "
-        "target itself carries one. Players, the AI and ability modules are all refused the same "
-        "way. A power that does not set the key is unaffected"
+        "target itself carries one. RequiredUpgrades = <Upgrade> ... is the reverse: the cast is "
+        "refused unless the target, or some object within ForbiddenObjectRange, carries one of "
+        "its upgrades. Players, the AI and ability modules are all refused the same way. A power "
+        "that sets neither key is unaffected"
     )
 
     def apply(self, data: bytearray) -> None:
@@ -361,7 +415,7 @@ class ForbiddenUpgradesPatch(Patch):
         if find_section(data, SECTION_NAME) is not None:
             raise ValueError(
                 f"this image already carries a {SECTION_NAME} section - the patch is already "
-                "applied, and applying it twice would install a second copy of the field"
+                "applied, and applying it twice would install a second copy of the fields"
             )
         self._check_anchors(data)
         entries = self._check_table(data, self._resolve(data))
@@ -391,13 +445,13 @@ class ForbiddenUpgradesPatch(Patch):
                 TEMPLATE_CTOR_TAIL,
                 TEMPLATE_CTOR_TAIL_BYTES,
                 jmp_rel32(TEMPLATE_CTOR_TAIL, a.label_va("ctor"), 6),
-                "SpecialPowerTemplate ctor -> the mask starts empty",
+                "SpecialPowerTemplate ctor -> the masks start empty",
             ),
             (
                 SPECIAL_POWER_TEMPLATE_COPY_TAIL,
                 SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES,
                 jmp_rel32(SPECIAL_POWER_TEMPLATE_COPY_TAIL, a.label_va("copy"), 8),
-                "SpecialPowerTemplate copy ctor -> the mask is copied",
+                "SpecialPowerTemplate copy ctor -> the masks are copied",
             ),
             (
                 SPECIAL_POWER_FORBIDDEN_OBJECTS_CALL,
@@ -465,7 +519,7 @@ class ForbiddenUpgradesPatch(Patch):
 
     @staticmethod
     def _check_table(data: bytes | bytearray, table_va: int) -> tuple[Entry, ...]:
-        """The live rows, once the table has been checked for the build, for the keyword and for
+        """The live rows, once the table has been checked for the build, for the keywords and for
         anything that has already grown the struct - a duplicate row would parse, since the reader
         takes the first match, and the field would silently do nothing."""
         entries = read_field_table(data, table_va)
@@ -477,16 +531,17 @@ class ForbiddenUpgradesPatch(Patch):
                     f"unexpected build: SpecialPower.{field} is at "
                     f"{'absent' if got is None else hex(got)}, expected {want:#x}"
                 )
-        if KEYWORD in by_name:
-            raise ValueError(
-                f"SpecialPower already has a {KEYWORD!r} field - this patch is already applied, "
-                "or another patch has added the same field"
-            )
+        for keyword, _offset in KEYWORDS:
+            if keyword in by_name:
+                raise ValueError(
+                    f"SpecialPower already has a {keyword!r} field - this patch is already "
+                    "applied, or another patch has added the same field"
+                )
         highest = max(offset for _n, _f, _u, offset in entries)
-        if highest >= MASK_OFFSET:
+        if highest >= FORBIDDEN_OFFSET:
             raise ValueError(
                 f"the SpecialPower table already uses offset {highest:#x}, at or past the "
-                f"{MASK_OFFSET:#x} this patch adds - another patch has already grown "
+                f"{FORBIDDEN_OFFSET:#x} this patch adds - another patch has already grown "
                 "SpecialPowerTemplate (hero-mana and special-power-charges do)"
             )
         for push_va, _call_va in SPECIAL_POWER_TEMPLATE_NEW_SITES:
@@ -501,10 +556,13 @@ class ForbiddenUpgradesPatch(Patch):
         return entries
 
     def ini_surface(self) -> Engine:
-        """The one field this patch adds. The constructor empties the mask, so an absent key is
-        an empty list, which is stock behaviour."""
+        """The two fields this patch adds. The constructor empties both masks, so an absent key
+        is an empty list, which is stock behaviour."""
         return Engine(
-            fields=(FieldDelta("SpecialPower", KEYWORD, "Ref[]:upgrades", None, self.name),)
+            fields=tuple(
+                FieldDelta("SpecialPower", keyword, "Ref[]:upgrades", None, self.name)
+                for keyword, _offset in KEYWORDS
+            )
         )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
@@ -516,9 +574,9 @@ class ForbiddenUpgradesPatch(Patch):
         section_va, _section_off, vsize = located
         try:
             live = read_field_table(data, self._resolve(data))
-            preceding = entries_before(data, live, KEYWORD)
+            preceding = entries_before(data, live, FORBIDDEN_KEYWORD)
             if preceding is None:
-                return [f"the live SpecialPower table does not name {KEYWORD!r}"]
+                return [f"the live SpecialPower table does not name {FORBIDDEN_KEYWORD!r}"]
             a = self._assemble(section_va, preceding)
             code = a.finish()
             if len(code) > vsize:
@@ -526,7 +584,7 @@ class ForbiddenUpgradesPatch(Patch):
             cave_off = file_offset(data, section_va)
             if bytes(data[cave_off : cave_off + len(code)]) != code:
                 return [f"the {SECTION_NAME} cave is not what this patch builds"]
-            problems = self._verify_live_row(data, live, a)
+            problems = self._verify_live_rows(data, live, a)
             for va, _old, want, note in self._sites(a):
                 off = file_offset(data, va)
                 got = bytes(data[off : off + len(want)])
@@ -537,18 +595,21 @@ class ForbiddenUpgradesPatch(Patch):
         return problems
 
     @staticmethod
-    def _verify_live_row(data: bytes | bytearray, live: tuple[Entry, ...], a: Asm) -> list[str]:
-        """The field is still parsed out of whatever table the engine now reads. Deliberately not
-        "the references name this cave's table": a later patch that rebuilds the table copies this
-        row into its own and repoints the references there."""
-        row = next((entry for entry in live if read_cstring(data, entry[0]) == KEYWORD), None)
-        if row is None:
-            return [f"the live SpecialPower table no longer parses {KEYWORD!r}"]
-        want = (a.label_va("keyword"), INI_PARSE_UPGRADE_MASK, MASK_OFFSET)
-        if (row[0], row[1], row[3]) != want:
-            return [
-                f"the live {KEYWORD!r} row is not this patch's field at SpecialPower+"
-                f"0x{MASK_OFFSET:02x} (holds name 0x{row[0]:08x}, fn 0x{row[1]:08x}, "
-                f"offset 0x{row[3]:02x})"
-            ]
-        return []
+    def _verify_live_rows(data: bytes | bytearray, live: tuple[Entry, ...], a: Asm) -> list[str]:
+        """Both fields are still parsed out of whatever table the engine now reads. Deliberately
+        not "the references name this cave's table": a later patch that rebuilds the table copies
+        these rows into its own and repoints the references there."""
+        problems = []
+        for index, (keyword, offset) in enumerate(KEYWORDS):
+            row = next((entry for entry in live if read_cstring(data, entry[0]) == keyword), None)
+            if row is None:
+                problems.append(f"the live SpecialPower table no longer parses {keyword!r}")
+                continue
+            want = (a.label_va(f"keyword_{index}"), INI_PARSE_UPGRADE_MASK, offset)
+            if (row[0], row[1], row[3]) != want:
+                problems.append(
+                    f"the live {keyword!r} row is not this patch's field at SpecialPower+"
+                    f"0x{offset:02x} (holds name 0x{row[0]:08x}, fn 0x{row[1]:08x}, "
+                    f"offset 0x{row[3]:02x})"
+                )
+        return problems

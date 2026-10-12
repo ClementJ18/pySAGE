@@ -848,10 +848,9 @@ How many module slots `_production_module` covers, and deliberately *not* `max_m
 above even though both bound the same array. That one bounds a pointer-at-a-time walk that
 stops at the terminator, so raising it costs nothing; this one **is** the size of a single
 all-or-nothing `read`, and a 4KB read off a small heap block fails entirely the moment it
-crosses an unmapped page - taking every structure's production read with it. It was also
-the value `max_modules` itself had until this field was split out of it: the second
-`max_modules = 64` shadowed the 1024 above, so the spellbook walk had been silently
-stopping at 64 of its ~140 modules.
+crosses an unmapped page - taking every structure's production read with it. The two
+bounds are separate fields for that reason: a spellbook has ~140 modules, so the walk
+needs the 1024 above while this read stays at 64.
 
 ### `string_length`
 

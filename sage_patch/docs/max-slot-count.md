@@ -215,9 +215,12 @@ hardcoded eight-widget table — `APT:ConnectingPlayer%dName`, `APT:ConnectingPl
 `APT:ConnectionPlayerNum_%d`, `APT:Player_%d_Name_String`, `ConnectionIcon~%d`. Once the loop
 bounds move, the glue asks the movie for rows 9..N without further code changes.
 
-The bad news is that somebody has to put those rows in the movie, and
-[`sage_apt`](../../sage_apt/README.md) is explicitly work in progress and cannot yet write `.apt`.
-**This is the long pole**, and it is a tooling problem rather than a reverse-engineering one.
+The bad news is that somebody has to put those rows in the movie. [`sage_apt`](../../sage_apt/README.md)
+now compiles `.apt` (`xml_to_apt`) and merges characters between movies (`merge.py`), so this is
+authoring work rather than a tooling gap, but it carries the traps recorded for the Battle School
+merge: the 256-entry byte-wide constant pool and the hidden geometry→image edge. **This is the long
+pole.** The game-setup lobby is not the only movie with eight rows; the loading screen and the
+post-game score screen have not been checked and probably need the same treatment.
 
 Player colours are not a problem: `MultiplayerColor` is a data-driven list and both stock `ini.big`
 and Edain already define **10** of them.
@@ -240,6 +243,24 @@ and Edain already define **10** of them.
   corpus. That needs re-deriving before replays of >8-player games parse.
 - **Saves** written by a patched binary will not load on a stock one.
 
+## 8a. The network relay mask
+
+The Generals lineage addresses peers in its netcode with a one-byte `relay` bitmask per command:
+one bit per slot. ROTWK still has it. The only debug formatter for it, `"%s, relay=0x%X"`
+(`0x00c87f68`), is fed from a byte:
+
+```
+00993cde  0f b6 4e 0c    movzx ecx, byte ptr [esi + 0xc]   ; relay
+00993ce7  68 68 7f c8 00 push  0xc87f68
+```
+
+A ninth slot has no bit to relay to. Widening this means changing the command-ref layout (`+0xc` is
+mid-struct) and the packet encoding, which is the `MAX_PLAYER_COUNT` kind of work, not the imm8 kind.
+In Generals the same layer also holds `ConnectionManager`'s and `DisconnectManager`'s own
+`[MAX_SLOTS]` arrays (connections, frame data, latency and fps averages, disconnect votes). Those do
+not go through `getSlot`, so the §3 census never saw them. **Static-verified at this one site only**;
+the struct, its writers and the packet field width have not been traced.
+
 ## 9. What a patch would actually contain
 
 | tier | work | risk |
@@ -248,12 +269,13 @@ and Edain already define **10** of them.
 | 2 | 104 loop bounds, one byte each | low, mechanical |
 | 3 | 67 guard sites, read individually | moderate — this is where a misread costs a crash |
 | 4 | map format: 4 code sites + a relocated `MapMetaData` field table | low in the binary |
-| 5 | Worldbuilder, so a ninth start position can be authored | separate binary, cf. `desert-weather-wb` |
-| 6 | `pMpGameSetup.apt` rows 9..N | **blocked on `sage_apt` gaining a writer** |
+| 5 | Map authoring of a ninth start position | small: `sage_map`'s `MPPositionList` and `sage_worldbuilder`'s map cache are count-agnostic; `new_map` hardcodes 8 |
+| 6 | `pMpGameSetup.apt` rows 9..N, plus the loading and score screens | large authoring job with `sage_apt` |
+| 7 | network relay mask and the connection-layer arrays (§8a) | **large, mid-struct and wire format; not traced** |
 
 Tiers 1–3 are a normal `sage_patch` job, comparable in size to `commandset-limit` and smaller than
-`commandset-button-upgrade`. Tiers 4–6 are what turn it into something playable, and tier 6 is a
-different project.
+`commandset-button-upgrade`. Tiers 4–7 are what turn it into something playable. Tier 6 is a
+different project, and tier 7 may cost more than tiers 1–3 together.
 
 A sensible shipping shape mirrors `commandset-limit`: **N configurable in 9..16**, the bound read
 from the patch's own guard byte at run time so composing patches can see it, and a default chosen

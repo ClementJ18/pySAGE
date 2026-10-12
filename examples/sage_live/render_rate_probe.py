@@ -101,8 +101,8 @@ LOGIC_FRAME = 0x40  # TheGameLogic+0x40
 
 # Drawable fields, from `0x006765C4` - **not** from `0x0067171D`.
 #
-# render-rate.md §8 reads the interpolation out of `Drawable::getInterpolatedTransform`
-# (`0x0067171D`, fields +0x170 / +0x1A0 / +0x1D0 / +0x204 / +0x378). On the running binary that
+# `Drawable::getInterpolatedTransform` (`0x0067171D`, fields +0x170 / +0x1A0 / +0x1D0 / +0x204 /
+# +0x378) looks like the interpolation (render-rate.md §9.1). On the running binary that
 # function has exactly **one** caller, behind a per-drawable flag, and its stamp reads
 # 0xFFFFFFFF on every live drawable - it never runs. Measured 2026-08-20 across 615 objects.
 #

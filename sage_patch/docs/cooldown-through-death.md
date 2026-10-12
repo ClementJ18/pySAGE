@@ -358,10 +358,9 @@ The bools live on the `SpecialPowerTemplate`, reached through
 **`PersistCooldownOnDeath` is read at the snapshot; `CooldownTicksWhileDead` at the restore.** That
 split is not symmetry for its own sake - each flag is read where it decides something. The first
 decides *whether there is anything to bank*, so reading it at the snapshot keeps the table holding
-only entries that can ever be used; the scope originally put both at the restore, on the grounds
-that a `map.ini` override flipping mid-match should stay coherent, and that reasoning was wrong in
-the one case it mattered: banking every power on cooldown puts pressure on a fixed table (§4.1)
-whose overflow silently drops a *flagged* hero. Both ends read the same override chain, so the two
+only entries that can ever be used. Reading both at the restore would keep a `map.ini` override
+flipping mid-match coherent, but banking every power on cooldown puts pressure on a fixed table
+(§4.1) whose overflow silently drops a *flagged* hero. Both ends read the same override chain, so the two
 placements differ only under an override that changed between the death and the revive, which
 nothing in the engine does.
 
@@ -400,16 +399,14 @@ too.** `ThingTemplate`s are owned by the factory for the life of the process, an
 revived would then be holding a key that a *different* match can match - and hand a cooldown to
 whoever does.
 
-This was not in the scope. It surfaced while reading the built cave back, and it is the one place
-where "the patch keeps its own state" stopped being free.
+This is the one place where "the patch keeps its own state" stops being free.
 
 The fix is a dword at the front of the cave holding the last logic frame either hook saw. A frame
 that has gone **backwards** is the signal, and it is exact for both ways this happens:
 
 - a **new match** restarts the frame counter, so everything banked belongs to a game that is over;
 - **loading a savegame** rewinds it, and everything banked after the save belongs to a timeline that
-  no longer exists - so wiping is what that case wants too, and it is strictly better than the
-  §4.3 behaviour it replaces there.
+  no longer exists - so wiping is what that case wants too (§4.3).
 
 It costs two dwords compared per hook call and only touches the table on the frame the answer
 changes. Zero is the correct initial value: the first frame either hook sees is at least that, so a
@@ -519,8 +516,8 @@ the freezing mode honest there means pausing on death and resuming on respawn - 
 already has exactly that: interface slot `+0x24` (`0x00896756`) banks the frame and the percent on
 pause and, on the matching resume, does `readyFrame += now - pauseFrame`. Two more hooks in
 `RespawnUpdate`'s die handler and its state-3 respawn, no storage, no arithmetic of ours. Deliberately
-left out of the first cut: it is a second behaviour change on a path that today needs none, and it
-wants its own live test.
+left out: it is a second behaviour change on a path that today needs none, and it wants its own
+live test.
 
 ### 7.2 The default asymmetry stays
 

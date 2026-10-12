@@ -145,14 +145,13 @@ twelve seconds per keep.
 **Money is logic state and the engine CRCs it**, so every peer must run the same patched binary —
 the `command-point-upkeep` rule, stricter than the client-local `inflation-readout`.
 
-## 5. The window is safe, and how that was actually established
+## 5. The window is safe, and how that is established
 
-The first attempt at this check used a linear sweep of `.text` with capstone. **It was wrong**:
-`Cs.disasm` stops at the first undecodable byte and returns what it had, so the sweep covered
-43,078 instructions of a 8.2 MB section and silently answered "no branches" for every window in
-both patches — including one address it could be proved wrong about by hand.
+**A linear sweep of `.text` with capstone cannot establish it.** `Cs.disasm` stops at the first
+undecodable byte and returns what it had, so such a sweep covers 43,078 instructions of a 8.2 MB
+section and silently answers "no branches" for every window.
 
-[`scripts/scan_branches.py`](../scripts/scan_branches.py) replaces it and cannot fail that way: it
+[`scripts/scan_branches.py`](../scripts/scan_branches.py) cannot fail that way: it
 decodes a branch at **every byte offset** in `.text`, treating each of `E8`/`E9`/`EB`/`70–7F`/`0F
 80–8F` as a possible instruction start. That over-approximates — most of those offsets are not
 instruction boundaries — so it yields false positives and never a false negative. A window it

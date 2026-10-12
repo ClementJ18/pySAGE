@@ -80,8 +80,8 @@ inferred from that value match, not traced** — needs a live check.
 
 ## The client writes the same rule down again
 
-**Found 2026-09-07, after the first build of the patch left the Real Time button greyed out in
-play.** The gate above decides what happens once everybody has voted. A second copy decides whether
+**A patch on the logic gate alone leaves the Real Time button greyed out in play.** The gate above
+decides what happens once everybody has voted. A second copy decides whether
 the player can vote at all, and it runs first.
 
 The battle prompt's three buttons - `AutoResolve`, `RealTime` and `Retreat` (`0x00C92810`,
@@ -140,7 +140,7 @@ patch's six sites reading its original bytes.
 the reported symptom, reproduced arithmetically from the engine's own state. With the patched
 constant the same state yields `0xA`, both buttons live. The logic gate would not have fired here
 at all: its count includes the AI, giving `2 >= 2`. **In this session the client gate is the whole
-of the bug**, which is why the first build of the patch changed nothing visible.
+of the bug**, which is why patching the logic gate alone changes nothing visible.
 
 Three things this settles that were open above:
 
@@ -165,8 +165,8 @@ And two it corrects:
 
 ## Measured live, the seat
 
-Read out of the observer client itself during a battle, 2026-09-06, with the first build of the
-patch installed and running. The peer is slot 0, living-world player 0; the battle is between
+Read out of the observer client itself during a battle, 2026-09-06, with a build that named the
+seat `Observer_%d` installed and running. The peer is slot 0, living-world player 0; the battle is between
 player 1 (the other human) and player 2 (the AI), so it is correctly a non-participant and the
 patch's predicate says so.
 
@@ -182,7 +182,7 @@ patch's predicate says so.
 With no side marked local, `PlayerList::newGame` falls through to the loop at `0x006A8B5F` and
 hands the client the first player that is not `m_players[0]` — `PlyrCivilian`. The peer then sees
 the map through the neutral player's eyes, which is exactly the failure this document predicted
-under *Why the gate is there* and the first build did not prevent.
+under *Why the gate is there*, and that `Observer_%d` does not prevent.
 
 **Why `Observer_%d` was not enough.** The map's authored side pool (`m_skirmishSides`) holds
 `Player_1`–`Player_4`, `PlyrNeutral` and the eleven `Skirmish*` templates. There is no `Observer_*`
@@ -294,8 +294,8 @@ the formatted string into `GameSlot::m_mapPlayer`, assigns the literal **`Replay
 whenever the predicate said observer, through the same `AsciiString::operator=` (`0x004050E6`) the
 `Player_1` arm above it uses.
 
-**That third hook is the one the first build got wrong**, and *Measured live, the seat* below is
-the evidence. Naming the seat `Observer_%d` — the arm the engine's own lobby observers take — is
+**The third hook's name is the one that matters**, and *Measured live, the seat* below is the
+evidence. Naming the seat `Observer_%d` — the arm the engine's own lobby observers take — is
 not enough, because **no War of the Ring map declares an `Observer_N` side** and a slot record only
 fills a side that already exists. `ReplayObserver` is the side that always exists: `startNewGame`
 adds it to every game unconditionally at `0x00626E1F`.
@@ -385,3 +385,70 @@ sequence runs to `0x6BC`. The handler was reached from `LivingWorldLogic`'s disp
 constant, which only finds the emitters. Side naming from the string literals `Player_1`
 (`0x00BFD520`), `Player_%d` (`0x00BFD508`) and `Observer_%d` (`0x00BFD4FC`). Lobby rule values read
 out of the tables at `0x00DB7794` and the `VALUE:` arrays they point at.
+
+## Measured live, three observers
+
+Read 2026-10-08 out of six instances on one machine, in a battle between three of them (Mordor,
+Isengard, Wild) with `wotr-battle-observers` installed. Seating worked: every peer's local player
+was right, and the three non-participants each sat on a player of their own named
+`ReplayObserver` (list indices 4, 6, 8; index 9 is the stock one `startNewGame` adds). Two of the
+three saw a minimap and a black screen; the third saw everything.
+
+| seat | shroud state | visible cells |
+|---|---|---|
+| 4 (first `ReplayObserver`) | tracked | **728 = exactly the union of the three fighting seats** |
+| 6, 8 | **`0xFFFF`, untracked**, as an unused slot | 0 |
+
+**The black screens are a name collision.** `startNewGame`'s per-slot loop sets up each seated
+human's shroud through a lookup **by name**:
+
+```asm
+0062fe83  lea  eax, [esi+0x34]           ; the slot's side name (GameSlot::m_mapPlayer)
+0062fe87  call 0x0049F474                ; name key
+0062fe93  call 0x006A8466                ; ThePlayerList::findPlayerWithNameKey -> first match
+0062fe9c  cmp  [esi+0x18], -2            ; lobby observer -> revealMapForPlayer (0x00B4D940)
+0062fec6  call 0x00B4D930                ; otherwise -> set up shroud for [player+0x54]
+```
+
+Every observer seat is named `ReplayObserver`, so all three resolve to the first such player. It
+is set up three times, and the other two never are. One observer works by accident, which is why
+the three-player test above (one observer) passed. Any name-keyed lookup of a seat has the same
+problem; this is the one that shows.
+
+**The working observer saw what all the fighters see**: its tracked cells equal the union of seats
+3, 5 and 7, cell for cell. That too is the collision, not an observer rule: every fighter's
+ally/enemy list names `ReplayObserver`, so the first observer collects every team's alliance.
+
+### The fix: a side of its own per observer
+
+Built 2026-10-08, **not yet run**. Every lookup from a side to a player is by name: the shroud loop
+above, the default team (`"team" + playerName`, `0x0062814D`), and the `playerAllies` /
+`playerEnemies` strings `buildSidesFromGameInfo`'s first loop writes for every other occupied seat
+(`0x00627EB8`-`0x00627F40`: same lobby team as this seat, ally; otherwise, enemy). So the cure is a
+name per seat, not a fix per lookup.
+
+- **`hook_assign` names the seat `ReplayObserver<slot + 1>`**, writing the digit into the cave's
+  16-byte copy of the name (the stem is 14 characters) from the loop's slot index `[ebp-0x18]`.
+  The side builder's second loop creates a side for every occupied seat whatever it is called
+  (`0x00627D8F`, appended by `TheSidesList::addSide`, `0x0072EA27`), so a numbered name is seated
+  as the bare one was.
+- **`Player::initFromSide` recognises the observer by the exact name** (`0x006B0A70`:
+  `playerName == "ReplayObserver"` and faction `FactionObserver`). The `call` to
+  `AsciiString::compare(const char *)` (`0x00406585`) at `0x006B0A7E` becomes a call to
+  `hook_observer_name`, which also accepts the stem plus one character. The bare name still
+  matches, so a replay is unchanged. The callee is a compare, **0 when equal** (it wraps
+  `0x00406307`, which ends in `memcmp`): the `test eax, eax` / `je 0x006B0A9C` after it skips the
+  human seat's set-up for the observer. The hook answers in the same sense, 0 for a match and
+  nonzero otherwise, because every ordinary player's set-up hangs off the nonzero answer.
+
+**Vision then follows the lobby team, with no code of its own.** A unit reveals for the mask
+`0x00694AEE` builds: `PlayerList::getPlayersWithRelationship(owner, SELF | ALLIES, 0)`
+(`0x006A8695`, which asks `owner->getRelationship(other->defaultTeam)` through `0x006ADBEB`) ORed
+with the owner's spied-vision mask at `Player+0x3C8`. With distinct names each fighter's
+relationship to each observer comes from its own `playerAllies` / `playerEnemies` list, so an
+observer is in the mask of exactly the fighters on its lobby team. An observer with no team (-1),
+or none of whose allies is fighting, sees nothing but the minimap.
+
+What a play session must confirm: two or more observers each get a picture; each sees its own
+team's armies and not the others'; the Next/Prior bar still appears (it hangs off the observer
+flag this hook keeps setting); and a replay still opens on the whole map.

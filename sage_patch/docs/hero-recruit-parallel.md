@@ -128,7 +128,7 @@ five-unit order is not interleaved with anything else once it starts.
 
 **Rule B — a builder** (`0x008A0754`): the first entry of kind 1 or 3 (`0x00729661`) whose
 template carries KindOf **`DOZER`** — `test byte [tmpl+0x109], 0x40`, and `ThingTemplate+0x108` is
-the `KindOf` mask ([`herobar-kindof.md`](herobar-kindof.md) §, field entry `0x00DA4148`).
+the `KindOf` mask ([`herobar-kindof.md`](herobar-kindof.md) §6, field entry `0x00DA4148`).
 
 **Rule C — a revive whose clock has elapsed** (`0x008A0780`):
 

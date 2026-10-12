@@ -50,7 +50,7 @@ sets for staying desync-safe.
 
 Each helper calls the allocator at `0x7110B3`, stores the value at `+0x08`, and writes its type
 tag to `+0x18`. **The tags are exactly `sage_replay.OrderArgumentType`** — independent
-confirmation of an enum that was until now inherited from Generals rather than verified here.
+confirmation of an enum inherited from Generals.
 
 | address | tag | `OrderArgumentType` | calls | store idiom |
 |---|---|---|---|---|

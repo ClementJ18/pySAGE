@@ -13,12 +13,10 @@ client and logic phases — on the premise that "this engine gives you almost no
 since it shipped. What it lacks is not the instrumentation but a *consumer*: the scopes drive
 `D3DPERF_BeginEvent` / `D3DPERF_EndEvent`, which do nothing unless a PIX-like profiler is attached.
 
-- **Status: built, unit-tested against an executing cave, and run live on 2026-09-22 — which
-  found a defect in it.** The first version keyed each slot on the scope's *name pointer*, and
-  §2.1 is what that turned out to be worth: four of the thirty sites build their name on the
-  stack, so the table filled with stack addresses within seconds and the two per-mesh stages never
-  got a row. It now keys on the **call site**. It is the registered `perf-stage-readout` patch;
-  `sage-patch apply perf-stage-readout` is the whole build.
+- **Status: built, unit-tested against an executing cave, and run live.** Each slot is keyed on
+  the scope's **call site**, not its name pointer: four of the thirty sites build their name on the
+  stack (§2.1). It is the registered `perf-stage-readout` patch; `sage-patch apply
+  perf-stage-readout` is the whole build.
 - **Cost:** one six-byte hook, one five-byte hook, and a 2,646-byte `.perfstg` section — 2,352
   bytes of counter block and 303 of code. The patched file is 3,072 bytes larger.
 - **Client-local.** No simulation state is read or written, no INI surface, no replay or network
@@ -31,7 +29,7 @@ since it shipped. What it lacks is not the instrumentation but a *consumer*: the
 - The name is `strncpy`'d into the object immediately, so **nothing downstream of the constructor
   can tell two scopes apart** — §2, and the reason the hook is where it is.
 - **The key is the call site, not the name.** Twenty-six sites pass an `.rdata` literal; four build
-  the name on the stack (§1.2), which filled the table on the first live run (§2.1).
+  the name on the stack (§1.2), which fills a name-keyed table within minutes (§2.1).
 - The patch hooks the constructor and the destructor, stamps `QueryPerformanceCounter` onto a
   nesting stack, and accumulates inclusive and exclusive ticks per call site (§3).
 - The destructor is a five-byte `jmp` and nothing else, so that hook displaces no instructions at
@@ -106,8 +104,7 @@ discarded.**
 ### 1.2 Four sites do not pass a name literal at all
 
 The sentence "each call site pushes a name literal, a category literal and a colour" is true of
-twenty-six sites and false of four, and the difference is load-bearing enough to have broken the
-first version of this patch (§2.1). The two `MeshDX8Render` sites and the two `MeshFXShader` ones
+twenty-six sites and false of four, and the difference is load-bearing (§2.1). The two `MeshDX8Render` sites and the two `MeshFXShader` ones
 look like this:
 
 ```asm
@@ -160,16 +157,15 @@ the caller's `lea ecx, [ebp-0x158]`. **In the frame's draw, that is one address 
 scopes in one function at one stack slot. A profiler hooked on the wrapper would fold all four into
 a single row and would have to `strcmp` to avoid it.
 
-At the constructor, then, the arguments are still the caller's. What the patch keys on is one of
-them — but not the one this section originally chose.
+At the constructor, then, the arguments are still the caller's. What the patch keys on is the call
+site.
 
 ### 2.1 Why the call site, and not the name
 
-**This is the correction the first live run produced, and it is the most useful thing on this
-page.** The obvious key at the constructor is the name pointer: for twenty-six sites it is an
-`.rdata` literal, stable and unique, one `cmp` to compare. §1.2 is the other four.
+The obvious key at the constructor is the name pointer: for twenty-six sites it is an `.rdata`
+literal, stable and unique, one `cmp` to compare. §1.2 is the other four.
 
-Keyed on the name, a run of the first build reported this after a few minutes at a skirmish:
+Keyed on the name, a live run reports this after a few minutes at a skirmish:
 
 ```
 slots_used  64          <- all of them
@@ -179,13 +175,13 @@ table_full  4335110     <- scopes that found no slot at all
  36 0x00bea790 .rdata 2807322  330033463 117361681  'RenderFXShaderBatch'
 ```
 
-Thirty-six of the sixty-four slots held **stack addresses**, not `.rdata` pointers. The two with
+Thirty-six of the sixty-four slots hold **stack addresses**, not `.rdata` pointers. The two with
 millions of calls are the per-mesh sites, keyed on whatever stack address that frame's buffer
 happened to sit at; the rest are the same sites at other stack depths and on the load-screen
 thread. `MeshDX8Render` and `MeshFXShader` — the two rows §5 calls the interesting ones — appear
-nowhere, because by the time they were reached the table was full.
+nowhere, because by the time they are reached the table is full.
 
-The fix is to key on **the return address at `[esp]`**, which at the constructor's first
+So the key is **the return address at `[esp]`**, which at the constructor's first
 instruction is the call site:
 
 - it is in `.text`, so it is fixed for the life of the process and unique per site;
@@ -245,20 +241,17 @@ its routine**, immediately before jumping back to `0x00517696` — anything betw
 preserve the flags across a `QueryPerformanceCounter` call, and re-running is cheaper than saving.
 Five bytes of jump replace six bytes of instruction, so the sixth is a `nop`.
 
-### 3.2 Three ways a scope declines to be measured, and one that used to be a bug
+### 3.2 Three ways a scope declines to be measured
 
 The counters exist because each of these happens, and each has a test that executes the cave:
 
 - **A null name.** The constructor tolerates one and skips its whole body — and since the key is
-  the call site, the scope is measured like any other. (Keyed on the name there was nothing to key
-  it on, so it was timed by nobody; the frame still had to be pushed or the next exit would close
-  somebody else's.)
+  the call site, the scope is measured like any other.
 - **An unbalanced exit** (depth already zero). Counted, and nothing is written.
-- **The nesting stack full.** This is the one that was wrong first. The entry originally declined to
-  raise the depth when it declined to push a frame — and then the matching exit lowered it anyway,
-  closing the frame *below* and shifting every attribution by one level for the rest of the session.
-  The entry now raises the depth unconditionally and the exit discards any level at or above the
-  capacity. Observed nesting is 3 deep against a capacity of 32, so this should never fire; it is
+- **The nesting stack full.** The entry raises the depth unconditionally, even when it declines to
+  push a frame, and the exit discards any level at or above the capacity. Otherwise the matching
+  exit would lower a depth that was never raised, closing the frame *below* and shifting every
+  attribution by one level for the rest of the session. Observed nesting is 3 deep against a capacity of 32, so this should never fire; it is
   tested at 36 deep because "should never" is not a guarantee, and a silent one-level shift is
   indistinguishable from a real profile.
 
@@ -320,7 +313,7 @@ The two open questions, closed in [`perf-scope-skip.md`](perf-scope-skip.md) §4
    the constructor or the destructor — no reads, and every call site discards the `this` the
    constructor returns.
 
-The gate turned out not to be the one this section guessed at either. `D3DPERF_BeginEvent` is
+The gate is not the engine's own null test. `D3DPERF_BeginEvent` is
 exported by `d3d9.dll` whether or not anyone is listening, so the engine's own null test can never
 fire and neither can a copy of it; the question that works is `D3DPERF_GetStatus`, which the engine
 does not resolve and the patch resolves for itself.

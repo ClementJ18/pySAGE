@@ -1,22 +1,17 @@
 # Loading OH1A's accelerator from `game.dat`
 
 The `accel-module` patch makes `game.dat` load OH1A's BFME2 Accelerator, `bfme2_accel.dll`, by
-itself, in place of the accelerator's injecting loader. It started as the loader for a native module
-of our own ([`accel-port.md`](accel-port.md) §6, option B2) and is now just that loader, pointed at
-the original.
+itself, in place of the accelerator's injecting loader.
 
 **Status 2026-10-01: the loader cave armed in Edain on 2026-09-24. Loading `bfme2_accel.dll` through
 it has not been played.**
 
 ## TL;DR
 
-- **Why our own module was dropped.** OH1A published the accelerator's source under the MIT licence
-  ([github.com/OhadBaehr/bfme2-accelerator](https://github.com/OhadBaehr/bfme2-accelerator)). Our
-  module had grown into a C port of its render thread. That duplicated a maintained codebase to fix
-  three faults that are better fixed in it (§3). Our package, `sage_accel`, was removed on
-  2026-10-01. The census is in git history (`a9f5ab1`); the render-thread port is commit `2973e6c` on
-  the local branch `claude/accel-implementation-wrap-h42653`.
-- **What stays here:** this patch, the arming site (§2), and the census's findings (§4). The census
+- **The accelerator is OH1A's, not ours.** OH1A publishes its source under the MIT licence
+  ([github.com/OhadBaehr/bfme2-accelerator](https://github.com/OhadBaehr/bfme2-accelerator)), so
+  the faults it has on a patched `game.dat` are fixed there (§3), not duplicated here.
+- **What lives here:** this patch, the arming site (§2), and a census's findings (§4). The census
   measured what a render thread costs on Edain, and it found the compatibility-shim behaviour that
   the fixes in §3 address.
 - **The DLL has to be a build with those fixes.** Stock `bfme2_accel.dll` identifies its build by a
@@ -84,8 +79,8 @@ and loads; it has not been played.
 3. **Device `Release` drains only when it may be the last.** The census counted 200 to 380 device
    releases a late-game frame (§4), and each one was a full queue drain.
 4. **The effect de-dupe forgets what it does not follow.** `SetValue`, the array setters,
-   `SetString`, `SetArrayRange`, `SetRawValue`, and setters called by name. Before the fix, a later
-   write of the remembered value could be skipped.
+   `SetString`, `SetArrayRange`, `SetRawValue`, and setters called by name. Otherwise a later
+   write of the remembered value can be skipped.
 
 The fixes also install the minimap pixel writes, the shroud updates and the radar mirrors on an
 unrecognised build. Each already checks the bytes at its own sites, and without the pixel writes
@@ -98,9 +93,8 @@ Either one is renamed to `bfme2_accel.dll` beside `game.dat`.
 
 ## 4. What the census measured
 
-The census was `sage_accel`'s milestone M1: pass-through hooks on every device, effect and lock call,
-counting what a render thread would queue and what would make it wait. It ran in Edain on
-2026-09-24.
+The census was a set of pass-through hooks on every device, effect and lock call, counting what a
+render thread would queue and what would make it wait. It ran in Edain on 2026-09-24.
 
 **The device's vtable belongs to the Windows compatibility shim.** It sits at a heap address, and its
 `QueryInterface` is in `apphelp.dll`: the shim copied `d3d9`'s table and hooked entries in it. Four
@@ -116,8 +110,8 @@ runs established how to live with it:
 
 **`game.dat` has no import name table.** Every import descriptor's `OriginalFirstThunk` is 0, so once
 the game is loaded its IAT holds only resolved addresses. An import hook must find its slot by the
-address `GetProcAddress` gives, not by name. The first census build did the latter and crashed at
-startup. The accelerator already does the former.
+address `GetProcAddress` gives, not by name; a by-name lookup crashes at startup. The accelerator
+already finds slots by address.
 
 **The cost of a render thread on Edain.** Nine minutes of a late-game skirmish, counted under the
 original's rules; all figures per frame:
@@ -156,5 +150,5 @@ loading, the thread [`multicore.md`](multicore.md) §1.1 identifies.
 
 1. **Credit** (2026-09-24). `author = "officialNecro"`, who is asked for fixes to the patch; OH1A is
    credited in the patch's credit line and description for the DLL it loads.
-2. **No module of our own** (2026-10-01). The fixes go to the accelerator's repository, and this
-   repository keeps only the loader patch. The DLL is not committed here.
+2. **No module of our own.** The fixes go to the accelerator's repository, and this repository keeps
+   only the loader patch. The DLL is not committed here.

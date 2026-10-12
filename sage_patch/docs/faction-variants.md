@@ -211,8 +211,8 @@ historical), the same redraw. Skirmish, LAN host and LAN client therefore each d
 do for the faction box.
 
 The pick does **not** rebuild the box. It runs inside the box's own `0x4026`, and a combo box
-reset from its own notification has its rows pulled out from under it - the first build did this
-and crashed the game on the first pick. `0x00843B4C` does not refill the faction box either (it
+reset from its own notification has its rows pulled out from under it and crashes the game on the
+first pick. `0x00843B4C` does not refill the faction box either (it
 calls the per-slot control update `0x00842C93` and the hero box's `0x0084040D`); both boxes are
 refilled by the screen's next update. The fill wrapper keeps the Variant box's own pick while it
 is a member of the slot's faction, as the stock fill keeps the faction box's, and the sync wrapper

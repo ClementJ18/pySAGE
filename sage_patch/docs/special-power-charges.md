@@ -45,9 +45,9 @@ this from `recharge-rescale`, which needs a sweep over every object every frame.
   ([`../patches/special_power_charges.py`](../patches/special_power_charges.py)). It applies to and
   verifies against both real binaries, round-trips through `detect`, and composes in either order
   with `cooldown-through-death`.
-- **It has been in a running game once, and that run rewrote §4.** The first build hooked
-  `startPowerRecharge` itself; one cast emptied the whole bank, and a cooldown reset handed back
-  the cast without the charge. Both are the same mistake and §4.1 is what it was.
+- **It has been run in a game.** The hook sits in `startPowerRecharge` and asks who called:
+  hooking the recharge without that empties the whole bank on one cast and hands back a cast
+  without a charge on a cooldown reset (§4.1, §4.2).
 
 ## TL;DR
 
@@ -193,8 +193,8 @@ without it would silently lose its charges.
 ### 2.1 The module's own six free bytes
 
 `SpecialPowerModuleInterface` is the subobject at module `+0x10`;
-[`recharge-rescale.md`](recharge-rescale.md) §1.1 maps it and this scope corrects it in two places,
-both read out of the constructor at `0x008973EE` and the `Xfer` at `0x0089679D`:
+[`recharge-rescale.md`](recharge-rescale.md) §1.1 maps it, from the constructor at `0x008973EE` and
+the `Xfer` at `0x0089679D`:
 
 | interface | module | field | zeroed by ctor | `Xfer`'d |
 |---|---|---|---|---|
@@ -210,9 +210,9 @@ both read out of the constructor at `0x008973EE` and the `Xfer` at `0x0089679D`:
 | `+0x20` | `+0x30` | the "held" latch | `0x0089744D` (**byte**) | yes (v>=3) |
 | `+0x21..+0x23` | `+0x31..+0x33` | **free - 3 bytes** | no | no |
 
-Two corrections worth carrying back into `recharge-rescale.md`: the constructor does *not* stop at
-`+0x18` - it writes `+0x1C` and `+0x20` as well, at `0x0089744A` and `0x0089744D` - and `+0x1C` is
-**not** an unused dword. `Xfer` hands it to `0x00707887` at `0x0089680E`, and that helper pushes the literal
+The constructor does not stop at `+0x18` - it writes `+0x1C` and `+0x20` as well, at `0x0089744A`
+and `0x0089744D` - and `+0x1C` is **not** an unused dword. `Xfer` hands it to `0x00707887` at
+`0x0089680E`, and that helper pushes the literal
 `"ObjectID"` (`0x00C1E18C`) and a size of 4 into the xfer vtable's `+0x94` slot - so `+0x1C` holds
 an object reference and this patch must not touch it.
 
@@ -369,10 +369,10 @@ interval, capped at 65535 frames.
 
 ## 4. The hook
 
-### 4.1 Two mistakes this section is named after
+### 4.1 Two hook points that look right and are not
 
-**The first build hooked `startPowerRecharge` itself.** It applied, verified, and in a running game
-one cast emptied the whole bank. The reason is not an assembly error: **`startPowerRecharge` means
+**`startPowerRecharge`, undiscriminated.** Hooked there, one cast empties the whole bank in a running game.
+The reason is not an assembly error: **`startPowerRecharge` means
 "arm the cooldown", not "somebody used the power", and the engine arms cooldowns from fourteen
 places.** A scan of `.text` for `fld1` reaching a call through interface slot `+0x3C`, plus the one
 direct `call rel32`, returns:
@@ -386,7 +386,7 @@ direct `call rel32`, returns:
 | `0x0089636B`, `0x00896B6D`, `0x008984AC`, `0x008985DC` | the `SpecialAbilityUpdate` flavours |
 | `0x008CC0FE`, `0x008CC5DC`, `0x008CCCE6` | `PlayerUpgradeSpecialPower` |
 
-**The second build hooked `0x008979C2`** - the call `doSpecialPower` makes on its own interface,
+**`0x008979C2`** - the call `doSpecialPower` makes on its own interface,
 which is *the* cast for a `SpecialPowerModule` that drives itself. It is not reached at all when
 the module sets `UpdateModuleStartsAttack = Yes`, because that is `ModuleData+0xC`, which is the
 byte in the engine's own guard three instructions earlier:
@@ -416,9 +416,9 @@ Behavior = WeaponFireSpecialAbilityUpdate ModuleTag_VerheerenderAngriffUpdate
 ```
 
 so `doSpecialPower` never arms it, the `WeaponFireSpecialAbilityUpdate` does when the attack fires,
-and charges did nothing at all.
+and charges hooked there do nothing at all.
 
-**Both mistakes are the same mistake**, and it is worth naming because it is not about x86. A choke
+**Both are the same trap**, and it is worth naming because it is not about x86. A choke
 point is only a choke point for the thing it is named after. `startPowerRecharge` is a genuine
 single implementation of *set this cooldown* - 23 vtables share it - and `0x008979C2` is a genuine
 *cast*. Neither is "a use of the power", because the engine deliberately routes that through one of
@@ -426,7 +426,7 @@ two modules depending on an INI flag.
 
 ### 4.2 Discriminating on the caller
 
-The hook is back inside `startPowerRecharge`, at `0x00896F75` - the five bytes that open its
+The hook is inside `startPowerRecharge`, at `0x00896F75` - the five bytes that open its
 full-recharge arm - and it asks **who called**:
 
 ```
@@ -644,8 +644,9 @@ which this patch does not hook, so they arm the named power's cooldown exactly a
 leave its bank alone.
 
 That is the right reading - a forced recharge is not a cast - and it is not a decision so much as a
-consequence of hooking the cast rather than the recharge. The first build, which hooked
-`startPowerRecharge`, got the other answer by accident along with twelve more it did not want.
+consequence of hooking the cast rather than the recharge. An undiscriminated hook on
+`startPowerRecharge` would get
+the other answer by accident, along with twelve more it does not want.
 
 Nothing that *clears* a cooldown is hooked either: `setReadyFrame` (interface slot `+0x20`,
 `0x0099344A`; its callers are the script actions and `HeroDie::onDie`) and the other full-recharge

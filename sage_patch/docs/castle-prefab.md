@@ -58,9 +58,8 @@ Rebuild from the original game/editor binaries after patch-code changes. Do not 
 patch again on top of its old cave: the exact-byte guards deliberately reject that. Ensure
 the launcher actually uses the rebuilt game.dat and the editor shortcut opens the rebuilt
 Worldbuilder.exe. Verify each generated file with its corresponding patch verifier. The
-WorldBuilder action appears in Base only after the updated editor patch is installed; the
-older registration used Unit_/Castle. Its absence from Base alone did not prove the old patch
-was missing. The stock catalogue JSON remains an extraction of the unpatched editor.
+WorldBuilder action appears in Base once the editor patch is installed. The stock catalogue
+JSON remains an extraction of the unpatched editor.
 
 ## Why IDs 227 and 343
 
@@ -190,9 +189,8 @@ Apply `CastlePrefabPatch()` (`castle-prefab`) **before**
 `CastlePrefabCommandButtonPatch()` (`castle-prefab-commandbutton`). Both classes live in
 `patches/experimental/castle_prefab.py`. The latter verifies the exact installed core before
 writing; no implicit install, duplicate override table or replacement script action is created.
-Rebuild previously patched binaries from the clean supported image with the current patches;
-the shared core now exposes a common promotion routine. ScriptActions 227/343 continue to use
-Pending → Persistent after their retail checks. Retail actions 381/493 stay untouched.
+Build from the clean supported image; the shared core exposes a common promotion routine.
+ScriptActions 227/343 use Pending → Persistent after their retail checks. Retail actions 381/493 stay untouched.
 
 ```ini
 CommandButton Command_UnpackRohanLarge

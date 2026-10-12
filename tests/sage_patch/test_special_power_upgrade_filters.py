@@ -1,7 +1,7 @@
-"""Tests for the forbidden-upgrades patch.
+"""Tests for the special-power-upgrade-filters patch.
 
 Two halves. The structural one is the usual: the struct grows at all three allocation sites, the
-rebuilt table keeps the live rows verbatim and adds one row naming the engine's own mask parser,
+rebuilt table keeps the live rows verbatim and adds two rows naming the engine's own mask parser,
 each hook lands where it claims, and the round trip through `verify` / `detect` holds - plus the
 refusals that keep this patch off an image `hero-mana` or `special-power-charges` already grew.
 
@@ -43,20 +43,23 @@ from sage_patch.addresses import (
     UPGRADE_MASK_ANY,
     UPGRADE_MASK_TEST_ANY,
 )
-from sage_patch.patches.forbidden_upgrades import (
+from sage_patch.patches.special_power_upgrade_filters import (
     ANCHORS,
-    KEYWORD,
-    MASK_OFFSET,
+    FORBIDDEN_KEYWORD,
+    FORBIDDEN_OFFSET,
+    KEYWORDS,
     MASK_SIZE,
     NEW_TEMPLATE_SIZE,
     OBJECT_GATE_CALL,
     OBJECT_GATE_CALL_BYTES,
     OBJECT_GATE_TARGET,
+    REQUIRED_KEYWORD,
+    REQUIRED_OFFSET,
     SECTION_NAME,
     TEMPLATE_CTOR_TAIL,
     TEMPLATE_CTOR_TAIL_BYTES,
     TEMPLATE_CTOR_TAIL_RESUME,
-    ForbiddenUpgradesPatch,
+    SpecialPowerUpgradeFiltersPatch,
     build_table,
 )
 from sage_patch.patches.utils.field_tables import entries_before, read_field_table
@@ -159,7 +162,7 @@ def image() -> bytearray:
 
 @pytest.fixture
 def patched(image: bytearray) -> bytearray:
-    ForbiddenUpgradesPatch().apply(image)
+    SpecialPowerUpgradeFiltersPatch().apply(image)
     return image
 
 
@@ -179,21 +182,22 @@ def _labels(data: bytes | bytearray) -> dict[str, int]:
     """Where each routine landed, re-derived the way `verify` does."""
     located = find_section(data, SECTION_NAME)
     assert located is not None
-    live = read_field_table(data, ForbiddenUpgradesPatch._resolve(data))
-    preceding = entries_before(data, live, KEYWORD)
+    live = read_field_table(data, SpecialPowerUpgradeFiltersPatch._resolve(data))
+    preceding = entries_before(data, live, FORBIDDEN_KEYWORD)
     assert preceding is not None
-    asm = ForbiddenUpgradesPatch._assemble(located[0], preceding)
+    asm = SpecialPowerUpgradeFiltersPatch._assemble(located[0], preceding)
     return {name: asm.label_va(name) for name in asm._labels}
 
 
 class TestLayout:
-    def test_the_mask_lands_past_every_stock_field(self) -> None:
-        assert MASK_OFFSET == SPECIAL_POWER_TEMPLATE_SIZE
-        assert max(offset for _name, offset in STOCK_FIELDS) < MASK_OFFSET
+    def test_the_masks_land_past_every_stock_field(self) -> None:
+        assert FORBIDDEN_OFFSET == SPECIAL_POWER_TEMPLATE_SIZE
+        assert max(offset for _name, offset in STOCK_FIELDS) < FORBIDDEN_OFFSET
 
-    def test_the_struct_grows_by_exactly_one_upgrade_mask(self) -> None:
+    def test_the_struct_grows_by_exactly_two_upgrade_masks(self) -> None:
         assert MASK_SIZE == 0x90
-        assert NEW_TEMPLATE_SIZE == 0x118
+        assert REQUIRED_OFFSET == FORBIDDEN_OFFSET + MASK_SIZE == 0x118
+        assert NEW_TEMPLATE_SIZE == 0x1A8
 
     def test_every_allocation_site_is_grown(self, patched: bytearray) -> None:
         for push_va, _call_va in SPECIAL_POWER_TEMPLATE_NEW_SITES:
@@ -212,21 +216,24 @@ class TestTable:
 
     def test_the_stock_table_is_left_where_it_was(self, image: bytearray) -> None:
         before = _read(image, SPECIAL_POWER_FIELD_TABLE, 25 * FIELD_PARSE_STRIDE)
-        ForbiddenUpgradesPatch().apply(image)
+        SpecialPowerUpgradeFiltersPatch().apply(image)
         assert _read(image, SPECIAL_POWER_FIELD_TABLE, 25 * FIELD_PARSE_STRIDE) == before
 
-    def test_the_rebuilt_table_keeps_the_live_rows_and_adds_one(self, patched: bytearray) -> None:
-        live = read_field_table(patched, ForbiddenUpgradesPatch._resolve(patched))
+    def test_the_rebuilt_table_keeps_the_live_rows_and_adds_two(self, patched: bytearray) -> None:
+        live = read_field_table(patched, SpecialPowerUpgradeFiltersPatch._resolve(patched))
         assert live[: len(STOCK_FIELDS)] == _stock_entries()
-        name_va, parse_fn, user_data, offset = live[-1]
-        assert len(live) == len(STOCK_FIELDS) + 1
-        assert _read(patched, name_va, len(KEYWORD) + 1) == KEYWORD.encode("ascii") + b"\x00"
-        assert (parse_fn, user_data, offset) == (INI_PARSE_UPGRADE_MASK, 0, MASK_OFFSET)
+        assert len(live) == len(STOCK_FIELDS) + 2
+        for (name_va, parse_fn, user_data, offset), (keyword, want) in zip(
+            live[len(STOCK_FIELDS) :], KEYWORDS, strict=True
+        ):
+            assert _read(patched, name_va, len(keyword) + 1) == keyword.encode("ascii") + b"\x00"
+            assert (parse_fn, user_data, offset) == (INI_PARSE_UPGRADE_MASK, 0, want)
+        assert [keyword for keyword, _ in KEYWORDS] == [FORBIDDEN_KEYWORD, REQUIRED_KEYWORD]
 
     def test_build_table_is_terminated(self) -> None:
-        table = build_table(_stock_entries(), 0x1234)
+        table = build_table(_stock_entries(), (0x1234, 0x5678))
         assert table[-FIELD_PARSE_STRIDE:] == bytes(FIELD_PARSE_STRIDE)
-        assert len(table) == (len(STOCK_FIELDS) + 2) * FIELD_PARSE_STRIDE
+        assert len(table) == (len(STOCK_FIELDS) + 3) * FIELD_PARSE_STRIDE
 
 
 class TestHooks:
@@ -267,41 +274,44 @@ class TestHooks:
 
 class TestRoundTrip:
     def test_apply_then_verify(self, patched: bytearray) -> None:
-        assert ForbiddenUpgradesPatch().verify(patched) == []
+        assert SpecialPowerUpgradeFiltersPatch().verify(patched) == []
 
     def test_detect_finds_it(self, patched: bytearray) -> None:
-        assert ForbiddenUpgradesPatch.detect(patched) is not None
+        assert SpecialPowerUpgradeFiltersPatch.detect(patched) is not None
 
     def test_a_stock_image_carries_nothing(self, image: bytearray) -> None:
-        assert ForbiddenUpgradesPatch.detect(image) is None
-        assert ForbiddenUpgradesPatch().verify(image) != []
+        assert SpecialPowerUpgradeFiltersPatch.detect(image) is None
+        assert SpecialPowerUpgradeFiltersPatch().verify(image) != []
 
     def test_verify_catches_a_reverted_gate(self, patched: bytearray) -> None:
         off = va_to_offset(patched, OBJECT_GATE_CALL)
         assert off is not None
         patched[off : off + 5] = OBJECT_GATE_CALL_BYTES
-        assert any("object gate" in problem for problem in ForbiddenUpgradesPatch().verify(patched))
+        assert any(
+            "object gate" in problem
+            for problem in SpecialPowerUpgradeFiltersPatch().verify(patched)
+        )
 
     def test_applying_twice_raises(self, patched: bytearray) -> None:
         with pytest.raises(ValueError, match="already"):
-            ForbiddenUpgradesPatch().apply(patched)
+            SpecialPowerUpgradeFiltersPatch().apply(patched)
 
     def test_a_moved_anchor_is_refused(self, image: bytearray) -> None:
         off = va_to_offset(image, PARTITION_GET_CLOSEST_OBJECT)
         assert off is not None
         image[off] ^= 0xFF
         with pytest.raises(ValueError, match="not the build"):
-            ForbiddenUpgradesPatch().apply(image)
+            SpecialPowerUpgradeFiltersPatch().apply(image)
 
     def test_a_struct_another_patch_grew_is_refused(self, image: bytearray) -> None:
         """What `hero-mana` and `special-power-charges` leave behind: a row at `+0x88`."""
         table = va_to_offset(image, SPECIAL_POWER_FIELD_TABLE)
         assert table is not None
         row = table + len(STOCK_FIELDS) * FIELD_PARSE_STRIDE
-        struct.pack_into("<IIII", image, row, STRINGS_VA, 0x0042EC5E, 0, MASK_OFFSET)
+        struct.pack_into("<IIII", image, row, STRINGS_VA, 0x0042EC5E, 0, FORBIDDEN_OFFSET)
         struct.pack_into("<IIII", image, row + FIELD_PARSE_STRIDE, 0, 0, 0, 0)
         with pytest.raises(ValueError, match="already been grown|already uses offset"):
-            ForbiddenUpgradesPatch().apply(image)
+            SpecialPowerUpgradeFiltersPatch().apply(image)
 
     def test_a_grown_allocation_is_refused(self, image: bytearray) -> None:
         push_va = SPECIAL_POWER_TEMPLATE_NEW_SITES[0][0]
@@ -309,16 +319,19 @@ class TestRoundTrip:
         assert off is not None
         image[off : off + 5] = b"\x68" + struct.pack("<I", 0x94)
         with pytest.raises(ValueError, match="already been grown"):
-            ForbiddenUpgradesPatch().apply(image)
+            SpecialPowerUpgradeFiltersPatch().apply(image)
 
     def test_registered_as_settled(self) -> None:
         """It lives outside `patches/experimental/`, so it must not carry the warning."""
-        assert PATCHES["forbidden-upgrades"] is ForbiddenUpgradesPatch
-        assert not ForbiddenUpgradesPatch.experimental
+        assert PATCHES["special-power-upgrade-filters"] is SpecialPowerUpgradeFiltersPatch
+        assert not SpecialPowerUpgradeFiltersPatch.experimental
 
-    def test_ini_surface_declares_the_upgrade_list(self) -> None:
-        (field,) = ForbiddenUpgradesPatch().ini_surface().fields
-        assert (field.block, field.name, field.type) == ("SpecialPower", KEYWORD, "Ref[]:upgrades")
+    def test_ini_surface_declares_both_upgrade_lists(self) -> None:
+        fields = SpecialPowerUpgradeFiltersPatch().ini_surface().fields
+        assert [(f.block, f.name, f.type) for f in fields] == [
+            ("SpecialPower", FORBIDDEN_KEYWORD, "Ref[]:upgrades"),
+            ("SpecialPower", REQUIRED_KEYWORD, "Ref[]:upgrades"),
+        ]
 
 
 unicorn = pytest.importorskip("unicorn", reason="the emulator harness needs unicorn")
@@ -373,6 +386,7 @@ class _World:
         self,
         *,
         forbidden: tuple[int, ...] = (),
+        required: tuple[int, ...] = (),
         forbidden_range: float = 0.0,
         target_upgrades: tuple[int, ...] = (),
         nearby: tuple[tuple[int, ...], ...] = (),
@@ -386,7 +400,8 @@ class _World:
 
         template = bytearray(NEW_TEMPLATE_SIZE)
         struct.pack_into("<f", template, SPECIAL_POWER_FORBIDDEN_OBJECT_RANGE, forbidden_range)
-        template[MASK_OFFSET : MASK_OFFSET + MASK_SIZE] = _mask(*forbidden)
+        template[FORBIDDEN_OFFSET : FORBIDDEN_OFFSET + MASK_SIZE] = _mask(*forbidden)
+        template[REQUIRED_OFFSET : REQUIRED_OFFSET + MASK_SIZE] = _mask(*required)
         uc.mem_write(_TEMPLATE, bytes(template))
         uc.mem_write(_TARGET + OBJECT_UPGRADE_MASK, _mask(*target_upgrades))
         uc.mem_write(_TARGET + OBJECT_POSITION, struct.pack("<fff", 10.0, 20.0, 0.0))
@@ -394,7 +409,7 @@ class _World:
 
     def _map(self) -> dict[str, int]:
         uc = self.uc
-        asm = ForbiddenUpgradesPatch._assemble(_CAVE, _stock_entries())
+        asm = SpecialPowerUpgradeFiltersPatch._assemble(_CAVE, _stock_entries())
         code = asm.finish()
         stubs = {
             GET_FINAL_OVERRIDE: (b"\xc3", self._final_override),
@@ -593,6 +608,81 @@ class TestObjectGate:
         assert world.named("testForAny") == []
 
 
+class TestRequiredUpgrades:
+    def test_a_location_cast_needs_a_carrier_in_range(self) -> None:
+        world = _World(required=(_UPGRADE_B,), forbidden_range=150.0, nearby=((1,), (_UPGRADE_B,)))
+        assert world.location() == 1
+
+    def test_a_location_cast_with_no_carrier_is_refused(self) -> None:
+        world = _World(required=(_UPGRADE_A,), forbidden_range=150.0, nearby=((1,), (2,)))
+        assert world.location() == 0
+
+    def test_a_location_cast_with_no_range_is_always_refused(self) -> None:
+        """No range means no area, so nothing can ever satisfy the list."""
+        world = _World(required=(_UPGRADE_A,), nearby=((_UPGRADE_A,),))
+        assert world.location() == 0
+        assert world.named("getClosestObject") == []
+
+    def test_a_carrying_target_is_allowed_without_any_range(self) -> None:
+        world = _World(required=(_UPGRADE_A,), target_upgrades=(_UPGRADE_A,), stock_answer=0)
+        assert world.at_object() == 0
+        assert world.named("getClosestObject") == []
+
+    def test_a_clean_target_with_no_range_is_refused(self) -> None:
+        world = _World(required=(_UPGRADE_A,), target_upgrades=(2,), stock_answer=0)
+        assert world.at_object() == 1
+
+    def test_a_clean_target_beside_a_carrier_is_allowed(self) -> None:
+        world = _World(
+            required=(_UPGRADE_A,), forbidden_range=80.0, nearby=((_UPGRADE_A,),), stock_answer=0
+        )
+        assert world.at_object() == 0
+        (call,) = world.named("getClosestObject")
+        assert call[2:5] == (_TARGET + OBJECT_POSITION, 80.0, 1)
+
+    def test_the_scan_filters_on_the_required_mask(self) -> None:
+        world = _World(required=(_UPGRADE_A,), forbidden_range=150.0)
+        world.location()
+        (call,) = world.named("getClosestObject")
+        assert call[5:] == (PARTITION_FILTER_NOT_DESTROYED_VTABLE, world.labels["vtable"], 0)
+
+    def test_a_stock_refusal_stands(self) -> None:
+        world = _World(required=(_UPGRADE_A,), target_upgrades=(_UPGRADE_A,), stock_answer=1)
+        assert world.at_object() == 1
+        assert world.named("getFinalOverride") == []
+
+
+class TestBothKeys:
+    def test_forbidden_wins_over_a_satisfied_requirement(self) -> None:
+        world = _World(
+            forbidden=(_UPGRADE_B,),
+            required=(_UPGRADE_A,),
+            target_upgrades=(_UPGRADE_A, _UPGRADE_B),
+            stock_answer=0,
+        )
+        assert world.at_object() == 1
+
+    def test_both_satisfied_allows(self) -> None:
+        world = _World(
+            forbidden=(_UPGRADE_B,),
+            required=(_UPGRADE_A,),
+            forbidden_range=150.0,
+            nearby=((_UPGRADE_A,),),
+        )
+        assert world.location() == 1
+        assert len(world.named("getClosestObject")) == 2
+
+    def test_a_forbidden_hit_skips_the_requirement(self) -> None:
+        world = _World(
+            forbidden=(_UPGRADE_B,),
+            required=(_UPGRADE_A,),
+            forbidden_range=150.0,
+            nearby=((_UPGRADE_B,),),
+        )
+        assert world.location() == 0
+        assert len(world.named("getClosestObject")) == 1
+
+
 class TestFilter:
     def test_allow_asks_the_candidates_object_upgrades(self) -> None:
         world = _World()
@@ -629,7 +719,8 @@ class TestTemplateLifecycle:
         world = _World()
         uc = world.uc
         source, dest = _HEAP + 0x3000, _HEAP + 0x4000
-        uc.mem_write(source + MASK_OFFSET, _mask(1, 64, _UPGRADE_B))
+        uc.mem_write(source + FORBIDDEN_OFFSET, _mask(1, 64, _UPGRADE_B))
+        uc.mem_write(source + REQUIRED_OFFSET, _mask(2, _UPGRADE_A))
         uc.mem_write(dest, bytes(NEW_TEMPLATE_SIZE))
         esp0 = _STACK + 0x800
         # the three saves the epilogue pops, then the return address and the one argument
@@ -638,7 +729,8 @@ class TestTemplateLifecycle:
         uc.reg_write(UC_X86_REG_EBP, source)
         uc.reg_write(UC_X86_REG_EBX, dest)
         uc.emu_start(world.labels["copy"], _DONE)
-        assert bytes(uc.mem_read(dest + MASK_OFFSET, MASK_SIZE)) == _mask(1, 64, _UPGRADE_B)
+        assert bytes(uc.mem_read(dest + FORBIDDEN_OFFSET, MASK_SIZE)) == _mask(1, 64, _UPGRADE_B)
+        assert bytes(uc.mem_read(dest + REQUIRED_OFFSET, MASK_SIZE)) == _mask(2, _UPGRADE_A)
         assert uc.reg_read(UC_X86_REG_EAX) == dest
         assert (uc.reg_read(UC_X86_REG_ESI), uc.reg_read(UC_X86_REG_EBP)) == (
             0x51515151,

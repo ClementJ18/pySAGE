@@ -84,6 +84,7 @@ __all__ = [
     "FLOAT_ONE_PERCENT",
     "FLOAT_TEN",
     "FLOAT_TWO_PERCENT",
+    "FTOL",
     "GET_PROC_ADDRESS_IAT",
     "GLOBAL_DATA",
     "GLOBAL_DATA_ACTIVE_MAP",
@@ -113,6 +114,7 @@ __all__ = [
     "INI_PARSE_DURATION",
     "INI_PARSE_FIELDS",
     "INI_PARSE_INT",
+    "INI_PARSE_PERCENT_TO_REAL",
     "INI_PARSE_POSITIVE_REAL",
     "INI_PARSE_POSITIVE_REAL_BYTES",
     "INI_PARSE_REAL",
@@ -232,6 +234,12 @@ INI_PARSE_BOOL = 0x0042E558
 # does `fstp dword [store]`, a single 4-byte float store through the same `store + offset`
 # pointer - so a new `Real` field needs an aligned 4-byte slot and nothing else.
 INI_PARSE_REAL = 0x0042ED00
+# `INI::parsePercentToReal`: `parseReal`'s shape, with the scanned value multiplied by
+# `FLOAT_ONE_PERCENT` before the same 4-byte `fstp dword [store]` - so `50%` is stored as 0.5.
+INI_PARSE_PERCENT_TO_REAL = 0x0042EEFA
+# The CRT's float-to-integer helper: truncates `st(0)` toward zero into `eax` and pops it. Every
+# cooldown length the engine computes goes through it.
+FTOL = 0x00A3CFA4
 # `INI::parseAsciiStringVector`, the parser behind every list-of-names field. To change one field's
 # syntax, repoint that field's row, not this function.
 INI_PARSE_STRING_LIST = 0x0042EED6

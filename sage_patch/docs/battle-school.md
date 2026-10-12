@@ -358,10 +358,9 @@ engine still answers that (§2.2).
 
 ## 8. Status: in the game, and half working
 
-**No longer static.** The patch is applied to the Edain mod's `tools/game.dat` (42 patches in that
-binary) and the merged movie is installed in the Edain tree and packed into `__edain_apt.big`. The
-Battle School opens in the running game. What follows separates what has been *seen working* from
-what has not, because the two were repeatedly conflated while chasing this.
+The patch is applied to the Edain mod's `tools/game.dat` (42 patches in that binary) and the merged
+movie is installed in the Edain tree and packed into `__edain_apt.big`. The Battle School opens in
+the running game. What follows separates what has been *seen working* from what has not.
 
 ### 8.1 Confirmed in the running game
 
@@ -390,8 +389,7 @@ Bisected, and each of these was actually built and looked at:
 - the copied meshes **are loaded**: ids 207–224 were found in the live process's memory
 - varying the geometry id, the mesh contents, the character ordinal, which archive it shipped in,
   and the path separator inside the mesh changed nothing
-- the separator theory was wrong on its own evidence: `FactionFrame` draws 23 shapes from
-  backslash-only meshes
+- the path separator is not the cause: `FactionFrame` draws 23 shapes from backslash-only meshes
 
 The one experiment that moved: **Edain's own shape 89**, repointed at our mesh 207 and placed on
 the book, **did draw** — a grey rectangle of the right size. So an *Edain-owned* shape renders a

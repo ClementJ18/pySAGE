@@ -188,8 +188,9 @@ Reordered by what the evidence now supports:
 |---|---|---|
 | 1 | Does RotWK have an equivalent of BFME1's `army->[0x20]` mode flag? | compare the RotWK army struct around the live `assimilate` path |
 | 2 | Is `army->[0x78]` populated for an army not participating in the current battle? | live read via `live-bridge` in a running battle |
-| ~~3~~ | ~~What parameter order does RotWK's template declare?~~ | **settled** — `(object, army)`, types `0xE`/`0xA`, identical to BFME1 |
 | 4 | Do RotWK equivalents of `0x006F1290` / `0x006ED8C0` survive? | search RotWK for the reinforcement-army list methods |
+
+RotWK's template declares the parameters as `(object, army)`, types `0xE`/`0xA`, identical to BFME1.
 
 **Question 2 is the one that decides whether the patch is worth writing.** If the battle-side record
 only exists for armies the battle instantiated, then resolving an arbitrary campaign army by name

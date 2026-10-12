@@ -87,11 +87,6 @@ recompute gate at `0x00632604` tests the counter against 6 and 6 still occurs. S
 **The spike is 2.0x at every rate**, which is why it reads as a regular hitch rather than as
 roughness: N−1 correct frames, then one frame that moves twice as far, five times a second.
 
-> ⚠ `render-rate.md`'s §9.10 table lists `stock 30 | 2.0x` and concludes "a correct build spikes
-> exactly 2.0x at *any* rate". That row was measured on the repo's own `game.dat`, which carries
-> the catch-up edit — §0 of that document warns about exactly this. True stock spikes **1.0x**, and
-> 2.0x is the defect, not the baseline.
-
 ## 4. The correction
 
 The observed range is `2..N`, which is N−1 values. Mapping it onto an even sweep that still ends at

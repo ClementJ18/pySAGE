@@ -284,8 +284,8 @@ The range question is copied verbatim from the shape `update` uses at `0x0089269
 
 ### Why `+0x594` is not in that list
 
-The first revision required all three recorded flags clear, which read as the conservative choice
-and was wrong. `+0x595` and `+0x596` name a target the arm resolves itself — an attack-object id at
+Requiring all three recorded flags clear reads as the conservative choice and is wrong. `+0x595`
+and `+0x596` name a target the arm resolves itself — an attack-object id at
 `+0x584`, an attack-position `Coord3D` at `+0x588` — and it deploys for both, which is why a
 player's right-click has always worked. `+0x594` names **nothing**: it is set for the attack-move,
 hunt and guard forms, and its arm at `0x008925C2` looks for a target in only three places —

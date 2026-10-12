@@ -1,6 +1,6 @@
 # Making the engine use more than one core — scoping notes
 
-Scope for a hypothetical `multicore` patch. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
+Scope for making the engine use more cores. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
 `0x400000`, no ASLR; the file offset is `VA - 0x400000` for every site cited here. Read
 **statically** on 2026-08-18 with `pefile` + `capstone` from
 `sage_patch/engine/game.dat.backup`
@@ -10,32 +10,14 @@ copies** — the repo-root `game.dat`, the Edain-built `game.dat`, and the insta
 here more than usual, because the repo-root file *does* differ from stock inside the pacing code
 next door (see [`render-rate.md`](render-rate.md) §0).
 
-> ### ⚠ §3.2's conclusion, §4's first row, §3.3's status and §6's premise are superseded.
->
-> A third-party accelerator (`bfme2_accel.dll`, "BFME2 Accelerator v47") ships a working render
-> thread **against this exact binary** — same build, confirmed four ways. §3.2 is right that the W3D
-> mutex serializes a render thread that *shares* the renderer, and wrong that this is the only
-> design: that DLL **moves** the renderer instead, so the worker is the only thread calling D3D and
-> the lock is uncontended. §6 is also wrong that the engine "gives you almost nothing for free" —
-> it resolves `D3DPERF_BeginEvent`/`EndEvent` into `0x00DD361C`/`0x00DD3620` and already wraps five
-> **named** render stages in them, which is §6.1's measurement, already built, waiting for a
-> consumer.
->
-> §1.1 below, on the other hand, turned out to be load-bearing: the first run of that DLL against a
-> `sage_patch`-patched `game.dat` crashed on the load-screen thread's own loop
-> ([`accel-port.md`](accel-port.md) §1), which is the second drawing thread this document
-> identified and the render-thread design has to account for.
->
-> **[`render-thread.md`](render-thread.md) is the revision**, and §4 of it is the itemised list of
-> what here still stands. §3.1, §3.5, §5.3 and §7.2 are untouched; the analysis throughout survives
-> and three of the verdicts do not. This document is left standing so the corrections have
-> something to point at.
+The render side has its own document: [`render-thread.md`](render-thread.md) covers OH1A's BFME2
+Accelerator (`bfme2_accel.dll`), which ships a working render thread against this exact binary.
 
 ## TL;DR
 
-- **There is no "multicore patch."** The frame is one thread by construction, and the two offloads
-  everyone reaches for first are each blocked by a property of the engine rather than of an
-  implementation. What follows is a program of work with a measurement gate in front of it.
+- **There is no "multicore patch."** The frame is one thread by construction. A render thread works
+  only if it *moves* the renderer rather than sharing it (§3.2), and "update at 30, draw at 60"
+  buys nothing (§3.4). What follows is a program of work with a measurement gate in front of it.
 - **The engine is already multi-threaded** — four engine threads plus library threads — and it is
   already *paying* for that. Two of the four are audio (`0x0045E97D`, `0x004A7F55`), one is the
   crash handler (`0x0043D120`), and one is the **load screen** (`0x0065CE28`), which draws.
@@ -48,8 +30,8 @@ next door (see [`render-rate.md`](render-rate.md) §0).
   `0x005240D2`..`0x0052410D` into the global `0x00DD345C` and consumed by both `CreateDevice` calls
   (`0x005241B6`, `0x00524222`): hardware or software vertex processing, optionally `PUREDEVICE`,
   optionally `FPU_PRESERVE`. Bit `0x4` is never set. **So the renderer's answer to a second thread
-  is serialization, not concurrency** — and any render-thread design inherits that, not the parallel
-  version of it.
+  is serialization, not concurrency** — and a render thread that shares the renderer inherits that,
+  not the parallel version of it.
 - **The allocator is already thread-safe, and this is the one green light.** `GeneralAllocator::Init`
   installs a critical section at `+0x4E4` (`0x00433063` tests it, `0x0043307D` stores it) and every
   allocate/free path takes it (`0x004349EA` and eight siblings). A worker thread may allocate and
@@ -57,8 +39,9 @@ next door (see [`render-rate.md`](render-rate.md) §0).
 - **The simulation is CRC'd every logic frame** — the `'crc'` timing scope at `0x0062E7B3` wraps the
   call at `0x0062E7C8` — and runs lockstep. Any logic-side parallelism must be bit-identical to the
   serial order, and must be on every peer.
-- **Where the time actually goes is not known.** Nobody has measured a frame on this build. §6 is
-  the measurement, and it is the gate: **do not write a line of this patch before it has run.**
+- **Measure before building.** The engine already instruments its render in thirty named scopes,
+  and [`perf-stage-readout`](perf-stage-readout.md) reads them; the logic side needs its own
+  counters. §6 is the measurement, and it is the gate in front of §5.
 - Two adjacent wins that are *not* multicore but are what people usually mean when they ask for it
   are in §7, and they are far cheaper than anything in §5.
 
@@ -87,7 +70,9 @@ times, all inside the library range and the audio layer.
 `0x0065CE28` calls `0x0065C19B` at `0x0065CE4F`, and `0x0065C19B` takes the W3D lock at
 `0x0065C1BB` after first checking its own two mutex handles at `+0x40`/`+0x44`. So the fourth
 thread genuinely enters the render layer while the main thread is loading a map — which is what the
-whole locking discipline in §3.2 exists for, and the only thing that consumes it today.
+whole locking discipline in §3.2 exists for, and the only thing that consumes it in stock. It is
+also what crashes `bfme2_accel.dll` on a patched `game.dat` ([`accel-port.md`](accel-port.md) §1):
+any design that moves the renderer has to account for this second drawing thread.
 
 ## 2. The frame, and why it is one thread
 
@@ -136,9 +121,7 @@ build — but it does say which four things EA thought were worth naming.
 
 Peers compare that number. Anything that changes the *order* in which simulation state is written —
 or the floating-point rounding it is written with — desyncs the match and invalidates every replay
-across the change. The engine ships EA's own scar tissue from this fight: eighteen
-`'CritterDesync: doPathfind…'` format strings at `0x00C10078`.., and a further run of
-`'CritterDesync: Pathfinder::SnapClosestGoalPosition()…'` at `0x00C1B900`..
+across the change.
 
 This does not make logic-side parallelism impossible. It makes it **bit-exact or nothing**, on every
 peer, with no partial rollout — which is a different and much larger project than "run two things
@@ -154,7 +137,7 @@ gated on `0x00DD343C`), so the x87 control word is already a live variable in th
 created with `CreateThread` starts with the CRT default, **not** with whatever the main thread is
 running under. Any worker that touches simulation floats has to set it explicitly.
 
-### 3.2 The W3D global lock — kills the render thread
+### 3.2 The W3D global lock — serializes a render thread that shares the renderer
 
 `WW3D::Lock` at `0x0051EEC0`:
 
@@ -179,13 +162,20 @@ layer's own RAII guard — `0x004428A6` is its destructor thunk, with 102 caller
 
 Two consequences:
 
-1. **A render thread would not run in parallel with anything.** It would take the same mutex the
-   main thread takes, on the same operations, and serialize against it. The parallel fraction would
-   be whatever CPU work sits *between* the guarded scopes, which is the part nobody has measured.
+1. **A render thread that shares the renderer does not run in parallel with anything.** It takes
+   the same mutex the main thread takes, on the same operations, and serializes against it. The
+   parallel fraction is whatever CPU work sits *between* the guarded scopes.
 2. **This lock is a standing single-thread tax** paid on every frame of every game, for the benefit
    of one thread that only exists during loading. See §7.1.
 
-### 3.3 The device is not multithreaded — so there is no way around §3.2
+**A render thread that *moves* the renderer is not blocked.** If **every** D3D call goes to the
+worker and the game thread only enqueues, there is one thread in the renderer, as before — a
+different one — and the lock is uncontended. That is `bfme2_accel.dll`'s design
+([`render-thread.md`](render-thread.md) §3.1), and its condition is §1.1: the load screen must be
+kept out of the moved renderer or queued like everything else
+([`accel-thread-identity.md`](accel-thread-identity.md)).
+
+### 3.3 The device is not multithreaded
 
 ```asm
 005240d2  cmp  [esp+0xCC], 0xFFFE0101  ; vertex shader version
@@ -203,19 +193,19 @@ Two consequences:
 `D3DCREATE_MULTITHREADED` is `0x00000004` and is never set. Setting it is genuinely a one-byte edit
 — `83 C0 40` at `0x005240E1` becomes `83 C0 44`, and the `test al, 0x40` two bytes later is
 undisturbed — but **setting it alone is strictly a loss**: it makes the D3D runtime take its own
-internal lock on every call, buying nothing while W3D still serializes everything itself. It is a
-prerequisite for a design that does not exist yet, not a patch.
+internal lock on every call, buying nothing while W3D still serializes everything itself. It belongs
+only with a design that moves the renderer (§3.2), never on its own.
 
 D3D9 is loaded dynamically (`LoadLibrary("D3D9.DLL")` at `0x00525176`, `Direct3DCreate9` resolved at
 `0x00525195`), so the device object is reachable but there is no import to hook.
 
 ### 3.4 Client content is counted in client frames — kills the "update at 30, draw at 60" split
 
-This one is already settled and paid for: [`render-rate.md`](render-rate.md) §8 built that patch,
-ran it in a game, and withdrew it. Particle lifetimes, W3D animation cursors and APT playback all
-advance one unit per client frame, and the interpolation cache at `Drawable+0x204` is stamped with
-the client frame, so gating the client update to every second iteration returns a duplicate frame.
-Read §8 before proposing any variant of this; the negative result is the expensive part.
+Particle lifetimes, W3D animation cursors and APT playback all advance one unit per client frame,
+and the drawable interpolation cache is stamped with the client frame, so gating the client update
+to every second iteration returns a duplicate frame ([`render-rate.md`](render-rate.md) §8). The
+split that works runs the other way — every drawn iteration is a client frame, and each
+frame-counted subsystem is decoupled individually — and that is the `render-rate` patch.
 
 ### 3.5 The allocator — the one thing that does not block you
 
@@ -254,8 +244,8 @@ further work in this area should start from that export table rather than from a
 
 | idea | verdict | why |
 |---|---|---|
-| A render/submission thread | **no** | §3.2 — it serializes on the same mutex; §3.3 — no multithreaded device |
-| Client update at 30 while drawing at 60 | **no** | §3.4 — already built and withdrawn |
+| A render thread that shares the renderer | **no** | §3.2 — it serializes on the same mutex; §3.3 — no multithreaded device |
+| Client update at 30 while drawing at 60 | **no** | §3.4 — returns duplicate frames |
 | Parallel object update sweep (`0x0062EC55`) | **no** | §3.1 — order-dependent writes straight into CRC'd state |
 | Threading the audio | **no** | §1 — done, twice, by EA |
 | Raising the logic rate to "use the spare cores" | **no** | [`headless.md`](headless.md) §1 and [`recharge-rescale.md`](recharge-rescale.md): every duration in every INI is a logic-frame count |
@@ -342,15 +332,19 @@ anyway.
 
 ## 6. The measurement, which comes first
 
-Every number in §5 is a guess until a frame has been broken down, and this engine gives you almost
-nothing for free — the named-timer registry of §2 has no shipping readout. The gate:
+Every number in §5 is a guess until a frame has been broken down. The render half is free: the
+engine wraps thirty named render stages in a `PerfScope` RAII class (`0x00517690` / `0x00517740`)
+that drives `D3DPERF_BeginEvent`/`EndEvent`, and [`perf-stage-readout`](perf-stage-readout.md)
+reads them. The named-timer registry of §2 has no shipping readout, so the logic half is not. The
+gate:
 
-1. **Where the client frame goes.** Detour the client phase (`0x00632409`) and the logic phase
-   (`0x006329B0`) with `QueryPerformanceCounter` — already imported at IAT `0x00BD02E8` and called
-   from seventeen sites, so the pattern is in the image to copy — and write the pair to a fixed
-   global. Read it live with `sage_live`'s `ProcessMemory`, the same way
-   [`render-rate.md`](render-rate.md) §8 read the pacing block. **If the logic phase is not a large
-   share of a heavy late-game frame, §5.3 is not worth its risk** and the answer is Stage 2 alone.
+1. **Where the client frame goes.** The render stages come from `perf-stage-readout`. For the split
+   between the client phase (`0x00632409`) and the logic phase (`0x006329B0`), detour both with
+   `QueryPerformanceCounter` — already imported at IAT `0x00BD02E8` and called from seventeen sites,
+   so the pattern is in the image to copy — and write the pair to a fixed global. Read it live with
+   `sage_live`'s `ProcessMemory`, the same way [`render-rate.md`](render-rate.md) §9.8 reads the
+   pacing block. **If the logic phase is not a large share of a heavy late-game frame, §5.3 is not
+   worth its risk** and the answer is Stage 2 alone.
 2. **What the W3D lock costs.** Count acquisitions per frame by incrementing a counter in a detour
    on `0x0051EEC0`, and time the wait. This directly sizes §7.1, and it also says whether §3.2 is a
    wall or merely a fence.
@@ -361,8 +355,7 @@ nothing for free — the named-timer registry of §2 has no shipping readout. Th
 4. **Establish the CRC baseline.** Record a replay, play it back, log `0x00625886`'s result per
    frame. Nothing in §5.3 can be evaluated without this, and it costs nothing to build now.
 
-All four are read-only instrumentation. None needs a cave larger than a few dozen bytes, and all
-four are throwaway.
+All four are read-only instrumentation. None needs a cave larger than a few dozen bytes.
 
 ## 7. Two things that are not multicore, and are probably what was wanted
 
@@ -391,8 +384,8 @@ prompts this question, that is one core pinned by design. Sleeping the whole-mil
 spinning only the remainder is a few bytes, and is the cheapest thing on this page.
 
 Note the same code truncates `1000/fps` with `ftol` at `0x0063A1AD` — 33 ms rather than 33.3 — so
-the stock build already runs about 1% fast. Do not "fix" that without reading §8 of the render-rate
-document first.
+the stock build already runs about 1% fast. Do not "fix" that without reading
+[`render-rate.md`](render-rate.md) §9.5 first.
 
 ## Address table
 

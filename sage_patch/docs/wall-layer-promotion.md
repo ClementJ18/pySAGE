@@ -232,7 +232,7 @@ stamped into its own cells, and legitimate wall-walking goes through the branch 
    cannot tell: it reads the layer, not the intent. This decides whether §6.3 means "infantry use
    this branch legitimately" or "infantry suffer the same bug". Watching one garrison a wall via
    the flag in a live skirmish settles it.
-2. ~~What `16` is~~ — **answered, statically: `16` is the ramp layer.** `getLayerHeight`'s arm at
+2. *(Settled statically.)* **`16` is the ramp layer.** `getLayerHeight`'s arm at
    `0x006F0B58` honours a cell stamped `16` only when `0x006E89EE` says so, and that predicate
    walks the **ramp record list at `Pathfinder+0x5C`** — the list built from `RampMesh1` /
    `RampMesh2` in [`raised-wall-mesh-removal.md`](raised-wall-mesh-removal.md) §3 — returning true

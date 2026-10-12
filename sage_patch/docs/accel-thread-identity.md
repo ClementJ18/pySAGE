@@ -1,13 +1,13 @@
 # How `bfme2_accel.dll` decides which thread may draw
 
-Read 1 of [`accel-port.md`](accel-port.md) §4: *how does the recognised build keep the load-screen
-thread out of the moved renderer?* Read 2026-09-22 from the DLL's machine code, with the author's
+*How does the recognised build keep the load-screen thread out of the moved renderer?*
+([`accel-port.md`](accel-port.md) §1.3.) Read 2026-09-22 from the DLL's machine code, with the author's
 permission, using `pefile` + `capstone`. DLL addresses are `bfme2_accel.dll` at its ImageBase
 `0x10000000`; engine addresses are ROTWK `game.dat` `2.01.2614.37001` at `0x400000`.
 
 ## TL;DR
 
-- **The question contained a wrong assumption, mine.** There is no load-screen handling. The DLL
+- **There is no load-screen handling.** The DLL
   never references `0x0065C19B`, `0x0065CE28` or `0x0065C1BB` — the whole load-screen thread that
   [`multicore.md`](multicore.md) §1.1 identifies is invisible to it. I checked all 197 engine
   addresses it references as instruction operands; the load screen is not among them.
@@ -16,16 +16,14 @@ permission, using `pefile` + `capstone`. DLL addresses are `bfme2_accel.dll` at 
   **directly, under a critical section (`0x10153D94`) that the owner also takes whenever it
   executes directly**. That is the entire protection, and it is generic — it would cover the load
   screen, a driver thread, or anything else, without naming any of them.
-- **So the mechanism is portable in a way the inventory suggested it would not be.** It needs no
-  engine addresses at all. What it needs is to know *which thread is the game thread*.
+- **So the mechanism needs no engine addresses at all.** What it needs is to know *which thread is the game thread*.
 - **And that is exactly what the unrecognised build gets wrong.** With no engine hooks the DLL falls
   back to "the first thread to make 64 effect calls owns the queue" (`0x1003E1F0`, and `0x40` is
   literally the constant). Three seconds into startup the thread drawing is the load screen. The
   recognised build never runs that heuristic, because its render-stage hooks have already claimed
   the id from a site only the game thread executes.
-- **For a port this is good news twice over.** The design is a lock discipline, not engine
-  knowledge; and `sage_patch` can establish the identity *better* than the DLL can, because it can
-  patch a known engine site to publish the thread id outright instead of guessing from call counts.
+- **The identity is the part to fix.** The design is a lock discipline, not engine knowledge, and
+  the game thread can be named positively instead of guessed from call counts (§4).
 
 ## 1. The install, and where the identity comes from
 
@@ -172,7 +170,7 @@ likewise not established: with the load screen owning the queue, the real game t
 foreign thread and the queue's owner is a thread that exits when loading ends, and either is
 sufficient to explain the failure without telling us which one did it.
 
-## 4. What a port has to reproduce
+## 4. What the design needs
 
 Three things, none of which needs an engine address:
 
@@ -183,30 +181,28 @@ Three things, none of which needs an engine address:
    not self-deadlock.
 3. **A positive identity for the game thread**, established before the first hooked call can matter.
 
-Item 3 is the one the DLL does worst and we can do best. Its two mechanisms are a guess (64 calls)
-and a set of hooks that a whole-image checksum gates off ([`accel-port.md`](accel-port.md) §1.1).
-`sage_patch` has a third option neither of those is: **patch a site only the game thread executes
-and have it publish `GetCurrentThreadId()` into a known location.** `GameLogic::update`
-(`sage_patch.addresses`'s `GAME_LOGIC_UPDATE`, already hooked by `live-bridge`) and the scene render at
-`0x0047177E` are both candidates, both already carry cave machinery in this repo, and a site
-signature composes with every other patch instead of excluding them.
+Item 3 is the one the DLL does worst. Its two mechanisms are a guess (64 calls) and a set of hooks
+that a whole-image checksum gates off ([`accel-port.md`](accel-port.md) §1.1). Two positive
+identities exist that neither of those is:
 
-That reframes the B1/B2 decision in [`accel-port.md`](accel-port.md) §6 slightly: **the identity
-half is a cave, on either branch, and it is worth having before anything else is written.** It is
-small, it is testable on its own (publish the id, read it back with `sage_live`), and it is the
-precondition the DLL's own failure mode says is the load-bearing one.
+- **The owner of the device's focus window.** The engine creates that window on the game thread, and
+  the device the first effect is created on names it. This is the fix the `patched-builds` fork
+  carries ([`accel-module.md`](accel-module.md) §3, fix 1), with the call count kept as a fallback.
+- **A site only the game thread executes, publishing `GetCurrentThreadId()` into a known
+  location.** `GameLogic::update` (`sage_patch.addresses`'s `GAME_LOGIC_UPDATE`, already hooked by
+  `live-bridge`) and the scene render at `0x0047177E` are both candidates, and a site signature
+  composes with every other patch instead of excluding them.
 
 ## 5. Not established by this read
 
-- ~~The queue itself.~~ **Read 3, 2026-09-24: [`accel-queue.md`](accel-queue.md).** The `5` passed
-  to `0x1003E240` is `Present`'s dword-argument count, not an opcode. The lock mirrors and dedupe
-  layers are located there by record kind but still not read.
-- ~~Whether the worker takes `0x10153D94` around each drained call.~~ **Read, and it does** — §2.
-  The drain is batched (256 commands) and yields to the owner through `0x10153EC0`.
-- ~~What selects `Present`'s direct-under-lock path.~~ **`pDirtyRegion`** (the fifth argument,
-  counting `this`): non-null flushes the queue and calls directly, because the queued form does not
-  copy the region ([`accel-queue.md`](accel-queue.md) §2).
-- The `ID3DXEffectStateManager` bail-out (`0x1001C3D0`) and the Scroll Lock toggle path
+The queue itself is read in [`accel-queue.md`](accel-queue.md): the `5` passed to `0x1003E240` is
+`Present`'s dword-argument count, not an opcode, and `Present`'s direct-under-lock path is selected
+by a non-null `pDirtyRegion` (the fifth argument, counting `this`), because the queued form does not
+copy the region. The worker takes `0x10153D94` around each drained call (§2), batched 256 commands
+deep, yielding to the owner through `0x10153EC0`. Still unread:
+
+- the lock mirrors and dedupe layers, located in [`accel-queue.md`](accel-queue.md) by record kind;
+- the `ID3DXEffectStateManager` bail-out (`0x1001C3D0`) and the Scroll Lock toggle path
   (`0x1003A580` swaps `0x100DE3C4`).
 
 ## Address table
@@ -225,4 +221,4 @@ precondition the DLL's own failure mode says is the load-bearing one.
 |---|---|
 | `0x0065CE28`..`0x0065D69C` | the load-screen thread proc ([`multicore.md`](multicore.md) §1) — **referenced nowhere in the DLL** |
 | `0x0065CE76` | the return of its `call [eax+0x124]`, top of the crash stack |
-| `0x0047177E` | scene render — a candidate identity site for our own version (§4) |
+| `0x0047177E` | scene render — a candidate identity site (§4) |

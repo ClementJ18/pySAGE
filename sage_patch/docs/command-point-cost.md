@@ -231,7 +231,7 @@ the stack in exactly the shape `0x00942C5F` expects, because the engine's own re
 
 ### ⚠ `ecx` is live across the window, and it does not look it
 
-This is the one that got the first version of the patch wrong, so it is worth stating plainly.
+This is easy to get wrong, so it is worth stating plainly.
 `mov ecx, eax` at `0x00942762` leaves the local player in `ecx`, and **nothing between there and
 `0x0094278C` writes it** — including the two instructions displaced here, which touch only `edi`
 and `eax`. Six bytes past the resume point, `ecx` is consumed:

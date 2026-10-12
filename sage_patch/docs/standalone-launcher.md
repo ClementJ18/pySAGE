@@ -251,8 +251,7 @@ beside it") is already true of the stock shim, and the patch that was needed ins
 
 The **`game.dat` side** (§1c, `0x00640F00` and `0x00978760`) remains scoped-not-built. Two findings
 here bear on it, and they point in opposite directions. Against: the shim's *path* registry reads
-turned out to be advisory, and both binaries locate their install by naming their own image, so the
-engine's HKLM reads may be no more load-bearing than the launcher's were. For: the dependency that
-did turn out to be real was the one that fails **silently and late**, with nothing refusing at the
-time. Whichever it is, the method is settled — a probe at the read, a run with the key unreachable
+are advisory, and both binaries locate their install by naming their own image, so the engine's
+HKLM reads may be no more load-bearing than the launcher's. For: the launcher's real dependency is
+the one that fails **silently and late**, with nothing refusing at the time. Whichever it is, the method is settled — a probe at the read, a run with the key unreachable
 — and it should be applied before a patch is written for them.

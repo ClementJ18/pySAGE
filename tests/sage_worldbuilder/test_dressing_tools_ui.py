@@ -158,11 +158,15 @@ def test_a_fence_follows_the_drag_and_stretches_with_shift(window):
     assert len(stretched) == 4 and stretched[-1].position[0] == pytest.approx(200.0)
 
 
-def test_a_ramp_slopes_the_ground_between_its_ends(window):
+def test_a_ramp_is_laid_out_by_a_drag_and_built_by_apply(window):
     use(window, "ramp")
     grid = window.document.terrain
     before = np.array(grid.heights)
     drag(window, [(100.0, 300.0), (500.0, 300.0)])
+    # The drag only lays it out, shown until Apply.
+    assert (window.document.terrain.heights == before).all()
+    assert window.ramp_tool.ramp is not None
+    window.dressing_panel.ramp_apply.click()
     after = window.document.terrain.heights
     row = 30
     assert after[row, 10] == before[row, 10] and after[row, 50] == before[row, 50]
@@ -170,6 +174,17 @@ def test_a_ramp_slopes_the_ground_between_its_ends(window):
     assert (after[row + 5] == before[row + 5]).all()
     window.document.stack.undo()
     assert (window.document.terrain.heights == before).all()
+    # It stays laid out, to apply again.
+    window.dressing_panel.ramp_apply.click()
+    assert (window.document.terrain.heights[row] != before[row]).any()
+
+
+def test_ramp_apply_needs_a_laid_out_ramp(window):
+    use(window, "ramp")
+    before = np.array(window.document.terrain.heights)
+    window.dressing_panel.ramp_apply.click()
+    assert (window.document.terrain.heights == before).all()
+    assert not window.document.stack.can_undo
 
 
 def test_borders_are_added_resized_and_removed(window):

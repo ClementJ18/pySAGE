@@ -342,15 +342,32 @@ class Emulator:
         ):
             uc.hook_add(1 << 2, handler, begin=va, end=va)  # UC_HOOK_CODE
 
-    def call(self, entry: int, *, esi: int = 0, eax: int = 0, ebx: int = 0) -> int:
-        """Run one routine to its `ret`, and return the flags it left."""
+    #: The caller's frame pointer every `call` runs under, so a test can plant the caller's locals.
+    FRAME = STACK_BASE + STACK_SIZE // 2
+
+    def call(
+        self,
+        entry: int,
+        *,
+        esi: int = 0,
+        eax: int = 0,
+        ebx: int = 0,
+        ecx: int = 0,
+        args: tuple[int, ...] = (),
+    ) -> int:
+        """Run one routine to its `ret`, and return the flags it left. `args` are pushed right to
+        left under the return address, as a `call` with stack arguments leaves them."""
         uc = self.uc
-        frame = STACK_BASE + STACK_SIZE // 2
+        frame = self.FRAME
         uc.reg_write(UC_X86_REG_EBP, frame)
-        uc.reg_write(UC_X86_REG_ESP, frame - 0x80)
-        esp = uc.reg_read(UC_X86_REG_ESP) - 4
+        esp = frame - 0x80
+        for value in reversed(args):
+            esp -= 4
+            uc.mem_write(esp, struct.pack("<I", value & 0xFFFFFFFF))
+        esp -= 4
         uc.mem_write(esp, struct.pack("<I", DONE))
         uc.reg_write(UC_X86_REG_ESP, esp)
+        uc.reg_write(UC_X86_REG_ECX, ecx)
         uc.reg_write(UC_X86_REG_ESI, esi)
         uc.reg_write(UC_X86_REG_EAX, eax)
         uc.reg_write(UC_X86_REG_EBX, ebx)

@@ -155,9 +155,8 @@ changes the view, and `SET_PLAYER_REF_BY_TEMPLATE`, which sets a script referenc
 an army.
 
 So the honest statement is stronger than "despawn is missing": **you cannot manipulate a
-living-world army from a mission script in RotWK at all.** An earlier revision of this section said
-the "position" variants worked and only the "zone" ones were dead; that was the two-way
-classification missing the gutted state, and it is wrong.
+living-world army from a mission script in RotWK at all.** The "position" variants are not live
+while only the "zone" ones are dead: a two-way live/dead classification misses the gutted state.
 
 `CREATE_REINFORCEMENT_TEAM` does work — but everything that manages reinforcements afterwards does
 not: you cannot call one in without a movie, remove one, or show the banner.
@@ -260,13 +259,12 @@ Two further checks, both passed:
 2. **`NO_OP` is id 5, and stage 1 handles id 5 by jumping straight to the function exit** — an
    action named "do nothing" implemented as doing nothing.
 
-### One correction worth recording
+### Why stage 1 matters
 
-An earlier pass of this analysis missed stage 1 entirely and reported all 66 stubs as broken. That
-put `ENABLE_SCRIPT`, `CALL_SUBROUTINE`, `SET_TIMER` and the counter actions on the dead list —
-actions used over a thousand times in Edain's own maps, which plainly work. **The contradiction was
-the useful signal**: a result that says a shipped mod's most-used script action does nothing is
-wrong about the model, not about the mod. Chasing it produced the two-stage structure above.
+Read without stage 1, all 66 stub slots look broken — which would put `ENABLE_SCRIPT`,
+`CALL_SUBROUTINE`, `SET_TIMER` and the counter actions on the dead list, actions used over a
+thousand times in Edain's own maps, which plainly work. A result that says a shipped mod's
+most-used script action does nothing is wrong about the model, not about the mod.
 
 ## Reviving `*_ASSIMILATE_WITH_ARMY_BY_NAME` — the implementation still exists
 

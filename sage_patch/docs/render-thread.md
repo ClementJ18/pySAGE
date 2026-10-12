@@ -1,12 +1,13 @@
 # Moving the Direct3D work off the game thread — scoping notes
 
-Scope for the work `bfme2_accel.dll` implies. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
-`0x400000`, no ASLR; the file offset is `VA - 0x400000` for every site cited here.
+What OH1A's BFME2 Accelerator, `bfme2_accel.dll`, does, and which of it is a static `sage_patch`
+patch. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, no ASLR; the file offset is
+`VA - 0x400000` for every site cited here.
 
-This document exists because a third party has already built the thing
-[`multicore.md`](multicore.md) §4 says cannot be built, **against this exact binary**, and the
-parts of that document it contradicts are load-bearing. §2 establishes the "exact binary" claim,
-because everything else rests on it.
+The DLL ships a render thread **against this exact binary** — the design
+[`multicore.md`](multicore.md) §3.2 describes as the one that works. §2 establishes the "exact
+binary" claim, because everything else rests on it. [`accel-module.md`](accel-module.md) is the
+patch that loads the DLL from `game.dat`.
 
 ## 0. How this was read, and what is therefore not established
 
@@ -20,10 +21,13 @@ because everything else rests on it.
 - and, for every engine address those strings cite, the **bytes at that address in our own
   `game.dat`**, which is the cross-check in §2.
 
-**Its machine code was not disassembled.** Every claim in §3 about *how* a feature works is the
-DLL's own diagnostic text, quoted, not a reading of its instructions. The README's warning applies
-in the other direction here: a wrong reading of somebody else's log messages passes no test at all.
-Treat §3 as an inventory of intent and §5's Tier 1 as the only part costed against real bytes.
+**This read did not disassemble its machine code.** Every claim in §3 about *how* a feature works is
+the DLL's own diagnostic text, quoted, not a reading of its instructions — except the render
+thread's thread identity and queue, which are read from instructions in
+[`accel-thread-identity.md`](accel-thread-identity.md) and [`accel-queue.md`](accel-queue.md). The
+README's warning applies in the other direction here: a wrong reading of somebody else's log
+messages passes no test at all. Treat the rest of §3 as an inventory of intent and §5's Tier 1 as
+the only part costed against real bytes.
 
 **What the import table does establish**, and it is worth stating because the companion
 `bfme2_accel_loader.exe` was quarantined by Defender on contact (a generic trojan heuristic —
@@ -41,25 +45,21 @@ None of that is an audit. It is the shape of the thing.
 
 - **It targets our binary.** Not a cousin of it — the same build, confirmed four ways in §2. Every
   engine address in its diagnostics is directly usable by us, today, with no porting.
-- **[`multicore.md`](multicore.md) §3.2 is wrong in practice, and §4's first row has to be struck.**
-  The W3D global mutex does not kill a render thread. It kills a render thread that *shares* the
-  renderer. This DLL does not share it — it **moves** it, so the worker is the only thread that
-  ever calls D3D and the lock is uncontended. Then it converts the lock to a user-mode one so that
-  uncontended case is cheap. §4 here is the full list of corrections.
-- **The measurement gate in §6 of that document is satisfiable for free, and nobody noticed.**
-  The engine instruments its own render in **thirty named scopes** — a `PerfScope` RAII class at
-  `0x00517690` / `0x00517740` — each opening a PIX event through `D3DPERF_BeginEvent`, resolved
-  into `0x00DD361C` at device init and inert with no profiler attached. That is a complete, named,
-  per-stage render profile that needs a *consumer*, not a patch. It was the cheapest item on this
-  page and it is now **built**: see §5.1 and [`perf-stage-readout.md`](perf-stage-readout.md).
+- **The W3D global mutex does not block it.** It serializes a render thread that *shares* the
+  renderer. This DLL **moves** it, so the worker is the only thread that ever calls D3D and the
+  lock is uncontended — provided the load screen's thread is kept out (§4.1). Then it converts the
+  lock to a user-mode one so that uncontended case is cheap.
+- **The engine already profiles its own render.** It instruments the render in **thirty named
+  scopes** — a `PerfScope` RAII class at `0x00517690` / `0x00517740` — each opening a PIX event
+  through `D3DPERF_BeginEvent`, resolved into `0x00DD361C` at device init and inert with no profiler
+  attached. [`perf-stage-readout`](perf-stage-readout.md) is the consumer (§5.1).
 - **Almost none of the DLL is portable to a `sage_patch` patch, and that is the real finding.**
   A D3D9 command-queue marshaller, an `rpmalloc`, an SSE CRT and a worker pool are not cave
   assembly. §5 splits the inventory into six things that are genuinely static patches and
   everything else, which is Tier 2.
-- **Tier 2 is one decision, not a project: may `sage_patch` ship a companion DLL?** If yes, the
-  static half is small and well understood — add an import-table entry to `game.dat` so the Windows
-  loader loads the module, and drop the injector entirely (§6). If no, Tier 1 is the whole scope
-  and it is worth having anyway.
+- **Tier 2 stays OH1A's.** `sage_patch` ships no module of its own: [`accel-module`](accel-module.md)
+  loads his DLL from `game.dat`, and the fixes it needs on a patched binary go to his repository
+  (§6). Tier 1 is the whole of what this repository builds.
 
 ## 1. What the DLL is
 
@@ -71,7 +71,7 @@ It installs at load time, identifies the host binary, and then turns on a set of
 independent features — each of which **self-checks against the stock code path and disables itself
 on any mismatch**. That discipline is worth naming up front, because it is the reason a thing this
 invasive is shippable at all, and it is the part of the design most worth copying regardless of
-what else we do:
+what else is done:
 
 ```
 rlsort:  SELF-CHECK MISMATCH on a list of %u (comparator %08X) - stock sort for the rest of the session.
@@ -129,8 +129,8 @@ sites. That is not a coincidence across thirteen addresses, and the shroud (`0x0
 
 ## 3. The inventory
 
-From the diagnostic strings, and subject to §0's caveat. Grouped by what it would take *us* to
-have the same thing.
+From the diagnostic strings, and subject to §0's caveat. Grouped by what it would take a static
+patch to have the same thing.
 
 ### 3.1 The render thread — the headline
 
@@ -176,41 +176,34 @@ reimplementation would spend its time on, not the queue:
 | `filter-memo` | memoizes the object filter's template checks (`0x00763543`) per (filter, template) | same |
 | `pick` | memoizes repeated view picks in a frame (`0x0048AB28`), and skips brute-force mesh casts whose bounding box the ray misses (`0x0056C600`) | **The box pre-test, yes** — that is a gate, and gates are what caves do well |
 | `audiolimit` | replaces the sound-request-limit list walk at `0x00456D8B` with an index, proving itself against the walk first | **No** — needs the index |
-| `logicspread` | leaves the engine's six logical update calls **unchanged and in order** and places render frames *inside* that sequence by measured time, at 9 sites. Pause/Break toggles it | **Interesting and possibly yes** — see §4.3 |
+| `logicspread` | leaves the engine's six logical update calls **unchanged and in order** and places render frames *inside* that sequence by measured time, at 9 sites. Pause/Break toggles it | **Possibly** — see §4.3 |
 | `devlock` | replaces the engine's device kernel mutex with a user-mode recursive lock, 4 call sites | **Yes** — §5.2 |
 | `mutexcs` | same for the engine's generic `MutexClass`; unnamed mutexes become user-mode recursive locks | **Yes** — §5.3 |
-| Present / device loss | v47's banner: *"Present now reports device loss to the engine - the alt-tab crash"* | **Probably** — §5.5 |
+| Present / device loss | v47's banner: *"Present now reports device loss to the engine - the alt-tab crash"* | **Doubtful** — §5.5 |
 | `stages`, `phases`, `fx-timers`, `clienttime`, `subsys`, `modtime`, `flushtime`, `gs` sampler, `crashlog`, scene capture | the diagnostic half: a 100 Hz game-thread sampler, per-stage and per-call timers, a 30-second report | **The engine's own half, yes** — §5.1 |
 
-## 4. What this forces on `multicore.md`
+## 4. What the design means for the engine's render lock
 
-### 4.1 §3.2 and §4 — the render thread is not blocked
+### 4.1 The render thread is not blocked by the W3D lock
 
-[`multicore.md`](multicore.md) §3.2 reasons that `WW3D::Lock` (`0x0051EEC0`, 123 callers) would
-serialize a render thread against the main thread, and §4's table therefore answers **no** to
-"a render/submission thread". The reasoning is sound and the conclusion does not follow, because
-it assumes both threads enter the renderer.
+`WW3D::Lock` (`0x0051EEC0`, 123 callers) serializes any two threads that both enter the renderer
+([`multicore.md`](multicore.md) §3.2). The DLL's design does not let them: **every** D3D call moves
+to the worker; the game thread enqueues a command and returns. There is one thread in the renderer,
+as before — a different one. The lock is then uncontended, and §5.2 makes the uncontended path
+cheap.
 
-The DLL's design does not. **Every** D3D call moves to the worker; the game thread enqueues a
-command and returns. There is one thread in the renderer, as before — a different one. The lock is
-then uncontended, and §5.2 makes the uncontended path cheap.
+**Conditional on the second drawing thread.** The load screen ([`multicore.md`](multicore.md) §1.1)
+enters the render layer on its own thread while a map loads, so "the worker is the only thread that
+ever calls D3D" is something the DLL must arrange, not something the design gives it. It arranges it
+with one thread-identity rule and one critical section
+([`accel-thread-identity.md`](accel-thread-identity.md)); on an unrecognised build it guesses the
+game thread wrong and crashes with `D3DERR_INVALIDCALL` on the load-screen thread's own loop at
+`0x0065CE76` ([`accel-port.md`](accel-port.md) §1).
 
-**Conditional on the second drawing thread, which this section did not account for.** The load
-screen ([`multicore.md`](multicore.md) §1.1) enters the render layer on its own thread while a map
-loads, so "the worker is the only thread that ever calls D3D" is something the DLL must arrange, not
-something the design gives it. On an unrecognised build it does not arrange it: the run in
-[`accel-port.md`](accel-port.md) §1 crashed with `D3DERR_INVALIDCALL` on the load-screen thread's own
-loop at `0x0065CE76`. How the recognised path handles it is not established and is the first thing
-to read.
+### 4.2 The `D3DCREATE_MULTITHREADED` byte
 
-What §3.2 does correctly identify is the cost of the *design it imagined*. Strike the row; do not
-strike the analysis.
-
-### 4.2 §3.3 — the `D3DCREATE_MULTITHREADED` byte now has a consumer
-
-§3.3 calls `0x005240E1` (`83 C0 40` → `83 C0 44`) "a prerequisite for a design that does not exist
-yet, not a patch", and on its own strictly a loss. Both halves stand. What changed is that the
-design exists and is shipping, so the byte moves from "no" to "ships with Tier 2, never alone".
+[`multicore.md`](multicore.md) §3.3: `0x005240E1` (`83 C0 40` → `83 C0 44`) is strictly a loss on
+its own. It belongs only with a design that moves the renderer, never alone.
 
 Verified unchanged in our file:
 
@@ -223,11 +216,11 @@ Verified unchanged in our file:
 005240e6  a3 5c 34 dd 00                       mov [0x00DD345C], eax
 ```
 
-### 4.3 §3.4 — `logicspread` is not the thing that was withdrawn
+### 4.3 `logicspread` is not "update at 30, draw at 60"
 
-§3.4 and [`render-rate.md`](render-rate.md) §8 killed "update at 30, draw at 60" because client
-content is counted in *client frames* — particle lifetimes, W3D animation cursors, APT playback,
-and the interpolation cache stamped at `Drawable+0x204`.
+[`multicore.md`](multicore.md) §3.4 and [`render-rate.md`](render-rate.md) §8 rule out "update at
+30, draw at 60" because client content is counted in *client frames* — particle lifetimes, W3D
+animation cursors, APT playback, and the drawable interpolation cache.
 
 `logicspread` does not do that. Its own description is careful about exactly this:
 
@@ -237,16 +230,11 @@ logicspread: v26 - the engine's six logical update calls run unchanged and in or
 ```
 
 The count of client frames is untouched; only *when* they occur within the logic step moves. That
-is a different proposition from §3.4's and it is not refuted by §3.4's negative result. It is also
-the one item in §3.2's table that might be expressible as a set of caves, and it interacts with
+is a different proposition, and the negative result does not refute it. It is also the one item in
+§3.2's table that might be expressible as a set of caves, and it interacts with
 [`interpolation-alpha.md`](interpolation-alpha.md) — both are about where a rendered frame sits
 between two logic frames. **Do not cost this before §5.1 has measured a frame**; it is the item
 most likely to be a mirage.
-
-### 4.4 §6 — the measurement gate is already paid for
-
-§6 says "this engine gives you almost nothing for free" and proposes building `QueryPerformanceCounter`
-detours. That is wrong, and it is the most actionable correction in this document. See §5.1.
 
 ## 5. Tier 1 — what is a `sage_patch` patch today
 
@@ -254,37 +242,33 @@ Six items, all static, all inside what `sage_patch` already does. In the order t
 
 ### 5.1 `perf-stage-readout` — turn on the profile the engine already produces
 
-**Built. Applied, verified and unit-tested against an executing cave on 2026-09-20; not yet
-played.** It is the registered `perf-stage-readout` patch, and
-[`perf-stage-readout.md`](perf-stage-readout.md) is its write-up. What follows is what the RE
-turned out to be, which is larger and differently shaped than this section first guessed.
+**Built, and run live.** It is the registered `perf-stage-readout` patch, and
+[`perf-stage-readout.md`](perf-stage-readout.md) is its write-up.
 
-**It is not five stages, it is thirty.** The engine does not scatter `D3DPERF_BeginEvent` calls
-through the render; it has a class. `PerfScope` (`0x00517690` / `0x00517740`) is a stack-allocated
-RAII object with **thirty constructor callers and thirty matching destructor callers**, each naming
-one stage — twenty-eight distinct names, from `UpdateShadowMap` and `RenderViews` down to
-`RenderTerrainTracks`, `MeshDX8Render` and `MeshFXShader`. The five strings this section originally
-found are the five that happened to sit in pages I had already read.
+**Thirty stages.** The engine does not scatter `D3DPERF_BeginEvent` calls through the render; it has
+a class. `PerfScope` (`0x00517690` / `0x00517740`) is a stack-allocated RAII object with **thirty
+constructor callers and thirty matching destructor callers**, each naming one stage — twenty-eight
+distinct names, from `UpdateShadowMap` and `RenderViews` down to `RenderTerrainTracks`,
+`MeshDX8Render` and `MeshFXShader`.
 
-**The hook is not on the D3DPERF pointers.** This section proposed installing our own begin/end
-into `0x00DD361C` / `0x00DD3620`. That would have worked and would have been wrong: the
-constructor `strncpy`s the name into the object on its fourth instruction, so by the time the
-wrapper at `0x0051ECE0` sees a name, the pointer is `[ebp-0x158]` — **one address shared by the
-four scopes of the frame's draw**. Keying on it folds `UpdateShadowMap`, `UpdateWaterReflection`,
-`RenderViews` and `RenderUI` into a single row. The patch hooks the constructor, where the name is
-still the `.rdata` literal and pointer identity is a free and exact key.
+**The hook is on the constructor, not the D3DPERF pointers.** The constructor `strncpy`s the name
+into the object on its fourth instruction, so by the time the wrapper at `0x0051ECE0` sees a name,
+the pointer is `[ebp-0x158]` — **one address shared by the four scopes of the frame's draw**.
+Installing a begin/end into `0x00DD361C` / `0x00DD3620` and keying on that pointer would fold
+`UpdateShadowMap`, `UpdateWaterReflection`, `RenderViews` and `RenderUI` into a single row. The
+patch hooks the constructor and keys on the call site.
 
-The rest stands: the two pointers are resolved from `d3d9.dll` at `0x005251D7` / `0x005251EA` and
-do nothing with no profiler attached, so the instrumentation is complete and its output discarded.
-The patch adds a `.perfstg` section that stamps `QueryPerformanceCounter` (IAT `0x00BD02E8`) onto a
-nesting stack and accumulates inclusive and exclusive ticks per name. It leaves the D3DPERF
-pointers alone, so a PIX capture still works unchanged.
+The two pointers are resolved from `d3d9.dll` at `0x005251D7` / `0x005251EA` and do nothing with no
+profiler attached, so the instrumentation is complete and its output discarded. The patch adds a
+`.perfstg` section that stamps `QueryPerformanceCounter` (IAT `0x00BD02E8`) onto a nesting stack and
+accumulates inclusive and exclusive ticks per stage. It leaves the D3DPERF pointers alone, so a PIX
+capture still works unchanged.
 
 **This answers `multicore.md` §6.1 and most of §6.2.** It is what says whether the render is where
 a heavy frame goes and which stage owns it. Client-local, no INI change, no replay or network
 effect.
 
-**And it found a better patch than itself, which is now built too.** The scope constructor spends
+**And it found a better patch than itself, also built.** The scope constructor spends
 two `strncpy`s, a 13-byte inline copy and a `strlen` per scope — *per mesh*, for `MeshDX8Render` —
 building a name string that is then widened into a second buffer and handed to a function that
 returns without reading it. `strncpy` pads to `n` and the first call passes `0x100`, so it writes
@@ -327,8 +311,8 @@ write them, since other code reads them. **`0x0051EEA0`, the "this thread owns t
 predicate, must keep answering identically** — that is the correctness condition and where the
 review time goes.
 
-Unlike §7.1 this is safe with the load screen up, because exclusion is preserved. It is also worth
-doing **whether or not Tier 2 ever happens**, and §5.1 sizes it first.
+Unlike §7.1 this is safe with the load screen up, because exclusion is preserved. It is worth doing
+**without the DLL too**, and §5.1 sizes it first.
 
 ### 5.3 `mutex-critical-section` — the same, for `MutexClass`
 
@@ -353,31 +337,24 @@ At 30 fps that is a thread at 100% for most of every frame. Sleep the whole-mill
 spin only the remainder. A few bytes. Read `render-rate.md` §8 before touching the `ftol` at
 `0x0063A1AD`.
 
-### 5.5 `present-device-loss` — the alt-tab crash
+### 5.5 `present-device-loss` — probably not an engine defect
 
-> **2026-09-22: this section's premise is in serious doubt, and the item should not be ranked first
-> any more.** Read 2 (partial) of [`accel-port.md`](accel-port.md): the DLL's `Present` wrapper
-> (`0x10008790`) does not return the result of the call it was given. It enqueues the Present and
-> returns the global `0x10153DE4` — the result of a *previous* Present, with the game thread
-> throttled to at most one outstanding (`0x10042940` blocks while `0x10153DE0 > 1`), so the engine
-> sees a result at most one frame stale. That is what v47's banner is describing: **a regression its
-> own queue introduced, repaired.** Not an engine defect.
->
-> And the engine is not naive here. It consumes device loss at five sites — `0x00516C5A`,
-> `0x00517B5C`, `0x005221F7`, `0x00522675`, `0x00522837` — each calling `[ecx+0xC]`
-> (`TestCooperativeLevel`) on the device at `0x00DD3474` and branching on `D3DERR_DEVICELOST`
-> (`0x88760868`) and `D3DERR_DEVICENOTRESET` (`0x88760869`). There is a complete device-lost path in
-> stock.
->
-> What is *not* established is whether the engine also checks `Present`'s own `HRESULT`; that is the
-> one reading under which a patch here still exists. Cost that question before costing the patch.
+v47's headline: *"Present now reports device loss to the engine - the alt-tab crash"*. Read from
+the DLL's machine code, that describes **a regression its own queue introduced, repaired**: the
+DLL's `Present` wrapper (`0x10008790`) enqueues the call and returns the global `0x10153DE4` — the
+result of a *previous* `Present`, with the game thread throttled to at most one outstanding
+(`0x10042940` blocks while `0x10153DE0 > 1`), so the engine sees a result at most one frame stale
+([`accel-queue.md`](accel-queue.md)).
 
-v47's headline: *"Present now reports device loss to the engine - the alt-tab crash"*. This is an
-engine defect, it is client-local, and a fix for it is valuable on its own merits with no threading
-anywhere near it. **The site is not established** — the DLL fixes it from inside its own `Present`
-hook, so it names no address. Finding where the engine consumes `Present`'s `HRESULT` (near the
-`CreateDevice` calls at `0x005241B6` / `0x00524222` and the device-lost path around
-`TestCooperativeLevel`) is a self-contained RE task and a good one.
+And the engine is not naive here. It consumes device loss at five sites — `0x00516C5A`,
+`0x00517B5C`, `0x005221F7`, `0x00522675`, `0x00522837` — each calling `[ecx+0xC]`
+(`TestCooperativeLevel`) on the device at `0x00DD3474` and branching on `D3DERR_DEVICELOST`
+(`0x88760868`) and `D3DERR_DEVICENOTRESET` (`0x88760869`). There is a complete device-lost path in
+stock.
+
+**Not established:** whether the engine also checks `Present`'s own `HRESULT`. That is the one
+reading under which a stock-engine patch here exists; the place to look is near the `CreateDevice`
+calls at `0x005241B6` / `0x00524222` and the device-lost path around `TestCooperativeLevel`.
 
 ### 5.6 `pick-box-pretest` — the one memo shaped like a gate
 
@@ -388,64 +365,41 @@ still samples 1 in 16 afterwards; a static patch cannot self-check like that, so
 happen once, offline, and be written into the document instead. Low value alone — **do it only if
 §5.1 says picking is on the profile.**
 
-## 6. Tier 2 — the decision
+## 6. Tier 2 — the DLL's own territory
 
 Everything else in §3 needs a companion module. There is no honest way to write a D3D9 command
-queue, an `rpmalloc` and a worker pool as cave assembly, and pretending otherwise would produce
-the worst artifact in the repository.
+queue, an `rpmalloc` and a worker pool as cave assembly.
 
-So the question is narrow: **may `sage_patch` ship a DLL alongside `game.dat`?** It is a change of
-kind — every patch today is bytes in a binary the user already has — and it is the user's call, not
-a technical one. What can be said technically:
+**That module is OH1A's.** He has given full permission to use his work to recreate a pySAGE patch
+of it, and publishes its source under the MIT licence, but `sage_patch` ships no module of its own:
+[`accel-module`](accel-module.md) makes `game.dat` load `bfme2_accel.dll` itself, and the fixes the
+DLL needs on a patched binary — its build gate is a checksum over the whole of `.text`
+([`accel-port.md`](accel-port.md) §1.1) — live on a fork of his repository, to be offered upstream
+([`accel-module.md`](accel-module.md) §3). The technical points that shape that arrangement:
 
-- **The static half is small and is `sage_patch`'s existing competence.** `sage_patch` already
-  appends sections and keeps `SizeOfImage` consistent ([`../engine/README.md`](../engine/README.md)).
-  Adding an import-directory entry so the Windows loader loads the module before `main` is the same
-  class of PE surgery, and it is the *right* mechanism: no injector, no `CreateRemoteThread`, no
-  second process — and therefore not the thing Defender quarantined this afternoon.
-- **There is precedent for the engine loading a module, but it is a poor hijack.** `0x006056E5`
-  `LoadLibraryA`s `DebugWindowLite.dll` into `0x00DE3B98` — but only behind `-scriptDebug2` /
-  `-scriptDebugLite` (see [`script-debug-window.md`](script-debug-window.md) §1), so it is not an
-  unconditional load site. The import table is cleaner.
-- **`multicore.md` §3.5 still holds and still matters**: the engine's allocator is already
-  thread-safe (`GeneralAllocator::Init` installs a critical section at `+0x4E4`), so a worker may
-  allocate through the game's own heap with no patch. That is what makes a companion module
-  tractable rather than allocation-free.
-- **The fork question.** Even granted a DLL, reimplementing §3.1 is a large piece of work that
-  somebody has already done, against this exact binary, with a self-check discipline we would have
-  to invent from scratch. The alternative worth weighing is **not writing it**: talk to the author.
-  The repo's own `author` convention already says a patch is credited to a human who can be asked
-  for fixes ([`../README.md`](../README.md)), and that convention points the same way here.
-
-> **2026-09-22. This section's question is answered.** The conversation with the author happened,
-> and he has given full permission to use his work to recreate a pySAGE patch of it. So the
-> "**not** writing it" option below is settled in the other direction: we write it, crediting him.
-> Shipping *his* binary was never the ask and is dropped — [`accel-port.md`](accel-port.md) §1.1
-> would have sunk it anyway, since the DLL's build gate is a checksum over the whole of `.text` and
-> therefore excludes every binary `sage_patch` has touched. What remains open is narrower than this
-> section's framing: caves only, or a companion module of our own
-> ([`accel-port.md`](accel-port.md) §6).
-
-**Recommendation: do not open Tier 2 yet.** Tier 1 §5.1 costs a day, tells us where the frame
-actually goes on *our* corpus, and makes every later argument quantitative. It is also the thing
-`multicore.md` §6 already said to do first, and it turns out to be nearly free.
+- **A cave, not an import descriptor, loads the DLL.** With an import descriptor Windows refuses to
+  start a `game.dat` whose DLL is absent; with the cave the patched binary runs unchanged without
+  it. Either way there is no injector, no `CreateRemoteThread` and no second process — the thing
+  Defender quarantines.
+- **The engine's own module-load site is a poor hijack.** `0x006056E5` `LoadLibraryA`s
+  `DebugWindowLite.dll` into `0x00DE3B98` — but only behind `-scriptDebug2` / `-scriptDebugLite`
+  (see [`script-debug-window.md`](script-debug-window.md) §1), so it is not an unconditional load
+  site.
+- **The engine's allocator is already thread-safe** ([`multicore.md`](multicore.md) §3.5:
+  `GeneralAllocator::Init` installs a critical section at `+0x4E4`), so a worker may allocate
+  through the game's own heap with no patch.
 
 ## 7. Order of work
 
-1. ~~**§5.1 `perf-stage-readout`.**~~ **Done**, and so is the `perf-scope-skip` it turned up —
-   both built, applied to the real `game.dat`, caves executed under emulation, neither played.
-   [`perf-stage-readout.md`](perf-stage-readout.md), [`perf-scope-skip.md`](perf-scope-skip.md).
-2. **Measure.** A late-game Edain match with a large army: the twenty-eight named stages out of
-   the `.perfstg` block, and the lock traffic from §5.2 while you are there. This is the step
-   everything below is waiting on.
-3. **§5.2 `device-lock`** if the lock traffic is real; **§5.4 `pace-sleep`** regardless, it is a
+1. **Measure.** A late-game Edain match with a large army: the twenty-eight named stages out of
+   the `.perfstg` block ([`perf-stage-readout.md`](perf-stage-readout.md), with
+   [`perf-scope-skip.md`](perf-scope-skip.md) beside it), and the lock traffic from §5.2 while you
+   are there. Everything below is waiting on it.
+2. **§5.2 `device-lock`** if the lock traffic is real; **§5.4 `pace-sleep`** regardless, it is a
    few bytes.
-4. **§5.5 `present-device-loss`** as an independent RE task whenever someone wants one — it is the
-   best-value item here that has nothing to do with threading.
-5. **Revisit Tier 2 with numbers**, and with §4.3's `logicspread` question costed against a real
-   profile rather than a description of one.
-6. **Amend [`multicore.md`](multicore.md)** — §4's first row, §3.2's conclusion, §3.3's status and
-   §6's premise. Its analysis survives; three of its verdicts do not.
+3. **§5.5's open question** — whether the engine checks `Present`'s `HRESULT` — as an independent
+   RE task.
+4. **§4.3's `logicspread`**, costed against a real profile rather than a description of one.
 
 ## Address table
 
@@ -464,7 +418,7 @@ Everything below was read from our `game.dat` on 2026-09-20, not from the DLL.
 | `0x00DD34C8` / `0x00DD34CC` | owning thread id and recursion count — must stay consistent (§5.2) |
 | `0x0051EEA0` | "this thread owns the device" predicate — the correctness condition for §5.2 |
 | `0x005240E1` | the `D3DCREATE_MULTITHREADED` byte, `83 C0 40` → `83 C0 44` (§4.2) |
-| `0x005241B6` / `0x00524222` | the two `IDirect3D9::CreateDevice` calls (§5.5 starts here) |
+| `0x005241B6` / `0x00524222` | the two `IDirect3D9::CreateDevice` calls (§5.5) |
 | `0x0063A1DC` | the `Sleep(0)` pace spin; `0x0063A1AD` the `ftol` (§5.4) |
 | `0x006056E5` | `LoadLibraryA("DebugWindowLite.dll")`, handle to `0x00DE3B98` (§6) |
 | `0x0056C600` | the brute-force mesh cast (§5.6) |

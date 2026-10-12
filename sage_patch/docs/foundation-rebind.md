@@ -380,14 +380,14 @@ match, and a fifth level of nesting loses a rebind instead of binding the wrong 
 
 ### 5.1 Why `m_builtOnID` alone is not enough on a castle plot
 
-The first build rebound `m_builtOnID` and nothing else, on the reasoning that
-`FoundationAIUpdate` and `CastleBehavior` share the interface and the field. In a match it left a
-converted settlement **capturable**: the AI walked a squad onto the flag, took it, and the
-replacement went with it — because the patch had made the replacement the plot's occupant, and
-`CastleBehavior::forEachCastleObject` (`0x007999E2`) enumerates the occupant through interface
-slot `+0x18` and hands it to whoever captures the castle.
+`FoundationAIUpdate` and `CastleBehavior` share the interface and the field, so rebinding
+`m_builtOnID` alone looks sufficient. In a match it leaves a converted settlement **capturable**:
+the AI walks a squad onto the flag, takes it, and the replacement goes with it — because the
+replacement is the plot's occupant, and `CastleBehavior::forEachCastleObject` (`0x007999E2`)
+enumerates the occupant through interface slot `+0x18` and hands it to whoever captures the castle.
 
-Read live out of a running match (`sage_live`, one Edain skirmish, the two flags side by side):
+Read live out of a running match with only `m_builtOnID` rebound (`sage_live`, one Edain skirmish,
+the two flags side by side):
 
 | | flag holding a mine shaft | flag holding a replacement | an unbuilt flag |
 |---|---|---|---|
@@ -396,15 +396,14 @@ Read live out of a running match (`sage_live`, one Edain skirmish, the two flags
 | `module+0x34` state | 4 | 0 | 0 |
 | `module+0x38` keep | the mine shaft | 0 | 0 |
 
-In every field but the one the patch maintained, the converted plot was **byte-identical to an
-empty one**. Three mechanisms follow from that, and only the first reads `m_builtOnID`:
+In every field but `m_builtOnID`, that converted plot is **byte-identical to an empty one**. Three
+mechanisms follow from that, and only the first reads `m_builtOnID`:
 
-- `isOccupied` (`0x0097031D`) — the interface's own question, and the one the patch answered.
+- `isOccupied` (`0x0097031D`) — the interface's own question.
 - **The capture tick.** `CastleBehavior`'s per-frame capture pass (`0x0079B3C4`) opens with a
   gate at `0x007983E3` that returns false — no capture — unless `module+0x34` is zero *and* the
   byte at `module+0x3c` is zero. `module+0x34` is what says "something stands on me". This is the
-  whole of why an ordinary farm's flag is never captured while the farm is up, and it is the field
-  the first build left at 0. (`CastleBehavior::isPlayerAllowedToCapture`, `0x0079A3D9`, is only
+  whole of why an ordinary farm's flag is never captured while the farm is up. (`CastleBehavior::isPlayerAllowedToCapture`, `0x0079A3D9`, is only
   *who* may capture — not already mine, and my faction is in `CastleToUnpackForFaction`. It never
   looks at occupancy, which is why the gate above has to.)
 - **The keep.** `module+0x38` is polled against `findObjectByID` every update (`0x00799B13`), so
@@ -498,15 +497,15 @@ These are the claims the running game settled, in the order they would have bitt
 1. **Which module Edain's settlement flag carries — and that sharing the interface is not enough.**
    `WirtschaftPlotFlag_Real` carries `CastleBehavior`, and the structures that stand on it are its
    **keep**: `DwarvenMineShaft`, `DorwinionVineyard` and the `VineyardControlPing` dud are all
-   `CASTLE_KEEP`. The first build rebound only the field the two modules share, and the converted
-   plot came out capturable — §5.1 has the live comparison and the three fields that follow, which
-   hook 2 now maintains through `onStructureBuilt`. The castle's member vector (`+0x50`/`+0x74`) is
+   `CASTLE_KEEP`. Rebinding only the field the two modules share leaves the converted plot
+   capturable — §5.1 has the live comparison and the three fields that follow, which hook 2
+   maintains through `onStructureBuilt`. The castle's member vector (`+0x50`/`+0x74`) is
    still untouched, and reads empty on both flags of the measured match: a settlement castle keeps
    its occupant in the keep and the interface field, not in that vector. A camp whose members are
    populated is the case that has not been exercised.
 2. **That `onDelete` is what pops the flag in the Iron Hills case**, i.e. that the settlement
    building really carries `GettingBuiltBehavior`. A breakpoint on `0x0085757F` during one vineyard
-   conversion settles it. It is no longer load-bearing for correctness — hook 2 commits on a plot
+   conversion settles it. It is not load-bearing for correctness — hook 2 commits on a plot
    that is free *or* still naming the destroyed object, so the poll-only world works too — but it
    decides whether hook 1 is doing anything, and a hook that never fires should be known about.
 3. **The vtable-slot names.** `+0x20` of the module vtable is `onDelete` by shape — no arguments,

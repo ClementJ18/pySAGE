@@ -171,6 +171,7 @@ def rebuild_schema(cls: type["IniObject"]) -> None:
         nested.update(base.__dict__.get("nested_attributes", {}))
         groups.update(base.__dict__.get("marker_groups", {}))
         aliases.update(base.__dict__.get("field_aliases", {}))
+        noops.update(base.__dict__.get("stock_noops", {}))
         noops.update(base.__dict__.get("_engine_noops", {}))
     # A nested or marker group may carry a `list[...]` annotation purely so the IDE knows
     # its element type; it's served by its own `__getattr__` branch, not lazy conversion,
@@ -250,6 +251,10 @@ class IniObject:
     # renamed to the annotation on load, so conversion, attribute access and the coverage rule
     # all see one canonical name. Accumulated down the MRO into `_field_aliases`.
     field_aliases: dict[str, str] = {}
+    # Fields the stock engine parses but never acts on, mapped to why. The value is still typed
+    # and converted, so a bad reference is still reported, and `patched-out-field` warns that
+    # it does nothing. Accumulated down the MRO into `_noops`, beneath any an engine adds.
+    stock_noops: dict[str, str] = {}
     # Child block names this block claims for a specific class, overriding the name-keyed
     # classification. A nested `Object … End` inside a `LivingWorldBuildingIcon` is a drawable
     # sub-object, not the global `Object` type it shares a keyword with; mapping it here keeps it

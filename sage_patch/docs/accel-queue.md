@@ -1,6 +1,6 @@
 # How `bfme2_accel.dll` queues Direct3D work
 
-Read 3 of [`accel-port.md`](accel-port.md) §6: the enqueue (`0x1003E240`), the worker
+The enqueue (`0x1003E240`), the worker
 (`0x100448B0`) and the dispatch (`0x1003F590`) that [`accel-thread-identity.md`](accel-thread-identity.md)
 §5 left unread. Read 2026-09-24 from the DLL's machine code, with the author's permission, using
 `pefile` + `capstone`. DLL addresses are `bfme2_accel.dll` at its ImageBase `0x10000000`.
@@ -18,16 +18,15 @@ Read 3 of [`accel-port.md`](accel-port.md) §6: the enqueue (`0x1003E240`), the 
   `TestCooperativeLevel`, `QueryInterface` — **drain the whole queue and then run directly under the
   lock.** No method is special-cased in the choice.
 - **So a getter is a full pipeline stall, and the design works only because the engine rarely asks.**
-  This is the correctness-for-free half of the design and its performance risk in one line. A port
-  inherits both; the thing to measure is how many drains a frame costs (§5).
+  This is the correctness-for-free half of the design and its performance risk in one line; the
+  thing to measure is how many drains a frame costs (§5).
 - **Two tricks turn "returns something" into "queueable" where it matters:**
   `Present` returns the *previous* frame's `HRESULT` (read 2), and effect-parameter lookups return a
   **synthetic `D3DXHANDLE`** (`0xFFFF0003 | idx << 2`) that the worker resolves into a table when the
   lookup actually runs. The second is the more interesting: it is what lets the effect half of the
   frame stay asynchronous at all.
 - **Nothing here needs an engine address.** Like read 1, this is D3D9 knowledge, not SAGE knowledge.
-  That is good for a port (it is specifiable from the D3D9 headers alone) and it confirms that the
-  engine-specific parts of the DLL are the lock mirrors and the special-cased write paths, which are
+  It is specifiable from the D3D9 headers alone, and it confirms that the engine-specific parts of the DLL are the lock mirrors and the special-cased write paths, which are
   still unread.
 
 ## 1. The ring
@@ -89,8 +88,7 @@ argument and sets its bit — `SetTexture` does `call [vtbl+4]` then `or word [r
 argument 2 (`0x1000D4F5`..`0x1000D4FA`) — and the worker `Release`s each masked argument after the
 call (`0x1003FADE`..`0x1003FB15`). **It is switchable**: the `AddRef` is gated on the byte at
 `0x100BB044`, which is the log's "per-call object refs %s". With it off, the design relies on the
-engine not freeing a bound resource within one frame — plausible for SAGE, and a port should start
-with it on.
+engine not freeing a bound resource within one frame — plausible for SAGE, but unverified.
 
 ## 3. The dispatch
 
@@ -119,8 +117,8 @@ takes a handle tests for the pattern (`and eax, 0xFFFF0003; cmp eax, 0xFFFF0003`
 and substitutes the table entry, or rejects the call with `D3DERR_INVALIDCALL` if the lookup has not
 run yet (`0x1001CEEA`..`0x1001CEF2`, guarded by a per-slot ready byte at `[0x101A9CA8 + idx]`).
 
-That rejection is a real behaviour difference from stock, visible to the caller, and a port must
-decide whether to reproduce it or drain instead.
+That rejection is a real behaviour difference from stock, visible to the caller; draining instead
+would avoid it.
 
 ### 3.2 Coalescing
 
@@ -133,8 +131,8 @@ elimination should live. **Not read.**
 ## 4. The worker, and the flush
 
 **Worker** (`0x100448B0`): records its thread id (`0x10153D68`), loads the game thread's `MXCSR`
-(`0x10155730` — so SSE rounding and denormal behaviour match the thread whose calls it replays; a
-detail a port must not drop), signals ready, then loops:
+(`0x10155730` — so SSE rounding and denormal behaviour match the thread whose calls it replays),
+signals ready, then loops:
 
 1. **Idle:** spin up to `0xFA0` `pause`s on the published offset; then set `0x10153DBC` and
    `WaitForSingleObject(0x10153DAC, 2 ms)`. The 2 ms timeout means a missed wake costs at most 2 ms.
@@ -157,24 +155,17 @@ keeps running. The worker decrements the count and signals `0x10153DB4` when a `
 (`0x1003FB1D`). **So the game thread can be at most one frame ahead of the GPU submission.** That is
 the whole latency cost of the design, and it is bounded.
 
-## 5. What this means for the port
+## 5. Where the cost lives
 
-[`accel-port.md`](accel-port.md) §6 chose B2, a native module of our own. This read is the core of it,
-and it sizes the core smaller than feared:
+The queue is the small part: ring, header, commit, worker, flush and throttle are specifiable from
+the D3D9 headers, and the wrapper table is mechanical — 119 device methods, 79 effect methods and
+the resource interfaces, each either "queue" or "drain then call" by return type. The engine-specific
+cost is in the lock mirrors (kinds `3`, `7`, `9`), the synthetic handles and the dedupe, which is why
+the DLL's engine-address list is mostly about writes that bypass the device.
 
-- **The queue itself is a weekend, not a quarter.** Ring, header, commit, worker, flush, throttle:
-  perhaps 400 lines of C. It is specifiable from the D3D9 headers — the kind-`1` rule needs only each
-  method's argument count and which arguments are pointers to copy or objects to `AddRef`.
-- **The wrapper table is generated, not written.** 119 device methods, 79 effect methods, and the
-  resource interfaces, each either "queue" or "drain then call" by return type. A table in Python that
-  emits the C thunks is the obvious shape, and it is where `sage_patch`'s habits carry over.
-- **The cost lives where it lived before this read**: the lock mirrors (kinds `3`, `7`, `9`), the
-  synthetic handles, and the dedupe. Those need the engine's lock patterns, which is why the DLL's
-  engine-address list is mostly about writes that bypass the device.
-- **The measurement a port needs is drains per frame.** Every getter or creator the engine calls
-  mid-frame costs a full stall. The DLL counts these (`0x10153F10` per method id); ours should too
-  from day one, because that number decides whether the render thread is a win on Edain's content at
-  all.
+**The number that decides whether the render thread pays is drains per frame.** Every getter or
+creator the engine calls mid-frame costs a full stall. The DLL counts these (`0x10153F10` per method
+id); [`accel-module.md`](accel-module.md) §4 has the counts on Edain.
 
 ## 6. Not established by this read
 

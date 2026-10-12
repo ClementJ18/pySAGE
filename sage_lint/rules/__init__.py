@@ -14,6 +14,7 @@ from sage_lint.rules.commandset import (
     InitialVisibleLimitRule,
     PushCommandRangeOverflowRule,
 )
+from sage_lint.rules.contains import UnreachableContainRule
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
     UnusedDefinitionRule,
@@ -73,6 +74,7 @@ __all__ = [
     "SpuriousBlockLabelRule",
     "UndefinedMacroRule",
     "UnknownAttributeRule",
+    "UnreachableContainRule",
     "UnrecognizedBlockRule",
     "UnknownStringLabelRule",
     "UpgradeAliasConflictRule",

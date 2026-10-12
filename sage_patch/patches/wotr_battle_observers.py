@@ -46,7 +46,7 @@ from ..addresses import (
     THE_GAME_LOGIC,
     THE_LIVING_WORLD_LOGIC,
 )
-from ..asm import JAE, JE, JGE, JL, JNE, Asm
+from ..asm import JA, JAE, JB, JE, JGE, JL, JNE, Asm
 from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, find_section, va_to_offset
 
@@ -197,8 +197,27 @@ REVEAL_CALL_BYTES = bytes.fromhex("e8feda5100")
 START_POSITION_VA = 0x006311D3
 START_POSITION_BYTES = bytes.fromhex("8b46104050")
 
-#: The side every game carries, and the seat a peer with no side of its own belongs in.
+#: The side every game carries, and the stem of each observer seat's own side name. A seat is
+#: named `ReplayObserver<slot + 1>`, not the bare name, because every lookup that turns a side into
+#: a player is by name - the per-seat shroud set-up (`0x0062FE93`), the default team
+#: (`"team" + name`, `0x0062814D`) and the `playerAllies` / `playerEnemies` lists other seats are
+#: built with. Two seats sharing one name resolve to one player: the second and later observers got
+#: no shroud and a black screen, and the first was allied with every team and saw every army.
 OBSERVER_SIDE_NAME = b"ReplayObserver"
+#: Where the seat's digit goes in the cave's copy of the name: right after the stem.
+OBSERVER_DIGIT_INDEX = len(OBSERVER_SIDE_NAME)
+
+# `Player::initFromSide`, deciding whether a side is the observer: `push <"ReplayObserver">` /
+# `mov ecx, eax` (the side's `playerName`) / `mov [ebp-0x2c], 1`, then
+# `call AsciiString::compare(const char *)` (`0x00406585`, thiscall, `ret 4`, **0 when equal** -
+# it wraps the length-taking compare at `0x00406307`). `test eax, eax` / `je` after it reads "this
+# is the observer, skip the human set-up". The call is the hook: it accepts the stem followed by
+# at most one character, so a numbered seat is an observer exactly as the bare name is and a
+# replay is untouched.
+OBSERVER_NAME_TEST_RUNUP_VA = 0x006B0A70
+OBSERVER_NAME_TEST_RUNUP_BYTES = bytes.fromhex("68a8d4bf008bc8c745d401000000")
+OBSERVER_NAME_TEST_VA = 0x006B0A7E
+OBSERVER_NAME_TEST_BYTES = bytes.fromhex("e8025bd5ff")
 
 # The routines the cave calls, fingerprinted by their prologues so a build where one of them moved
 # fails here instead of calling something else with a living-world player id.
@@ -239,6 +258,11 @@ ANCHORS: tuple[tuple[int, bytes, str], ...] = (
         SHROUD_REVEAL_ALL,
         bytes.fromhex("8b4910e9881c0000"),
         "ShroudManager::revealMapForPlayer",
+    ),
+    (
+        OBSERVER_NAME_TEST_RUNUP_VA,
+        OBSERVER_NAME_TEST_RUNUP_BYTES,
+        "initFromSide's ReplayObserver name test",
     ),
 )
 
@@ -515,14 +539,18 @@ def build_cave(section_va: int) -> tuple[bytes, dict[str, int]]:
 
     # hook_assign: the seat's name, on its way into `GameSlot::m_mapPlayer`. `hook_name` has
     # already answered for this slot earlier in the same iteration, so the flag is current; when it
-    # said observer, whatever the arms formatted is thrown away and the name becomes the one side
-    # that is always there to receive it. `pushad` because the helper's register discipline is not
-    # this patch's to assume, and the two displaced `lea`s have to come after it to survive.
+    # said observer, whatever the arms formatted is thrown away and the name becomes
+    # `ReplayObserver<slot + 1>` - a side of its own, which `hook_observer_name` still recognises as
+    # the observer. `pushad` because the helper's register discipline is not this patch's to
+    # assume, and the two displaced `lea`s have to come after it to survive.
     a.label("hook_assign")
     a.emit(b"\x80\x3d", _imm(flag), 0x00)  # cmp  byte [flag], 0
     a.jcc(JE, "hook_assign_stock")
     a.emit(0x60)  # pushad
-    a.emit(0x68, _imm(side_name))  # push <"ReplayObserver">
+    a.emit(b"\x8b\x45", 0x100 - FRAME_SLOT_INDEX)  # mov  eax, [ebp-0x18]   ; 0..7
+    a.emit(b"\x04", ord("1"))  # add  al, '1'
+    a.emit(0xA2, _imm(side_name + OBSERVER_DIGIT_INDEX))  # mov  [name+14], al
+    a.emit(0x68, _imm(side_name))  # push <"ReplayObserverN">
     a.emit(b"\x8d\x4d", 0x100 - FRAME_NAME_BUFFER)  # lea  ecx, [ebp-0x1c]
     a.call_absolute(ASCII_STRING_ASSIGN)  # call AsciiString::operator= ; ret 4
     a.emit(0x61)  # popad
@@ -692,6 +720,41 @@ def build_cave(section_va: int) -> tuple[bytes, dict[str, int]]:
     a.emit(0x52)  # push edx
     a.emit(0xC3)  # ret
 
+    # hook_observer_name: `AsciiString::compare(const char *)` for the one call that decides
+    # whether a side is the observer, answering as the stock callee does: 0 for a match, nonzero
+    # otherwise. The caller's `test eax, eax` / `je` skips a human seat's set-up on 0, so every
+    # ordinary player's set-up depends on the nonzero answer. A match is the stem itself, as
+    # stock, or the stem plus one more character - the seats `hook_assign` numbers.
+    # `ecx` is the side's `playerName` and
+    # `[esp+4]` the stock literal; an `AsciiString` is one pointer to `{refcount, u16 length, u16
+    # capacity, chars}`, null for the empty string.
+    a.label("hook_observer_name")
+    a.emit(0x56)  # push esi
+    a.emit(0x57)  # push edi
+    a.emit(b"\x8b\x01")  # mov  eax, [ecx]
+    a.emit(b"\x85\xc0")  # test eax, eax
+    a.jcc(JE, "on_no")
+    a.emit(b"\x0f\xb7\x50\x04")  # movzx edx, word [eax+4]
+    a.emit(b"\x83\xfa", OBSERVER_DIGIT_INDEX)  # cmp  edx, 14
+    a.jcc(JB, "on_no")
+    a.emit(b"\x83\xfa", OBSERVER_DIGIT_INDEX + 1)  # cmp  edx, 15
+    a.jcc(JA, "on_no")
+    a.emit(b"\x8d\x70\x08")  # lea  esi, [eax+8]
+    a.emit(b"\x8b\x7c\x24\x0c")  # mov  edi, [esp+0xc]   ; the literal
+    a.emit(0xB9, _imm(OBSERVER_DIGIT_INDEX))  # mov  ecx, 14
+    a.emit(0xFC)  # cld
+    a.emit(b"\xf3\xa6")  # repe cmpsb
+    a.jcc(JNE, "on_no")
+    a.emit(b"\x33\xc0")  # xor  eax, eax         ; equal
+    a.jmp("on_out")
+    a.label("on_no")
+    a.emit(b"\x33\xc0")  # xor  eax, eax
+    a.emit(0x40)  # inc  eax              ; different
+    a.label("on_out")
+    a.emit(0x5F)  # pop  edi
+    a.emit(0x5E)  # pop  esi
+    a.emit(b"\xc2\x04\x00")  # ret  4
+
     code = a.finish()
     entries = {
         name: a.label_va(name)
@@ -703,6 +766,7 @@ def build_cave(section_va: int) -> tuple[bytes, dict[str, int]]:
             "hook_number",
             "hook_reveal",
             "hook_start_pos",
+            "hook_observer_name",
         )
     }
     blob = bytearray(CODE_OFFSET)
@@ -728,12 +792,12 @@ class WotrBattleObserversPatch(Patch):
 
     name = "wotr-battle-observers"
     author = "officialNecro"
-    runtime_verified = "yes"
+    runtime_verified = "partly"
     description = (
         "Stop multiplayer War of the Ring auto-resolving a battle just because not everyone is "
         "in it, and seat the players who are not as observers instead of on somebody else's "
-        "army. Also numbers the attackers by participation rather than by lobby slot. No INI, "
-        ".str or .apt change"
+        "army, each seeing only what its lobby allies in the battle see. Also numbers the "
+        "attackers by participation rather than by lobby slot. No INI, .str or .apt change"
     )
 
     def apply(self, data: bytearray) -> None:
@@ -753,7 +817,7 @@ class WotrBattleObserversPatch(Patch):
             apply_byte_patch(data, off, stock, new, note)
 
     def _edits(self, section_va: int) -> list[tuple[int, bytes, bytes, str]]:
-        """`(site, stock bytes, replacement, note)` for all nine rewritten sites."""
+        """`(site, stock bytes, replacement, note)` for all ten rewritten sites."""
         entries = build_cave(section_va)[1]
         return [
             (
@@ -796,7 +860,7 @@ class WotrBattleObserversPatch(Patch):
                 ASSIGN_NAME_VA,
                 ASSIGN_NAME_BYTES,
                 _call_detour(ASSIGN_NAME_VA, entries["hook_assign"], len(ASSIGN_NAME_BYTES)),
-                "the seat's name -> the ReplayObserver side",
+                "the seat's name -> its own ReplayObserver<slot + 1> side",
             ),
             (
                 REVEAL_CALL_VA,
@@ -812,13 +876,23 @@ class WotrBattleObserversPatch(Patch):
                 ),
                 "the opening camera: lend the observer a participant's start position",
             ),
+            (
+                OBSERVER_NAME_TEST_VA,
+                OBSERVER_NAME_TEST_BYTES,
+                _call_detour(
+                    OBSERVER_NAME_TEST_VA,
+                    entries["hook_observer_name"],
+                    len(OBSERVER_NAME_TEST_BYTES),
+                ),
+                "initFromSide's observer test: accept the numbered ReplayObserver seats",
+            ),
         ]
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         """Return the structural problems that mean `data` does not carry this patch.
 
         Locates the cave, rebuilds it against the base VA it actually landed on, and compares
-        that and all nine edits with what is on disk. Reads only via `struct` and the section
+        that and all ten edits with what is on disk. Reads only via `struct` and the section
         table, so verification needs no disassembler.
         """
         located = find_section(data, SECTION_NAME)

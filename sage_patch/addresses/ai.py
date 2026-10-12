@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 __all__ = [
+    "ACTION_MANAGER_CAN_ENTER_OBJECT",
+    "ACTION_MANAGER_ENTER_HINT",
     "AI_ACTIVE_ATTACK_MACHINE",
     "AI_ACTIVE_ATTACK_MACHINE_BYTES",
     "AI_ATTACK_MACHINE_TARGET",
@@ -37,8 +39,46 @@ __all__ = [
     "AI_CURRENT_VICTIM_BYTES",
     "AI_CURRENT_VICTIM_ID_OFFSET",
     "AI_DATA_ARMY_DEFINITION",
+    "AI_DATA_SET_VALUE",
+    "AI_DATA_SET_VALUE_ENTRY",
     "AI_DESTROY_PATH",
     "AI_DESTROY_PATH_BYTES",
+    "AI_ENTER_AND_ATTACK_ON_ENTER_CONTAIN_LOAD",
+    "AI_ENTER_AND_ATTACK_ON_ENTER_CONTAIN_LOAD_BYTES",
+    "AI_ENTER_AND_ATTACK_ON_EXIT_RELEASE",
+    "AI_ENTER_AND_ATTACK_ON_EXIT_RELEASE_BYTES",
+    "AI_ENTER_AND_ATTACK_STATE_ON_ENTER",
+    "AI_ENTER_AND_ATTACK_STATE_ON_EXIT",
+    "AI_ENTER_AND_ATTACK_STATE_UPDATE",
+    "AI_ENTER_AND_ATTACK_STATE_VTABLE",
+    "AI_ENTER_AND_ATTACK_UPDATE_ADD_LOAD",
+    "AI_ENTER_AND_ATTACK_UPDATE_ADD_LOAD_BYTES",
+    "AI_ENTER_ON_ENTER_CONTAIN_LOAD",
+    "AI_ENTER_ON_ENTER_CONTAIN_LOAD_BYTES",
+    "AI_ENTER_ON_EXIT_RELEASE",
+    "AI_ENTER_ON_EXIT_RELEASE_BYTES",
+    "AI_ENTER_STATE_ON_ENTER",
+    "AI_ENTER_STATE_ON_EXIT",
+    "AI_ENTER_STATE_UPDATE",
+    "AI_ENTER_STATE_VTABLE",
+    "AI_ENTER_UPDATE_ADD_LOAD",
+    "AI_ENTER_UPDATE_ADD_LOAD_BYTES",
+    "AI_ENTER_UPDATE_ENTRY_LOAD",
+    "AI_ENTER_UPDATE_ENTRY_LOAD_BYTES",
+    "AI_FARM_KILL_SQUAD_BUILD",
+    "AI_FARM_KILL_SQUAD_BUILD_ENTRY",
+    "AI_FARM_KILL_SQUAD_BUILD_SLOT",
+    "AI_FARM_KILL_SQUAD_NAME_PUSH",
+    "AI_FARM_KILL_SQUAD_NAME_PUSH_BYTES",
+    "AI_FARM_KILL_SQUAD_NEXT_RUN_KEY",
+    "AI_FARM_KILL_SQUAD_RESET",
+    "AI_FARM_KILL_SQUAD_RESET_ENTRY",
+    "AI_FARM_KILL_SQUAD_RESET_SLOT",
+    "AI_FARM_KILL_SQUAD_RUN_GATE",
+    "AI_FARM_KILL_SQUAD_RUN_GATE_ENTRY",
+    "AI_FARM_KILL_SQUAD_RUN_GATE_SLOT",
+    "AI_FARM_KILL_SQUAD_SOURCE_FILE",
+    "AI_FARM_KILL_SQUAD_VTABLE",
     "AI_FLAG_CAPTURE_KEEP",
     "AI_FLAG_CAPTURE_PICKER",
     "AI_FLAG_CAPTURE_PICKER_CALL",
@@ -54,6 +94,10 @@ __all__ = [
     "AI_FLAG_CAPTURE_SQUAD_VTABLE",
     "AI_GOAL_IS_OBJECT_OFFSET",
     "AI_GROUP_DO_OBJECT_UPGRADE",
+    "AI_GROUP_ENTER_FILTER",
+    "AI_GROUP_ENTER_FILTER_MEMBER_TEST",
+    "AI_GROUP_ENTER_FILTER_MEMBER_TEST_BYTES",
+    "AI_GROUP_ENTER_FILTER_TARGET",
     "AI_GROUP_MEMBER_OBJECT",
     "AI_GROUP_MEMBER_SENTINEL",
     "AI_GROUP_UPGRADE_EBP",
@@ -89,6 +133,12 @@ __all__ = [
     "AI_MOVE_UPDATE_UNGUARDED_PATH_READ_BYTES",
     "AI_NEIGHBOUR_LIST_COPY",
     "AI_NEIGHBOUR_LIST_COPY_FAULT",
+    "AI_ORDER_PUMP_CAN_START_CALL",
+    "AI_ORDER_PUMP_CAN_START_CALL_BYTES",
+    "AI_ORDER_PUMP_NO_BUILDER_STOP",
+    "AI_ORDER_PUMP_NO_BUILDER_STOP_BYTES",
+    "AI_ORDER_PUMP_NO_BUILDER_TEST",
+    "AI_ORDER_PUMP_NO_BUILDER_TEST_BYTES",
     "AI_PATH_OFFSET",
     "AI_PLANNER_UNCHECKED_LOOKUPS",
     "AI_POWER_NOT_CAST",
@@ -142,8 +192,20 @@ __all__ = [
     "AI_SET_GOAL_POSITION",
     "AI_SET_GOAL_POSITION_BYTES",
     "AI_STATE_NO_PATH_UNSAFE",
+    "AI_STATE_ON_ENTER_SLOT",
+    "AI_STATE_ON_EXIT_SLOT",
+    "AI_STATE_UPDATE_SLOT",
+    "AI_TACTIC_PLAYER",
     "AI_TEAM_BUILDER_DONE_SIZE_CALL",
+    "AI_TEAM_BUILDER_PLAYER",
     "AI_TEAM_BUILDER_RECRUIT_SIZE_CALL",
+    "AI_TEAM_PROTOTYPE_FORBIDDEN_KIND_OF",
+    "AI_TEAM_PROTOTYPE_MAX_SIZE",
+    "AI_TEAM_PROTOTYPE_MIN_SIZE",
+    "AI_TEAM_RECRUIT_ACCEPT",
+    "AI_TEAM_RECRUIT_ACCEPT_CALLS",
+    "AI_TEAM_RECRUIT_ACCEPT_ENTRY",
+    "AI_TEAM_RECRUIT_FORBIDDEN_KIND_OF",
     "AI_TEAM_SIZE",
     "AI_TEAM_SIZE_BACK_EDGE",
     "AI_TEAM_SIZE_BACK_EDGE_BYTES",
@@ -159,6 +221,15 @@ __all__ = [
     "AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE",
     "AI_WAITING_FOR_PATH_OFFSET",
     "AI_WORLD_MODEL",
+    "ARMY_DEFINITION_MEMBERS",
+    "ARMY_DEFINITION_PHASE_DURATION_MID_GAME",
+    "ARMY_DEFINITION_PHASE_DURATION_RUSH",
+    "ARMY_MEMBER_DEFINITION_ALLOC",
+    "ARMY_MEMBER_DEFINITION_ALLOC_BYTES",
+    "ARMY_MEMBER_DEFINITION_FIELD_TABLE",
+    "ARMY_MEMBER_DEFINITION_FIELD_TABLE_REFS",
+    "ARMY_MEMBER_DEFINITION_FIELD_TABLE_REF_OPCODES",
+    "ARMY_MEMBER_DEFINITION_SIZE",
     "ATTACK_APPROACH_COMPUTE_PATH",
     "ATTACK_APPROACH_COMPUTE_PATH_BYTES",
     "ATTACK_APPROACH_GOAL_POS_OFFSET",
@@ -169,6 +240,8 @@ __all__ = [
     "ATTACK_APPROACH_UPDATE_INTERNAL_BYTES",
     "ATTACK_APPROACH_VTABLE",
     "BUILD_ASSISTANT_VTABLE",
+    "CAN_ENTER_OBJECT_CONTAIN_LOAD",
+    "CAN_ENTER_OBJECT_CONTAIN_LOAD_BYTES",
     "CAN_MAKE_UNIT",
     "CAN_MAKE_UNIT_ACCEPT",
     "CAN_MAKE_UNIT_BUMP_SLOT",
@@ -223,6 +296,10 @@ __all__ = [
     "DEPLOY_STYLE_UPDATE_RESOLVED_BYTES",
     "DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH",
     "DEPLOY_STYLE_UPDATE_RESOLVE_BRANCH_BYTES",
+    "ENTER_HINT_CONTAIN_LOAD",
+    "ENTER_HINT_CONTAIN_LOAD_BYTES",
+    "ENTER_HINT_SLAUGHTER_TEST",
+    "ENTER_HINT_SLAUGHTER_TEST_BYTES",
     "GATE_CLOSE_EPILOGUE",
     "GATE_CLOSE_EPILOGUE_BYTES",
     "GATE_CLOSE_FOR_PATHING",
@@ -248,6 +325,7 @@ __all__ = [
     "PATH_NODE_POS_OFFSET",
     "PLAYER_GET_BUILDABLE_HERO",
     "PLAYER_GET_BUILDABLE_HERO_ENTRY",
+    "SKIRMISH_AI_MANAGER_PLAYER_DATA",
     "SPELLBOOK_AI_REBUILD",
     "SPELLBOOK_AI_REBUILD_NAME",
     "SPELLBOOK_AI_TYPE_COUNT",
@@ -256,6 +334,7 @@ __all__ = [
     "SPELLBOOK_AI_TYPE_JUMP_TABLE",
     "SPELLBOOK_AI_TYPE_NAMES",
     "THE_AI",
+    "THE_SKIRMISH_AI_MANAGER",
 ]
 
 # `AIGroup::doObjectUpgrade(UpgradeTemplate *)`: the logic side of an `OBJECT_UPGRADE` click on a
@@ -359,6 +438,24 @@ AI_PRODUCER_ANY_BRANCH_ENTRY = bytes.fromhex("807d10007516")
 # (is it disabled) then `+0x44` (is its queue empty). `esi` is the producer's `ProductionUpdate`,
 # `edi` the candidate `Object`. This is the run of tests `UNDER_CONSTRUCTION` belongs in.
 AI_PRODUCER_USABLE_TESTS = 0x009A078A
+# The order pump's handling of a build order that cannot start because it has no builder, and
+# why one such order starves everything queued behind it. Derived in
+# `docs/ai-build-queue-skip.md`.
+
+#: `call` the order's "can this start now" (`0x00961975`, which calls the order's own vtable
+#: slot `+0x40`). `eax` comes back 0 to start the order, 9 or 10 to cancel it, 2 to end the
+#: walk, and 8 when the order has no builder it can use.
+AI_ORDER_PUMP_CAN_START_CALL = 0x008F1020
+AI_ORDER_PUMP_CAN_START_CALL_BYTES = bytes.fromhex("e850090700")
+#: `cmp eax, 8` / `jne +6` / `cmp dword [ebp-8], 0` - answer 8, and whether the AI's pool of
+#: free builders (the list at `AIPlayer+0x144`, counted into `[ebp-8]` before the walk) holds
+#: anything.
+AI_ORDER_PUMP_NO_BUILDER_TEST = 0x008F1029
+AI_ORDER_PUMP_NO_BUILDER_TEST_BYTES = bytes.fromhex("83f8087506837df800")
+#: `ja 0x008F1073` - with a builder in the pool, end the walk at this order. Without the
+#: branch the order falls through to the pump's ordinary "not this one, next" path.
+AI_ORDER_PUMP_NO_BUILDER_STOP = 0x008F1032
+AI_ORDER_PUMP_NO_BUILDER_STOP_BYTES = bytes.fromhex("773f")
 # `xor dl, dl` - the accept path, shared by both arms.
 AI_PRODUCER_ACCEPT = 0x009A07A0
 # `push dword [ebp+8]` - release this candidate and go round for the next one. Every one of the
@@ -440,6 +537,69 @@ AI_FLAG_CAPTURE_SQUAD_UPDATE = 0x009BC3F4
 # and the one anchor that cannot be a coincidence of layout.
 AI_FLAG_CAPTURE_SQUAD_NAME_PUSH = 0x009BC0A2
 AI_FLAG_CAPTURE_SQUAD_NAME_PUSH_BYTES = bytes.fromhex("68d0a3c800")
+# `AIFarmKillSquad`, the flag-capture tactic's sibling: a targetless tactic that sends one to three
+# idle battalions at an enemy economy building. Its vtable, and the slot the tactics generator asks
+# "may this run now" through. Derived in `docs/ai-farm-kill-gate.md`.
+AI_FARM_KILL_SQUAD_VTABLE = 0x00C8A1E0
+AI_FARM_KILL_SQUAD_RUN_GATE_SLOT = 0x04
+# `__thiscall bool(arg)`, `ret 4`. Its opening is the whole of what a wrapper needs to know: the
+# tactic's player sits at `+0x24` and goes to `TheSkirmishAIManager` for that player's AI record.
+AI_FARM_KILL_SQUAD_RUN_GATE = 0x009BB1C4
+AI_FARM_KILL_SQUAD_RUN_GATE_ENTRY = bytes.fromhex("568bf18b0d3849de0057ff7624e835e3ceff")
+# `push <"FarmKillSquad">` in the tactic's constructor, which is what names the vtable above.
+AI_FARM_KILL_SQUAD_NAME_PUSH = 0x009BB3D9
+AI_FARM_KILL_SQUAD_NAME_PUSH_BYTES = bytes.fromhex("68aca2c800")
+# The tactic's other two hooks. Slot 2 is `__thiscall void()`: it clears the player's "a squad is
+# out" variable and stores the frame the next squad may form, `now + GameLogicRandomValue(lo, hi)`
+# with `lo`/`hi` ten and sixty seconds. Slot 3 is `__thiscall bool(prototype, index)`, `ret 8`: it
+# writes the team prototype's forbidden `KindOf` mask and its min and max size.
+AI_FARM_KILL_SQUAD_RESET_SLOT = 0x08
+AI_FARM_KILL_SQUAD_RESET = 0x009BB226
+AI_FARM_KILL_SQUAD_RESET_ENTRY = bytes.fromhex("5657ff71248b0d3849de00")
+AI_FARM_KILL_SQUAD_BUILD_SLOT = 0x0C
+AI_FARM_KILL_SQUAD_BUILD = 0x009BB479
+AI_FARM_KILL_SQUAD_BUILD_ENTRY = bytes.fromhex("568b74240857ff7424108bf956")
+# The key of the "next run frame" variable slot 2 stores, as it pushes it, and the source path the
+# tactic passes to every random-number call.
+AI_FARM_KILL_SQUAD_NEXT_RUN_KEY = 0x00DEBEFC
+AI_FARM_KILL_SQUAD_SOURCE_FILE = 0x00C8A218
+# `__thiscall(key *, value)` on a player's AI record, `ret 8`: stores a named integer variable.
+AI_DATA_SET_VALUE = 0x006C7EC5
+AI_DATA_SET_VALUE_ENTRY = bytes.fromhex("ff74240481c17c010000")
+# The team recruiter's per-object test: `__thiscall bool(object, prototypePart, where)` on the
+# team builder, `ret 0xC`. `prototypePart` is the team prototype `+0x12C`; the test screens the
+# object against the required `KindOf` mask at part `+0x1B4` and the forbidden one at `+0x1D0`.
+# Its two live call sites are both in the recruiter (`0x009A2E06`).
+AI_TEAM_RECRUIT_ACCEPT = 0x009A24FC
+AI_TEAM_RECRUIT_ACCEPT_ENTRY = bytes.fromhex("53568b74240c85f657")
+AI_TEAM_RECRUIT_ACCEPT_CALLS = (0x009A2EEB, 0x009A2FFC)
+AI_TEAM_RECRUIT_FORBIDDEN_KIND_OF = 0x1D0
+# The same forbidden mask and the two sizes, from the prototype's own base.
+AI_TEAM_PROTOTYPE_FORBIDDEN_KIND_OF = 0x2FC
+AI_TEAM_PROTOTYPE_MIN_SIZE = 0x2D4
+AI_TEAM_PROTOTYPE_MAX_SIZE = 0x2D0
+# The `Player*` a team builder recruits for.
+AI_TEAM_BUILDER_PLAYER = 0x14
+# `ArmyDefinition`: the `std::vector<ArmyMemberDefinition *>` (`begin` here, `end` four bytes on)
+# and the two phase lengths, `Real` seconds.
+ARMY_DEFINITION_MEMBERS = 0x04
+ARMY_DEFINITION_PHASE_DURATION_RUSH = 0xB0
+ARMY_DEFINITION_PHASE_DURATION_MID_GAME = 0xB4
+# `ArmyMemberDefinition`: sixteen bytes - `Unit` and three percentages - allocated by its block
+# parser with `push 0x10` / `call operator new`, and a four-row field table with no terminator.
+ARMY_MEMBER_DEFINITION_SIZE = 0x10
+ARMY_MEMBER_DEFINITION_ALLOC = 0x0082FF02
+ARMY_MEMBER_DEFINITION_ALLOC_BYTES = bytes.fromhex("6a10e8d7f7bfff")
+ARMY_MEMBER_DEFINITION_FIELD_TABLE = 0x00C52538
+ARMY_MEMBER_DEFINITION_FIELD_TABLE_REFS = (0x0082FC89, 0x0082FF2A)
+ARMY_MEMBER_DEFINITION_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
+# The player a tactic belongs to, on the squad base class every targetless tactic shares.
+AI_TACTIC_PLAYER = 0x24
+# `TheSkirmishAIManager`, and its `__thiscall(player)` lookup of that player's AI record - null for
+# a player it does not know, `ret 4`. The record's `AI_DATA_ARMY_DEFINITION` is the
+# `ArmyDefinition` the player runs on.
+THE_SKIRMISH_AI_MANAGER = 0x00DE4938
+SKIRMISH_AI_MANAGER_PLAYER_DATA = 0x006A950B
 # The `SkirmishAI` team builder's size count, and why a team leaves with one battalion. Derived in
 # `docs/ai-team-size.md`.
 
@@ -859,3 +1019,90 @@ AI_POWER_TICK_RESUME = 0x008B745D
 #: next-wake computation.
 AI_POWER_NOT_CAST = 0x008B7493
 AI_POWER_NOT_CAST_BYTES = bytes.fromhex("8b4e148b015f5e5bff6010")
+
+# Entering a container, and the sites that ask the target's contain about one particular rider.
+# Derived in `docs/multi-contain.md`.
+
+#: `ActionManager::canEnterObject(Object *rider, Object *target, CommandSourceType, Int mode,
+#: Bool checkCapacity, Bool *outFlag)`, `__thiscall` on `[THE_ACTION_MANAGER]`, `ret 0x18`. The
+#: test behind the client's enter command (context kinds 8, 9 and 15) and the enter states' own
+#: re-check every frame; twelve callers in all.
+ACTION_MANAGER_CAN_ENTER_OBJECT = 0x0082CBD5
+#: `mov ebx, [edi+0x258]` / `test ebx, ebx` / `je fail`: the target's contain, loaded once with
+#: `esi` the rider and `edi` the target. Every contain question the predicate asks after this one
+#: is asked of `ebx`.
+CAN_ENTER_OBJECT_CONTAIN_LOAD = 0x0082CC38
+CAN_ENTER_OBJECT_CONTAIN_LOAD_BYTES = bytes.fromhex("8b9f5802000085db0f846f010000")
+#: `(Object *target, list<Drawable *> *selection)`, `ret 8`: the hint (cursor) for entering
+#: `target` with the current selection - `0xCB` when the contain answers
+#: `CONTAIN_IS_SLAUGHTER_SLOT`, otherwise `0xB9`, `0xBA` or `0xCC`.
+ACTION_MANAGER_ENTER_HINT = 0x0082CEFB
+#: `mov ebx, [edi+0x258]` / `test ebx, ebx` / `je`: `edi` the target and `esi` the selection,
+#: already known not to be empty. The first selected drawable is `[[[esi]]+8]`.
+ENTER_HINT_CONTAIN_LOAD = 0x0082CF1A
+ENTER_HINT_CONTAIN_LOAD_BYTES = bytes.fromhex("8b9f5802000085db0f8499000000")
+#: `mov eax, [ebx]` / `mov ecx, ebx` / `call [eax+0x30]` / `test al, al` / `mov eax, 0xCB`: the
+#: slaughter test, asked of the `ebx` the load above produced.
+ENTER_HINT_SLAUGHTER_TEST = 0x0082CFB1
+ENTER_HINT_SLAUGHTER_TEST_BYTES = bytes.fromhex("8b038bcbff503084c0b8cb000000")
+
+#: An AI `State`'s vtable: `+0` the name, `+4` the destructor, then the three the machine drives.
+AI_STATE_ON_ENTER_SLOT = 0x08
+AI_STATE_ON_EXIT_SLOT = 0x0C
+AI_STATE_UPDATE_SLOT = 0x10
+#: `AIEnterState`, the state a unit runs to walk into a container; its slot 0 returns the string
+#: `"AIEnterState"` at `0x00C29538`. In all three routines `[this+0x18]+0x14` is the rider, and the
+#: target is the state's goal object (`0x008DBACE`) or, in `onExit`, its `ObjectID` at `this+0x4C`.
+AI_ENTER_STATE_VTABLE = 0x00C294F8
+AI_ENTER_STATE_ON_ENTER = 0x007515E1
+AI_ENTER_STATE_ON_EXIT = 0x00752B0F
+AI_ENTER_STATE_UPDATE = 0x00756067
+#: `onEnter`, past its `canEnterObject`: `mov ecx, [ebx+0x258]` / `cmp ecx, edi` /
+#: `mov [esp+0x14], ecx` / `je`. The contain's entry position (`+0x158`) becomes the walk's goal
+#: and the rider is recorded through `CONTAIN_RIDER_INTENT_SLOT`. `ebx` target, `esi` rider.
+AI_ENTER_ON_ENTER_CONTAIN_LOAD = 0x00751645
+AI_ENTER_ON_ENTER_CONTAIN_LOAD_BYTES = bytes.fromhex("8b8b580200003bcf894c241474578b01")
+#: `update`'s goal refresh: `mov ecx, [ebp+0x258]` / `test ecx, ecx` / `je` / entry position.
+#: `ebp` target, `ebx` rider.
+AI_ENTER_UPDATE_ENTRY_LOAD = 0x007560AB
+AI_ENTER_UPDATE_ENTRY_LOAD_BYTES = bytes.fromhex("8b8d5802000085c9740c8b01ff9058010000")
+#: `update`'s arrival: `mov esi, [ebp+0x258]` / `cmp esi, edi` / `je` / entry position, then a
+#: distance test and `addToContain(rider)` (`+0x9C`) on the same `esi`. `ebp` target, `ebx` rider.
+AI_ENTER_UPDATE_ADD_LOAD = 0x0075618C
+AI_ENTER_UPDATE_ADD_LOAD_BYTES = bytes.fromhex("8bb5580200003bf774648b068bceff9058010000")
+#: `onExit`: `mov ecx, [eax+0x258]` / `test ecx, ecx` / `je out` / `mov eax, [ecx]` / `push 2` /
+#: `push ebx` / `call [eax+0x44]` - the release of the rider recorded on enter. `eax` the target,
+#: found again from its id, `ebx` the rider; `out` is the next instruction.
+AI_ENTER_ON_EXIT_RELEASE = 0x00752B5B
+AI_ENTER_ON_EXIT_RELEASE_BYTES = bytes.fromhex("8b885802000085c974088b016a0253ff5044")
+#: `AIEnterAndAttackState`, entering a container an enemy holds. Slot 0 returns
+#: `"AIEnterAndAttackState"` at `0x00C295E8`; the three routines mirror `AIEnterState`'s.
+AI_ENTER_AND_ATTACK_STATE_VTABLE = 0x00C295A8
+AI_ENTER_AND_ATTACK_STATE_ON_ENTER = 0x00751777
+AI_ENTER_AND_ATTACK_STATE_ON_EXIT = 0x00752B73
+AI_ENTER_AND_ATTACK_STATE_UPDATE = 0x0075620A
+#: `mov ecx, [edi+0x258]` / `test ecx, ecx` / `mov [ebp-4], ecx` / `je` / entry position.
+#: `edi` target, `esi` rider.
+AI_ENTER_AND_ATTACK_ON_ENTER_CONTAIN_LOAD = 0x007517E7
+AI_ENTER_AND_ATTACK_ON_ENTER_CONTAIN_LOAD_BYTES = bytes.fromhex(
+    "8b8f5802000085c9894dfc74288b01ff9058010000"
+)
+#: `mov ebp, [ebp+0x258]` / `cmp ebp, esi` / `je` / `addToContain(ebx)`. `ebp` is the target and
+#: then its contain; `ebx` the rider.
+AI_ENTER_AND_ATTACK_UPDATE_ADD_LOAD = 0x00756368
+AI_ENTER_AND_ATTACK_UPDATE_ADD_LOAD_BYTES = bytes.fromhex(
+    "8bad580200003bee740c8b4500538bcdff909c000000"
+)
+#: The same 18 bytes as `AI_ENTER_ON_EXIT_RELEASE`, with the same registers.
+AI_ENTER_AND_ATTACK_ON_EXIT_RELEASE = 0x00752BDC
+AI_ENTER_AND_ATTACK_ON_EXIT_RELEASE_BYTES = AI_ENTER_ON_EXIT_RELEASE_BYTES
+#: `AIGroup`'s pre-enter filter, `(command)`, `ret 4`, run before the group hands out enter
+#: orders: each member the target's contain refuses is dropped from the group, and the command
+#: fails if that empties it. The target `Object` is `[command+AI_GROUP_ENTER_FILTER_TARGET]`.
+AI_GROUP_ENTER_FILTER = 0x0076F518
+AI_GROUP_ENTER_FILTER_TARGET = 0x0C
+#: The per-member question: `mov eax, [esi]` / `push 1` / `push 0` / `push ebx` / `mov ecx, esi` /
+#: `call [eax+0x98]`, with `esi` the contain loaded once outside the loop, `ebx` the member and
+#: `ebp` the filter's frame. Followed by `test al, al` / `jne keep`.
+AI_GROUP_ENTER_FILTER_MEMBER_TEST = 0x0076F540
+AI_GROUP_ENTER_FILTER_MEMBER_TEST_BYTES = bytes.fromhex("8b066a016a00538bceff909800000084c0750d")

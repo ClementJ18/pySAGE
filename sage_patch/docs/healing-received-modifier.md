@@ -207,33 +207,26 @@ name walk at `0x00804CAD` (the imm32 operands at `0x00804CB3` and `0x00804CBA`).
 list starts four bytes past its terminator, so **there is no slack** and the table has to be rebuilt
 in a cave with both references repointed.
 
-`production-split` already does that, and does it **from stock constants**:
-`STOCK_TYPE_COUNT = 28`, a fingerprint asserting index 27 spells `INVULNERABLE`, and new indices
-computed as `28 + position` in `NEW_TYPES`
-([`patches/production_split.py`](../patches/production_split.py)). Applied in either order, the two
-patches collide: `production-split` second would rebuild from stock and drop `HEALING_RECEIVED`;
-`healing-received` second would fail its own stock fingerprint.
+`production-split` appends to the same table
+([`patches/production_split.py`](../patches/production_split.py)), so the two patches have to
+compose in either order. A rebuild from stock constants would not: whichever ran second would
+either drop the other's entry or fail its own stock fingerprint.
 
-The repo already has the answer for three other tables.
-[`patches/utils/name_tables.py`](../patches/utils/name_tables.py) exists precisely so that appends
+[`patches/utils/name_tables.py`](../patches/utils/name_tables.py) is the pattern that makes appends
 compose — *"read the live table, wherever the image's references currently point and however many
 entries it currently has, rather than assuming the stock base and count"* — and
-`model_conditions`, `weapon_set_flags` and `locomotor_sets` are its three owners. The modifier
-table is the fourth, and nobody has written it because until now only one patch appended to it.
+`model_conditions`, `weapon_set_flags` and `locomotor_sets` are three of its owners. The modifier
+table is the fourth: `patches/utils/modifier_types.py` is built on that pattern, with
+`production-split` and `healing-received` as its two consumers. Three consequences:
 
-**So the work was: extract `patches/utils/modifier_types.py` on the `name_tables` pattern, refit
-`production-split` onto it, then add `healing-received` as its second consumer.** Two consequences
-followed, and they are why this was not a half-hour job:
-
-- **Indices became dynamic.** `production-split` used to bake `28 + position` into the bytes it
-  emits (a `push <type>` in each thunk) and into `ini_surface`. Both patches now take the index the
-  live table hands them at apply time; `ini_surface` claims **no** index, and `sagepatch` reads it
-  off the live table and fuses it with the patch's provenance, which is the mechanism `_fuse`
-  already existed for.
+- **Indices are dynamic.** Both patches take the index the live table hands them at apply time
+  and emit it in their bytes (a `push <type>` in each thunk); `ini_surface` claims **no** index,
+  and `sagepatch` reads it off the live table and fuses it with the patch's provenance, which is
+  the mechanism `_fuse` exists for.
 - **Neither `verify` may claim the two table operands.** Whichever appender ran last owns them.
   What both check instead is the invariant that survives either order: the walk reaches a table
   that gives this patch's keyword the index this patch's code was built to push.
-- **Worldbuilder needed a twin.** `Worldbuilder.exe` carries its own copy of the same table, and
+- **Worldbuilder needs a twin.** `Worldbuilder.exe` carries its own copy of the same table, and
   INI naming a token it does not know ends the editor's load. `healing-received-wb` is
   `production-split-wb`'s shape with one name, sharing the same reader.
 

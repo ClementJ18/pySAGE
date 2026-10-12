@@ -185,6 +185,12 @@ __all__ = [
     "LAN_PACK_NIBBLES_BYTES",
     "LAN_PARSE_CURSOR_EBP",
     "LAN_PARSE_END_EBP",
+    "LAN_REQUEST_JOIN_DENY_GONE",
+    "LAN_REQUEST_JOIN_HANDLER",
+    "LAN_REQUEST_JOIN_IGNORE",
+    "LAN_REQUEST_JOIN_NOT_HOSTING",
+    "LAN_REQUEST_JOIN_TARGET_TEST",
+    "LAN_REQUEST_JOIN_TARGET_TEST_BYTES",
     "LAN_UNPACK_NIBBLES",
     "LAN_UNPACK_NIBBLES_BYTES",
     "LAN_WRITE_BYTE",
@@ -287,6 +293,16 @@ __all__ = [
     "THE_SKIRMISH_GAME_INFO",
     "THE_TERRAIN_LOGIC",
     "THE_VICTORY_CONDITIONS",
+    "AIGROUP_REMOVE_NOT_OWNED_BY",
+    "AIGROUP_REMOVE_NOT_OWNED_BY_BYTES",
+    "AIGROUP_REMOVE_NOT_OWNED_BY_OWNER_CALL",
+    "AIGROUP_REMOVE_NOT_OWNED_BY_SENDER_ESP",
+    "SELF_DESTRUCT_DONE",
+    "SELF_DESTRUCT_DONE_BYTES",
+    "SELF_DESTRUCT_LEAVER_EBP",
+    "SELF_DESTRUCT_SCRATCH_EBP",
+    "SELF_DESTRUCT_TRANSFER_ARM",
+    "SELF_DESTRUCT_TRANSFER_ARM_BYTES",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -536,6 +552,23 @@ LAN_FACTION_READ_NEXT_AI = 0x0084B7D2
 LAN_FACTION_READ_NEXT_AI_BYTES = bytes.fromhex("ff75f08d45cc5053e861eeffff")
 LAN_PARSE_CURSOR_EBP = -0x14
 LAN_PARSE_END_EBP = -0x10
+#: The host's `MSG_REQUEST_JOIN` handler (`LANAPI` method, `ret 8`; derived in
+#: `docs/multi-instance.md`). It takes a request as addressed to it when the request's target
+#: (`msg+0x1E`) equals its own address's **IP** (`LAN_REQUEST_JOIN_TARGET_TEST`, `jne` to
+#: `LAN_REQUEST_JOIN_IGNORE`). It then denies with reason 8 (`LAN:ErrorGameGone`, "Game has already
+#: started") at `LAN_REQUEST_JOIN_DENY_GONE` if it is not hosting: in the LAN lobby (`lan+0x41`), no
+#: game (`lan+0x44`), or slot 0 not itself. Each `LAN_REQUEST_JOIN_NOT_HOSTING` entry is
+#: `(VA of the test, its bytes ending in that jcc rel32)`.
+LAN_REQUEST_JOIN_HANDLER = 0x0098A7F1
+LAN_REQUEST_JOIN_TARGET_TEST = 0x0098A81C
+LAN_REQUEST_JOIN_TARGET_TEST_BYTES = bytes.fromhex("8b4d088b491e3b080f85f3060000")
+LAN_REQUEST_JOIN_IGNORE = 0x0098AF1D
+LAN_REQUEST_JOIN_DENY_GONE = 0x0098AE92
+LAN_REQUEST_JOIN_NOT_HOSTING = (
+    (0x0098A83B, bytes.fromhex("807e41000f854d060000")),  # cmp byte [esi+0x41], 0 / jne
+    (0x0098A845, bytes.fromhex("8b464485c00f8442060000")),  # mov eax, [esi+0x44] / test / je
+    (0x0098A863, bytes.fromhex("e814e1cbff84c00f8422060000")),  # call <slot 0 is me> / test / je
+)
 #: `GameLogic::startNewGame`'s Random-faction pool: a loop over every template index that
 #: collects the playable ones (`cmp byte [esi+0x151], 0` / `je <next>`, index in `[ebp-0x10]`),
 #: which each Random slot then draws from after its start position's restrictions filter it.
@@ -996,3 +1029,35 @@ CASTLE_COMMAND_ANCHORS = {
     GAME_MESSAGE_GET_ARGUMENT_TYPE: bytes.fromhex("0fb64118394424047d208b41"),
     GAME_MESSAGE_APPEND_INTEGER: bytes.fromhex("e8c9feffff8b4c240483601800894808c20400"),
 }
+
+#: The leave order, `MSG_SELF_DESTRUCT` (`0x448`), in `GAME_LOGIC_DISPATCH_MESSAGE`. See
+#: `docs/shared-control-on-leave.md`. The case starts at `0x0077CA3D`; this is its `True` arm,
+#: from the first instruction after the Boolean test up to `SELF_DESTRUCT_DONE`: a search for
+#: the first undefeated mutual ally, `transferAssetsFromThat` onto it, and `killPlayer`. Nothing
+#: outside the arm branches into it. `ebx` is 0 throughout, `esi` the message,
+#: `[ebp + SELF_DESTRUCT_LEAVER_EBP]` the leaving `Player`, and the arm uses
+#: `[ebp + SELF_DESTRUCT_SCRATCH_EBP]` as its loop counter.
+SELF_DESTRUCT_TRANSFER_ARM = 0x0077CA56
+SELF_DESTRUCT_TRANSFER_ARM_BYTES = bytes.fromhex(
+    "8b0d2849de00395914895d087e798b45083b4614744a50e8dcb9f2ff8bf83bfb7438ffb70c0300008b4dece8"
+    "6511f3ff83f80275258b45ecffb00c0300008bcfe85011f3ff83f80275108b0dac89de008b0157ff504084c0"
+    "74138b0d2849de00ff45088b45083b41147ca3eb1a6a01ff75ec8bcfe8c92af3ff8b4dece8a5f3f2ff8b0d28"
+    "49de008b45083b411475088b4dece88ff3f2ff"
+)
+#: Where both of the arm's paths meet: `mov ecx, [TheGameEngine]` / `call 0x006328EE`.
+SELF_DESTRUCT_DONE = 0x0077CAED
+SELF_DESTRUCT_DONE_BYTES = bytes.fromhex("8b0d2443de00")
+SELF_DESTRUCT_LEAVER_EBP = -0x14
+SELF_DESTRUCT_SCRATCH_EBP = 0x08
+#: `AIGroup::removeAnyObjectsNotOwnedByPlayer(Player *)` whole - `__thiscall`, `ret 4`, `al` = 1
+#: when the group emptied. The only ownership check an order passes: the dispatcher builds the
+#: sender's selection as a group and filters it here, from its one caller at `0x00779B36`.
+#: `..._OWNER_CALL` is the `call OBJECT_GET_CONTROLLING_PLAYER` whose result is compared with the
+#: argument, which sits at `[esp + ..._SENDER_ESP]` at that `call`.
+AIGROUP_REMOVE_NOT_OWNED_BY = 0x0076ED16
+AIGROUP_REMOVE_NOT_OWNED_BY_BYTES = bytes.fromhex(
+    "5356578bf98b47048b303bf074278b5e0885db741b8bcbe846c9f1ff3b4424108b36740c538bcfe837ffffff"
+    "84c0750d3b770475d932c05f5e5bc20400b001ebf6"
+)
+AIGROUP_REMOVE_NOT_OWNED_BY_OWNER_CALL = 0x0076ED2D
+AIGROUP_REMOVE_NOT_OWNED_BY_SENDER_ESP = 0x10

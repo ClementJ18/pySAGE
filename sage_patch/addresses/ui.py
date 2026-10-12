@@ -253,6 +253,9 @@ __all__ = [
     "MP_SETUP_GADGET_HERO_TEST_RESUME",
     "MP_SETUP_GADGET_SLOT_EBP",
     "MP_SETUP_GADGET_UNKNOWN",
+    "MP_SETUP_GADGET_WOTR_SLOT_JB",
+    "MP_SETUP_GADGET_WOTR_SLOT_TEST",
+    "MP_SETUP_GADGET_WOTR_SLOT_TEST_BYTES",
     "MP_SETUP_GAME_INFO",
     "MP_SETUP_GET_GAME_INFO",
     "MP_SETUP_HISTORICAL_FIXUP",
@@ -266,6 +269,11 @@ __all__ = [
     "MP_SETUP_SELECTION_DONE",
     "MP_SETUP_SELECTION_UNMATCHED",
     "MP_SETUP_SELECTION_UNMATCHED_BYTES",
+    "MP_SETUP_SLOT_COMBO",
+    "MP_SETUP_SLOT_COMBO_WALK_DONE",
+    "MP_SETUP_SLOT_COMBO_WOTR_OPEN_GATE",
+    "MP_SETUP_SLOT_COMBO_WOTR_OPEN_GATE_BYTES",
+    "MP_SETUP_SLOT_COMBO_WOTR_OPEN_JE",
     "MP_SETUP_START_GATE_LOOP_INIT",
     "MP_SETUP_START_GATE_LOOP_INIT_BYTES",
     "MP_SETUP_STRATEGY",
@@ -916,6 +924,25 @@ MP_SETUP_GADGET_HERO_TEST_RESUME = 0x00840A71
 MP_SETUP_GADGET_FILED = 0x00840A8D
 MP_SETUP_GADGET_UNKNOWN = 0x00840AA3
 MP_SETUP_GADGET_SLOT_EBP = 0x10
+#: That rule: `cmp dword [ebp+0x10], 6` / `jb MP_SETUP_GADGET_UNKNOWN`, then the War of the Ring
+#: test and `Window::hide(TRUE)`. Every per-slot window of the seventh and eighth slot is hidden
+#: in War of the Ring, which is the six-player ceiling of its lobby. `..._JB` is the branch.
+MP_SETUP_GADGET_WOTR_SLOT_TEST = 0x00840A8E
+MP_SETUP_GADGET_WOTR_SLOT_TEST_BYTES = bytes.fromhex("837d1006720f")
+MP_SETUP_GADGET_WOTR_SLOT_JB = 0x00840A92
+#: `fillSlotStateCombo(slot)` (`ret 4`), the per-slot Open / Closed / AI combo box. Called from
+#: `0x00844F5E`, `0x00845555` and `0x00846875`. `bl` says whether the slot gets the `GUI:Open` row.
+#: In a networked War of the Ring lobby it is decided by a walk of slots 1-7: the first slot in
+#: state 0 (open) ends it with `bl = (that slot == this slot)`, and a seated human who is not an
+#: observer ends it with `bl = 0`. So only one slot at a time may be open, and none once a second
+#: human sits down - the two-human ceiling. `..._GATE` is the `cmp [ebp-0x24], 0` (no `GameInfo`)
+#: / `je` that enters the walk; `..._JE` its branch, to `MP_SETUP_SLOT_COMBO_WALK_DONE`, where the
+#: historical `MaxPlayers` cap is applied.
+MP_SETUP_SLOT_COMBO = 0x0084160F
+MP_SETUP_SLOT_COMBO_WOTR_OPEN_GATE = 0x00841789
+MP_SETUP_SLOT_COMBO_WOTR_OPEN_GATE_BYTES = bytes.fromhex("837ddc00744e")
+MP_SETUP_SLOT_COMBO_WOTR_OPEN_JE = 0x0084178D
+MP_SETUP_SLOT_COMBO_WALK_DONE = 0x008417DD
 #: The screen's per-slot `PlayerTemplate` combo boxes, one window pointer per slot.
 MP_SETUP_FACTION_WINDOWS = 0x334
 #: The constructor's `memset` of that array - `push 0x20` / `push 0` / `lea eax, [ebx+0x334]` then

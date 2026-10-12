@@ -21,6 +21,7 @@ from PyQt6.QtCore import (
     QMimeData,
     QObject,
     QPoint,
+    QRect,
     QSize,
     Qt,
     QTimer,
@@ -611,10 +612,11 @@ one of the chosen type and size, or drag to size it. <b>Grove</b>: choose up to 
 with their weights; click to place a cluster of the total count, or drag a rectangle to scatter
 them in it; trees keep out of water and off cliffs unless allowed. <b>Fence</b>: choose the object
 in the Object Palette and drag a row of it; hold Shift as you let go to stretch the row to the end
-of the drag. <b>Ramp</b>: drag from one end of the ramp to the other. <b>Border Tool</b>: click to
-add a border to the spot, drag a border's corner to resize it, Alt-click it to remove it. <b>Mesh
-Mold Tool</b>: choose a mold, its scale, height and angle, click the map to place it, then
-Apply.</p>
+of the drag. <b>Ramp</b>: drag from one end of the ramp to the other to lay it out, set its
+width, then Apply; the cells it leaves steep become impassable and the rest passable.
+<b>Border Tool</b>: click to add a border to the spot, drag a border's corner to resize it,
+Alt-click it to remove it. <b>Mesh Mold Tool</b>: choose a mold, its scale, height and angle,
+click the map to place it, then Apply.</p>
 <h3>Sounds and skybox</h3>
 <p><b>View &gt; Listen To Map</b> plays the ambient sounds of the objects around what the view
 looks at: those whose sound is enabled, those that loop, all of them, or none. The Object
@@ -834,11 +836,12 @@ class MainWindow(QMainWindow):
         self.generic_ai_tool = GenericAIObjectTool(self)
         self.water_tools = {kind: WaterTool(self, kind) for kind, *_ in _WATER_TOOLS}
         self.mesh_mold_tool = MeshMoldTool(self)
+        self.ramp_tool = RampTool(self)
         self.dressing_tools = {
             "scorch": ScorchTool(self),
             "grove": GroveTool(self),
             "fence": FenceTool(self),
-            "ramp": RampTool(self),
+            "ramp": self.ramp_tool,
             "border": BorderTool(self),
             "mesh mold": self.mesh_mold_tool,
         }
@@ -1644,14 +1647,16 @@ class MainWindow(QMainWindow):
         self.mp_positions_dock = self._dock(
             "Multiplayer Positions", "mpPositionsDock", self.mp_positions_panel, left
         )
-        for dock in (
-            self.players_dock,
-            self.teams_dock,
-            self.map_settings_dock,
-            self.mp_positions_dock,
-        ):
-            self.tabifyDockWidget(self.scripts_dock, dock)
-        self.scripts_dock.raise_()
+        for dock in (self.teams_dock, self.map_settings_dock, self.mp_positions_dock):
+            self.tabifyDockWidget(self.players_dock, dock)
+        self.players_dock.raise_()
+        # Scripts is a window of its own, as in the original editor, and comes up only when asked
+        # for: it wants more room than a side panel has.
+        self.scripts_dock.setFloating(True)
+        self.scripts_dock.hide()
+        # Whether the Scripts window has its place for this layout; until then, opening it puts
+        # it over the middle of the editor.
+        self._scripts_placed = False
 
         self.item_list_panel = ItemListPanel(
             self, self._select_team, self._zoom_to, self.map_view.set_shown, self._select_item
@@ -1723,6 +1728,10 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.map_dock, self.environment_dock)
         self.dressing_panel = DressingOptionsPanel()
         self.dressing_panel.mold_apply_requested.connect(self.apply_mesh_mold)
+        self.dressing_panel.ramp_apply_requested.connect(self.apply_ramp)
+        self.dressing_panel.ramp_width_box.valueChanged.connect(
+            lambda _width: self.active_view().update()
+        )
         self.dressing_dock = self._dock(
             "Dressing Options", "dressingOptionsDock", self.dressing_panel
         )
@@ -2663,6 +2672,11 @@ class MainWindow(QMainWindow):
         if not self._busy and self.mesh_mold_tool.apply(self.document):
             self.active_view().update()
 
+    def apply_ramp(self) -> None:
+        """Dressing Options' Apply: build the laid-out ramp."""
+        if not self._busy and self.ramp_tool.apply(self.document):
+            self.active_view().update()
+
     def _refresh_dressing_lists(self) -> None:
         """Offer the game's shrubbery and natural props as grove trees, and its molds."""
         game = self.game
@@ -2891,6 +2905,9 @@ class MainWindow(QMainWindow):
             self.document.execute(command)
 
     def show_scripts(self) -> None:
+        if not self._scripts_placed and self.scripts_dock.isFloating():
+            self.scripts_dock.setGeometry(_scripts_geometry(self.geometry()))
+        self._scripts_placed = True
         self._show_dock(self.scripts_dock)
 
     def _show_dock(self, dock: QDockWidget) -> None:
@@ -4050,7 +4067,9 @@ class MainWindow(QMainWindow):
         self.restoreState(self._default_state)
         self.toolbar.show()
         for dock in self._docks():
-            dock.show()
+            if dock is not self.scripts_dock:
+                dock.show()
+        self._scripts_placed = False
         self.status_bar_action.setChecked(True)
 
     def save_named_layout(self) -> None:
@@ -4384,6 +4403,8 @@ class MainWindow(QMainWindow):
             )
         if self.settings.window_state:
             self.restoreState(QByteArray.fromBase64(self.settings.window_state.encode("ascii")))
+            # A saved layout already says where the Scripts window goes.
+            self._scripts_placed = True
 
     def _store_layout(self) -> None:
         self.settings.window_geometry = _base64(self.saveGeometry())
@@ -4422,6 +4443,15 @@ class MainWindow(QMainWindow):
         self._store_layout()
         self.settings.save()
         event.accept()
+
+
+def _scripts_geometry(editor: QRect) -> QRect:
+    """Where the Scripts window first opens: two thirds of the editor wide, seven tenths tall,
+    over its middle."""
+    size = QSize(editor.width() * 2 // 3, editor.height() * 7 // 10).expandedTo(_FLOATING_MINIMUM)
+    placed = QRect(QPoint(0, 0), size)
+    placed.moveCenter(editor.center())
+    return placed
 
 
 def _fit_when_floated(dock: QDockWidget, floating: bool) -> None:

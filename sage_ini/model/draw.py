@@ -13,6 +13,52 @@ import sage_ini.model.enums as e
 import sage_ini.model.types as t
 from sage_ini.model.objects import Draw, NestedAttribute
 
+__all__ = [
+    "Animation",
+    "AnimationState",
+    "ButterflyDraw",
+    "DefaultAnimationState",
+    "DefaultDraw",
+    "DefaultModelConditionState",
+    "GpuDraw",
+    "IdleAnimationState",
+    "LightningDraw",
+    "LodOptions",
+    "ModelConditionState",
+    "QuadDraw",
+    "RenderObjectDraw",
+    "StreakDraw",
+    "TransitionState",
+    "W3DBoatWakeModelDraw",
+    "W3DBuffDraw",
+    "W3DDebrisDraw",
+    "W3DDefaultDraw",
+    "W3DDependencyModelDraw",
+    "W3DFloorDraw",
+    "W3DHordeModelDraw",
+    "W3DLaserDraw",
+    "W3DLightDraw",
+    "W3DModelDraw",
+    "W3DOverlordTankDraw",
+    "W3DOverlordTruckDraw",
+    "W3DPoliceCarDraw",
+    "W3DProjectileStreamDraw",
+    "W3DPropDraw",
+    "W3DQuadrupedDraw",
+    "W3DRopeDraw",
+    "W3DSailModelDraw",
+    "W3DScienceModelDraw",
+    "W3DScriptedModelDraw",
+    "W3DStreakDraw",
+    "W3DSupplyDraw",
+    "W3DTankDraw",
+    "W3DTankTruckDraw",
+    "W3DTornadoDraw",
+    "W3DTracerDraw",
+    "W3DTreeDraw",
+    "W3DTruckDraw",
+]
+
 
 class Animation(NestedAttribute):
     """One animation clip bound in an `AnimationState` (`Animation = GUFaramir_IDLC`): the

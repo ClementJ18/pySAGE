@@ -34,9 +34,6 @@ the six real dumps sitting in the install root.
 Two of the wins need no patch at all. Start there.
 
 **Implemented in [`crash-dump.md`](crash-dump.md):** Stage 1, Stage 2's module filter and Stage 4.
-That document also records where these notes turned out to be wrong - the dump-type window's
-length, `dbghelp` 6.3's actual flag support, and what `Debug::crash` still has in hand at the raise
-site.
 
 ## 1. What the engine does today
 
@@ -189,8 +186,8 @@ What is missing, and what it costs:
 `LoadLibraryA("DBGHELP.DLL")` at `0x0043B224`, which picks up the system copy. The shipped file is
 `6.3.5.1 (DbgBuild.030922-1449)`; Windows 10 ships `10.0.x` in `System32`. Renaming
 `rotwk\dbghelp.dll` to `dbghelp.dll.bak` takes the fallback branch and unlocks the modern
-`MINIDUMP_TYPE` bits and stream set. Free, reversible, and a prerequisite for anything in Stage 1
-above `0x200`. The engine even warns about this itself — `0x00BD49D0`, *"You are using an older
+`MINIDUMP_TYPE` bits and stream set. Free and reversible; no bit Stage 1 uses depends on it (6.3
+already supports them, below). The engine even warns about this itself — `0x00BD49D0`, *"You are using an older
 version of the DBGHELP.DLL library"*.
 
 **0b. Add a `game.dbgcmd`.** It is read at startup with no patch. Two useful lines:
@@ -210,9 +207,8 @@ Both of these are worth doing first because they change what the *patch* still h
 ### Stage 1 — the dump type constant
 
 `0x0043C001`, **18 bytes**, `8a550c 33c9 84d2 0f95c1 57 57 8d45f0 50 41 51` - the whole argument
-push, up to but not including the `push esi` at `0x0043C013`. (An earlier revision of these notes
-gave the site as 11 bytes ending in the `inc ecx`; the `inc` is at `0x0043C011`, between the
-`push eax` and the `push ecx`, so the window cannot stop before it.)
+push, up to but not including the `push esi` at `0x0043C013`. The `inc ecx` is at `0x0043C011`,
+between the `push eax` and the `push ecx`, so the window cannot stop before it.
 
 Replace with a load of a patch-owned dword, so the type is a parameter rather than a two-valued
 toggle, keeping the `fulldump` flag as the selector between a *normal* and a *deep* profile. Twelve
@@ -230,11 +226,13 @@ all of which costs far less than `MiniDumpWithFullMemory`:
 | `0x0800` | `WithFullMemoryInfo` | the VA map — needed to distinguish freed from live |
 | `0x1000` | `WithThreadInfo` | thread start addresses, so the logic thread is identifiable |
 
-`0x0001`..`0x0200` are available on the 2003 `dbghelp`, and so, on inspection, are `0x0800` and
-`0x1000`: the shipped file is **6.3.0005.1**, and MSDN's cut-off for those two is *DbgHelp 6.1 and
-earlier*. **Neither depends on Stage 0a** - see [`crash-dump.md`](crash-dump.md) section 2. The deep profile should be `0x0200` (`WithPrivateReadWriteMemory`, the whole SAGE
-heap without mapped images) rather than `0x0002` — the same information for the debugging that
-matters, without the image pages.
+`0x0001`..`0x0200` are available on the 2003 `dbghelp`, and so are `0x0800` and `0x1000`: the
+shipped file is **6.3.0005.1**, and MSDN's cut-off for those two is *DbgHelp 6.1 and earlier*.
+**Neither depends on Stage 0a** - see [`crash-dump.md`](crash-dump.md) section 2. `0x0200`
+(`WithPrivateReadWriteMemory`, the whole SAGE heap without mapped images) belongs in the normal
+profile, not only the deep one: following a singleton to the object it names has to work on an
+ordinary crash. It carries the same information as `0x0002` for the debugging that matters, without
+the image pages.
 
 **Measure before settling on a default.** `0x40` over a 13 KB stack should add a few hundred KB; if
 it does not, the profile is wrong.
@@ -292,15 +290,14 @@ The cheapest large win in the whole scope, and independent of the rest.
 ```
 
 Becomes `push <cave args>`, `push 3`, `push 0`, `push 0x04560123` — where the cave holds three
-`ULONG_PTR`s already available at the raise site: the file-name pointer, the line number and the
-expression pointer. Those land in the exception record's `ExceptionInformation[]`, which the
-minidump stores in full (15 slots), and they point into `game.dat`'s `.rdata`, which
-`WithDataSegs` **already captures**. So the assert text becomes readable offline with no symbols,
-no Stage 2 and no Stage 3 — and [`engine/dump.py`](../engine/dump.py) can print it directly.
-
-Confirm the caller's register and stack state at `0x0043AC30`..`0x0043AC57` actually still holds
-those three values before committing to it; the `sprintf` at `0x0043AC39` consumed them, so they
-may need to be spilled to the cave a few instructions earlier.
+`ULONG_PTR`s already available at the raise site. The file-name pointer, line number and expression
+pointer are consumed by the `sprintf` at `0x0043AC39` — *into* `[ebp-4]`, one heap pointer to the
+whole formatted message, expression, file and line included. That pointer, the assertion/error
+literal at `[ebp-8]` and the mode land in the exception record's `ExceptionInformation[]`, which the
+minidump stores in full (15 slots). The literal points into `game.dat`'s `.rdata`, which
+`WithDataSegs` **already captures**; the formatted message needs the heap in the dump
+([`crash-dump.md`](crash-dump.md) §4 has the exact layout). [`engine/dump.py`](../engine/dump.py)
+prints both.
 
 ### Stage 5 — where the file goes and what it is called
 

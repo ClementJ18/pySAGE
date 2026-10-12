@@ -309,10 +309,10 @@ separately at `0x0077EB56` and still reads `Last Replay` in both.
 
 ## Status
 
-**The gate is runtime-verified (2026-07-31). The naming is fixed but not yet re-tested.**
+**The gate is runtime-verified (2026-07-31). The naming is not yet runtime-tested.**
 
-What the first in-game test proved, reading the live process mid-skirmish and parsing the
-recording the same session was writing:
+What an in-game test proved, reading the live process mid-skirmish and parsing the recording the
+same session was writing:
 
 - ✅ **A skirmish records.** `TheRecorder+0x1C` read 0 (RECORD) with a live `FILE*` at `+0x10`,
   and `Last Replay.BfME2Replay` was on disk, growing, timestamped to the match start.
@@ -320,13 +320,10 @@ recording the same session was writing:
   same call wrote carries `(1, 2, 0, 0)` in its trailing block.
 - ✅ **`TheGameLogic+0x114` is 3** in the menu *and* in a skirmish, so the branch's third test —
   the one open question that could have changed the patch's shape — is satisfied.
-- ❌ **The naming did nothing.** It read `TheRecorder+0xED4` for the mode, which `reset()` has
-  already overwritten with 9 (§5.1), so it fell back to the stock helper every time. Fixed by
-  reading `startRecording`'s own argument instead.
-
-The failure was invisible from outside: recordings were happening from the first build, all of
-them into `Last Replay.BfME2Replay`, each overwriting the last — which looks exactly like
-nothing being recorded at all.
+- **The naming reads `startRecording`'s own argument for the mode**, not `TheRecorder+0xED4`,
+  which `reset()` has already overwritten with 9 (§5.1). Reading the field falls back to the stock
+  helper every time, so every recording lands in `Last Replay.BfME2Replay`, each overwriting the
+  last — which looks exactly like nothing being recorded at all.
 
 Open, and needing one more session:
 

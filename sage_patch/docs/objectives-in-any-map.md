@@ -6,8 +6,7 @@ objectives system is intact and already authored in Edain's campaign data.
 
 **Confirmed in game.** The tracker read and the symptom below come from a live RotWK process on
 `Erebor_gold`; the shipped three-site patch was then verified in a **War of the Ring battle** on
-2026-08-14 (see *Verified in game*, below). Revised 2026-08-12 after the first run, 2026-08-14
-after the second.
+2026-08-14 (see *Verified in game*, below).
 
 ## The mechanism: one button, three screens, and the chooser asked twice
 
@@ -60,24 +59,21 @@ All three terms are **game-type checks**. Nothing in the chain consults the map,
 whether objectives exist — which is why a WotR battle lands on the tribute screen no matter how the
 map is authored.
 
-## Corrections to earlier revisions of this document
+## Two sites that look like the gate and are not
 
-**Revision 1** named `0x006D7873` as the gate and proposed a five-byte patch there. That was wrong:
-that call site sits in a block whose show/hide helper (`0x0080043E`) targets the APT function
+**`0x006D7873`.** That call site sits in a block whose show/hide helper (`0x0080043E`) targets the APT function
 **`FlashObjectivesButton`** (`0x00C4E4D0`) — it controls whether the button *flashes*, not which
 screen it opens. Both gates are real and independent: `0x00441E4A` ("living world active")
 suppresses the flash, `0x00625456` (game type) picks the screen. Only the second matters here.
 
-**Revision 2** found `0x00625456` and patched the call at `0x008E8958` — the right predicate, but
-only its *second* ask. Applied and verified against the install, tested on `Erebor_gold` (a map with
-three `MissionObjectiveTag`s, confirmed present in the live tracker at `0x00DE8C94`), the button
-still opened the tribute screen, because in a skirmish-mode battle the *first* ask at `0x006D40D2`
-already routes the click to `0x00914EF0` and `0x008E8843` never runs.
+**`0x008E8958` alone** — the right predicate, but only its *second* ask. Patched there and tested
+on `Erebor_gold` (a map with three `MissionObjectiveTag`s, confirmed present in the live tracker at
+`0x00DE8C94`), the button still opens the tribute screen, because in a skirmish-mode battle the
+*first* ask at `0x006D40D2` already routes the click to `0x00914EF0` and `0x008E8843` never runs.
 
-Both mistakes have the same shape: taking the first site that matched as *the* site, without
-walking outward to ask who reaches it. Enumerating the predicate's 31 callers and reading the two
-that sit in the Palantir's own code would have caught the second one before the live test —
-`0x006D40D2` and `0x0081FFD8` are in that list, adjacent to the branch they gate.
+Both have the same shape: the first site that matches is not necessarily *the* site. The
+predicate's 31 callers include `0x006D40D2` and `0x0081FFD8`, the two in the Palantir's own code,
+adjacent to the branch they gate.
 
 ## The patch — implemented as `objectives-screen`
 
@@ -99,8 +95,7 @@ become          e8 <rel>           call <cave>
 ```
 
 All three, or none: the outer two decide whether `0x008E8843` runs at all, so redirecting only the
-inner one leaves every skirmish and WotR click on `PlayerTribute.apt` — which is exactly what
-revision 2 shipped.
+inner one leaves every skirmish and WotR click on `PlayerTribute.apt`.
 
 and the cave, as it assembles:
 
@@ -152,7 +147,7 @@ plus one asserting a file with any single site left stock does not verify.
 | the cave's verdict, computed before the click | objectives (`span >= 8`, so it returns 0) |
 | what the button opened | **`Objectives.apt`** |
 
-This is precisely the case revision 2 failed: a **skirmish-mode** battle, where the outer ask at
+This is precisely the case an inner-site-only patch fails: a **skirmish-mode** battle, where the outer ask at
 `0x006D40D2` routes the click to `0x00914EF0` before `0x008E8843` is ever entered. So what is
 verified is the three-site redirect, not merely the predicate swap.
 
@@ -194,7 +189,7 @@ hooks and a lifetime problem, against the shipped version's one hook and none.
 |---|---|---|
 | 1 | What are game types 1, 2 and 5 exactly? | Determines whether a WotR battle is caught by the first, second or third term — and whether a narrower patch could target only the living-world case |
 | 2 | Is `tracker->[0x10]` reset between maps? | The install at `0x008364D5` happens **only if currently null**, and the already-set path discards the new list. No reset was found at any of the 16 references to `0x00DE8C94` nor in the vtable (`0x00C537A0`). Since objectives work across successive linear-campaign missions, one must exist — most likely the tracker is rebuilt per map. **Partly answered:** in a live skirmish on `Erebor_gold` the tracker held that map's three entries and nothing else, so whatever the mechanism, the list is the current map's |
-| ~~3~~ | ~~Does `Objectives.apt` render correctly when opened from a living-world battle?~~ | **settled — yes.** Opened from the Palantir button in a War of the Ring battle on `map kampa angmar 01`, 2026-08-14 |
+| 3 | Does `Objectives.apt` render correctly when opened from a living-world battle? | **Settled — yes.** Opened from the Palantir button in a War of the Ring battle on `map kampa angmar 01`, 2026-08-14 |
 
 Unknown 2 matters for option three specifically, since that variant reads the list to make its
 decision.
@@ -209,5 +204,4 @@ still opened the tribute screen is what proved the patched call was never execut
 Chooser located by finding the `PlayerStatus.apt` / `Objectives.apt` string references and reading
 the branch between them; predicate decomposed by following each term. Field and block tables dumped
 as 16-byte rows. APT helper identities resolved by reading the verb and target strings each helper
-pushes (`_show`/`_hide` plus a named APT function) — the step whose omission produced the error
-corrected above.
+pushes (`_show`/`_hide` plus a named APT function).

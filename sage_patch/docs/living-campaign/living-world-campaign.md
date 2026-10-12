@@ -134,19 +134,17 @@ Live layout, for anyone reading the running process:
 | `SecondsPerReinforcement` | `campaign+0x44` |
 | `IsScriptedCampaign` / `IsEvilCampaign` / `ForceAdvanceTurnPhase` | `campaign+0x58` / `+0x59` / `+0x5A` |
 
-## Two corrections, recorded
+## Two facts that are easy to misread
 
-Both were caught by reading the running process, and both would have sent someone down a dead end.
+Both are confirmed by reading the running process.
 
-1. **`LiveCampaignMode` does not default to off.** An earlier revision claimed it did, concluded
-   `begin()` never ran, and proposed a three-byte patch to force two gates. `GlobalData`'s
-   constructor sets it to **1** (`0x00642A91`, `mov byte [esi+0x86], al` with `al = 1` since
-   `0x006429E1`), so both gates already pass and the patch would have been a no-op. The error came
-   from searching the constructor for `mov byte [reg+0x86], imm8`, finding none, and *inferring*
-   zero — the real encoding is a store from a register.
+1. **`LiveCampaignMode` does not default to off.** `GlobalData`'s constructor sets it to **1**
+   (`0x00642A91`, `mov byte [esi+0x86], al` with `al = 1` since `0x006429E1`), so both `begin()`
+   gates already pass and no patch is needed to force them. Searching the constructor for
+   `mov byte [reg+0x86], imm8` finds nothing — the real encoding is a store from a register.
 
-2. **`WOTRScenarioTest` does not set `IsScriptedCampaign`.** A grep found the string without
-   checking that the line is `;`-commented. Only the stock `WOTRTutorial` sets it live.
+2. **`WOTRScenarioTest` does not set `IsScriptedCampaign`.** The string is there, on a
+   `;`-commented line. Only the stock `WOTRTutorial` sets it live.
 
 ## Method
 

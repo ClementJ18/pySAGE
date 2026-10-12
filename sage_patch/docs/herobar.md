@@ -27,9 +27,9 @@ binary. Six detours and one two-byte edit go in every time, and which behaviour 
 read from its `ThingTemplate` at runtime: membership asks "either kindof", and only the draw loop
 narrows to `HEROBAR_GROUP`.
 
-The pre-implementation costing is in [`ideas/herobar-kindof.md`](herobar-kindof.md), kept as
-written; this document is what shipped. The one open blocker that document records — the model's
-allocation site — turned out not to need answering, because the design below never grows the model.
+The engine reference — the bar class, the model, the classifier, the porter group and the `KindOf`
+mask — is [`herobar-kindof.md`](herobar-kindof.md); this document is what the patch does. The
+design never grows the model, so the model's unrecovered allocation site does not matter here.
 
 **Status: applies, verifies, round-trips through `detect`, composes with every
 other `game.dat` patch in either order, and has been run in a game** — but everything grouping does
@@ -157,9 +157,8 @@ the `je` nor either call is touched.
 `HERO` wins the tie *in the classifier* — but that decides nothing, because every arm ends on the
 same list. The draw hook asks only whether the template is `HEROBAR_GROUP`, so a template carrying
 `HERO` and `HEROBAR_GROUP` is a hero **and** groups with its own kind, and a template carrying both
-added kindofs simply groups. (An earlier version of this document said such a template "never
-groups". It does; the classifier's order is about which call runs, not about what the draw loop
-later sees.)
+added kindofs simply groups. The classifier's order is about which call runs, not about what the
+draw loop later sees.
 
 ### 3.2 Removal is not optional bookkeeping
 
@@ -301,9 +300,9 @@ Both flash reads happen before the hook and all three drawing reads after it, so
 `mov [ebp-0x18], <count>` on the mark arm is the entire badge: the flash keeps comparing real
 ranks, and the engine's own change test repaints the slot exactly when the count changes.
 
-It is the *same* field the porter count is written to, by the *same* code shape — the earlier
-reading that a badge meant hand-writing `SetButtonRankProgress` through the APT bridge confused
-the progress ring (`0x0092D5BD` here, `0x0092D166` on the porter path) with the number.
+It is the *same* field the porter count is written to, by the *same* code shape. The progress
+ring (`0x0092D5BD` here, `0x0092D166` on the porter path) is a separate thing from the number, so
+a badge needs no hand-written `SetButtonRankProgress` through the APT bridge.
 
 Counting is the only real work. The count is not knowable when the representative is drawn, since
 its duplicates come later in the same pass, so the hook walks the rest of the list itself:
@@ -471,7 +470,7 @@ Four things fall out of that shape and each is deliberate:
   of a round look like, so one fallback covers all three.
 * **The cursor is per slot, not per bar.** `PORTER`'s cycle keeps `bar+0x1DA`/`bar+0x1DC` for the
   single group the stock engine can have, and the class has no slack for one per template
-  ([`ideas`](herobar-kindof.md) §8.2 prices the alternatives). A side table in the cave costs no
+  ([`herobar-kindof.md`](herobar-kindof.md) §5). A side table in the cave costs no
   engine struct change at all, and the bar is a client-local singleton so there is nothing to key
   it by beyond the slot.
 * **A slot whose group changed between clicks starts over.** The cursor is not tagged with the
@@ -503,8 +502,8 @@ Because the setting is *data* and not code — one word, with byte-identical rou
 
 **Why the window is this patch's own constant.** The obvious value to share is the one the porter's
 identical-looking question uses: `SelectNearestBuilderCycleTimeOut`, `TheInGameUI+0x988`, which the
-engine converts in the routine at `0x0092BA91`. An earlier version of this patch called that
-routine and read its answer back. Both halves of that were wrong.
+engine converts in the routine at `0x0092BA91`. Calling that routine and reading its answer back is
+wrong twice over.
 
 *The value is the wrong quantity.* It is **3500 ms** on this data. That is a sensible length for a
 porter *round* to stay open — you press the button, walk your eyes across the base, press it again —
@@ -515,9 +514,9 @@ number because the comparison rhymes is the mistake.
 *The answer is not at a fixed address.* `0x0092BA91` **stores** into `bar+0x1DC`, which sits past
 the slot array — and [`hero-bar-slots`](hero-bar-slots.md) grows that array in place and slides
 everything after it up by `(count-16)*0x18`. On a 25-slot bar `bar+0x1DC` is not the deadline at
-all: it is byte `0x14` of *slot 16*. So on that combination the window came out of a slot's cached
-bytes (the repeat click essentially never fired) **and** the porter's real deadline, by then at
-`bar+0x2B4`, was overwritten by the call and never put back.
+all: it is byte `0x14` of *slot 16*. So on that combination the window would come out of a slot's
+cached bytes (the repeat click essentially never fires) **and** the porter's real deadline, by then
+at `bar+0x2B4`, would be overwritten by the call and never put back.
 
 Emitting the scaling costs about twenty bytes and leaves this patch reading nothing off the bar
 object except the slot array itself, which does not move.
@@ -827,10 +826,8 @@ or a selection post-dates the run that cleared the rest:
    behave exactly as stock, porters included (§3.2.1).
 10. **Porters still behave exactly as before** on the same build: their single mixed slot, its
     count badge, its tooltip, its click-to-iterate, its camera centring, and its *round timing* —
-    which this patch no longer touches at all now that it computes its own window (§3.4.1), but
-    which is worth confirming precisely because an earlier version did.
-11. **A hero that is also `HEROBAR_GROUP`** groups with its own kind and counts — §3.1, and *not*
-    what an earlier draft of this document predicted.
+    which this patch does not touch, since it computes its own window (§3.4.1).
+11. **A hero that is also `HEROBAR_GROUP`** groups with its own kind and counts — §3.1.
 12. **Overflow**: force more distinct `HEROBAR_GROUP` templates than slots and confirm no crash, no
     blank buttons left behind, and that the templates past the sixteenth show a rank rather than a
     count.

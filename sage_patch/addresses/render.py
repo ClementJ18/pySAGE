@@ -7,6 +7,12 @@ __all__ = [
     "ALPHA_RECOMPUTE_BODY",
     "ALPHA_RECOMPUTE_BODY_BYTES",
     "ALPHA_RECOMPUTE_ENTRY",
+    "CONTROL_BAR_BUTTON_IMAGE_FALLBACK",
+    "CONTROL_BAR_BUTTON_IMAGE_FALLBACK_BYTES",
+    "CONTROL_BAR_BUTTON_IMAGE_FALLBACK_RESUME",
+    "CONTROL_BAR_SELECT_PORTRAIT",
+    "CONTROL_BAR_SELECT_PORTRAIT_BYTES",
+    "CONTROL_BAR_SELECT_PORTRAIT_RESUME",
     "D3DPERF_MODULE_HANDLE",
     "D3DPERF_RESOLVE_ANCHOR",
     "D3DPERF_RESOLVE_ANCHOR_BYTES",
@@ -21,9 +27,17 @@ __all__ = [
     "DIRECT3D_CREATE9_STORE_ENTRY",
     "DIRECT3D_CREATE9_STORE_RESUME",
     "DISPLAY_DRAW_VTABLE_SLOT",
+    "DRAWABLE_DRAW_MODULES",
+    "DRAWABLE_DRAW_MODULES_WALK",
+    "DRAWABLE_DRAW_MODULES_WALK_BYTES",
     "DRAWABLE_GET_SCALE",
     "DRAWABLE_GET_SCALE_BYTES",
     "DRAWABLE_GET_SCALE_OTHER_CALLS",
+    "MODEL_CONDITION_BUTTON_IMAGE",
+    "MODEL_CONDITION_FIELD_ROWS",
+    "MODEL_CONDITION_PORTRAIT_IMAGE",
+    "OBJECT_GET_DRAWABLE",
+    "OBJECT_GET_DRAWABLE_BYTES",
     "OBJECT_GET_RADAR_PRIORITY",
     "OBJECT_GET_RADAR_PRIORITY_BYTES",
     "PERF_BEGIN_EVENT",
@@ -68,13 +82,19 @@ __all__ = [
     "RADAR_PRIORITY_STRUCTURE",
     "SURFACE_DRAW_PIXEL",
     "THE_DISPLAY",
+    "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE",
+    "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_HOOK",
+    "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_HOOK_BYTES",
     "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_SCALE_CALLS",
+    "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_STORE",
+    "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_STORE_BYTES",
     "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_THIS",
     "W3D_MODEL_DRAW_BIRTH_FADE_ADDITIVE",
     "W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT",
     "W3D_MODEL_DRAW_BIRTH_FADE_DEFAULT_BYTES",
     "W3D_MODEL_DRAW_BONE_UPDATE_SCALE_CALL",
     "W3D_MODEL_DRAW_BONE_UPDATE_THIS",
+    "W3D_MODEL_DRAW_CUR_STATE",
     "W3D_MODEL_DRAW_DERIVED_TABLE_REFS",
     "W3D_MODEL_DRAW_DO_DRAW",
     "W3D_MODEL_DRAW_FIELD_TABLE",
@@ -84,7 +104,14 @@ __all__ = [
     "W3D_MODEL_DRAW_IFACE_SLOT6_MODULE_DATA",
     "W3D_MODEL_DRAW_IFACE_SLOT6_SCALE_CALL",
     "W3D_MODEL_DRAW_MODULE_DATA_SIZE",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE_HOOK",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE_HOOK_BYTES",
     "W3D_MODEL_DRAW_SET_MODEL_STATE_SCALE_CALLS",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE_SLOT",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE_SLOTS",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE_STORE",
+    "W3D_MODEL_DRAW_SET_MODEL_STATE_STORE_BYTES",
     "W3D_MODEL_DRAW_SET_MODEL_STATE_THIS",
     "W3D_MODEL_DRAW_STATIC_SORT_LEVEL",
     "W3D_MODEL_DRAW_TRANSFORM_CALLS",
@@ -349,3 +376,70 @@ RADAR_PIXEL_IN_BOUNDS_BYTES = bytes.fromhex(
 RADAR_BLIP_COLOUR = 0x00DC7738
 #: `SurfaceClass::DrawPixel(x, y, colour)` - `__thiscall` on the surface, callee-cleaned.
 SURFACE_DRAW_PIXEL = 0x005165E0
+
+# The current `ModelConditionState` of a model draw, and the two image fields a state carries, for
+# `model-condition-images`. Derived in `docs/model-condition-images.md`. Static only.
+
+#: `ModelConditionState` rows 4 and 5 of the field table at `MODEL_FIELD_TABLE_ROW`:
+#: `PortraitImageName` and `ButtonImageName`, both `AsciiString`s parsed by `INI::parseAsciiString`.
+#: Stock, only the Create-a-Hero path consumes them.
+MODEL_CONDITION_PORTRAIT_IMAGE = 0x60
+MODEL_CONDITION_BUTTON_IMAGE = 0x5C
+#: The two rows, `{name, parse, userData, offset}`; their offset dwords fix the two above.
+MODEL_CONDITION_FIELD_ROWS = {
+    0x00BE0AB8: bytes.fromhex("f408be005eee42000000000060000000"),
+    0x00BE0AC8: bytes.fromhex("e408be005eee4200000000005c000000"),
+}
+#: `W3DModelDraw::m_curState`: the `ModelConditionState *` `setModelState` stores last. The base
+#: implementation stores its argument there (`W3D_MODEL_DRAW_SET_MODEL_STATE_STORE`), the Horde
+#: copy its `ebx` (`W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_STORE`).
+W3D_MODEL_DRAW_CUR_STATE = 0x14
+W3D_MODEL_DRAW_SET_MODEL_STATE = 0x004C451D
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE = 0x0047A0AD
+W3D_MODEL_DRAW_SET_MODEL_STATE_STORE = 0x004C52B2
+W3D_MODEL_DRAW_SET_MODEL_STATE_STORE_BYTES = bytes.fromhex("8b4508c686c901000001894614")
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_STORE = 0x0047AA8A
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_STORE_BYTES = bytes.fromhex("895e14c686c901000001")
+#: `setModelState` is module vtable slot `+0x100`, and these are the only `.rdata` dwords holding
+#: either implementation: six vtables hold the base one, `W3DHordeModelDraw`'s (`0x00BDC810`)
+#: holds its copy. They are exactly the model draw family of `docs/draw-module-scale.md` §5, so
+#: "slot `+0x100` is one of the two" is the test for "this module has `m_curState` at `+0x14`".
+#: `getObjectDrawInterface` (`+0xA8`) cannot serve: its body is identical-code-folded with
+#: unrelated casts and also answers for the non-model draw at `0x00BDF708`.
+W3D_MODEL_DRAW_SET_MODEL_STATE_SLOT = 0x100
+W3D_MODEL_DRAW_SET_MODEL_STATE_SLOTS = {
+    0x00BE00E8: W3D_MODEL_DRAW_SET_MODEL_STATE,
+    0x00BE1C98: W3D_MODEL_DRAW_SET_MODEL_STATE,
+    0x00BE2020: W3D_MODEL_DRAW_SET_MODEL_STATE,
+    0x00BE25E8: W3D_MODEL_DRAW_SET_MODEL_STATE,
+    0x00BE2B80: W3D_MODEL_DRAW_SET_MODEL_STATE,
+    0x00BE3D40: W3D_MODEL_DRAW_SET_MODEL_STATE,
+    0x00BDC910: W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE,
+}
+#: Where each `setModelState` holds the module in `esi` and the new, non-NULL state in a register
+#: (`edi` in the base, `ebx` in the Horde copy) while `m_curState` is still the old one. Each is six
+#: bytes of whole, flag-free instructions no branch lands inside.
+W3D_MODEL_DRAW_SET_MODEL_STATE_HOOK = 0x004C455B  # mov ecx,[esi+8] / lea eax,[edi+0x74]
+W3D_MODEL_DRAW_SET_MODEL_STATE_HOOK_BYTES = bytes.fromhex("8b4e088d4774")
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_HOOK = 0x0047A0C8  # mov ecx,[esi+0xc0]
+W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_HOOK_BYTES = bytes.fromhex("8b8ec0000000")
+#: `Object::getDrawable` - the whole function is `mov eax, [ecx+0x84]; ret`.
+OBJECT_GET_DRAWABLE = 0x0070E013
+OBJECT_GET_DRAWABLE_BYTES = bytes.fromhex("8b8184000000c3")
+#: The Drawable's NULL-terminated array of draw module pointers, and the head of one of the
+#: Drawable wrappers that walks it (`docs/raised-wall-mesh-removal.md` §2).
+DRAWABLE_DRAW_MODULES = 0x14C
+DRAWABLE_DRAW_MODULES_WALK = 0x006728A1
+DRAWABLE_DRAW_MODULES_WALK_BYTES = bytes.fromhex("568bb14c010000")
+#: `cdecl (ThingTemplate *, Object *) -> Image *`, the select portrait of a non-Create-a-Hero object
+#: (`0x00694F06` calls it for the object itself and for the object a container shows instead). The
+#: hook is its first two instructions; the `je` that follows reads their flags.
+CONTROL_BAR_SELECT_PORTRAIT = 0x0073D0A3
+CONTROL_BAR_SELECT_PORTRAIT_BYTES = bytes.fromhex("8b4c240485c9")
+CONTROL_BAR_SELECT_PORTRAIT_RESUME = 0x0073D0A9
+#: The button image resolver (`OBJECT_IMAGE_UPGRADE_BUTTON_HOOK`)'s non-Create-a-Hero exit: reload
+#: the template and tail-jump to `ThingTemplate::getButtonImage`. Both jumps into it come from the
+#: same function, with the `Object *` already checked non-NULL.
+CONTROL_BAR_BUTTON_IMAGE_FALLBACK = 0x0073D0F1
+CONTROL_BAR_BUTTON_IMAGE_FALLBACK_BYTES = bytes.fromhex("8b4c2404e9f5feffff")
+CONTROL_BAR_BUTTON_IMAGE_FALLBACK_RESUME = 0x0073CFEF

@@ -25,6 +25,8 @@ ImageBase `0x400000`. Nothing here has been runtime-verified; see [Status](#stat
 - Putting the new flag on the **foundation** instead of the building is the tractable design: it
   hooks `FoundationAIUpdate::update`, which already ticks and already knows when its plot is free,
   and it needs no part of the AI scheduler. See [§5](#5-scoping-always_build-on-the-foundation).
+- **Edain already does "AI fills its plots" in INI** (§6.0), so that patch is an alternative to a
+  working data pattern, not a prerequisite.
 
 ## 1. Where the bits live
 
@@ -400,7 +402,7 @@ identifies the responsible loop and may remove the need for the patch.
 
 ## 6. Routes that need no binary patch
 
-### 6.0 Edain already solves this in data — and this supersedes §5
+### 6.0 Edain already solves this in data
 
 Before any of the routes below, the important finding: **the mod already implements
 "AI fills its plots", entirely in INI, and the pattern is worth copying rather than replacing.**
@@ -607,6 +609,6 @@ Open items, in the order they matter:
 1. **Can Lua's `ExecuteAction` carry parameters?** (§6.3) If yes, §5 is unnecessary. Settle this
    first — it is an experiment, not an RE task.
 2. **Does `buildObjectNow` deduct the cost?** (§5.4) Blocks trusting the patch.
-3. The AI structure-build scheduler (§5.6) — still unlocated, but no longer on the critical path
-   now that the foundation-side design avoids it.
+3. The AI structure-build scheduler (§5.6) — unlocated, and not on the critical path: the
+   foundation-side design avoids it.
 4. The `AttackIgnoreInsignificantBuildings` link in §2.3 — cosmetic, affects only a name.

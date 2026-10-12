@@ -12,9 +12,11 @@ it, so a patch is added to `_REGISTERED` wherever its import goes and lands in t
 place in every list on its own."""
 
 from sage_patch.patcher import Patch
+from sage_patch.patches.ai_build_queue_skip import AiBuildQueueSkipPatch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_disabled_regions import AiDisabledRegionsPatch
+from sage_patch.patches.ai_farm_kill_gate import AiFarmKillGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_hero_build_delay import AiHeroBuildDelayPatch
 from sage_patch.patches.ai_rebuild_gate import AiRebuildGatePatch
@@ -76,6 +78,7 @@ from sage_patch.patches.experimental.observer_all_commands import ObserverAllCom
 from sage_patch.patches.experimental.ranged_stand_off import RangedStandOffPatch
 from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
+from sage_patch.patches.experimental.shared_control_on_leave import SharedControlOnLeavePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_charges import SpecialPowerChargesPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
@@ -83,10 +86,13 @@ from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPa
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
 from sage_patch.patches.faction_variants import FactionVariantsPatch
 from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
-from sage_patch.patches.forbidden_upgrades import ForbiddenUpgradesPatch
 from sage_patch.patches.foundation_rebind import FoundationRebindPatch
 from sage_patch.patches.gate_close_repath import GateCloseRepathPatch
 from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
+from sage_patch.patches.grant_science_upgrade import (
+    GrantScienceUpgradePatch,
+    GrantScienceUpgradeWorldbuilderPatch,
+)
 from sage_patch.patches.healing_received import (
     HealingReceivedPatch,
     HealingReceivedWorldbuilderPatch,
@@ -100,14 +106,17 @@ from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
+from sage_patch.patches.lan_join_bystanders import LanJoinBystandersPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.lobby_faction_byte import LobbyFactionBytePatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
 from sage_patch.patches.mod_load_order import ModLoadOrderPatch
+from sage_patch.patches.model_condition_images import ModelConditionImagesPatch
 from sage_patch.patches.mount_health_ratio import MountHealthRatioPatch
 from sage_patch.patches.mount_swap_eject import MountSwapEjectPatch
+from sage_patch.patches.multi_contain import MultiContainPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.multi_mod import MultiModPatch
@@ -152,6 +161,11 @@ from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.special_power_refund_upgrade import (
+    SpecialPowerRefundUpgradePatch,
+    SpecialPowerRefundUpgradeWorldbuilderPatch,
+)
+from sage_patch.patches.special_power_upgrade_filters import SpecialPowerUpgradeFiltersPatch
 from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
 from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
@@ -174,6 +188,7 @@ from sage_patch.patches.worldbuilder_silent_errors import (
     WorldbuilderSilentErrorsPatch,
 )
 from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
+from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 
 #: Every registered patch, in class-name order so a new one is added beside its import. This is
 #: **not** the order they are presented in: `PATCHES` is built from this by sorting, and
@@ -181,9 +196,11 @@ from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 #: `sagepatch` - inherits that order rather than an order maintained by hand here.
 _REGISTERED: tuple[type[Patch], ...] = (
     AccelModulePatch,
+    AiBuildQueueSkipPatch,
     AiCommandNullTargetPatch,
     AiConstructionGatePatch,
     AiDisabledRegionsPatch,
+    AiFarmKillGatePatch,
     AiFlagCaptureGatePatch,
     AiHeroBuildDelayPatch,
     AiPowerModelConditionPatch,
@@ -229,10 +246,11 @@ _REGISTERED: tuple[type[Patch], ...] = (
     EvacuateContainedHeroesPatch,
     FactionVariantsPatch,
     FireAtAttackerPatch,
-    ForbiddenUpgradesPatch,
     FoundationRebindPatch,
     GateCloseRepathPatch,
     GiveUpgradeAllPatch,
+    GrantScienceUpgradePatch,
+    GrantScienceUpgradeWorldbuilderPatch,
     HeadlessPatch,
     HealingReceivedPatch,
     HealingReceivedWorldbuilderPatch,
@@ -254,12 +272,15 @@ _REGISTERED: tuple[type[Patch], ...] = (
     LiveBridgePatch,
     MapTransitionPatch,
     LivingWorldOverridePatch,
+    LanJoinBystandersPatch,
     LobbyFactionBytePatch,
     MaintenanceCostPatch,
     MapListSymbolsPatch,
     ModLoadOrderPatch,
+    ModelConditionImagesPatch,
     MountHealthRatioPatch,
     MountSwapEjectPatch,
+    MultiContainPatch,
     MultiExecuteGatePatch,
     MultiInstanceLauncherPatch,
     MultiInstancePatch,
@@ -298,12 +319,16 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ScriptDebugWindowPatch,
     SecondResourcePatch,
     ShareExperienceAllPatch,
+    SharedControlOnLeavePatch,
     SkirmishAiFallbackPatch,
     SkirmishReplayPatch,
     SmartRallyPatch,
     SpawnUnionPatch,
     SpecialPowerChargesPatch,
     SpecialPowerMusicPatch,
+    SpecialPowerRefundUpgradePatch,
+    SpecialPowerRefundUpgradeWorldbuilderPatch,
+    SpecialPowerUpgradeFiltersPatch,
     SpellbookCommandSetRefreshPatch,
     SpellbookHotkeysPatch,
     SpellRechargeTargetsPatch,
@@ -324,6 +349,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     WorldbuilderObjectTypeaheadPatch,
     WorldbuilderSilentErrorsPatch,
     WotrBattleObserversPatch,
+    WotrLobbySlotsPatch,
 )
 
 

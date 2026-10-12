@@ -4,14 +4,10 @@ A plan, written after scripted campaigns were made to work
 ([`living-world-campaign.md`](living-world-campaign.md)). Engine build `2.01.2614.37001`;
 BFME1 comparisons against `C:\BFME1\lotrbfme.exe`.
 
-Every item carries a **confidence** marker, because inferences in this investigation keep turning
-out wrong — two static reads of the binary, caught by reading the running process, and then four
-claims in this plan's own first draft, caught by reading the shipped INI data (see *Corrections* at
-the end). Treat *verified* as fact, *likely* as a hypothesis with evidence, and *unknown* as a
-question with an address attached.
-
-**Revised 2026-08-11** after a pass over the campaign data in both games. The revision changed which
-item to do first.
+Every item carries a **confidence** marker. Treat *verified* as fact, *likely* as a hypothesis with
+evidence, and *unknown* as a question with an address attached. Capability (what a binary can do)
+and usage (what the shipped data does) are different questions, and for a plan about what to author
+next, usage is the one that matters.
 
 ## Where things stand
 
@@ -126,22 +122,23 @@ workaround in §3.
 
 **Settles it.** Flip one existing line. In `wotrscenarioangmar.inc`, the Angmar act-one spawns are
 each followed by a `SetPlayerControlOfArmy … IsControllableByOwner = No`; change one to `Yes` and
-see whether that army becomes selectable and movable. No new INI, no patch, one character. **Still
-the first thing to do** — it is now a cheaper test than when this plan was written, and the static
-trace above says it should work.
+see whether that army becomes selectable and movable. No new INI, no patch, one character, and the
+static trace above says it should work.
 
 **Caveat.** Static evidence only. Per the working rule at the bottom, `army+0x58` should be read
 live through `live-bridge` to confirm the value lands before concluding anything from in-game
 behaviour.
 
-## 3. Heroes across the battle boundary — *every tool is live; two of them are used once between them*
+## 3. Heroes across the battle boundary
 
-> **Superseded in part, 2026-08-27.** Problem (2) below — the dead hero — is answered in
-> [`hero-permadeath.md`](hero-permadeath.md): the mechanism is the post-battle harvest at
-> `0x00811E1F`, which records only the survivors, and the lever is `ArmyEntry`'s `Default` plus
-> `LivingWorldPlayerArmy`'s `SurvivalThreshhold`. The carryover/revival reading in this section is
-> a different system and was not the one that loses the hero. Problem (1), the per-hero ownership
-> transfer, still stands as written.
+Problem (2) below — the dead hero — is **resolved** in [`hero-permadeath.md`](hero-permadeath.md):
+the hero is not dead. The post-battle harvest at `0x00811E1F` writes only survivors back into the
+army, and RotWK moves a hero with no surviving object into his faction's fortress hero-spawn queue,
+with his upgrades, re-buyable as a one-hero army. BFME1 keeps him in his army instead; the
+[`hero-army-carryover`](../../patches/experimental/hero_army_carryover.py) patch adds that rule as
+an opt-in `Persistent` keyword on `ArmyEntry`, runtime-verified. The carryover/revival machinery
+below is a different, linear-campaign system. Problem (1), the per-hero ownership transfer, stands
+as written.
 
 **Your complaint, in your words.** Two separate problems, both at the **tactical** boundary rather
 than on the strategic map:
@@ -151,12 +148,8 @@ than on the strategic map:
 2. *Leaving a mission:* a hero that dies is permanently dead. It can be revived **during** that
    mission, but if it is not, nothing carries the loss — or the hero — forward.
 
-**An earlier revision of this section guessed wrong about (1).** It read "stripped from the player as
-they spawn" as the strategic-map verb `SetPlayerControlOfArmy = No`, and built an argument on that.
-That verb operates on living-world armies on the campaign map; your problem is unit ownership inside
-the battle. The guess is withdrawn — it is recorded in *Corrections* below rather than quietly
-deleted, because it is the third time in this investigation that a plausible reading of a name
-substituted for evidence.
+Problem (1) is unit ownership **inside the battle**, not the strategic-map verb
+`SetPlayerControlOfArmy = No`, which operates on living-world armies on the campaign map.
 
 ### What the mod actually does, counted
 
@@ -194,10 +187,9 @@ CREATE_UNIT_REVIVAL_ENTRY_AT_LEVEL( 'Drogoth', 'Player_2', 7 )
 CREATE_UNIT_REVIVAL_ENTRY_FROM_DELAYED_CARRYOVER_HERO( 'WildShelob', '<Local Player>' )
 ```
 
-So the tool that makes a dead hero come back is live, understood well enough by the author to have
-been used once, and then not used anywhere else. **On this evidence permadeath looks like an
-authoring gap rather than an engine one** — with the open question being whether a revival entry
-survives the mission boundary, which the single in-mission use ("made buildable") does not prove.
+So the in-mission revival tool is live, understood well enough by the author to have been used
+once, and then not used anywhere else. Whether a revival entry survives the mission boundary is
+unproven; the single use ("made buildable") is in-mission.
 
 **What is actually there.** Both problems have named script actions, and the decisive fact is which
 of them the engine implements. From [`dead-script-actions.md`](dead-script-actions.md):
@@ -242,12 +234,7 @@ with heroes persisting correctly through a linear campaign and being lost in a W
 `ArmyRetreatRounds`, which Edain does set (`= 8`), and its name suggests it governs what an army
 carries between battles. Semantics unknown; one INI line to find out.
 
-**A correction to an earlier revision of this section**, which listed `ArmyCarryoverPoints` loosely
-among *region* carryover fields. It is campaign-level. `DelayCarryoverSpawningOf` was likewise
-described as a mission field without noting that the `Mission` block in question is the **linear**
-campaign's.
-
-### BFME1 did not solve this — it never had the problem
+### BFME1 has no carryover subsystem — and still writes battles back
 
 BFME1 contains **zero** carryover machinery. Counting strings across both binaries:
 
@@ -259,48 +246,28 @@ BFME1 contains **zero** carryover machinery. Counting strings across both binari
 | `ArmyCarryoverPoints`, `DelayCarryoverSpawningOf` | 1 each | **0** |
 | `MSG_REVIVE` | 1 | 1 |
 
-The only shared string is in-mission revive.
+The only shared string is in-mission revive. That says BFME1 has no *carryover subsystem*, not that
+it has no persistence: read out of two BFME1 saves either side of Saruman's death in evil mission 1,
+`Evil_SarumanPlayerArmy` went in holding one `ArmyEntry` and came out holding six — five surviving
+Isengard hordes plus Saruman carrying an `Upgrade_SarumanFireBall` he never had. Both games harvest
+a battle into their living-world armies; they differ in **one rule**, what happens to a hero with no
+surviving object ([`hero-permadeath.md`](hero-permadeath.md)).
 
-> **Wrong, and measured wrong on 2026-08-28.** The string counts above are accurate; the paragraph
-> that used to follow them was not. It read: *"BFME1's strategic armies are defined by
-> `LivingWorldPlayerArmy` `ArmyEntry` rows, each battle instantiates from that roster afresh, and
-> nothing ever writes back — so a hero killed in a battle is still on the roster afterwards…
-> Heroes come back in BFME1 because their death was never recorded, not because anything revives
-> them. RotWK added persistence, and persistence of death is the regression."*
->
-> **BFME1 writes back.** Read out of two BFME1 saves either side of Saruman's death in evil mission
-> 1: `Evil_SarumanPlayerArmy` went in holding one `ArmyEntry` and came out holding six — five
-> surviving Isengard hordes it never had, plus Saruman carrying an `Upgrade_SarumanFireBall` he
-> never had. Both games harvest a battle into their living-world armies. They differ in **one
-> rule**: BFME1 keeps a hero with no surviving object in his army, RotWK moves him out of it into
-> the faction's fortress hero-spawn queue. See [`hero-permadeath.md`](hero-permadeath.md).
->
-> The absence of a `Carryover` string in BFME1 says BFME1 has no *carryover subsystem*. It does not
-> say BFME1 has no persistence, and reading it that way is what produced the wrong framing.
+### What to do about it
 
-That also explains why BFME1 needed [`ModifyArmyEntry`](bfme1-act-verbs.md) — swapping
-`CurUnitTemplate` for `NewUnitTemplate` was the *only* way to change an army's membership, precisely
-because combat could not.
+For **(2)**, in [`hero-permadeath.md`](hero-permadeath.md)'s terms:
 
-### What to do about it, in confidence order
+1. **Accept and tune.** The hero is recoverable with his upgrades; `BuildTime` on his
+   `ArmyToSpawn` is the dial.
+2. **Keep him in his army.** `Persistent = Yes` on his `ArmyEntry`, with `hero-army-carryover`
+   applied.
+3. **Prevent the death.** `UNIT_AFFECT_OBJECT_PANEL_FLAGS(<hero>, 'Indestructible', …)` — already
+   used on Rogash in `map kampa angmar 01`.
 
-1. **Author the revival entry.** No patch, and `map kampa evil 08` is a working example in the mod
-   already. Every other mission spawns heroes by delayed carryover and creates no revival entry, so
-   applying that pattern is the cheapest available fix. Proven *within* a mission; cross-mission
-   persistence untested.
-2. **Prevent the death.** `UNIT_AFFECT_OBJECT_PANEL_FLAGS(<hero>, 'Indestructible', …)` — already
-   used on Rogash in `map kampa angmar 01`. Blunt but reliable.
-3. **Try `ArmyCarryoverPoints`.** One INI line, unknown semantics, aimed squarely at this.
-4. **Patch the write-back** — not located. The living army holds its hero at `+0x18`
-   ([`battle-sides.md`](battle-sides.md)), and nothing in the living-world manager's range shrinks
-   its army vector, so the hero is being emptied or flagged rather than deleted. Finding that flag is
-   the next anchor.
-
-**Settles it.** Two steps: author a `SpawnArmy` with `HeroTemplateName` and see what it produces
-(that alone may replace the brittle workaround); then find the readers of `ArmyCarryoverPoints` and
-`DelayCarryoverSpawningOf` and establish whether the living-world battle-exit path writes carryover
-state at all. `sage_save` decodes the save structures and is the right instrument for the second
-half.
+For **(1)**, the `*_WITH_FIRST_WALK_ON_ARMY` pair above is the cheapest experiment.
+`ArmyCarryoverPoints` (one INI line, unknown semantics) and the readers of
+`DelayCarryoverSpawningOf` are what would establish whether the living-world battle-exit path
+writes carryover state at all; `sage_save` decodes the save structures and is the right instrument.
 
 ## 4. Reinforcement timers — *unknown, cheap to settle*
 
@@ -315,11 +282,8 @@ changes, it is parsed-and-dropped and the feature needs the engine work, not the
 
 ## 5. `ForceAdvanceTurnPhase` — *unknown, now low priority*
 
-**Update 2026-08-14:** the Angmar scenario now sets it, and it reads **1** live at `campaign+0x5A` —
-so the field lands. Whether anything *consumes* it is still unproven, and the paragraph below stands
-otherwise.
-
-Parsed into `campaign+0x5A`, set by **no shipped campaign anywhere**, reads 0 live. It was the
+Parsed into `campaign+0x5A`. No shipped campaign sets it; the Angmar scenario in the mod tree does,
+and it reads **1** live, so the field lands. Whether anything *consumes* it is unproven. It was the
 obvious candidate for "forced to press End Turn" — but scripted mode already removed that
 requirement, so it may be redundant. Byte reads at `+0x5A` exist at `0x006B2F20` and `0x006BE27E`
 in `LivingWorldLogic`, but the register was never proven to hold a campaign. One INI line to test;
@@ -327,8 +291,7 @@ worth doing only if turn pacing is still wrong after §2.
 
 ## 6. Splitting and merging armies — *verified absent, the real engine work*
 
-**Your complaint, and the one that is genuinely a removal.** This section previously described two
-blocks, `SplitArmy` and `MergeArmy`. That was the wrong shape. **BFME1 has one verb doing both
+**Your complaint, and the one that is genuinely a removal.** **BFME1 has one verb doing both
 directions**, read out of `gondorcampaign.ini`:
 
 ```
@@ -352,9 +315,8 @@ MergePlayerArmy  SplitArmy  SplitArmyTemplate  SourceArmy  DestArmy
 DespawnArmy      PlayerOwned  PathFindRule
 ```
 
-Zero occurrences of any of them in `game.dat`. `DespawnArmy` (20 uses in gondor, 7 in mordor) is the
-one this plan previously missed, and taking an army *off* the map is arguably as load-bearing as
-splitting it.
+Zero occurrences of any of them in `game.dat`. `DespawnArmy` (20 uses in gondor, 7 in mordor) takes an
+army *off* the map, which is arguably as load-bearing as splitting it.
 
 **Edain already tried.** `wotrscenarioangmar.inc` carries two `MergePlayerArmy` blocks and a
 `DespawnArmy`, written out in full and **commented out** (lines 493–506). Somebody reached for this
@@ -378,7 +340,7 @@ of composition?" was the cost gate, and BFME1 shows the operation it actually ne
 narrower than feared: *substitute one unit template for another inside a named army*. Not arbitrary
 add/remove — replace.
 
-**And the scaffolding turned out cheap.** RotWK's Act verb table at `0x00C84030` cannot grow in
+**The scaffolding is cheap.** RotWK's Act verb table at `0x00C84030` cannot grow in
 place (a zero terminator then string data), but it has **exactly one reference in the image**, at
 `0x0096E7F3`. Relocating it to a cave is a one-dword change. So for all four verbs the parser side
 is nearly free and the runtime is the entire cost.
@@ -391,25 +353,24 @@ their parsers (`0x007B8500`, `0x007B88F0`) and look for the equivalent army fiel
 | | item | shape | confidence |
 |---|---|---|---|
 | 1 | `DisableRegions` + `EnableRegion` per act ([`region gating`](living-world-region-gating.md)) | **INI only** | both live and unused; fixes the wasted-act problem by construction |
-| 2 | Author revival entries for spawned heroes (§3) | **INI/script only** | a working example already exists in `map kampa evil 08` |
+| 2 | Dead heroes: tune `BuildTime`, or `Persistent` with `hero-army-carryover` (§3) | **INI**, or an experimental patch | resolved and runtime-verified ([`hero-permadeath.md`](hero-permadeath.md)) |
 | 3 | Flip one `IsControllableByOwner` to `Yes` (§2) | **one character** | traced end to end; only the live check is missing |
-| 4 | `objectives-screen` patch, now shipped ([`scope`](../objectives-in-any-map.md)) | applied, widened to three call sites after a failed live run | **runtime-verified 2026-08-14** in a WotR battle; mission *two*, the hotkey and the no-objectives fallback are still open |
+| 4 | `objectives-screen` patch ([`scope`](../objectives-in-any-map.md)) | three call sites | **runtime-verified 2026-08-14** in a WotR battle; mission *two*, the hotkey and the no-objectives fallback are still open |
 | 5 | `SecondsPerReinforcement` (§4), `ArmyCarryoverPoints` (§3) | INI only | unknown, cheap, one line each |
 | 6 | Menu entry for scripted campaigns (§1) | patch, precedent exists | that code path has never run in a shipped build |
-| 7 | **Give a scripted battle its players** ([`battle-sides`](battle-sides.md)) | RE, then patch | **now the blocking item, measured 2026-08-14**: with `IsScriptedCampaign` set a battle has *no* faction players and the client is seated as an observer. The mechanism is not yet traced, and the older third-party prune is a second, separate reduction |
+| 7 | **Give a scripted battle its players** ([`battle-sides`](battle-sides.md)) | RE, then patch | **the blocking item, measured 2026-08-14**: with `IsScriptedCampaign` set a battle has *no* faction players and the client is seated as an observer. The mechanism is not yet traced, and the older third-party prune is a second, separate reduction |
 | 8 | Split/merge/despawn armies (§6, [`act verbs`](bfme1-act-verbs.md)) | large patch | scaffolding is a one-dword relocation; the runtime is the cost |
 
-The top three are authoring, cost nothing, and between them address the wasted act, hero permadeath
-and the movement complaint. Items 1 and 2 are the cheapest findings in the whole investigation and
-both are things the mod already half-wrote and stopped.
+The top three cost nothing or next to nothing, and between them address the wasted act, the dead
+hero and the movement complaint.
 
-The old item "`HeroTemplateName`" is gone from this table because it turned out to be in use
-everywhere (§3), and "is a spawned army's composition mutable?" is gone because
-[`bfme1-act-verbs.md`](bfme1-act-verbs.md) settled it — `LivingWorldPlayerArmy`/`ArmyEntry` parses
-today and `ModifyArmyEntry` only ever substituted one template for another.
+`HeroTemplateName` is not an untried lever — it is on 185 lines across the mod and 95 in stock
+RotWK — and "is a spawned army's composition mutable?" is settled by
+[`bfme1-act-verbs.md`](bfme1-act-verbs.md): `LivingWorldPlayerArmy`/`ArmyEntry` parses today and
+`ModifyArmyEntry` only ever substituted one template for another.
 
-**Before any live test:** ~~the mod tree is currently pristine~~ — **no longer true as of
-2026-08-14.** The recipe from [`living-world-campaign.md`](living-world-campaign.md) is applied:
+**Before any live test.** The mod tree carries the recipe from
+[`living-world-campaign.md`](living-world-campaign.md):
 `wotrscenarioangmar.inc` carries `IsScriptedCampaign`, `LocalPlayer` and its `AddPlayer` blocks, and
 `gamedata.ini` sets `LivingWorldCampaignOverrride = WOTRScenarioAngmar`. What still needs checking
 before a run is the **binary** — see [`verify`](../../README.md#cli), and note that the mod's INI
@@ -419,42 +380,9 @@ reaches the game only through a Mod Command repack, since the install has no loo
 players (item 7). Turn it off to test anything *inside* a battle; turn it on to test act
 progression. They cannot currently both be true.
 
-## Corrections to this plan
-
-Recorded in the manner of [`living-world-campaign.md`](living-world-campaign.md), because the
-pattern matters more than the individual slips. All four came from reading the shipped INI data
-rather than the binary — the opposite failure mode from the two recorded there.
-
-1. **"`SetPlayerControlOfArmy` … looks like a verb nobody has used" was wrong.** It is used **65
-   live times across five Edain scenarios** (67 occurrences, two commented), 15 of them in the very
-   campaign that was run to prove scripted mode works. The real finding is narrower and sharper:
-   every use is `No`.
-2. **"`SetPlayerControlOfArmy` does not exist in BFME1 at all" was wrong** in substance. The
-   *string* is absent; the *mechanic* is `ToggleArmyControl`, and BFME1 uses both directions.
-3. **`HeroTemplateName` was presented as an untried lever.** It is on 185 lines across the mod and
-   95 in stock RotWK.
-4. **The `SpawnArmy` comparison implied RotWK's 18 fields were a superset of BFME1's 9.** They are
-   not: RotWK has no `PlayerOwned` and no `Faction` (field table `0xC78380`, dumped).
-5. **The hero workaround was placed on the wrong side of the battle boundary.** §3 identified it as
-   the strategic-map verb `SetPlayerControlOfArmy = No`. It is not: the actual complaint is that
-   heroes spawning **into a tactical mission** must each be moved to a neutral player, which is unit
-   ownership inside the battle. Corrected from the author's description, not from evidence — the
-   original claim had none, which is the point.
-
-The common cause of 1–4: the first pass compared *engine capability* by scanning binaries, and
-inferred *usage* from that. Capability and usage are different questions, and for a plan about what
-to author next, usage was the one that mattered.
-
-The cause of 5 is worse and worth naming separately: a name that sounded like the complaint was
-treated as the referent of the complaint. `SetPlayerControlOfArmy … = No` really does mean "take
-this away from the player", and it really is used 65 times — but wanting it to be the answer is not
-evidence that it is. Two of the five corrections here now come from reading a name and inferring a
-mechanism.
-
 ## Working rule
 
-**Verify live, not statically.** Two claims in this investigation were wrong — `LiveCampaignMode`'s
-default, and a commented-out line read as live — and static reading produced both. The install now
-carries `live-bridge`, and the campaign object's layout is written down in
-[`living-world-campaign.md`](living-world-campaign.md), so any of these questions can be answered
-by attaching and reading a field rather than by inferring one.
+**Verify live, not statically.** The install carries `live-bridge`, and the campaign object's
+layout is written down in [`living-world-campaign.md`](living-world-campaign.md), so any of these
+questions can be answered by attaching and reading a field rather than by inferring one. A name
+that sounds like the complaint is not evidence that it is the mechanism.

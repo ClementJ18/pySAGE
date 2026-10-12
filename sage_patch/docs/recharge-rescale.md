@@ -76,6 +76,8 @@ lot, module-relative:
 0089743f  895e20           mov  dword [esi + 0x20], ebx  ; interface +0x10
 00897442  f30f114624       movss dword [esi + 0x24], xmm0; interface +0x14
 00897447  885e28           mov  byte  [esi + 0x28], bl   ; interface +0x18
+0089744a  895e2c           ...                           ; interface +0x1c
+0089744d  885e30           ...                           ; interface +0x20
 ```
 
 | interface offset | field | written by |
@@ -87,7 +89,7 @@ lot, module-relative:
 | `+0x10` | frame the pause began | `0x00896756` |
 | `+0x14` | percent captured at the pause | `0x00896756` |
 | `+0x18` | one byte, cleared at the end of every recharge | `0x00896F8E` |
-| `+0x1C` | dword | — |
+| `+0x1C` | an **`ObjectID`** — `Xfer` hands it to `0x00707887` (`"ObjectID"`, size 4) | — |
 | `+0x20` | one byte, the "held" latch | `0x00896A32` |
 
 `sizeof` is `0x24` — `SpecialPowerTimerRefreshSpecialPower` allocates exactly `0x34`

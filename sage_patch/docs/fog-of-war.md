@@ -190,7 +190,7 @@ the object at all — which is a real result, and is what sent this at the manag
 
 **A thunk table is a free API listing.** `0x00B4D900`..`0x00B4D9E0` is fifteen consecutive
 `mov ecx,[ecx+0x10]; jmp X` stubs — the class's whole public surface, in declaration order, with
-no need to find call sites. Two of them turned out to be the two lookups above.
+no need to find call sites. Two of them are the two lookups above.
 
 **The oracle was a live match, and it had to be.** The static reading gives 0/1/2 with no names
 attached; only the mirror measurement in §5 says which is which, and only the twenty-slot census

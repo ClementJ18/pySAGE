@@ -86,6 +86,7 @@ __all__ = [
     "GIVE_UPGRADE_TRIGGER_TARGET_ARM",
     "GIVE_UPGRADE_TRIGGER_TARGET_ARM_BYTES",
     "PLAYER_ADD_COMMAND_POINTS_FOR_OBJECT",
+    "PLAYER_ADD_SCIENCE",
     "PLAYER_COMMAND_POINTS_BONUS",
     "PLAYER_COMMAND_POINTS_CAP",
     "PLAYER_COMMAND_POINTS_HARD_CAP",
@@ -95,9 +96,12 @@ __all__ = [
     "PLAYER_DEFAULT_TEAM",
     "PLAYER_DEFEAT_FRAME",
     "PLAYER_FOR_EACH_TEAM_OBJECT",
+    "PLAYER_GET_RELATIONSHIP",
+    "PLAYER_GET_RELATIONSHIP_ENTRY",
     "PLAYER_GET_SPELLBOOK_OBJECT",
     "PLAYER_GET_UPGRADE_DISCOUNT",
     "PLAYER_GET_UPGRADE_DISCOUNT_BODY",
+    "PLAYER_GRANT_SCIENCE",
     "PLAYER_GRANT_UPGRADE",
     "PLAYER_HERO_LEDGER_OFFSET",
     "PLAYER_INDEX",
@@ -110,9 +114,11 @@ __all__ = [
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
     "PLAYER_KILL_PLAYER",
+    "PLAYER_KILL_PLAYER_ENTRY",
     "PLAYER_LIST_COUNT_OFFSET",
     "PLAYER_LIST_GET_LOCAL_PLAYER",
     "PLAYER_LIST_GET_NTH",
+    "PLAYER_LIST_GET_NTH_BYTES",
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE",
     "PLAYER_LIST_LOCAL_IS_NOT_ACTIVE_BYTES",
     "PLAYER_LIST_LOCAL_PLAYER",
@@ -151,9 +157,9 @@ __all__ = [
     "PLAYER_TEMPLATE_BLOCK_KEY_EARLY_RESUME",
     "PLAYER_TEMPLATE_BLOCK_KEY_RESUME",
     "PLAYER_TEMPLATE_DEFAULT_AI_TYPE",
+    "PLAYER_TEMPLATE_EVIL",
     "PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE",
     "PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE_BYTES",
-    "PLAYER_TEMPLATE_EVIL",
     "PLAYER_TEMPLATE_FIELD_TABLE",
     "PLAYER_TEMPLATE_FIELD_TABLE_REFS",
     "PLAYER_TEMPLATE_FIELD_TABLE_REF_OPCODES",
@@ -177,8 +183,13 @@ __all__ = [
     "PLAYER_TEMPLATE_SIZE",
     "PLAYER_TEMPLATE_STORE_BEGIN",
     "PLAYER_TEMPLATE_STORE_END",
+    "PLAYER_TRANSFER_ASSETS_FROM",
+    "PLAYER_TRANSFER_ASSETS_FROM_ENTRY",
     "PLAYER_TRANSFER_COMMAND_POINTS_FOR_OBJECT",
+    "PLAYER_TYPE",
+    "PLAYER_TYPE_HUMAN",
     "PLAYER_UPGRADE_DISCOUNTS",
+    "SCIENCE_STORE_FRIENDLY_NAME_TO_SCIENCE",
     "SCORE_KEEPER_ADD_OBJECT_DESTROYED",
     "SCORE_KEEPER_ADD_OBJECT_LOST",
     "SCORE_KEEPER_COUNTER_BLOCK",
@@ -197,6 +208,7 @@ __all__ = [
     "SCORE_KEEPER_UNITS_BUILT",
     "SCORE_KEEPER_UNITS_DESTROYED",
     "SCORE_KEEPER_UNITS_LOST",
+    "SCRIPT_ACTION_GRANT_SCIENCE",
     "SHARE_EXPERIENCE",
     "SHARE_EXPERIENCE_CALC",
     "SHARE_EXPERIENCE_CALC_BYTES",
@@ -228,7 +240,9 @@ __all__ = [
     "SPECIAL_POWER_FORBIDDEN_OBJECT_RANGE",
     "SPECIAL_POWER_NOTIFY_TRIGGERED_AND_PLAY_INITIATE_AUDIO",
     "SPECIAL_POWER_READY_FRAME",
+    "SPECIAL_POWER_START_POWER_RECHARGE",
     "SPECIAL_POWER_START_RECHARGE",
+    "SPECIAL_POWER_STORE_FIND_TEMPLATE",
     "SPECIAL_POWER_TEMPLATE_COPY_TAIL",
     "SPECIAL_POWER_TEMPLATE_COPY_TAIL_BYTES",
     "SPECIAL_POWER_TEMPLATE_NEW_SITES",
@@ -294,9 +308,13 @@ __all__ = [
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY_SLOT",
     "VICTORY_CONDITIONS_HAS_BEEN_DEFEATED",
+    "VICTORY_CONDITIONS_HAS_BEEN_DEFEATED_ENTRY",
     "VICTORY_CONDITIONS_HAS_BEEN_DEFEATED_SLOT",
     "VICTORY_CONDITIONS_IS_DEFEATED",
     "VICTORY_CONDITIONS_PLAYERS",
+    "VICTORY_CONDITIONS_RESET",
+    "VICTORY_CONDITIONS_RESET_ENTRY",
+    "VICTORY_CONDITIONS_RESET_SLOT",
     "VICTORY_CONDITIONS_VTABLE",
 ]
 
@@ -394,7 +412,8 @@ SPECIAL_POWER_FIELD_TABLE = 0x00DA5FD8
 SPECIAL_POWER_FIELD_TABLE_REFS = (0x007B1ABD, 0x007B2324)
 SPECIAL_POWER_FIELD_TABLE_REF_OPCODES = (0xB8, 0x68)
 #: The two targeted-cast predicates on `TheActionManager` (`...AtLocation` is `ret 0x1c`,
-#: `...AtObject` `ret 0x18`); every caster reaches them. See `docs/forbidden-upgrade-filter.md`.
+#: `...AtObject` `ret 0x18`); every caster reaches them. See
+#: `docs/special-power-upgrade-filters.md`.
 CAN_DO_SPECIAL_POWER_AT_LOCATION = 0x0082DFB7
 CAN_DO_SPECIAL_POWER_AT_OBJECT = 0x0082D925
 #: The `Flags = NO_FORBIDDEN_OBJECTS` scan: ``(Object *caster, Coord3D *where,
@@ -611,6 +630,18 @@ PLAYER_SET_SCIENCES = 0x006ACEF4
 #: path (sets the bit and runs the effect). The loop at `0x008126E5` is the reference for replaying
 #: a saved mask.
 PLAYER_GRANT_UPGRADE = 0x006AEE22
+#: The science grant behind script action 280, `PLAYER_GRANT_SCIENCE`
+#: (`SCRIPT_ACTION_GRANT_SCIENCE`, reached from case arm `0x007CE037` of the action switch).
+#: `ScienceStore::friendlyNameToScience(const AsciiString &)` is `__thiscall` on
+#: `[THE_SCIENCE_STORE]`, `ret 4`, and returns `-1` for an unknown name.
+#: `Player::grantScience(ScienceType)` (`__thiscall`, `ret 4`) refuses a science whose
+#: `IsGrantable` (byte `+0x30` of the science) is clear, then calls `Player::addScience`, which
+#: returns early when the player already has it, appends it to `PLAYER_SCIENCES` and notifies
+#: the player's objects so powers gated on it wake up. See `docs/grant-science-upgrade.md`.
+SCRIPT_ACTION_GRANT_SCIENCE = 0x007BD1BA
+SCIENCE_STORE_FRIENDLY_NAME_TO_SCIENCE = 0x005FEF8F
+PLAYER_GRANT_SCIENCE = 0x006AE3A7
+PLAYER_ADD_SCIENCE = 0x006AE186
 #: `PlayerList::getLocalPlayer`. Not a plain getter: for an observer or defeated player it returns
 #: the seat being watched, which is how the command bar follows a replay's watched player.
 PLAYER_LIST_GET_LOCAL_PLAYER = 0x006A8839
@@ -795,6 +826,15 @@ SPELLBOOK_UI_CACHE_RETURN = 0x00931038
 SPELLBOOK_UI_UPDATE_CACHE_CALL = 0x00931318
 SPELLBOOK_UI_UPDATE_COMMAND_BUTTON = 0x0093134A
 PLAYER_GET_SPELLBOOK_OBJECT = 0x006AD0F8
+# `SpecialPowerStore::findSpecialPowerTemplate(AsciiString)` - `__thiscall` on
+# `[THE_SPECIAL_POWER_STORE]`, `ret 4`. The name is passed **by value** and the callee destroys it,
+# so a caller copy-constructs it into the argument slot. NULL for an unknown name.
+SPECIAL_POWER_STORE_FIND_TEMPLATE = 0x0069C146
+# `SpecialAbilityUpdate::startPowerRecharge`, the implementation 23 of the 26 special-power
+# vtables hold at interface slot `+0x3C`. A module that holds it keeps its ready frame at
+# interface `+0x08` and the length of the cooldown that produced it at `+0x04`
+# (`docs/recharge-rescale.md` section 1).
+SPECIAL_POWER_START_POWER_RECHARGE = 0x00896E31
 # The porter's upgrade delivery - `GiveUpgradeUpdate`, both its targeted (`SPECIAL_GIVE_UPGRADE`)
 # and its auto-deliver (`SPECIAL_GIVE_UPGRADE_NEAREST`) form. Derived in `docs/give-upgrade-all.md`,
 # which is also where the one-upgrade-per-porter limit these describe is laid out.
@@ -964,3 +1004,28 @@ COMMAND_BUTTON_CTOR_BYTES = bytes.fromhex("b80c20b900")
 #: Sidecar lifetime hook leaves the constructor entry and padding-default hooks intact.
 COMMAND_BUTTON_SIDECAR_CTOR = 0x0075D524
 COMMAND_BUTTON_SIDECAR_CTOR_BYTES = bytes.fromhex("8bf1834e0cff")
+
+#: The leave order and shared control of a leaver's objects. See `docs/shared-control-on-leave.md`.
+#: `Player::m_playerType`, the field `PLAYER_SET_TYPE` writes (`mov [esi+0x5c], edi`): 0 is
+#: `PLAYER_HUMAN`, 1 `PLAYER_COMPUTER`.
+PLAYER_TYPE = 0x5C
+PLAYER_TYPE_HUMAN = 0
+#: `Player::getRelationship(const Team *)` - `__thiscall`, `ret 4`, `eax` =
+#: `PLAYER_RELATIONSHIP_ALLIES` for the player's own and its allies' teams.
+PLAYER_GET_RELATIONSHIP = 0x006ADBEB
+PLAYER_GET_RELATIONSHIP_ENTRY = bytes.fromhex("558bec5151")
+#: `Player::transferAssetsFromThat(Player *that, Bool)` - `__thiscall` on the heir, `ret 8`.
+#: Moves `that`'s objects (a `setTeam` loop), money and upgrades onto `this`; the leave order
+#: passes 1.
+PLAYER_TRANSFER_ASSETS_FROM = 0x006AF598
+PLAYER_TRANSFER_ASSETS_FROM_ENTRY = bytes.fromhex("b8649fb800")
+PLAYER_KILL_PLAYER_ENTRY = bytes.fromhex("83ec10568bf1")
+#: `getNthPlayer` whole: bounds-checks against 20 and reads `[this + n*4 + 0x18]`.
+PLAYER_LIST_GET_NTH_BYTES = bytes.fromhex("8b44240485c07c0b83f8147d068b448118eb0233c0c20400")
+VICTORY_CONDITIONS_HAS_BEEN_DEFEATED_ENTRY = bytes.fromhex("56578b7c240c")
+#: `VictoryConditions::reset`, the `SubsystemInterface::reset` slot of its vtable: clears the
+#: per-player defeat latches between games. The slot has one other reader, a direct `call` at
+#: `0x00808D77` from the subsystem's `init`.
+VICTORY_CONDITIONS_RESET = 0x00808A43
+VICTORY_CONDITIONS_RESET_ENTRY = bytes.fromhex("5333db33c0")
+VICTORY_CONDITIONS_RESET_SLOT = 0x24

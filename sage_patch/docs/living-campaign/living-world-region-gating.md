@@ -165,7 +165,7 @@ affordance that happens to be the right lever for the complaint.
    are already written into `wotrscenarioangmar.inc` — one commented out, one absent.
 2. **Set `UIPopupPoint` per region** where the centre is a poor spot — `CustomUIPopupPoint = Yes`
    plus a coordinate placing the portrait above the territory. Also INI-only.
-3. ~~**Consider `ForceBattle`**~~ — **it does nothing in RotWK.** It parses and its act pass runs,
+3. **`ForceBattle` does nothing in RotWK.** It parses and its act pass runs,
    but the battle form calls an empty stub; only its `Movie` form (a map marker) has a body. See
    [`force-battle.md`](force-battle.md).
 

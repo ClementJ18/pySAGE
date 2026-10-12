@@ -48,12 +48,10 @@ The stock sequence derives the type from the `fulldump` debug flag and nothing e
 `edi` is a literal zero from the `xor edi, edi` at `0x0043BF24`, which is what makes the two
 `push edi` the null callback and user-stream parameters rather than live values.
 
-> **Correction to the scoping notes.** Their anchor table gives this site as the eleven bytes
-> `8a550c33c984d20f95c141`, folding the `inc ecx` in with the `setne`. The `inc ecx` is actually at
-> `0x0043C011`, *after* the `lea`/`push eax` pair, and the window that has to be taken whole runs
-> `0x0043C001`..`0x0043C012` — eighteen bytes, `8a550c33c984d20f95c157578d45f0504151`. Nothing
-> branches into its interior; `0x0043BFFD` targets its first byte, which a `jmp` placed there
-> handles.
+The `inc ecx` is at `0x0043C011`, *after* the `lea`/`push eax` pair, so the window that has to be
+taken whole runs `0x0043C001`..`0x0043C012` — eighteen bytes,
+`8a550c33c984d20f95c157578d45f0504151`. Nothing branches into its interior; `0x0043BFFD` targets its
+first byte, which a `jmp` placed there handles.
 
 The whole window becomes `jmp <cave>` plus thirteen `nop`, and the cave pushes the same four
 arguments: the cave's own `MINIDUMP_CALLBACK_INFORMATION`, a still-null `UserStreamParam`, the same
@@ -76,8 +74,8 @@ code used `eax`/`ecx`/`edx`.
 
 `0x1B65` in total, and `0x1B67` — the same plus `WithFullMemory` — when `fulldump` is on.
 
-`0x0200` is the deviation from the scoping notes, which put it only in the deep profile. It is
-what the acceptance test for this patch asks for: following a singleton to the object it names has
+`0x0200` is in the normal profile, not only the deep one, because it is what the acceptance test
+for this patch asks for: following a singleton to the object it names has
 to work on an ordinary crash, not only on one somebody predicted. `WithIndirectlyReferencedMemory`
 does not get there on its own — it walks the *stack*, and the six observed dumps carry 33 KB of
 stack in total across 33 threads.
@@ -92,7 +90,7 @@ The shipped `dbghelp.dll` is **6.3.0005.1 (DbgBuild.030922-1449)**, loaded by ex
 from the install folder. Every flag above is documented as unsupported on *DbgHelp 5.1* (`0x0020`
 through `0x0400`) or on *DbgHelp 6.1 and earlier* (`0x0800` through `0x2000`) — and 6.3 is past
 both cut-offs. **So none of these bits needs stage 0a**, the "rename the 2003 `dbghelp.dll` out of
-the way" step the scoping notes made a prerequisite for `0x0800` and `0x1000`. A type bit an older
+the way" step. A type bit an older
 `dbghelp` did not recognise is masked off rather than failing the write, so a build that somehow
 did load one degrades to a smaller dump rather than to none.
 
@@ -149,9 +147,8 @@ The eight bytes at `0x0043AC57` become `jmp <cave>` plus three `nop`, and the ca
 | `ExceptionInformation[1]` | `[ebp-8]`, the assertion/error literal | `.rdata` (`0x00BD4BAC` / `0x00BD0C3F`) |
 | `ExceptionInformation[2]` | `[ebp+8]`, the mode | immediate |
 
-The scoping notes proposed the file-name pointer, the line number and the expression pointer, and
-warned that the `sprintf` might already have consumed them. It has — but it consumed them *into*
-`[ebp-4]`, which is strictly better: one pointer to the whole formatted message, expression, file
+The file-name pointer, the line number and the expression pointer are no longer in hand at the
+raise: the `sprintf` consumed them *into* `[ebp-4]`, which is strictly better: one pointer to the whole formatted message, expression, file
 and line included. `0x0043AC2A` reads it five instructions earlier on the same path, which is what
 says it is live rather than uninitialised; the only two branches that reach the raise
 (`0x0043AB48` and `0x0043AC1F`) both come from past the point where both slots are assigned.

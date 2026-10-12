@@ -103,16 +103,17 @@ What remains open:
 
 | | question | how to settle |
 |---|---|---|
-| ~~1~~ | ~~Did Edain drop the objectives button from the battle HUD?~~ | **settled — no**, placements are identical to stock |
 | 2 | What condition enables the **world-map** objectives button? | `setObjectivesButtonEnabled` (`0x00982B57`) invokes the APT function `EnableObjectivesButton`; it is reached **virtually** (vtable slot `0xC8600C`), so the gating condition needs the vtable's call sites traced |
 | 3 | Does a living-world battle push the same HUD as a linear-campaign mission? | compare which Palantir movie is loaded in each mode |
 | 4 | Are the Moria maps simply missing their `MissionObjectiveList`? | **yes** — 0 of 5 define one, so those five have no objectives *by data*, independent of everything else |
 
-**Question 2 is now the live thread.** A note on it: a direct-call scan over `.text` found *zero*
-callers of `0x00982B57`, which would have been a striking result — "nothing ever enables the
-button". It is wrong. The address appears in a vtable at `0xC8600C`, so the call is virtual and the
-scan simply cannot see it. Recorded because the same trap has produced two wrong conclusions
-earlier in this investigation, and "no callers found" is never the same claim as "never called".
+Edain did not drop the objectives button from the battle HUD: its placements are identical to
+stock.
+
+**Question 2 is the live thread.** A direct-call scan over `.text` finds *zero* callers of
+`0x00982B57`, which reads as "nothing ever enables the button". The address appears in a vtable at
+`0xC8600C`, so the call is virtual and the scan simply cannot see it: "no callers found" is never
+the same claim as "never called".
 
 Item 4 is not a theory — it is a fact about the data, and it is fixable by authoring alone.
 

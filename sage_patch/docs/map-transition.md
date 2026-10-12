@@ -1,30 +1,27 @@
 # Changing map mid-game from a script, carrying the army with it
 
 Engine build `2.01.2614.37001`, ImageBase `0x400000`, read off the installed `game.dat` with
-`explore.py`. **Static analysis throughout, with one exception**: the script ordering in §6.11 was
-measured in game on 2026-09-08. Everything else is read off the disassembly and has not been run.
-This is a scope with derivation done against it: §2, §3 and §6.1–§6.8 are established from the
-disassembly quoted beside them, §6.12 is what is still open, and §7 says what the design refuses to
-do.
+`explore.py`, and run in game. §2, §3 and §6.1–§6.11 are the engine as read from the disassembly
+quoted beside them; §6.13 is the mechanism as built and what running it established; §7 says what
+the design refuses to do.
 
 **The goal.** A mapper places one script action, names another `.map`, and the game loads it with
 the player's army, resources, powers and script state intact — so a scenario can be larger than a
 single map file.
 
-**Verdict up front.** The two hard-looking halves are already solved. The engine has a callable
-mid-session map swap that `LivingWorldLogic` uses today, and a dead script action can be given a
-body by rewriting one dword. What the patch actually costs is the middle: nothing carries across
-the swap by itself, so the patch owns a snapshot of everything the mapper expects to survive, and
-owns re-materialising it into a world that has just been rebuilt from scratch.
+**The shape.** The engine can be walked from one match to another through states it already
+reaches on its own — end the match, let it land in the lobby, load the shell map, start the
+destination — and a dead script action can be given a body by rewriting one dword. Nothing carries
+across that by itself, so the patch owns a snapshot of everything the mapper expects to survive,
+and re-materialises it into a world that has just been rebuilt from scratch.
 
-**Decided scope.** Per-object carryover of veterancy, experience, purchased upgrades and hero
-levels; plus resources, powers and hero death/revive state; plus script counters, flags and
-timers. One-way transitions only, no returning to a map already left. Single player only.
-
-**Partly built.** The mechanism — §2's swap, driven by §3's repointed script action through §4's
-deferred hook — is [`map-transition`](../patches/experimental/map_transition.py), experimental and
-**not yet run in game**. It swaps maps and carries nothing. Everything §6 derives about carrying
-state is still scope. §10 records what the build settled and what it left.
+**Status.** [`map-transition`](../patches/experimental/map_transition.py), experimental. **The
+transition works in game**: action, teardown, score screen, lobby, shell map, destination. It
+carries the local player's army (`KindOf ARMY_SUMMARY` objects, with veterancy, upgrades and
+health), script counters, timers and flags, and the player's resources, command-point ceiling,
+spellbook points, purchased sciences and completed upgrades. Power cooldowns are out of scope and
+the hero revival ledger does not carry yet. §6.12 lists what is open, including a crash six to
+twenty seconds into the destination.
 
 ## 1. What a map swap destroys
 
@@ -86,16 +83,12 @@ worked example of a mid-session map load, and it is four instructions wide:
 `-file` uses ([`headless.md`](headless.md)) and is the safer one for a patch, because the promote
 also clears it and cannot leave a stale name behind.
 
-**Do not use these two calls, and do not post one message either - post two, through the shell.**
-The short version: the direct pair is wrong, a single `MSG_NEW_GAME` is also wrong, and the reason
-in both cases is the same. See the two dump analyses below. An earlier revision of this document
-recommended the opposite - the direct pair, on the grounds that `MSG_NEW_GAME` is the only thing in
-the image that calls `RecorderClass::startRecording` ([`skirmish-replay.md`](skirmish-replay.md)
-§1) and so restarts the replay file. **That advice was wrong and it is what crashed the first
-build.**
+**Do not use these two calls from a match, and do not post one message either.** Both enter world
+construction with the previous session still live, and that faults (§6.13). The transition goes
+through the shell, the way a player quitting to the menu does, in states the engine reaches by
+itself (§6.13).
 
-The direct pair enters world construction from wherever the caller happens to be, with the previous
-session still live. `LivingWorldLogic::startCampaign` gets away with it because it runs from the
+The direct pair enters world construction from wherever the caller happens to be. `LivingWorldLogic::startCampaign` gets away with it because it runs from the
 shell, with nothing playing. The engine's own game-to-game transition is **quitting a match**,
 which loads the shell map - and it does not call these two at all. It posts `MSG_NEW_GAME` at
 `0x0075DEE2` and lets the handler run the sequence at the point in the frame that expects it:
@@ -115,8 +108,9 @@ which loads the shell map - and it does not call these two at all. It posts `MSG
 `[msg+0x18]` says it carries them - so the defaults are exactly the `(1, 0)` the `ScriptHolder`
 path passes explicitly.
 
-The recording cost is real and now unavoidable: a transition restarts the replay file. For the
-single-player scope that is acceptable, and §7 already refuses to run while recording.
+The recording cost is real and unavoidable: `MSG_NEW_GAME` is the only thing in the image that
+calls `RecorderClass::startRecording` ([`skirmish-replay.md`](skirmish-replay.md) §1), so a
+transition restarts the replay file. For the single-player scope that is acceptable (§7).
 
 ## 3. The authoring surface costs one dword
 
@@ -197,15 +191,14 @@ frame is executing.
 
 So the action is a **request**, not the transition:
 
-1. The cave validates, snapshots, writes the destination name and sets a pending flag, then
-   returns through the epilogue.
-2. A hook in `GameLogic::update` sees the flag at the top of the next tick, with no script frame
-   on the stack, and runs `startNewGame` / `loadMap` / restore as one uninterrupted sequence.
+1. The cave validates the destination, writes its name into the patch's own section, and sets a
+   pending flag, then returns through the epilogue.
+2. A hook at the top of `GameLogic::update`, with no script frame on the stack, drives the
+   transition as a small state machine across several frames — each state waiting for a game mode
+   the engine reaches by itself (§6.13).
 
 The repo already hooks `GameLogic::update` for the live bridge, so the hook site is known
-territory. Doing the whole transition inside one hook invocation matters for more than tidiness:
-the pending flag is patch-owned memory that no save file knows about, and if the flag is never
-observable across a frame boundary, a save can never be taken while one is set.
+territory.
 
 ## 5. Where the snapshot lives
 
@@ -218,9 +211,10 @@ a fixed arena in an allocated section, sized once. A rough budget at the decided
 | carried player: money, command points, sciences, spellbook points, player upgrade mask, revive records | ~256 | one per carrying player |
 | counter / flag / timer | ~40 | one per script symbol |
 
-A 256 KB arena covers roughly 3000 objects and leaves headroom, which is far above any plausible
-scenario army. A fixed arena also sidesteps the engine allocator entirely, which matters because
-the allocator is one of the subsystems the load path resets.
+The object half holds 256 slots of `0xE8` bytes — the engine's `0xD8` record plus a position and an
+angle (§6.13) — about 58 KB, far above any plausible scenario army; the callback stops recording
+past it rather than growing the arena. A fixed arena also sidesteps the engine allocator entirely,
+which matters because the allocator is one of the subsystems the load path resets.
 
 **The snapshot format is not a research problem.** `CHUNK_ScriptEngine` — counters, flags, timers
 and the named-object table — is already decoded byte for byte by
@@ -295,8 +289,8 @@ the rest: `SET_FLAG` 1 → `0x00608FCC(action, 0)`, `SET_COUNTER` 2 → `0x00608
 
 ### 6.2 Timers count down, so nothing needs rebasing
 
-This was flagged as the one silent-corruption risk in the design. It is not a risk. The timer tick
-walks the counter map every logic frame and decrements in place:
+It looks like a silent-corruption risk and is not. The timer tick walks the counter map every
+logic frame and decrements in place:
 
 ```asm
 0060cd4b  mov  edi, [esi + 0x191a0]
@@ -359,9 +353,9 @@ the literal already in the image, and adds no string of its own.
 
 ### 6.5 Building an object back, by hand
 
-**Read §6.8 first.** It supersedes this section: the engine marshals a unit into a record and back
-in two calls, and that is the plan. What follows stays because restore still needs the placement
-and naming calls, and because it documents what the engine is doing underneath.
+The engine marshals a unit into a record and back in two calls (§6.8), and that is what the patch
+uses. This section is what those calls do underneath, and the placement and naming calls restore
+needs beside them.
 
 The whole kit is present and every piece has a live call site. `RebuildHoleBehavior::onDie` is the
 model to copy, because it does exactly what restore does — make an object from a template and dress
@@ -426,7 +420,8 @@ part that matters here: **a dead hero's level and upgrades live in the ledger, n
 which is gone from the object list by the time anything wants to read it. So the ledger is not an
 optional extra to carry — it is the only place a dead hero's state exists.
 
-It dies with the player on a map swap, and it is rebuildable without writing into it:
+It dies with the player on a map swap, and it is rebuildable without writing into it (not built
+yet):
 `0x007C6D8E` takes a player name, a unit name and a level, which is exactly what a snapshot record
 would hold, and it is the same call the stock script action makes. Restore drives the engine's own
 entry point rather than reconstructing the store.
@@ -456,7 +451,7 @@ direction: the receiving player's teams are reachable from the player without a 
 
 ### 6.8 The engine carries a unit for you, in both directions
 
-This supersedes §6.5. The engine has a matched pair for turning an object into a portable record
+The engine has a matched pair for turning an object into a portable record
 and back, and **neither half is living-world code**.
 
 **Out.** `Object::toArmyRecord` (`0x0069192F`), `__thiscall` on the object, one argument, `ret 4`.
@@ -481,32 +476,27 @@ receiving `Player` — returning the new object:
 
 That single call restores the template, the owning team, health, and the upgrade mask — which by
 §6.5 **is** veterancy, since the three rank upgrades are per-object upgrades at indices 0 to 2 —
-and then propagates the upgrades into the object's contain, which is the horde case §7 had given
-up on.
+and then propagates the upgrades into the object's contain, so a horde's members come back
+dressed.
 
-**Why this looked blocked an hour ago.** The living-world entanglement is entirely in the callers.
+**The living-world entanglement is entirely in the callers.**
 `ARMY_RECORD_SPAWN` (`0x00811104`) resolves the `Player` from an army id at `record+0x1C` through
 `TheLivingWorldLogic`, and `LIVING_WORLD_ARMY_DEPLOY` above it resolves armies and battles. Calling
-`0x00780172` directly with a `Player` skips both. The harvest (`0x00811E1F`) stays unusable
-regardless — it filters on living-world players, `KindOf = ARMY_SUMMARY`, and an army id at
-`obj+0x47C` — but nothing needs it, because `forEachTeamObject` plus `toArmyRecord` is the same
-walk without the filters.
+`0x00780172` directly with a `Player` skips both. The harvest (`0x00811E1F`) itself is unusable — it
+filters on living-world players and an army id at `obj+0x47C` — but two of its four filters are not
+living-world-specific, and the patch keeps them (§6.13).
 
-**So the object half becomes:**
+**So the object half is:**
 
 | phase | work |
 |---|---|
-| snapshot | `PLAYER_FOR_EACH_TEAM_OBJECT`, and per object: construct a `0xD8` record with `ARMY_ENTRY_RECORD_CTOR`, call `toArmyRecord`, note its position and angle |
+| snapshot | `PLAYER_FOR_EACH_TEAM_OBJECT`, and per object that passes the filters: construct a `0xD8` record with `ARMY_ENTRY_RECORD_CTOR`, call `toArmyRecord`, note its position and angle |
 | restore | per record: `createObject(player)`, then `setPosition` and `setOrientation` from §6.5 |
-
-The hand-built field copy in §6.5 is no longer the plan. Its addresses stay because restore still
-needs `setPosition`, `setOrientation` and the script-name binding, and because they document what
-`createObject` is doing underneath.
 
 ### 6.9 Power cooldowns must be rebased, and script timers must not
 
-**Out of scope, decided 2026-09-08.** Recorded because the reading is done and because the contrast
-below is what keeps the script timers correct - not because anything is going to act on it.
+**Out of scope, by decision.** Recorded because the contrast below is what keeps the script timers
+correct.
 
 A special power's cooldown is `readyFrame` at interface
 `+0x08`, and [`recharge-rescale.md`](recharge-rescale.md) settles what it is: an **absolute logic
@@ -521,8 +511,7 @@ So the two timed things in this patch behave in opposite ways across a map swap:
 | power cooldown (`SPECIAL_POWER_READY_FRAME`) | an **absolute frame** | **must be rebased**, or every power reads as ready |
 
 Getting this backwards in either direction is a silent bug, and the two are easy to conflate
-because both are "a timer". That is the reason this section still earns its place: it is what says
-the script timers in §6.2 carry **verbatim** rather than by analogy with a cooldown.
+because both are "a timer".
 
 If it is ever picked up, rebasing is a solved move rather than an invention: the engine already
 adjusts `readyFrame` after the fact by adding the elapsed delta, so restore would do the same with
@@ -541,10 +530,9 @@ neighbour in the same living-world group.
 Neither is worth chasing: **both round-trip through the record**, so the patch inherits whatever
 they hold without needing to name them. Recorded here so the next reader does not re-derive them.
 
-### 6.11 Restore lands in the right place — settled
+### 6.11 Restore lands before any script runs
 
-This was written down as needing a live run. Most of it did not, and the part that did has now been
-measured.
+Two parts hold statically, and the third is measured.
 
 **Scripts are installed during the load.** The install is
 `0x007A6DEA`, inside the team-instantiation routine at `0x007A6C91`, which adds a script list to
@@ -559,19 +547,13 @@ script engine's update, which runs inside `GameLogic::update`. `loadMap` is a sy
 the message handler that returns before the game loop's next update. So a restore placed
 immediately after it necessarily precedes the first evaluation of any script on the new map.
 
-Those two together are the assumption §7's merge rule needs, and both hold statically.
-
-**Measured, and it closes the question.** The remaining doubt was whether some load-time pass
-evaluates scripts once during construction — an init or on-load sweep — which would let a script
-see carried counters before restore wrote them. The runner logs `"Run script - "` (`0xBF9C60`) or
+**Measured: nothing evaluates during construction.** An init or on-load sweep would let a script see
+carried counters before restore wrote them. The runner logs `"Run script - "` (`0xBF9C60`) or
 `"Run script false - "` (`0xBF9C4C`) at `0x00609AE7`, each line carrying a leading frame number, so
 a `-scriptdebug2` log answers it without anything being built.
 
-**Run 2026-09-08: the first script line is at frame 1.** Nothing evaluates during construction. The
-window between `loadMap` returning and the first evaluation is real, and restore sits inside it.
-
-So the ordering holds on all three counts — installed during the load, nothing evaluated during the
-load, and no gameplay update until after restore — and §7's merge rule needs no adjustment.
+Run 2026-09-08: **the first script line is at frame 1.** So scripts are installed during the load,
+and nothing is evaluated during it. Where the restore sits relative to frame 1 is §6.12's item 3.
 
 **A lead for someone else's open question.** `script-holder.md` §5 records that the bulk installer
 attaching script lists to players "was not found", and reads the list as `Player+0x334`. That
@@ -584,764 +566,141 @@ because this patch does not need it.
 
 ### 6.12 Still open
 
-| # | unknown | how | size |
-|---|---|---|---|
-| 1 | **What `+0x191C4` holds** | Not a name-to-id table; a name to byte map with its value at node `+0x14`. Only matters if it turns out to carry script state a mapper can set, in which case it joins the carried set. | two hours |
+| # | unknown | notes |
+|---|---|---|
+| 1 | **The four reserved trees keep a dead team** | the crash six to twenty seconds into the destination — §6.13 |
+| 2 | **What `+0x191C4` holds** | not a name-to-id table; a name to byte map with its value at node `+0x14`. Only matters if it carries script state a mapper can set |
+| 3 | **Restore versus frame 1** | the restore runs from `GameLogic::update`'s entry on the first logic frame the destination runs, before the script engine's own update in that frame, so a destination script that initialises the same name at frame 1 overwrites the carried value — the opposite of §7's policy. If a mapper writes such a script, defer the restore by one frame |
+| 4 | **The score screen** | the end-of-match flow shows it; if it waits for a click, the transition waits with it |
+| 5 | **The hero revival ledger** | §6.6; not carried yet |
+| 6 | **`map.ini` overrides across a chain** | §6.13 |
 
-## 6.13 What building the mechanism settled
+## 6.13 The transition as built
 
-The first layer is written, and three things came out of writing it that reading could not settle.
+### The action, the hook, and what they cost
 
-**The action id is chosen, and the reason is corpus evidence rather than taste.** `540`
-`PLAYER_ASSIMILATE_WITH_ARMY_BY_NAME`, one of the five consecutive stubs at 539-543. The whole
-assimilate and reinforcement family appears **zero** times across the 480-map Edain corpus, so no
-existing map can trigger a transition by accident. `LIVING_WORLD_DESPAWN_ARMY` (365) and
-`MAP_REVEAL_IN_TRIGGER` (553) each have one live occurrence and cannot promise that. Its stock
-parameters are a player and a string, which is the shape the later layers want anyway: the string
-is the destination, and the player slot is where "whose army carries" goes.
+**Action id `540`, `PLAYER_ASSIMILATE_WITH_ARMY_BY_NAME`**, one of the five consecutive stubs at
+539-543. The whole assimilate and reinforcement family appears **zero** times across the 480-map
+Edain corpus, so no existing map can trigger a transition by accident; `LIVING_WORLD_DESPAWN_ARMY`
+(365) and `MAP_REVEAL_IN_TRIGGER` (553) each have one live occurrence and cannot promise that. Its
+stock parameters are a player and a string: the string is the destination, and the player slot is
+where "whose army carries" would go.
 
-**The game mode is read back, not pinned.** `startNewGame`'s first argument lands in
-`TheGameLogic+0x110`, and the session's current mode is already there, so the cave passes
-`[ecx+0x110]` and a skirmish stays a skirmish. Pinning mode 8 the way the `ScriptHolder` path does
-would drop every transition into living-world mode.
+**The game mode is read back, not pinned.** The session's current mode is at `TheGameLogic+0x110`;
+the hook saves it and the destination is started in it, so a skirmish stays a skirmish. Pinning mode
+8 the way the `ScriptHolder` path does would drop every transition into living-world mode.
 
-**The hook must bracket itself with `pushad`/`popad`.** `GameLogic::update` is dispatched
+**The hook brackets itself with `pushad`/`popad`.** `GameLogic::update` is dispatched
 `__thiscall`, so `ecx` holds `this` at the entry the hook takes over, and the prologue has not run.
-The original scope said nothing about this because it is invisible until the code is written.
 
-Two costs the scope did not name. The patch takes `GameLogic::update`'s first five bytes, which
-**`live-bridge` also takes**, so the two do not compose; the framework raises for whichever is
-applied second rather than corrupting the site. And the mapper-facing name stays
-`PLAYER_ASSIMILATE_WITH_ARMY_BY_NAME` in WorldBuilder until the optional rename patch of §3 is
-built, so a map reads oddly even though it works.
+**It takes `GameLogic::update`'s first five bytes, which `live-bridge` also takes**, so the two do
+not compose; the framework raises for whichever is applied second rather than corrupting the site.
+The mapper-facing name stays `PLAYER_ASSIMILATE_WITH_ARMY_BY_NAME` in WorldBuilder until the optional
+rename patch of §3 is built.
 
-### First run, 2026-09-08: the swap fires and the load then dies
+### The state machine
 
-Transitioning to `map edain Tolfalas` **reached the destination map's load screen** and then
-crashed with no error dialog.
-
-That is a real result and most of it is positive. Reaching the load screen means the action fired,
-the pending flag survived to the hook, `AsciiString::format` built a path the file system resolved,
-and both `startNewGame` and `loadMap` were entered. §2's mechanism works. The re-entrancy worry
-this section previously led with is **not** what happened: a nested update would have faulted
-before the load screen appeared, not during it.
-
-Two candidates were ruled out on the way to the real one:
-
-- **`TheGameLogic` is not reallocated by a load.** `0x00DE412C` has exactly one writer,
-  `0x0062CD16`, inside the startup constructor. So the `this` the hook restores through `popad`
-  stays valid, and the update the cave returns into is not running on a freed object.
-- **The map name is not the problem**, since the existence check passed and the loader got as far
-  as its screen.
-
-**The live suspect is `TheGameInfo`.** The world builder `GameLogic::startNewGame` (`0x0062F91A`)
-rebuilds players by walking `TheGameInfo` (`0x00DE892C`) slots 0-7 at `0x0062F976` through
-`GAME_INFO_GET_SLOT`, and branches on the game mode at `0x0062F992` to consult the skirmish info at
-`0x00DE8930` for modes 0 and 6. The cave updates `TheWritableGlobalData`'s active map name and
-**nothing else**, so at the moment the world is rebuilt the lobby still describes the *previous*
-map: its name at `GAME_INFO_MAP`, its CRC and size, and a slot layout matching its start positions.
-A destination whose player and start-position layout differs from the source is then built against
-slots that correspond to nothing in it.
-
-That is also why the `ScriptHolder` path the swap was copied from does not hit this: it runs in
-mode 8, and a living-world session does not construct players from lobby slots the way a skirmish
-does.
-
-The setters exist if this is confirmed - `GameInfo::setMap` (`0x00801C46`), `setMapCRC`
-(`0x0080298E`), `setMapSize` (`0x00802A49`) - but they only fix the *name*. A slot layout that does
-not match the destination is a design question rather than a missing call, and the likely answer is
-that a destination must declare the same players as its source.
-
-**Run 2, same day: `TheGameInfo` is a red herring.** Transitioning between `map edain thirdhall`
-and `map edain thirdhall2` - the same map saved twice - crashed identically. Same sides list, same
-start positions, same slot layout, so nothing about the lobby describing the previous map can be
-responsible. The suspect above is dead and the fault is in the swap itself.
-
-What that leaves is the one difference static reading cannot resolve: the engine has **no
-game-to-game path at all**. Every legitimate `MSG_NEW_GAME` arrives from the shell map, so
-`startNewGame` and `loadMap` have only ever been entered with a shell session live, never with a
-playing one. The guard at the top of the handler is not the general "already in a game" test it
-first looks like - `0x00484A85` returns true only for modes 4 and 7 - so it does not name the
-constraint either.
-
-Static analysis has stopped paying here. Three readings of the handler produced three hypotheses
-and the two that were testable were both wrong, which is the signal to get a faulting address
-instead of a fourth hypothesis. The crash prints no dialog, so it is an unhandled fault rather than
-the caught C++ exception [`living-campaign/script-holder.md`](living-campaign/script-holder.md) §4
-warns writes no `.dmp` - which means [`crash-dump`](crash-dump.md) will capture it. The two patches
-compose: `crash-dump` hooks the unhandled-exception filter and `Debug::crash`, neither of which
-this patch touches.
-
-### The crash, localised from a dump
-
-Two dumps from 2026-09-08, both identical. `sage_save`-style manual minidump parsing (exception
-stream, thread context, memory ranges) rather than a debugger.
-
-| | |
-|---|---|
-| exception | `0xC0000005`, read of address `0x158` |
-| faulting instruction | `0x007A2052`, `mov eax, [ecx]` |
-| `ecx` | `0x00000158` |
-| `edi` (`this`) | `0x087A7490` |
-
-The faulting routine is `0x007A2045`: `esi = this + 0x140`, `ecx = [esi]`, `mov eax, [ecx]` - a map
-walk whose container head is garbage. Its **single** caller is `0x00697C4E`:
-
-```asm
-00697c45  push dword [esi + 0x74]        ; OBJECT_ID
-00697c48  mov  ecx, [esi + 0x31c]        ; OBJECT_TEAM
-00697c4e  call 0x7a2045
-```
-
-So an `Object`'s **team** is being asked about that object, and the team's container at `+0x140`
-holds `0x158` instead of a pointer.
-
-**The stack proves the patch drove it.** Return addresses, oldest first:
+Four states, each waiting for a mode the engine reaches by itself:
 
 ```
-00639ee4   GameEngine, call [eax+0x28]
-006326cc   call [eax+0x98]  -> GameLogic::update   (0x00BD85C4 holds 0x0062E4E8; base 0x00BD852C)
-00f0712a   the cave - jumped into at update's entry, so update itself pushes no frame
-00631580   GameLogic::loadMap, just after its call to the world builder
-0062fbdb   GameLogic::startNewGame
-007a62xx   team instantiation (the 0x007A6C91 family)
-0069xxxx   object creation
-007a2052   fault
-```
-
-The crash is therefore **inside the new map's world construction**, not after the load and not in a
-logic frame. Reaching the load screen and dying there is exactly this.
-
-**Ruled out, each by evidence rather than argument:**
-
-- *Map shape / `TheGameInfo`* - an identical copy of the source map crashes identically.
-- *Re-entrancy* - `GameLogic::update` appears once on the stack, and only as the frame the cave was
-  jumped into from.
-- *A stale `this`* - `TheGameLogic` has one writer, `0x0062CD16`, in the startup constructor.
-- *A missing subsystem reset* - the two `SubsystemInterface` slots either side of update
-  (`0x00BD85B8`, `0x00BD85C0`) both hold `0x0063F3BF`, which is a bare `ret`.
-
-**What remains.** An object reaching world construction with a team that is not a live team. The
-engine has no game-to-game path: every legitimate `MSG_NEW_GAME` arrives from the shell map, so the
-previous session is always torn down on the way out rather than by the loader. The next piece of
-work is finding that teardown - the nearest analogue in the image is the living-world battle exit
-at `LIVING_WORLD_BATTLE_END` (`0x00626662`), which is the only place the engine leaves a playing
-session for another one - and calling it before the swap.
-
-### Second dump: the message path was necessary and not sufficient
-
-Posting `MSG_NEW_GAME` moved the crash but did not remove it. The third dump faults at the **same
-instruction** (`0x007A2052`, reading `0x148` where the first read `0x158`), and the stack is now
-entirely the engine's own:
-
-```
-00639ee4   GameEngine
-006326cc   -> GameLogic::update  (the cave's frame is gone; it posted and returned)
-00779df3   MSG_NEW_GAME handler, just after its own call to loadMap
-00631580   GameLogic::loadMap
-0062fbdb   GameLogic::startNewGame
-007a62xx   team instantiation
-0069xxxx   -> Object::setTeam
-007a2052   fault
-```
-
-So the sequencing was fixed and the fault is unchanged. **The engine's own handler crashes the same
-way**, which means this is not something the patch does wrongly around the transition - it is the
-transition itself.
-
-**What the fault is.** `0x00697C09` is `Object::setTeam(Team *)`: it reads the object's current team
-from `OBJECT_TEAM`, and if that is non-null removes the object from it before joining the new one.
-The null case is handled. What is not handled is a **non-null stale** pointer, which is what it has.
-Reading the pointed-to memory out of the dump settles what it is:
-
-```
-+0x000: 09ec8468 0a00a5a0 00000000 00000000     <- first dword is a heap pointer, not a vtable
-+0x140: 00000148 00000098 45033000 447e77af     <- 1017.9f
-+0x150: 43481400 00000000 00000000 3f800000     <- 200.08f, 1.0f
-```
-
-Floats that read as a position and a scale. The "team" is **recycled heap** - the team was freed and
-something else now occupies the memory - and an object still points at it.
-
-**The conclusion, and the design that follows.** The engine has a game-to-shell path and a
-shell-to-game path. It has no game-to-game path, and `MSG_NEW_GAME` carrying a *playing* mode
-mid-match is a case nothing in the shipped game produces: the only mid-match `MSG_NEW_GAME` in the
-image is the shell return at `0x0075DEE2`, and it carries mode 4. `loadMap` is visibly
-mode-conditional about this - at `0x0063153A` it nulls `TheGameInfo`, but only when the incoming
-mode is 4.
-
-So the transition became **two** posted messages with the shell in between: leave the match for the
-shell map, wait until `TheGameLogic`'s mode actually reads 4, then name the destination and post
-again with the mode the session had. That is what a player does by hand, and it is the only
-sequence the engine is known to survive. The destination's name is written only in the second step,
-because the shell load reads the same field.
-
-### Third run: past construction, into `map.ini`
-
-The two-step transition cleared the access violation. The next failure is a different one, later in
-the load, and it is a clean fatal INI error rather than a fault:
-
-```
-RemoveModule ModuleTag_01 was not found for EreborTorch.
-Error parsing field 'RemoveModule' in block 'Object' in file
-'maps\map edain thirdhall\map.ini', line 418.
-```
-
-A map's `map.ini` is loaded as an **override pass** over the already-parsed global data: the loader
-builds `<mapdir>\map.ini` at `0x00627223`, checks it exists, and loads it with INI load type `2`
-at `0x00627250`. Those overrides mutate the live definitions.
-
-`RemoveModule` is **not idempotent**. Applying it twice in one process fails, because the second
-application looks for a module the first one removed - which is exactly what happens when two maps
-whose `map.ini` carries the same directive are loaded one after another without the overrides being
-reset in between. The obvious suspects for that reset - a subsystem legend walker - did not turn up;
-`0x005B45D8` is registration, not a reset pass.
-
-**Tracing the override lifetime.** `map.ini` is applied by the map-INI loader at `0x0062710D`,
-which has exactly **one** caller: `0x0062FA07`, inside `GameLogic::startNewGame`. So the overrides
-are applied on every world build. Nothing in that path reverts them first - `0x0062550D` beside it
-is a small forwarder, the subsystem legend site `0x005B45D8` is registration rather than a reset
-pass, and no "delete overrides" routine turned up by string or structure.
-
-If that reading is right, **`map.ini` overrides accumulate for the lifetime of the process**, and
-loading two maps whose `map.ini` carries the same non-idempotent directive fails on the second one
-however you got there - by script transition or by quitting to the menu and picking the next map.
-Nobody hits it in normal play because nobody loads two maps with the *same* `map.ini` in one
-session. Two byte-identical copies, which is what the current test pair is, is precisely the
-pathological case.
-
-**The test that separates the two readings** is the manual equivalent of what the patch now does:
-load the first map from the menu, quit to the menu, load the second from the menu. Same two maps,
-no patch involved. If that errors, this is an engine limitation the patch merely reaches, and the
-identical-copy pair has to go. If it does not error, the override reset exists somewhere and the
-transition is skipping it.
-
-**If it is the limitation**, there are two answers and both are cheap. The mapper rule - a chain of
-maps must not carry non-idempotent `map.ini` directives for the same object - or a small separate
-patch downgrading `RemoveModule`'s "not found" from a fatal parse error to a skip, which would make
-map chains workable without constraining what a mapper may write.
-
-**Whether this is the patch's problem is a one-test question, and the test is not mine to run.**
-The two-step transition now goes entirely through the engine's own route: the shell return, then a
-new game start. That is structurally what a player does by quitting to the menu and picking another
-map. So if a manual quit-and-restart onto a map with the same `map.ini` reproduces this error, it is
-stock behaviour that the patch merely makes easy to reach, and the answer is a **mapper rule**: a
-chain of maps must not carry non-idempotent `map.ini` directives for the same object. If a manual
-restart does *not* reproduce it, something in the transition is skipping an override reset the menu
-path performs, and that reset is the next thing to find.
-
-One asymmetry is worth recording either way: the second post reuses the previous match's
-`TheGameInfo`, where the skirmish menu builds a fresh one naming the chosen map and its slots. That
-cannot explain an INI parse error, which happens before any of it is read, but it is a real
-difference from a manual restart and it will matter later.
-
-### Fourth and fifth runs: the shell step was never reaching the shell
-
-Two observations from the same session, and together they explain both earlier failures at once.
-
-1. With `map.ini` files present, a transition to a *different* map still tried to load **the first
-   map's** `map.ini`.
-2. With the `map.ini` files deleted, the crash returned - byte for byte the same fault at
-   `0x007A2052`, same stack through the engine's own handler into world construction.
-
-**Posting `MSG_NEW_GAME` with the shell's mode does not select the shell map.** The loader takes
-the map from `GlobalData`'s active map name (`GLOBAL_DATA_ACTIVE_MAP`) whatever the mode argument
-says; the mode only selects *how* the session is built. Step one posted mode 4 and changed no map
-name, so the engine reloaded **the map already running**: re-applying its `map.ini` over itself,
-which is observation 1, and rebuilding its world on top of the live one, which is observation 2.
-
-So the shell step never reached the shell, and the two-step design was never actually tested. Both
-crash signatures were the same underlying mistake wearing different clothes depending on whether a
-`map.ini` was present to fail first.
-
-The missing piece is one call. `ShellMapName` is `GlobalData+0xAEC` (`GLOBAL_DATA_SHELL_MAP`, row
-248 of the `GameData` table), an `AsciiString` defaulting to the full path
-`Maps\ShellMap1\ShellMap1.map` written by `GlobalData`'s constructor at `0x0064306B` - the same
-shape as the active map name. Step one now copies it over the active name with
-`AsciiString::operator=` (`ASCII_STRING_COPY`, `0x00436030`, the same call `startNewGame` uses to
-promote the staged name) before posting the mode.
-
-**What this retires.** The conclusion recorded above - that the engine has no game-to-game path and
-world construction cannot run over a live session - was drawn from a fault that is now explained by
-the map name never changing. It may still be true; nothing has tested it. The two-step through the
-shell stands because it is what the engine's own quit-to-menu does, not because that conclusion
-survived.
-
-### Where this stands, and why the next step is instrumentation
-
-The shell-map naming was a real bug and fixing it did not stop the crash. Five dumps now, and the
-fault is **identical every time**: `0xC0000005` at `0x007A2052`, `Object::setTeam` reading a
-non-null team whose container is garbage, inside team instantiation, inside world construction.
-
-It is identical across four materially different ways of asking for the transition - the direct
-`startNewGame`/`loadMap` pair, one posted `MSG_NEW_GAME`, the two-step that silently reloaded the
-running map, and the two-step that names the shell map first. **That invariance is the finding.**
-Changing how the transition is requested does not move it, which says the fault is not in the
-request path.
-
-**What cannot currently be told apart** is which of the two loads dies: the shell load, or the
-destination load after it. They produce the same stack, because both are `MSG_NEW_GAME` -> loader
--> world builder -> team instantiation. The dumps cannot answer it either, because `crash-dump`'s
-default type (`0x1B65`) carries heap but **not module data segments**: `TheWritableGlobalData` and
-`TheGameLogic` are both unreadable, so the map name being loaded and the game mode are both
-unknown. Every conclusion about which step failed has been inferred from side effects.
-
-That is the thing to fix before hypothesis six. Applying `crash-dump --dump-type 0x1b67` adds
-`MiniDumpWithFullMemory` and captures the data segments, which makes four questions answerable
-directly from the next dump rather than argued from symptoms:
-
-| question | where it is read from |
-|---|---|
-| which map was loading | `GLOBAL_DATA_ACTIVE_MAP` on `TheWritableGlobalData` |
-| whether the shell step happened | the same field reading `Maps\ShellMap1\ShellMap1.map` |
-| which game mode the load was given | `TheGameLogic + 0x110` |
-| which step the patch thought it was in | `PENDING_OFF` and `SAVED_MODE_OFF` in `.maptran` |
-
-The last row is the one that matters most: the cave's own state machine has never been observed,
-only inferred.
-
-### The full-memory dump: the crash is in the **shell** load
-
-Raising `crash-dump --dump-type` to `0x1b67` captured the data segments, and the first dump that
-carries them answers in one read what five earlier ones could not:
-
-| read from the dump | value |
-|---|---|
-| `.maptran` `pending` | `2` - step one done, waiting for the shell |
-| `.maptran` `saved_mode` | `2` - an ordinary skirmish |
-| `.maptran` name buffer | `'map edain Tolfalas'` |
-| `GLOBAL_DATA_ACTIVE_MAP` | `'Maps\ShellMap1\ShellMap1.map'` |
-| `GLOBAL_DATA_SHELL_MAP` | `'Maps\ShellMap1\ShellMap1.map'` |
-| `TheGameLogic + 0x110` | `4` |
-
-**Step one works.** The shell map is named, its mode is posted and taken, the destination is
-buffered, and the state machine is correctly parked waiting. The crash happens **inside the shell
-map's load**, before step two ever runs.
-
-That retires a lot at once. The destination map is irrelevant - it is never reached. The `map.ini`
-collision was a side effect of the earlier bug and not a separate problem. And the two-step design
-is not what is failing: **step one alone reproduces the crash**, and step one is nothing more than
-"leave this match for the shell map", which the engine does every time a player quits to the menu.
-
-**So the question is now narrow and well posed:** why does posting `MSG_NEW_GAME` with the shell's
-mode, from the logic update, crash when the menu's own quit does the same thing safely?
-
-The difference is visible. The stock quit does not just post that message. It runs
-`0x0075DCF4` - reached from its single caller `0x0075E1BA` - which performs a long teardown
-sequence (window and subsystem calls through vtable slots `+0x20` and `+4`, interleaved with
-`operator delete`) and only then posts at `0x0075DEDA`. The cave posts the message with none of it.
-
-The next step is therefore to identify which part of that teardown is load-bearing, rather than to
-replicate the post more faithfully. The post is already faithful; what precedes it is not.
-
-### The teardown, found
-
-The dump narrowed the failure to "posting `MSG_NEW_GAME` with the shell's mode, from the logic
-update, crashes where the menu's own quit does not". The difference is a call, and it was findable
-once the question was that specific.
-
-`0x0075DE01` is the go-to-shell routine - `__thiscall`, three bool arguments, and the function that
-posts `MSG_NEW_GAME(4)` at `0x0075DEDA`. (An earlier reading put that post inside `0x0075DCF4`;
-that address is a **destructor** and the boundary was wrong. The real function begins at
-`0x0075DDD7`'s successor.) Before posting, it emits message `0x22` - and separately, the mid-match
-quit button at `0x00921A67` calls:
-
-```asm
-00921a67  push 1
-00921a69  mov  ecx, esi                 ; TheGameLogic
-00921a6b  call 0x625e36                 ; GameLogic::clearGameData(Bool)
-```
-
-**`CLEAR_GAME_DATA` (`0x00625E36`) was already recorded in `sage_patch.addresses`** - as the site a
-mid-match quit takes on the way to ending a recording. It was sitting in the module the whole time
-under a name that described a different consumer, which is why six passes over the load path never
-turned it up: the load path is not where it lives.
-
-So step one now ends the match before it asks for the shell:
-
-```
-clearGameData(1)  ->  name the shell map  ->  post MSG_NEW_GAME(4)
-```
-
-`ret 4`, one bool, and the quit passes `1`. That argument only gates a network branch which a
-single-player session skips at `0x00625E49` anyway, so `1` is both faithful to the stock call and
-inert here.
-
-This is the first change aimed at what the dump actually showed rather than at a reconstruction of
-what might be happening. Whether it is sufficient is a separate question from whether it is
-necessary - it is plainly necessary, since the world was being built over a live session, which is
-exactly the fault `Object::setTeam` reported every time.
-
-### Score screen: the teardown was right, the timing was not
-
-With `clearGameData` added, the run reached the **end-of-match score screen**, which flashed and
-then crashed. That is a different failure again, and it says the teardown call is correct: the
-match genuinely ended.
-
-`0x00921904` is the **pause menu**'s handler - it pushes `APT:Pause` at `0x00921A9B` - and its Quit
-branch is where `clearGameData(1)` comes from. So the call is the right one, but it is not a
-self-contained teardown: it hands the session to the engine's own end-of-match flow, which shows
-the score screen and reaches the shell map **on its own schedule**.
-
-The build that produced the score screen also posted `MSG_NEW_GAME(4)` and named the shell map by
-hand, in the same breath. That put a second shell request into the middle of a flow already heading
-there. Two transitions, one session.
-
-So step one now does the teardown **and stops**:
-
-```
-step one:  save the mode, arm step two, clearGameData(1), return
-step two:  wait for TheGameLogic's mode to read 4, then name the destination and post
-```
-
-Nothing names the shell map any more - the engine's own flow does that, as it does for a real quit.
-Step two's wait was already written to watch for mode 4 and needed no change; it now waits for the
-engine to arrive there rather than racing it.
-
-**What is unresolved** is the score screen itself. If the flow stops there for a click, the
-transition will stall until the player dismisses it, which is wrong for a scenario but proves the
-mechanism. Suppressing it is a separate problem and only worth solving once the chain completes.
-
-**A note on the dump for this run: it is unusable.** 45 MB, one stream, no exception record - the
-process died before the writer finished. Disk space was not the cause (1.1 TB free). A full-memory
-dump is around 950 MB and evidently does not always survive the crash that produced it, so a run
-that crashes without leaving a readable dump is now a possible outcome to plan around rather than
-be surprised by.
-
-### Read from a live process: the wait was on the wrong number
-
-The teardown worked. The run showed the score screen and then returned to the **skirmish lobby**,
-and simply stopped there - no crash, no transition. With the game still sitting in that state,
-`sage_live`'s `ProcessMemory` read the answer straight out of it, no dump required:
-
-| | |
-|---|---|
-| `.maptran` `pending` | `2` - step two armed and waiting |
-| `.maptran` `saved_mode` | `2` |
-| `.maptran` name | `'map edain Tolfalas'` |
-| `TheGameLogic + 0x110` | **`9`** |
-| `GLOBAL_DATA_ACTIVE_MAP` | `'maps\map edain thirdhall\map edain thirdhall.map'` |
-
-**Mode 9, not 4.** The end-of-match flow does not park on the shell map; it leaves the engine at
-mode 9 in the skirmish lobby. Step two waited for `4` and would have waited forever. The engine's
-own shell return special-cases the same value at `0x0075DEAA`, which is corroboration that 9 is a
-real resting state rather than a transient.
-
-That branch also shows the right way to name a map from this state:
-
-```asm
-0075debc  mov  eax, [0xde4364]
-0075dec1  lea  ecx, [eax + 0xaec]     ; ShellMapName
-0075dec7  push ecx
-0075dec8  lea  ecx, [eax + 0xac0]     ; the STAGED name, not the active one
-0075dece  call 0x436030               ; staged = ShellMapName
-```
-
-So step two now does two things differently: it proceeds on mode 4 **or** 9, and it formats the
-destination into `GLOBAL_DATA_STAGED_MAP` rather than the active name. `startNewGame` promotes the
-staged name and clears it, so a request that never gets served cannot leave a stale map name
-behind - which is what made the very first two-step build silently reload the running map.
-
-**Method note.** This was the cheapest diagnosis in the whole effort and it needed no crash, no
-dump and no guess: the failure state was still on screen, so the state was still in memory.
-`sage_live` should have been the first instrument reached for, not the last.
-
-### The transition works, and the first carryover layer
-
-**The map transition works.** Action, teardown, score screen, lobby, destination map. Six wrong
-diagnoses and one live memory read to get there.
-
-Nothing carried, which was expected - every build to this point was mechanism only. §6.8's record
-round-trip is now built on top of it, for the local player's army:
-
-| phase | where | what |
-|---|---|---|
-| snapshot | step one, **before** `clearGameData` | `PLAYER_FOR_EACH_TEAM_OBJECT` over the local player, and per object: construct a record in the arena with `ARMY_ENTRY_RECORD_CTOR`, fill it with `OBJECT_TO_ARMY_RECORD`, and store the position and facing beside it |
-| restore | a new step three, once the mode matches the saved one | per record: `ARMY_RECORD_CREATE_OBJECT` onto the local player, then `OBJECT_SET_POSITION` and `OBJECT_SET_ORIENTATION` |
-
-The engine marshals template, health, purchased upgrades and veterancy itself, so the patch copies
-none of it. What the record does **not** carry is position, which is why each slot is
-`ARMY_RECORD_SIZE` plus a `Coord3D` and an angle - `SLOT_SIZE` `0xE8`, 256 of them, a 58 KB arena.
-
-Units come back at the coordinates they left. That is right for maps laid out as a continuous
-world and wrong for arbitrary pairs; an entry waypoint is the better rule and a later change.
-
-**One bug worth recording, because it assembles cleanly and is invisible.** `RECORD_POSITION_OFF`
-is `0xD8`, which does not fit a **signed** byte displacement. Emitted as `89 47 D8` it is not
-`[edi+0xD8]` but `[edi-0x28]`, writing over the record instead of after it. The disassembly check
-caught it before it ever ran; the test that now pins it asserts no negative displacement appears in
-the routine at all.
-
-### The carryover's first crash, and what the dump could not say
-
-A new fault, in a new place: `0x0062E5A0`, **inside `GameLogic::update` itself** rather than world
-construction. The instruction is `mov eax, [ecx+4]` two after `lea ecx, [esi + 0x164]`, and `esi`
-- the engine's own `this` for the whole function - is **zero**. Register or stack corruption, not
-a dangling object.
-
-The previous build did not crash, so the fault is in the snapshot or the restore. Every call either
-adds makes was re-checked against its actual epilogue:
-
-| call | cleanup | pushed |
-|---|---|---|
-| `PLAYER_LIST_GET_LOCAL_PLAYER` | `ret` | 0 |
-| `PLAYER_FOR_EACH_TEAM_OBJECT` | `ret 8` | 2 |
-| `ARMY_ENTRY_RECORD_CTOR` | `ret` | 0 |
-| `OBJECT_TO_ARMY_RECORD` | `ret 4` | 1 |
-| `ARMY_RECORD_CREATE_OBJECT` | `ret 4` | 1 |
-| `OBJECT_SET_POSITION` / `OBJECT_SET_ORIENTATION` | `ret 4` | 1 |
-
-All balanced, and the callback's convention was confirmed the long way rather than assumed:
-`0x007A0626` pushes `ctx`, then the object, then `call [ebp+8]`, then `pop ecx` twice - so
-`fn` is argument one, the object comes first, and the caller cleans. That is what the cave emits.
-
-One difference from the engine's own use of that walk **was** real and is now fixed: the engine's
-per-object callback tests `OBJECT_STATUS_UNDER_CONSTRUCTION` at `0x00885234` and skips before
-counting. The snapshot did not. It now does.
-
-**The dump could not answer the question that matters.** `crash-dump` had reverted to its default
-type when the build was re-applied, so the module data segments are absent and `.maptran`'s
-`count` and `pending` are unreadable. Those two words say whether the crash happened during the
-snapshot on the source map or during the restore on the destination, which halves the search. The
-next run needs `--dump-type 0x1b67` again.
-
-### The full-memory dump, read at last: the lobby ignores the message
-
-With `normal = 0x1B67` finally set (`deep` was already that value and is only used by the engine's
-own `fulldump` command - changing it did nothing), the dump carries the data segments:
-
-| | |
-|---|---|
-| `.maptran` `pending` | `3` |
-| `.maptran` `count` | **`58`** |
-| `.maptran` name | `'map edain Tolfalas'` |
-| staged map | `'maps\map edain Tolfalas\map edain Tolfalas.map'` |
-| active map | `'maps\map edain thirdhall\map edain thirdhall.map'` |
-| `TheGameLogic + 0x110` | `9` |
-
-**The snapshot works.** 58 objects captured off the local player before the teardown. **Step two
-works**: it staged the destination correctly and armed step three. And then nothing happened.
-
-**A `MSG_NEW_GAME` posted from mode 9 is not acted on.** The mode stayed 9, the staged name was
-never promoted over the active one, and the active map still named the source - so `startNewGame`
-never ran. The message went out and the engine ignored it.
-
-So the transition stalls in the lobby, and the crash that follows is a consequence of sitting there
-in that state rather than its cause. The fault itself is in a plugin dispatch: `0x006034FB` is
-`GetProcAddress(module, "ForceAppContinue")` followed by `jmp eax`, tail-jumping into a loaded DLL,
-and the engine's `this` for `GameLogic::update` comes back zero. `interpolation-alpha`'s cave at the
-adjacent `ALPHA_RECOMPUTE` site was checked and preserves `ecx` correctly, so it is not that.
-
-**The fix follows the same rule as everything else that has worked here: only ask the engine for
-transitions it already performs.** Mode 4, the shell map, is the state its own shell-to-game start
-works from; mode 9 is not. So the lobby state now stages the shell map and posts *its* mode, and
-the destination is only requested once the mode reads 4:
-
-```
-1  snapshot the army, clearGameData, arm 2      -> engine shows the score screen, lands in the lobby
+1  snapshot the army, clearGameData(1), arm 2   -> engine shows the score screen, lands in the lobby (mode 9)
 2  mode 9 -> stage the shell map, post mode 4   -> engine loads the shell map
-   mode 4 -> stage the destination, post the saved mode, arm 3
-3  mode == saved mode -> put the army back
+   mode 4 -> TheGameInfo = TheSkirmishGameInfo, clearGameData,
+             stage the destination, post the saved mode, arm 3
+3  mode == saved mode -> put the army, the player state and the script state back
 ```
 
-Four states, each waiting for a mode the engine reaches by itself.
+Each step is there because the engine forces it:
 
-### The fix, and what it cost to find
+- **World construction over a live session faults.** Entered from a match — the direct
+  `startNewGame`/`loadMap` pair, or one posted `MSG_NEW_GAME` — the load faults inside the new map's
+  team instantiation at `0x007A2052` (`mov eax, [ecx]`, `ecx` = `0x158`), in `Object::setTeam`
+  (`0x00697C09`) reading a **non-null stale** team: the dump shows recycled heap where the team was,
+  holding floats that read as a position and a scale. The engine's own handler crashes the same way
+  when asked from a playing mode. The only mid-match `MSG_NEW_GAME` in the image is the shell return
+  at `0x0075DEE2`, and it carries mode 4.
+- **`clearGameData(1)` (`0x00625E36`) is the teardown.** It is what the pause menu's Quit (`0x00921904`,
+  call at `0x00921A67`) does; the argument only gates a network branch a single-player session skips
+  at `0x00625E49`. It hands the session to the engine's end-of-match flow, which shows the score
+  screen and reaches the lobby **on its own schedule** — so step 1 posts nothing; a second shell
+  request in the middle of that flow is a second transition in one session.
+- **The end-of-match flow parks at mode 9**, the skirmish lobby, not at 4. The engine's own shell
+  return special-cases the same value at `0x0075DEAA`, so 9 is a real resting state.
+- **A `MSG_NEW_GAME` posted from mode 9 for a playing mode is ignored**: the mode stays 9 and the
+  staged name is never promoted. Mode 4, the shell map, is the state the engine's shell-to-game start
+  works from, so step 2 goes there first.
+- **The mode does not select the map.** The loader takes the map from `GlobalData`'s active name
+  (`GLOBAL_DATA_ACTIVE_MAP`) whatever the mode argument says; posting mode 4 without naming the shell
+  map reloads the map already running. `ShellMapName` is `GlobalData+0xAEC`
+  (`GLOBAL_DATA_SHELL_MAP`, row 248 of the `GameData` table), defaulting to
+  `Maps\ShellMap1\ShellMap1.map` (written at `0x0064306B`). Both names are written into the
+  **staged** slot `GLOBAL_DATA_STAGED_MAP` (`+0xAC0`), as the engine's own branch at `0x0075DEBC`
+  does: `startNewGame` promotes and clears it, so a request that is never served cannot leave a stale
+  name behind.
+- **`loadMap` nulls `TheGameInfo` for the shell map and for nothing else** (`0x0063153A`, when the
+  incoming mode is 4). The destination would then load without one: `LoadScreen::init(GameInfo *)`
+  (`0x0081CB08`) returns early on null, leaving the progress window at `LoadScreen+0x88` null, and the
+  first progress tick faults at `0x0081C650`. The skirmish info survives — `0x0082BE98` sets
+  `THE_SKIRMISH_GAME_INFO` (`0x00DE8930`) and `THE_GAME_INFO` together and `0x0082BE30` nulls both —
+  so the mode-4 arm copies the one back into the other before posting, after the shell's `loadMap`
+  has cleared it.
+- **The shell map's render scene stays standing** into the destination unless the session is torn
+  down between them: the logic world is the destination's while its terrain is never added to the
+  scene and the shell map's drawables are never removed. The mode-4 arm calls `clearGameData` before
+  its post, leaving `MSG_CLEAR_GAME_DATA` and `MSG_NEW_GAME` in one stream, in order. One supporting
+  instance, not a derivation: the stock shell-to-game start calls `clearGameData` nowhere — clicking
+  Skirmish leaves the shell map first.
+- **`TheGameLogic` is not reallocated by a load**: `0x00DE412C` has exactly one writer, `0x0062CD16`,
+  in the startup constructor, so the `this` the hook restores stays valid.
 
-Replacing the two direct calls with the posted message is a fifteen-instruction change, and every
-hypothesis before it was wrong. Worth recording which, because the wrong ones all *sounded* better
-than the right one:
+### What carries: the army
 
-| hypothesis | killed by |
-|---|---|
-| re-entrancy through the loading screen | the stack: `GameLogic::update` appears once, as the frame the cave was entered from |
-| the lobby still describing the old map | an identical copy of the source map crashing identically |
-| `TheGameLogic` reallocated by the load | one writer, `0x0062CD16`, in the startup constructor |
-| a missing subsystem reset | both vtable slots either side of update hold `0x0063F3BF`, a bare `ret` |
-
-What actually settled it was not another reading of the swap. It was asking **where the engine
-already does this**, which is the shell return, and finding it takes a different route entirely.
-The direct pair was copied from `startCampaign` because that was the only mid-session map load in
-the image; it is also the only one that runs from the shell, which is the property that mattered
-and the one that was not checked.
-
-### The shell hop takes the `GameInfo` with it
-
-The four-state machine reached the destination. The dump taken from the next crash reads, in full:
-`TheGameLogic + 0x110` is **2**, `GlobalData + 0xC` names `maps\map edain Tolfalas\map edain
-Tolfalas.map`, the staged slot is empty and the pending flag is **3** with 60 records banked. So
-`startNewGame` ran, promoted the destination over the active name and handed off to `loadMap`. The
-swap is done; the crash is inside the destination's own load.
-
-The faulting instruction is `0x0081C650`, `mov eax, [ecx]`, with `ecx` zero:
-
-```
-0081c64a  mov  ecx, [esi + 0x88]     ; the load screen's progress window
-0081c650  mov  eax, [ecx]            ; <- faults
-0081c653  call [eax + 0x34]
-```
-
-`esi` is the `LoadScreen` at `TheGameLogic + 0x120`, alive and correctly built for game mode 2.
-Only its `+0x88` is null, and the constructor at `0x0081D3B4` initialises that field to zero, so
-what did not happen is the assignment. There is exactly one:
-
-```
-0081cb08  ; LoadScreen::init(GameInfo *)
-0081cb18  mov  eax, [ebp + 8]
-0081cb20  cmp  eax, edi              ; edi = 0
-0081cb27  je   0x81d30d              ; hand it a null GameInfo and it returns, field untouched
-0081cb2d  mov  [ebx + 0x88], eax
-```
-
-and its one caller passes `TheGameInfo` straight through:
-
-```
-0063155a  push [0xde892c]            ; TheGameInfo, into loadMap's helper
-0062dcaa  call 0x626a87              ; getLoadScreen(mode) - reads TheGameLogic + 0x110
-0062dcb1  mov  [esi + 0x120], eax
-0062dcbe  call [edx + 8]             ; loadScreen->init(theGameInfo)
-0062dcc5  call 0x62550d              ; first progress tick -> the fault above
-```
-
-`TheGameInfo` was null. Six instructions into `loadMap` is the reason:
-
-```
-0063152d  cmp  [esi + 0x110], 4      ; game mode 4, the shell map
-00631538  jne  0x631540
-0063153a  mov  [0xde892c], ebx       ; TheGameInfo = NULL
-```
-
-**`loadMap` nulls `TheGameInfo` for the shell map and for nothing else.** The hop through the shell
-that made the transition work is the same hop that took the `GameInfo` away, and the destination
-then loads without one. The load screen is only the first thing to notice.
-
-The skirmish info itself survived - the dump has `THE_SKIRMISH_GAME_INFO` (`0x00DE8930`) at
-`0x08E07F10` with `THE_GAME_INFO` at zero. Those two globals are written together by the shell
-menu: `0x0082BE98` sets both when the skirmish info is created, and `0x0082BE30` nulls both when it
-is destroyed. So a non-null `THE_SKIRMISH_GAME_INFO` is a live object, and the repair is the
-assignment the shell start already makes, five instructions in the mode-4 arm just before the
-destination's mode is posted:
-
-```asm
-mov  eax, [THE_SKIRMISH_GAME_INFO]
-test eax, eax
-je   no_game_info
-mov  [THE_GAME_INFO], eax
-no_game_info:
-```
-
-It has to be here rather than earlier: the arm runs once the shell map is up, which is after that
-`loadMap` cleared the global, and `loadMap` for the destination's own mode never clears it.
-
-This is also the shape of the answer to the last four crashes in a row. Each one was the engine
-being asked for a state it does reach on its own, and each fix was a smaller instruction sequence
-than the reading that preceded it.
-
-### The destination loads; the selection rule was the wrong one
-
-The transition now completes. Read out of a dump taken twenty seconds into the destination:
-`TheTerrainLogic + 0x1C` is **520 x 370**, which is `map edain Tolfalas`'s heightmap exactly;
-`TheTerrainVisual`'s world heightmap holds the same pair and its filename buffer reads
-`maps\map edain Tolfalas\map edain Tolfalas.map`; and the 221 live objects match that map's own
-object list template for template (19 `FarmTemplate`, 16 `WirtschaftPlotFlag` - the source map has
-24 and 0). The map swap is right, logic and render both.
-
-**What was wrong was what got carried.** §6.8 chose `forEachTeamObject` plus `toArmyRecord`
-because it is "the same walk without the filters", and dismissed the harvest at `0x00811E1F` as
-unusable. The filters were the part worth keeping. Two of the harvest's four are not
-living-world-specific:
+**The selection rule is `KindOf ARMY_SUMMARY`**, two of the harvest's four filters (§6.8), plus the
+engine's own per-object skip of `OBJECT_STATUS_UNDER_CONSTRUCTION` (`0x00885234`):
 
 ```
 00811e93  mov  eax, [edi + 4]           ; the ThingTemplate
 00811e96  test byte [eax + 0x118], bl   ; KindOf = ARMY_SUMMARY
 00811e9c  je   skip
-00811ea2  test byte [edi + 0x458], bl   ; still unidentified
+00811ea2  test byte [edi + 0x458], bl   ; bit 0 has no setter
 00811ea8  jne  skip
 ```
 
-`KindOf ARMY_SUMMARY` is War of the Ring's own answer to "which of these objects go home with the
-player", and it is a better rule than "not a structure" for two reasons:
+`ARMY_SUMMARY` is War of the Ring's own answer to "which of these objects go home with the player",
+and it is better than "not a structure" for two reasons:
 
-- Structures do not carry it, which is the reported bug: a player who had built a castle arrived
-  on the destination with its walls, keep, elevators, plot flags and foundations around him.
-- **Hordes carry it and their members do not.** Measured on the live map: `GondorFighterHorde_-
-  StartUnit` has the bit, `GondorFighter` does not. The old walk took the horde *and* each of its
-  members and put both back, so every horde was duplicated as a horde plus a crowd of loose
-  soldiers. Filtering on the bit carries the horde once and lets `createObject` rebuild its
-  members, which §6.8 already established that it does.
+- Structures do not carry it, so a player who built a castle does not arrive with its walls, keep,
+  elevators, plot flags and foundations.
+- **Hordes carry it and their members do not.** Measured on a live map: `GondorFighterHorde_-
+  StartUnit` has the bit, `GondorFighter` does not. Filtering on it carries the horde once and lets
+  `createObject` rebuild its members (§6.8); walking every team object would put back each horde
+  *and* a crowd of loose soldiers.
 
-The fourth filter, `obj+0x458` bit 0, stays unidentified and is mirrored anyway: across the whole
-221-object census it is set only on `FarmTemplate`, `GondorSpellBook` and `EdainTroopSpawnPoint` -
-map furniture, never a unit or a horde.
+The fourth filter, `obj+0x458` bit 0, is mirrored anyway. It has no setter in the binary — only two
+zeroing stores in constructors ([`army-id-custody.md`](living-campaign/army-id-custody.md)) — yet a
+221-object live census read it set on `FarmTemplate`, `GondorSpellBook` and `EdainTroopSpawnPoint`,
+map furniture, never a unit or a horde. That reading needs re-measuring.
 
 **One consequence a mapper has to know about.** `ARMY_SUMMARY` is mod data, not engine data, and
 Edain does not set it everywhere. It is on 257 unit files and on the hordes, but `HOBBIT_KINDOF`
-(`_gamedata.inc:65`) omits it, so Pippin, Merry, Frodo and Sam do not carry. That is a one-word
-fix in the mod rather than in the patch, and using the engine's own flag is what makes it a fix
-the mod can make.
+(`_gamedata.inc:65`) omits it, so Pippin, Merry, Frodo and Sam do not carry. That is a one-word fix
+in the mod rather than in the patch.
 
-### The render scene is not the world: the shell map stays standing
+**The record does not carry position**, so each slot is `ARMY_RECORD_SIZE` plus a `Coord3D` and an
+angle - `SLOT_SIZE` `0xE8`. Units come back at the coordinates they left: right for maps laid out as
+a continuous world, wrong for arbitrary pairs (§7). `RECORD_POSITION_OFF` is `0xD8`, which does not
+fit a **signed** byte displacement — `89 47 D8` is `[edi-0x28]`, not `[edi+0xD8]` — so a test asserts
+no negative displacement appears in the routine at all. The snapshot runs in step 1, **before**
+`clearGameData`; every call it makes was checked against its epilogue (`PLAYER_LIST_GET_LOCAL_PLAYER`
+`ret`, `PLAYER_FOR_EACH_TEAM_OBJECT` `ret 8`, `ARMY_ENTRY_RECORD_CTOR` `ret`, `OBJECT_TO_ARMY_RECORD`,
+`ARMY_RECORD_CREATE_OBJECT`, `OBJECT_SET_POSITION` and `OBJECT_SET_ORIENTATION` `ret 4`), and the
+walk's callback convention against `0x007A0626`: it pushes `ctx`, then the object, calls `[ebp+8]`
+and pops both, so `fn` is argument one, the object comes first, and the caller cleans.
 
-Two screenshots settled what the dump could not. Where the destination should be: the citadel, the
-walls, the plot-flag rings and the carried army, all correctly placed, on **black** - no terrain at
-all. Scroll away and the Argonath are still there, lit and textured, with the in-game HUD over
-them. That is the shell map's scenery, still in the render scene, twenty seconds into a game whose
-logic world is entirely the destination's.
+### What carries: script state
 
-So the earlier reading was right and incomplete. `TheTerrainLogic` and the world heightmap both
-hold 520 x 370 and the destination's path, and the object list matches its map file template for
-template - the **logic** load is correct. The render scene simply never changed hands: the shell
-map's drawables were never removed and the destination's terrain was never added. New objects do
-reach the scene, which is why the army and the buildings draw.
-
-The one hop in the whole sequence that came up whole is the shell map itself, and the thing in
-front of it is step one's `clearGameData`. Nothing tears down between the shell map and the
-destination. So the mode-4 arm now does, with the same call and the argument the engine's own
-non-match teardown uses, leaving both messages in one stream in order: `MSG_CLEAR_GAME_DATA` from
-the call, `MSG_NEW_GAME` from the post.
-
-This is a hypothesis with one supporting instance, not a derivation - the stock shell-to-game start
-calls `clearGameData` nowhere (there are three call sites in the image and all three are the pause
-menu, the living-world battle exit, and one wrapper). The likeliest reason it does not need to is
-that clicking Skirmish leaves the shell map first, so stock's start runs from mode 9 with nothing
-standing, which is also what §"the lobby ignores the message" ran into from the other side.
-
-### Still open: the four reserved trees keep a dead team
-
-Six to twenty seconds into the destination the game faults at `0x0079FD77`, `mov eax, [eax + 8]`,
-reached from `Object::isLocallyControlled`:
-
-```
-0068b678  mov ecx, [ecx + 0x31c]   ; the Object's Team
-0068b682  jmp 0x79fd6f             ; team -> [+0x30] prototype -> [+8] player
-```
-
-The object is `TheOneTree`, and its three siblings are in the same state. They hold ids
-99999996-99999999 and a `Team *` of `0x0A526148`, whose `+0x30` reads **6**: freed memory. Every
-other object in the census resolves cleanly.
-
-They survive because their creation site looks them up before it builds them:
-
-```
-0062f508  mov  edi, 0x5f5e0ff              ; 99999999
-0062f510  call GAME_LOGIC_FIND_OBJECT_BY_ID
-0062f517  mov  [esi + 0x154], eax
-0062f51d  jne  0x62f5f1                    ; already there -> keep it
-```
-
-and the team they were given is `ThePlayerList->players[0]->defaultTeam` (`0x0062F5A2`), which the
-destination's player setup replaces and frees. So a set of objects that is meant to be per-session
-outlives one session and points into the previous one. The four cached pointers at
-`TheGameLogic + 0x154`-`0x160` are nulled only in the `GameLogic` constructor (`0x00630219`), so
-nothing per-map resets them either. Destroying the four at transition time would put the
-recreation branch back in charge; that needs a `destroyObject` address this build does not have
-named yet.
-
-### The script state, built and checked against a live engine
-
-§6.1 named the containers and §6.2 settled that timers need no rebasing. What was left was the
-node layout, which the write-up had inferred. Reading it out of a dump instead settles it and
-adds the piece that was missing:
+§6.1 names the containers and §6.2 settles that timers need no rebasing. The node layout, read out
+of a dump:
 
 | node offset | field |
 |---|---|
@@ -1373,8 +732,6 @@ engine's own convention for script state the map did not author, and handing the
 music scripts the source map's idea of what has already been initialised is not what "carry the
 counters" meant.
 
-**Two things fell out of reading the real records rather than the design.**
-
 A flag's value is a **byte**, and the three bytes above it in the node belong to someone else -
 `___MusicScript_Level1MusicDone` reads `0xFFFFFF00` as a dword. Carrying the dword would restore
 garbage into the neighbouring fields.
@@ -1391,18 +748,13 @@ Restore uses the two lookup-or-create functions rather than synthesising a `Scri
 return the record (`0x0060820E` and `0x0060835C` both `add esi, 0x18`). So the string is
 constructed directly into the stack slot that is already the argument, and the callee's `ret 4`
 disposes of the slot and the string together.
+The restore runs before the script engine's own update in the destination's first logic frame;
+§6.12 item 3 is what that means for a script that initialises the same name.
 
-**One ordering question this cannot answer without a run.** The restore happens on the first logic
-frame the destination is running, from `GameLogic::update`'s entry - which is before the script
-engine's own update in that same frame. A destination script that initialises the same name at
-frame 1 will therefore overwrite the carried value, which is the opposite of the policy §7 states.
-Whether that matters depends on whether a mapper writes such a script, and the fix if it does is to
-defer restore by one frame.
+### What carries: the player's own state
 
-### The player's own state, and the field that must not carry
-
-§6.7 had these recorded already, so the work was deciding which of them are *state* and which are
-*bookkeeping*. Checked against a dump beside its screenshot: `Player+0x94` reads **4240** where the
+§6.7 records the fields; the question is which are *state* and which are *bookkeeping*. Checked
+against a dump beside its screenshot: `Player+0x94` reads **4240** where the
 HUD shows 4240 gold, and `+0x64` reads **500** where the HUD shows a cap of 500. The mapping is
 right.
 
@@ -1421,7 +773,7 @@ headroom to exist. The `<filtered extras>` term the engine adds between base and
 vector of `ObjectFilter`-carrying entries that has to be evaluated by the engine, so it is left to
 the destination and the three flat fields are what move.
 
-### Sciences and upgrades, from the engine's own restore
+### What carries: sciences and upgrades
 
 `LIVING_WORLD_BATTLE_SETUP` (`0x008125FC`) is War of the Ring putting a living-world player's money,
 sciences and upgrades back onto its RTS player at the start of a battle. That is the same problem
@@ -1435,8 +787,8 @@ every seat in a skirmish carries the four baseline sciences 30-33, and only the 
 fifth - `16`, a purchased spellbook power. Only that seat had upgrade bits set, too, which is the
 shape the fields should have and a check on both at once.
 
-**Upgrades are replayed, not written.** The earlier note here said the mask was out of scope partly
-because writing it raw would set each bit and run nothing. The engine does not write it either:
+**Upgrades are replayed, not written.** Writing the mask raw would set each bit and run nothing,
+and the engine does not do that either:
 
 ```
 008126e5  mov  ecx, [TheUpgradeCenter]
@@ -1455,9 +807,76 @@ Restore consumes a **copy** of the snapshotted mask rather than the mask itself:
 each bit as it grants it, and the arena keeps what it captured. The bit is cleared after the grant
 whatever the grant returned, so an upgrade the destination refuses cannot spin the cave.
 
-**Power cooldowns are out of scope** (decided 2026-09-08), so the layer still outstanding is the
-hero revival ledger in §6.6. Powers arrive ready; §6.9 records why that is the same outcome as
-carrying `readyFrame` unrebased, and what rebasing would take if it is ever wanted.
+**Power cooldowns are out of scope**, so powers arrive ready; §6.9 records why that is the same
+outcome as carrying `readyFrame` unrebased. The hero revival ledger (§6.6) is not carried yet.
+
+### Open: the four reserved trees keep a dead team
+
+Six to twenty seconds into the destination the game faults at `0x0079FD77`, `mov eax, [eax + 8]`,
+reached from `Object::isLocallyControlled`:
+
+```
+0068b678  mov ecx, [ecx + 0x31c]   ; the Object's Team
+0068b682  jmp 0x79fd6f             ; team -> [+0x30] prototype -> [+8] player
+```
+
+The object is `TheOneTree`, and its three siblings are in the same state. They hold ids
+99999996-99999999 and a `Team *` of `0x0A526148`, whose `+0x30` reads **6**: freed memory. Every
+other object in the census resolves cleanly.
+
+They survive because their creation site looks them up before it builds them:
+
+```
+0062f508  mov  edi, 0x5f5e0ff              ; 99999999
+0062f510  call GAME_LOGIC_FIND_OBJECT_BY_ID
+0062f517  mov  [esi + 0x154], eax
+0062f51d  jne  0x62f5f1                    ; already there -> keep it
+```
+
+and the team they were given is `ThePlayerList->players[0]->defaultTeam` (`0x0062F5A2`), which the
+destination's player setup replaces and frees. So a set of objects that is meant to be per-session
+outlives one session and points into the previous one. The four cached pointers at
+`TheGameLogic + 0x154`-`0x160` are nulled only in the `GameLogic` constructor (`0x00630219`), so
+nothing per-map resets them either. Destroying the four at transition time would put the
+recreation branch back in charge; that needs a `destroyObject` address this build does not have
+named yet.
+
+### Open: `map.ini` overrides across a chain
+
+A map's `map.ini` is loaded as an **override pass** over the already-parsed global data: the loader
+builds `<mapdir>\map.ini` at `0x00627223`, checks it exists, and loads it with INI load type `2` at
+`0x00627250`, from `0x0062710D`, whose one caller is `0x0062FA07` inside `GameLogic::startNewGame`.
+Nothing in that path reverts earlier overrides first — `0x0062550D` beside it is a small forwarder,
+`0x005B45D8` is registration rather than a reset pass, and no "delete overrides" routine turns up by
+string or structure. If that reading is right, **`map.ini` overrides accumulate for the lifetime of
+the process**.
+
+`RemoveModule` is **not idempotent**: applying it twice fails, because the second application looks
+for a module the first removed —
+
+```
+RemoveModule ModuleTag_01 was not found for EreborTorch.
+Error parsing field 'RemoveModule' in block 'Object' in file
+'maps\map edain thirdhall\map.ini', line 418.
+```
+
+— so loading two maps whose `map.ini` carries the same non-idempotent directive fails on the second
+one. The test that settles whether this is stock behaviour: load the first map from the menu, quit
+to the menu, load the second. If that errors, the answer is a **mapper rule** — a chain of maps must
+not carry non-idempotent `map.ini` directives for the same object — or a small separate patch
+downgrading `RemoveModule`'s "not found" from a fatal parse error to a skip. If it does not, the
+menu path performs an override reset the transition skips.
+
+### Debugging a transition
+
+- **`crash-dump --dump-type 0x1b67`.** The default type (`0x1B65`) carries heap but **not module
+  data segments**, so `TheWritableGlobalData`, `TheGameLogic` and the patch's own `.maptran` state
+  are unreadable and which step failed has to be inferred. `normal = 0x1B67` adds
+  `MiniDumpWithFullMemory`; `deep` is only used by the engine's own `fulldump` command. A full-memory
+  dump is around 950 MB and does not always survive the crash that produced it.
+- **A stalled transition is still in memory.** `sage_live`'s `ProcessMemory` reads `.maptran`'s
+  `pending`, `saved_mode` and name, `TheGameLogic+0x110` and the staged and active map names out of
+  a running game with no dump at all.
 
 ## 7. Decisions the patch has to state, not discover
 
@@ -1468,22 +887,20 @@ carrying `readyFrame` unrebased, and what rebasing would take if it is ever want
 - **Only the named players carry.** Everything else on the destination map comes from the
   destination map. Enemies, neutrals and structures are the new map's business. Structures were
   excluded from scope, so a player who built a base does not bring it.
-- **Placement is by convention.** Carried units appear at a waypoint in the destination map,
-  arranged around it. Relative formation is out of scope, and so are garrison and transport
-  contents, horde member layout, and standing orders. A carried horde arrives as its members'
-  templates. **Hordes are no longer in that list**: §6.8 pushes the carried upgrade list into the
-  object's contain, so members come back dressed. Objects are created onto a `Team`, so the rule
-  names a team, and `createObject` picks the receiving player's default team for you.
-- **Refuse outside single player.** A map load is not in the order stream, so in a network game it
-  is a dropped match for everyone. `THE_GAME_INFO` (`0x00DE892C`) and `GAME_MODE_SKIRMISH` are
-  already in [`../addresses/`](../addresses/__init__.py), so the check is a read.
-- **Refuse, or mark, while recording.** The direct call pair avoids restarting the replay file,
-  which means a replay recorded across a transition will run map 1's orders against map 2's world
-  and diverge with nothing in the file to say why. Refusing is the honest default.
-- **Saves are fine, and that is not an accident.** The transition materialises entirely into
-  ordinary engine state, so a save taken after it is an ordinary save of map 2 and reloads without
-  the patch needing to know. This holds only because §4 keeps the pending flag from ever spanning a
-  frame boundary.
+- **Placement.** Carried units come back at the coordinates they left, which suits maps laid out
+  as a continuous world; an entry waypoint is the better rule for arbitrary pairs and is not built.
+  Garrison and transport contents and standing orders are out of scope. A horde carries once and
+  its members are rebuilt and dressed by `createObject` (§6.8). Objects are created onto the
+  receiving player's default team.
+- **Single player only.** A map load is not in the order stream, so in a network game it is a
+  dropped match for everyone. The cave does not check yet; `THE_GAME_INFO` (`0x00DE892C`) and
+  `GAME_MODE_SKIRMISH` are in [`../addresses/`](../addresses/__init__.py), so the check is a read.
+- **Recording.** A transition restarts the replay file (§2), so a recording covers one map. The
+  cave does not refuse while recording.
+- **Saves.** The transition materialises entirely into ordinary engine state, so a save taken after
+  it is an ordinary save of map 2 and reloads without the patch needing to know. The pending state
+  spans the score screen, the lobby and the shell load, none of which is a point a game is saved
+  from.
 
 ## 8. Acceptance test
 
@@ -1493,28 +910,9 @@ carrying `readyFrame` unrebased, and what rebasing would take if it is ever want
 2. A counter, a flag and a **timer** set before the transition. A timer with 60 seconds left must
    still have about 60 seconds left. §6.2 says this should work by construction, which makes it a
    test of the reading rather than of the design.
-3. ~~A hero power on cooldown carries its remaining time.~~ Dropped with §6.9 - powers arrive
-   ready by decision. Test 2 stands on its own: a script timer that resumed correctly is enough to
-   show the tick-count reading was right.
-4. Save on map 2 after a transition, quit to the shell, reload. The army and the script state come
+3. Save on map 2 after a transition, quit to the shell, reload. The army and the script state come
    back.
-5. Kill a hero on map 1, transition, confirm the hero is still dead and came back revivable at
-   the level and with the upgrades he died with. §6.6 rebuilds the ledger through the engine's
-   own `0x007C6D8E`, so this tests that call as much as the carry.
-6. Transition twice, to confirm the arena and the pending flag survive being used more than once.
-
-## 9. Effort
-
-| piece | size |
-|---|---|
-| the action: repoint one dword, read two string parameters, set the pending flag | small |
-| the `GameLogic::update` hook and the call sequence | small — §2 is the whole mechanism |
-| script state snapshot and restore | small — §6.1 found the containers and the accessors, and §6.2 removed the conversion |
-| object snapshot and re-materialisation | one day — §6.8 makes it two engine calls per unit rather than a field-by-field copy |
-| player state | half a day — §6.7 found nearly all of it already recorded |
-| hero revive | half a day — §6.6 found both the store and the rebuild call |
-| gates, refusals, tests | one day |
-
-Call it two to three days. The map swap is an afternoon, the script state is an afternoon, and
-the object carry is a day now that the engine does the marshalling. What is left in §6.9 is
-naming two round-tripped fields and one live check.
+4. Kill a hero on map 1, transition, confirm the hero is still dead and came back revivable at
+   the level and with the upgrades he died with — once §6.6 is built. It rebuilds the ledger through
+   the engine's own `0x007C6D8E`, so this tests that call as much as the carry.
+5. Transition twice, to confirm the arena and the pending flag survive being used more than once.

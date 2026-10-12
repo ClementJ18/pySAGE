@@ -249,3 +249,39 @@ game gone — are untouched, as is the loop that reads the serials.
 The serial's own read at `0x0078D847` is a **different** consumer: its only caller (`0x007917C4`)
 is in the online-login region, which is why that lead looked cold at first. The LAN path reaches
 the same registry value through `0x0064148E` inside the loop above.
+
+### Bystanders answering the join: "Game has already started"
+
+Found 2026-10-08, with five instances on one machine: two of them could not join a game with three
+open slots, and each was told *"Game has already started"*. That is `LAN:ErrorGameGone`, reason 8.
+The joiner's own request (`0x0084CB34`, called from the Join button at `0x00849374` after a null
+check on the selected game) never produces it here, so it is a reply. The host's handler produces
+it, at its start:
+
+```asm
+0098a81c  mov  ecx, [msg+0x1e]           ; the request's target
+0098a822  cmp  ecx, [me]                 ; one dword: the IP, never the port beside it
+0098a824  jne  0x0098AF1D                ;   another machine's -> ignore
+0098a83b  cmp  byte [esi+0x41], 0        ; in the LAN lobby          -> deny, reason 8
+0098a845  mov  eax, [esi+0x44] / test    ; no current game           -> deny, reason 8
+0098a863  call 0x0064897C / test         ; slot 0 (IP + port) not me -> deny, reason 8
+0098ae92  ... reason 8, MSG_JOIN_DENY, sent at 0x0098AF02
+```
+
+On one machine every instance shares the IP, so **every** instance takes the request as its own.
+The host accepts. Every other instance, in the LAN lobby or seated in a game it does not host,
+denies. The joiner acts on whichever reply lands first, so a join succeeds or fails by race, and
+more bystanders make failure likelier. A late denial after an accept is the "appears in the lobby
+for a moment, then disappears" report.
+
+Read live while it happened: each instance's address at `TheLAN+0x48` (`[0x00DE4394]`, the
+vtable-`+0x100` accessor `0x008A0318`) was 192.168.2.7 on ports 8086-8090; the three seated ones held
+the game at `TheLAN+0x44` with slots 2, 3 and 5 open; the two refused ones were in the lobby with
+the same game, slots and all, at the head of their list (`TheLAN+0x10`); and all five had the same
+exe and INI CRCs (`[0x00DE4364]+0xB04` / `+0xB38`), which rules out reason 4.
+
+[`lan-join-bystanders`](../patches/lan_join_bystanders.py) points the three not-hosting branches at
+`0x0098AF1D`, the exit the IP test already takes, so a request reaches a reply only from the copy
+that hosts. Nothing between the tests and that exit owns a destructor. The cost falls on a real
+LAN: a request to a machine that stopped hosting now times out instead of being told at once.
+**Not yet run.**

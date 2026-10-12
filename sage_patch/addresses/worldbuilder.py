@@ -6,6 +6,8 @@ __all__ = [
     "WORLDBUILDER_ASCIISTRING_SET",
     "WORLDBUILDER_ASCIISTRING_SET_2",
     "WORLDBUILDER_ASCIISTRING_SET_LENGTH",
+    "WORLDBUILDER_GRANT_SCIENCE_UPGRADE_REGISTER_CALL",
+    "WORLDBUILDER_INI_PARSE_PERCENT_TO_REAL",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR",
@@ -22,6 +24,7 @@ __all__ = [
     "WORLDBUILDER_SCRIPT_ACTION_TEMPLATE_LAST_SET",
     "WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT",
     "WORLDBUILDER_SCRIPT_TEMPLATE_FLAGS_OR",
+    "WORLDBUILDER_SPECIAL_POWER_REFUND_UPGRADE_REGISTER_CALL",
     "WORLDBUILDER_STRLEN",
 ]
 
@@ -42,6 +45,14 @@ WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER = 0x006D4C30
 # Use the same jump thunks the stock registration sequence calls, not private local aliases.
 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_CTOR = 0x00402EE1
 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_DTOR = 0x0040B0E6
+# Worldbuilder.exe's `AudioLoopUpgrade` registration, the GrantScienceUpgrade twin's hook site:
+# the call after TooltipUpgrade's, which `object-image-upgrade-wb` owns.
+WORLDBUILDER_GRANT_SCIENCE_UPGRADE_REGISTER_CALL = 0x00C75C24
+# Worldbuilder.exe's `RemoveUpgradeUpgrade` registration, the SpecialPowerRefundUpgrade twin's
+# hook site: the call after AudioLoopUpgrade's, which `grant-science-upgrade-wb` owns.
+WORLDBUILDER_SPECIAL_POWER_REFUND_UPGRADE_REGISTER_CALL = 0x00C75C89
+# The editor's `INI::parsePercentToReal`, the parser its `RepairHealthPercentPerSecond` rows name.
+WORLDBUILDER_INI_PARSE_PERCENT_TO_REAL = 0x006D4D20
 # Worldbuilder.exe's script template tables (`docs/worldbuilder-script-templates.md`). Two
 # debug-build functions fill fixed 0x80-byte records from `this+0x20`: actions at records 0-599,
 # conditions from record 600. Both take the table owner in ecx and end at their only `ret`.

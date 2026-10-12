@@ -317,10 +317,9 @@ the `call` becomes a `call` into the cave, which zeroes the record and then `jmp
 leaving it to return to the engine's own caller. `ecx` is the `ControlBar` for that thiscall and is
 untouched.
 
-> ⚠ **A displaced `call` is not a displaced instruction like any other, and this one bit.** The
-> first build of this patch reached the routine with a `jmp`, the way the other three hooks are
-> reached — so the helper's `ret` popped a value that had never been a return address, and the game
-> crashed on the first multi-select. Two shapes work and they are not interchangeable:
+> ⚠ **A displaced `call` is not a displaced instruction like any other.** Reached with a `jmp`, the
+> way the other three hooks are, the helper's `ret` pops a value that was never a return address,
+> and the game crashes on the first multi-select. Two shapes work and they are not interchangeable:
 >
 > | site reached by | the routine must |
 > |---|---|
@@ -328,10 +327,9 @@ untouched.
 > | `jmp` | reproduce the `call` itself, then `jmp` to the resume point |
 >
 > [`cooldown-through-death`](cooldown-through-death.md) takes the second shape at its own displaced
-> call; this one takes the first. `tests/sage_patch/test_multi_select_group.py` now derives the
-> required opcode from the site's own **stock first byte** rather than from a table, so the two can
-> no longer disagree — and the write-up saying "call" while the code emitted `jmp` is exactly the
-> disagreement that shipped.
+> call; this one takes the first. `tests/sage_patch/test_multi_select_group.py` derives the
+> required opcode from the site's own **stock first byte** rather than from a table, so the
+> write-up and the code cannot disagree.
 
 **The first object's install, `0x009445E8`.** Six bytes, one whole instruction
 (`mov [edi+0x84], ebx`), and nothing branches into it. Two things are live across it and both have

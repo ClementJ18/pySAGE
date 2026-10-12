@@ -13,8 +13,8 @@ back from that play, one fixed and one open:
   target. The gate it was missing is §6, and there was none in the engine to inherit.
 - **Open:** the shortcut is **not reliably picked up** — reported as happening *after dragging to
   scroll the camera sideways*, and clearing when another button is clicked or the selection
-  changes. One cause has been removed on suspicion (the equality match in §2, now a mask test);
-  whether that was the cause is unverified, and the remaining candidates are in §7.
+  changes. §2's mask test rules out one suspected cause, an equality match; whether that was the
+  cause is unverified, and the remaining candidates are in §7.
 
 The cave is also executed against a modelled world in
 [`tests/sage_patch/test_spellbook_hotkeys.py`](../../tests/sage_patch/test_spellbook_hotkeys.py),

@@ -18,6 +18,7 @@ from sage_worldbuilder.water import new_lake
 np = pytest.importorskip("numpy", reason="the [worldbuilder] extra (numpy) is not installed")
 
 from sage_worldbuilder.dressing import (  # noqa: E402
+    CLIFF_SPREAD,
     DEFAULT_SCORCH_SIZE,
     NEUTRAL_OWNER,
     GroveOptions,
@@ -25,6 +26,7 @@ from sage_worldbuilder.dressing import (  # noqa: E402
     MoldOptions,
     ResizeBorder,
     add_border,
+    cliff_states,
     cluster_points,
     fence_objects,
     fence_points,
@@ -35,7 +37,7 @@ from sage_worldbuilder.dressing import (  # noqa: E402
     new_scorch,
     pick_tree,
     playable_size,
-    ramp_patch,
+    ramp_edit,
     rectangle_points,
     remove_border,
 )
@@ -155,21 +157,69 @@ def test_fence_posts_space_along_the_line_or_stretch_to_its_end():
     assert fence_points((5.0, 5.0), (5.0, 5.0), 30.0)[0] == [(5.0, 5.0)]
 
 
-def test_a_ramp_slopes_evenly_between_the_ground_at_its_ends():
+def test_a_ramp_slopes_evenly_between_the_heights_at_its_ends():
+    grid = grid_of(flat_map(border=0))
+    edit = ramp_edit(grid, None, (100.0, 200.0, 100.0), (300.0, 200.0, 200.0), 20.0)
+    values = edit.heights.values
+    row = 200 // 10 - edit.heights.y0
+    start, middle, end = (column - edit.heights.x0 for column in (10, 20, 30))
+    assert values[row, start] == 2560 and values[row, end] == 5120
+    # 150 ft is 3840 stored units; a third of the way up truncates rather than rounds.
+    assert values[row, middle] == 3840
+    third = 10 + 20 // 3 - edit.heights.x0
+    assert values[row, third] == int((100 + 100 * 6 / 20) / FEET_PER_HEIGHT_UNIT)
+    # A 20-unit ramp reaches one cell either side of its line, and stops square at its ends.
+    assert values.shape[0] == 3 and edit.heights.y0 == 200 // 10 - 1
+    assert values[row, start - 1] == 2560 and edit.impassable is None
+
+
+def test_a_ramp_with_coinciding_ends_does_nothing():
+    grid = grid_of(flat_map(border=0))
+    assert ramp_edit(grid, None, (100.0, 200.0, 0.0), (100.0, 200.0, 50.0), 20.0) is None
+
+
+def test_a_ramp_sets_the_cliff_state_of_every_cell_it_touches():
     map = flat_map(border=0)
-    rows = map.height_map_data.elevations
-    for row in rows:
-        for column in range(40):
-            row[column] = 2560 if column < 20 else 5120
     grid = grid_of(map)
-    patch = ramp_patch(grid, (100.0, 200.0), (300.0, 200.0), 20.0)
-    low, high = 2560, 5120
-    row = 200 // 10 - patch.y0
-    start, middle, end = (column - patch.x0 for column in (10, 20, 30))
-    assert patch.values[row, start] == low and patch.values[row, end] == high
-    assert patch.values[row, middle] == pytest.approx((low + high) / 2, abs=1)
-    # A 20-unit ramp reaches one cell either side of its line, and the patch holds only those.
-    assert patch.values.shape[0] == 3 and patch.y0 == 200 // 10 - 1
+    impassable = np.ones(grid.heights.shape, dtype=bool)
+    # Gentle: a 5 ft rise over 200 units clears the painted impassable cells around it.
+    gentle = ramp_edit(grid, impassable, (100.0, 200.0, 100.0), (300.0, 200.0, 105.0), 20.0)
+    cells = gentle.impassable
+    state = np.ones(grid.heights.shape, dtype=bool)
+    rows, columns = cells.values.shape
+    state[cells.y0 : cells.y0 + rows, cells.x0 : cells.x0 + columns] = cells.values
+    # Samples 10-30 by 19-21 are written, so cells 9-30 by 18-21 have a written corner and
+    # turn passable; the cells around them keep their state.
+    assert not state[18:22, 9:31].any()
+    assert state[17, 9:31].all() and state[22, 9:31].all()
+    assert state[18:22, 8].all() and state[18:22, 31].all()
+    # Steep: rising 100 ft in 20 units makes the cells across the climb cliffs, so impassable.
+    steep = ramp_edit(
+        grid, np.zeros_like(impassable), (100.0, 200.0, 100.0), (120.0, 200.0, 200.0), 40.0
+    )
+    assert steep.impassable.values.any()
+    after = grid.heights.copy()
+    after[
+        steep.heights.y0 : steep.heights.y0 + steep.heights.values.shape[0],
+        steep.heights.x0 : steep.heights.x0 + steep.heights.values.shape[1],
+    ] = steep.heights.values
+    ys, xs = np.nonzero(np.ones_like(steep.impassable.values))
+    expected = cliff_states(after, xs + steep.impassable.x0, ys + steep.impassable.y0)
+    assert (steep.impassable.values[ys, xs] == expected).all()
+
+
+def test_a_cliff_is_a_corner_spread_over_the_limit_read_by_flat_index():
+    heights = np.zeros((3, 3), dtype=np.uint16)
+    heights[1, 1] = 251
+    assert cliff_states(heights, np.array([0, 1]), np.array([0, 0])).tolist() == [True, True]
+    heights[1, 1] = 250
+    assert not cliff_states(heights, np.array([0]), np.array([0]))[0]
+    assert CLIFF_SPREAD == pytest.approx(250.88)
+    # The last column's +x corner is the next row's first sample, and past the end reads 0.
+    heights = np.full((3, 3), 1000, dtype=np.uint16)
+    heights[1, 0] = 0
+    assert cliff_states(heights, np.array([2]), np.array([0]))[0]
+    assert cliff_states(np.full((3, 3), 1000, dtype=np.uint16), np.array([2]), np.array([2]))[0]
 
 
 def test_borders_are_added_resized_as_one_drag_and_removed():

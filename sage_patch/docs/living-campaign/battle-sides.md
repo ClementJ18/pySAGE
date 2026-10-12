@@ -62,9 +62,9 @@ And **`map kampa angmar 03` already declares `Player_1` through `Player_8`** —
 Dwarves, Elves and three more Angmar. The attempt at third parties has already been made in this
 corpus, and those extras are inert.
 
-> **Correction.** An earlier revision of this document quoted `playerIsHuman` as meaningful. It is
-> not: across these maps it is set on `PlyrMordor`, `PlyrElves`, `PlyrWild`, `PlyrCreep` and others.
-> It is a WorldBuilder artifact, not something the engine acts on.
+`playerIsHuman` does not decide who plays: across these maps it is set on `PlyrMordor`,
+`PlyrElves`, `PlyrWild`, `PlyrCreep` and others — a WorldBuilder artifact. The engine reads it only
+for the local-seat fallback (below).
 
 ## `SidesList` holds two arrays
 
@@ -316,9 +316,8 @@ skipped.** A 7-side map would yield six. It yielded three. Therefore `m_sides` i
 before `newGame` runs** — the reduction is upstream, in whatever prepares the sides list for a War
 of the Ring battle, and the loop bound `TheSidesList+0x3C` is the value to watch.
 
-Note in passing that `playerIsHuman` *is* read by the engine here, for the local-seat fallback only.
-The correction above stands for its original claim — it does not decide which sides become players —
-but "the engine does not act on it" was too strong.
+Note in passing that `playerIsHuman` *is* read by the engine here, for the local-seat fallback only;
+it does not decide which sides become players.
 
 Next anchors, unattempted: `SidesList`'s vtable (from the constructor at `0x007307D0`) will name its
 reset/prepare methods. `removeSide` at `0x0072F20A` has **zero direct callers**, which by this
@@ -409,7 +408,7 @@ slot is the reset/prepare method this document predicted the vtable would name.
 
 ### `0x0073193D` builds `m_skirmishSides` — and only that
 
-`clear`'s other caller, `0x004AEE48`, turned out to be the **map loader** and not the culprit — it
+`clear`'s other caller, `0x004AEE48`, is the **map loader** and not the culprit — it
 clears the list and then registers the `SidesList` and `Teams` chunk parsers (`0x00730A56` handles
 `SidesList`, building a stack-temporary `SidesList` and assigning it in). After map load, `m_sides`
 legitimately holds the map's sides.

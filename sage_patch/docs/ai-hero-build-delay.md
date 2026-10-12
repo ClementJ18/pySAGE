@@ -164,10 +164,10 @@ applies to these names at `0x009A08B6` and `0x009A0948`.
   the gate re-derives the same struct the way the list copy does, `0x009A0383` on the builder
   (`__thiscall`, answers null for a player `TheSkirmishAIManager` does not know) and then `+0x160`.
 
-The first version keyed on the name alone, and Edain showed why that was wrong: two factions
-naming one hero overwrote each other. `GondorBoromir_mod:720` in `MenOfTheWestArmy` was erased by
-the bare `GondorBoromir_mod` in `BelfalasArmy` parsed after it, and `ImladrisArmy` inherited
-`ArnorArmy`'s `LothlorienCirdan:720`.
+The name alone is not a key: two factions naming one hero would overwrite each other. In Edain,
+`GondorBoromir_mod:720` in `MenOfTheWestArmy` would be erased by the bare `GondorBoromir_mod` in
+`BelfalasArmy` parsed after it, and `ImladrisArmy` would inherit `ArnorArmy`'s
+`LothlorienCirdan:720`.
 
 The `ArmyDefinition` pointer itself would also be exact, but those objects are re-allocated
 whenever the block is parsed again, and a recycled pointer would silently hand one faction
