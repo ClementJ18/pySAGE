@@ -3,10 +3,13 @@
 The stock upward cascade and explicit grants stay intact. Pending lost grants are
 cancelled in the engine's own queue; the state-only wrapper skips enqueueing the
 already-owned lower level. Evidence: `../docs/experience-level-down.md`.
-The separately selectable XP bounds are documented in `../docs/experience-xp-cap.md`.
+The optional XP bounds are documented in `../docs/experience-xp-cap.md`.
 """
 
 from __future__ import annotations
+
+import argparse
+import struct
 
 from ..addresses import (
     EXPERIENCE_LEVEL_COLLECTION,
@@ -27,7 +30,7 @@ from ..patcher import Patch
 from ..utils import allocate_section, apply_byte_patch, file_offset, find_section, jmp_rel32
 from .upgrade_module_removal import _compatible_anchor
 
-__all__ = ["SECTION_NAME", "ExperienceLevelDownPatch", "ExperienceXpCapPatch", "build_code"]
+__all__ = ["SECTION_NAME", "ExperienceLevelDownPatch", "build_code"]
 
 SECTION_NAME = ".xpdown"
 _CHARACTERISTICS = 0x60000020
@@ -317,13 +320,42 @@ class ExperienceLevelDownPatch(Patch):
     description = (
         "Lower unit levels on actual XP loss, including at maximum rank, preserving remaining XP. "
         "Remove lost AttributeModifiers and OBJECT upgrades; preserve PLAYER upgrades. "
+        "Enable optional dynamic XP bounds with --xp-cap. "
         "Combine with level-grant-special-power-negative-experience for negative Experience powers"
     )
 
+    def __init__(self, xp_cap: bool = False) -> None:
+        self.xp_cap = xp_cap
+
+    @classmethod
+    def add_cli_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--xp-cap",
+            action=argparse.BooleanOptionalAction,
+            default=False,
+            help="bound XP by the lowest and highest eligible level thresholds (default: off)",
+        )
+
+    @classmethod
+    def from_cli_args(cls, args: argparse.Namespace) -> ExperienceLevelDownPatch:
+        return cls(xp_cap=args.xp_cap)
+
+    @classmethod
+    def detect(cls, data: bytes | bytearray) -> ExperienceLevelDownPatch | None:
+        try:
+            patch = cls(xp_cap=find_section(data, _XP_CAP_SECTION) is not None)
+            return None if patch.verify(data) else patch
+        except (ValueError, KeyError, IndexError, TypeError, struct.error):
+            return None
+
     def apply(self, data: bytearray) -> None:
-        if find_section(data, SECTION_NAME) is not None:
-            raise ValueError(f"the file already carries a {SECTION_NAME} section")
-        for va, old in {**_expected_anchors(data), **_WINDOWS}.items():
+        for section in (SECTION_NAME, _XP_CAP_SECTION):
+            if find_section(data, section) is not None:
+                raise ValueError(f"the file already carries a {section} section")
+        sites = {**_expected_anchors(data), **_WINDOWS}
+        if self.xp_cap:
+            sites.update(EXPERIENCE_XP_CAP_WINDOWS)
+        for va, old in sites.items():
             off = file_offset(data, va)
             got = bytes(data[off : off + len(old)])
             if got != old:
@@ -333,6 +365,18 @@ class ExperienceLevelDownPatch(Patch):
         base = allocate_section(data, SECTION_NAME, build_code, _CHARACTERISTICS)
         for va, old, new in _windows(base):
             apply_byte_patch(data, file_offset(data, va), old, new, self.name)
+        if self.xp_cap:
+            down_va = _assemble(base).label_va("down")
+            cap_base = allocate_section(
+                data,
+                _XP_CAP_SECTION,
+                lambda va: _cap_assemble(va, down_va).finish(),
+                _CHARACTERISTICS,
+            )
+            for va, new in _cap_windows(cap_base).items():
+                apply_byte_patch(
+                    data, file_offset(data, va), EXPERIENCE_XP_CAP_WINDOWS[va], new, self.name
+                )
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)
@@ -341,6 +385,11 @@ class ExperienceLevelDownPatch(Patch):
         base, off, size = located
         code = build_code(base)
         problems = []
+        if self.xp_cap:
+            if _cap_present(data) is None:
+                problems.append(f"missing or unexpected {_XP_CAP_SECTION} helper or hooks")
+        elif find_section(data, _XP_CAP_SECTION) is not None:
+            problems.append("XP bounds are enabled in this file; verify with xp_cap=True")
         if size != len(code) or bytes(data[off : off + len(code)]) != code:
             problems.append(f"unexpected {SECTION_NAME} helper body")
         sites = _expected_anchors(data)
@@ -538,46 +587,3 @@ def _expected_anchors(data: bytes | bytearray) -> dict[int, bytes]:
                     blob[at - va : at - va + len(new)] = new
             sites[va] = bytes(blob)
     return sites
-
-
-class ExperienceXpCapPatch(Patch):
-    """Optional dynamic XP bounds for the existing level-down engine.
-
-    Apply after experience-level-down. The pre-add/set hooks are disjoint from
-    its windows; the collection resolver and mode predicate remain shared native code.
-    """
-
-    name = "experience-xp-cap"
-    author = "Ostkannit"
-    description = (
-        "Bound stored XP by the lowest and highest mode-allowed ExperienceLevels within MaxRank, "
-        "preserving level-down on XP loss. Requires experience-level-down; no new INI fields"
-    )
-
-    def apply(self, data: bytearray) -> None:
-        if find_section(data, _XP_CAP_SECTION) is not None:
-            raise ValueError(f"the file already carries a {_XP_CAP_SECTION} section")
-        problems = ExperienceLevelDownPatch().verify(data)
-        if problems:
-            raise ValueError(
-                "requires a verified experience-level-down patch: " + "; ".join(problems)
-            )
-        for va, old in EXPERIENCE_XP_CAP_WINDOWS.items():
-            off = file_offset(data, va)
-            if bytes(data[off : off + len(old)]) != old:
-                raise ValueError(f"unexpected build at {va:#010x}")
-        down = find_section(data, SECTION_NAME)
-        assert down is not None  # the prerequisite verifier established this section
-        down_va = _assemble(down[0]).label_va("down")
-        base = allocate_section(
-            data, _XP_CAP_SECTION, lambda va: _cap_assemble(va, down_va).finish(), _CHARACTERISTICS
-        )
-        for va, new in _cap_windows(base).items():
-            apply_byte_patch(
-                data, file_offset(data, va), EXPERIENCE_XP_CAP_WINDOWS[va], new, self.name
-            )
-
-    def verify(self, data: bytes | bytearray) -> list[str]:
-        if _cap_present(data) is None:
-            return [f"missing or unexpected {_XP_CAP_SECTION} helper or hooks"]
-        return ExperienceLevelDownPatch().verify(data)

@@ -24,7 +24,6 @@ from sage_patch.patches.desert_weather import (
 )
 from sage_patch.patches.experience_level_down import (
     ExperienceLevelDownPatch,
-    ExperienceXpCapPatch,
 )
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
@@ -121,7 +120,6 @@ __all__ = [
     "DesertWeatherWorldbuilderPatch",
     "FactionVariantsPatch",
     "ExperienceLevelDownPatch",
-    "ExperienceXpCapPatch",
     "UpgradeModuleRemovalPatch",
     "SpecialPowerPauseButtonPatch",
     "FireAtAttackerPatch",

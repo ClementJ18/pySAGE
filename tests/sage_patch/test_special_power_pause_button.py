@@ -9,7 +9,6 @@ import pytest
 
 from sage_patch import (
     ExperienceLevelDownPatch,
-    ExperienceXpCapPatch,
     LevelGrantSpecialPowerNegativeExperiencePatch,
     SpecialPowerPauseButtonPatch,
     UpgradeModuleRemovalPatch,
@@ -288,9 +287,8 @@ def test_supported_binary_and_all_level_down_companions_compose(ui_first: bool) 
     data = bytearray(original)
     patches = [
         LevelGrantSpecialPowerNegativeExperiencePatch(),
-        ExperienceLevelDownPatch(),
+        ExperienceLevelDownPatch(xp_cap=True),
         UpgradeModuleRemovalPatch(),
-        ExperienceXpCapPatch(),
     ]
     if ui_first:
         patches.insert(0, SpecialPowerPauseButtonPatch())

@@ -7,8 +7,8 @@ and Boolean parser are fingerprinted and left unchanged. `Permanent = Yes` keeps
 effect. PLAYER upgrades, upgrade source counting and AttributeModifiers are unchanged.
 
 This patch is independently selectable. It also composes with
-[experience-level-down](experience-level-down.md) and
-[experience-xp-cap](experience-xp-cap.md). Modules with no removal implementation
+[experience-level-down](experience-level-down.md), including its optional
+[XP bounds](experience-xp-cap.md). Modules with no removal implementation
 do not acquire an artificial inverse.
 
 ```ini

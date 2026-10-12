@@ -57,7 +57,6 @@ from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
 from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
 from sage_patch.patches.experience_level_down import (
     ExperienceLevelDownPatch,
-    ExperienceXpCapPatch,
 )
 from sage_patch.patches.experimental.accel_module import AccelModulePatch
 from sage_patch.patches.experimental.ai_power_model_condition import AiPowerModelConditionPatch
@@ -255,7 +254,6 @@ _REGISTERED: tuple[type[Patch], ...] = (
     EvacuateContainedHeroesPatch,
     FactionVariantsPatch,
     ExperienceLevelDownPatch,
-    ExperienceXpCapPatch,
     UpgradeModuleRemovalPatch,
     SpecialPowerPauseButtonPatch,
     FireAtAttackerPatch,

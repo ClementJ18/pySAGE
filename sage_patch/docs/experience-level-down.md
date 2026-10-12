@@ -20,11 +20,29 @@ Python callers can use `ExperienceLevelDownPatch()` and
 `LevelGrantSpecialPowerNegativeExperiencePatch()` in an `apply_patches` list, in either order.
 No INI fields, experience sinks or persistent tracker fields are added.
 
-Optional follow-ups are [upgrade-module-removal](upgrade-module-removal.md), which
-repairs execution state for reversible UpgradeModule callbacks, and
-[experience-xp-cap](experience-xp-cap.md), which caps positive XP and normalizes old
-reserves before a drain. Apply the XP cap after this patch. Both companions are
-verified explicitly; without them this patch retains the behavior documented below.
+XP bounds are an optional part of this patch, disabled by default. Use
+`ExperienceLevelDownPatch(xp_cap=True)` in Python or `--xp-cap` on the CLI to
+bound XP by the lowest and highest eligible ExperienceLevel thresholds. The
+lower bound follows the configured first level (for example, 0 or 1).
+
+```sh
+python -m sage_patch apply experience-level-down --xp-cap --in game.dat --out game.dat
+python -m sage_patch verify experience-level-down --xp-cap game.dat
+```
+
+`--no-xp-cap` explicitly selects the default unbounded mode when building from a
+clean source. Changing the option on an already patched binary requires rebuilding
+from the original; it does not modify an existing installation in place. Detection
+recovers `xp_cap` from the verified helper sections, and generated manifests retain
+it for rebuilding. The former standalone `experience-xp-cap` registration and
+`ExperienceXpCapPatch` class have been removed. Existing binaries with matching
+level-down and XP-bounds helpers are recognized as `xp_cap=True`; old manifests
+naming the removed standalone patch should be regenerated from those binaries.
+Older incompatible helper bodies require a clean rebuild.
+
+See [XP bounds](experience-xp-cap.md) for the algorithms and binary evidence.
+[upgrade-module-removal](upgrade-module-removal.md) remains an independent follow-up
+for reversible UpgradeModule callbacks.
 
 For a grey disabled CommandButton after a lost upgrade pauses its SpecialPower,
 also select [special-power-pause-button](special-power-pause-button.md). This

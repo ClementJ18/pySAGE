@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from sage_patch import ExperienceLevelDownPatch, ExperienceXpCapPatch
+from sage_patch import ExperienceLevelDownPatch
 from sage_patch.addresses import EXPERIENCE_XP_CAP_WINDOWS
 from sage_patch.patches import experience_level_down as xp
 from sage_patch.utils import file_offset, find_section
@@ -137,7 +137,8 @@ def test_floor_changes_only_existing_cap_windows_and_not_the_down_cave() -> None
         va: bytes(data[file_offset(data, va) : file_offset(data, va) + len(old)])
         for va, old in xp._WINDOWS.items()
     }
-    cap = ExperienceXpCapPatch()
+    cap = ExperienceLevelDownPatch(xp_cap=True)
+    data = image()
     cap.apply(data)
     assert bytes(data[off : off + size]) == cave == xp.build_code(base)
     assert all(
@@ -145,7 +146,7 @@ def test_floor_changes_only_existing_cap_windows_and_not_the_down_cave() -> None
         for va, blob in hooks.items()
     )
     assert set(EXPERIENCE_XP_CAP_WINDOWS) == {0x79D6CD, 0x79D6E1, 0x79D921, 0x79D17B}
-    assert down.verify(data) == [] and cap.verify(data) == []
+    assert down.verify(data) and cap.verify(data) == []
     changed = {
         file_offset(original, va) + n
         for va, old in EXPERIENCE_XP_CAP_WINDOWS.items()
@@ -167,8 +168,7 @@ def test_floor_changes_only_existing_cap_windows_and_not_the_down_cave() -> None
 
 def test_old_upper_only_cave_is_not_silently_accepted_or_overwritten() -> None:
     data = image()
-    ExperienceLevelDownPatch().apply(data)
-    cap = ExperienceXpCapPatch()
+    cap = ExperienceLevelDownPatch(xp_cap=True)
     cap.apply(data)
     located = find_section(data, xp._XP_CAP_SECTION)
     assert located is not None

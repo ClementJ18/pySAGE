@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from sage_ini.engine import Engine, dump_engine, parse_engine
 from sage_patch import (
     ExperienceLevelDownPatch,
-    ExperienceXpCapPatch,
     LevelGrantSpecialPowerNegativeExperiencePatch,
     UpgradeModuleRemovalPatch,
 )
@@ -23,6 +23,7 @@ from sage_patch.asm import Asm
 from sage_patch.patches import experience_level_down as xp
 from sage_patch.patches import upgrade_module_removal as upgrades
 from sage_patch.registry import PATCHES
+from sage_patch.sagepatch import detect_patches, manifest, rebuild
 from sage_patch.utils import file_offset, find_section
 from tests.sage_patch.test_experience_level_down import World, image
 
@@ -35,19 +36,51 @@ def upgrade_image() -> bytearray:
     return data
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_xp_cap_option_detection_and_manifest_rebuild(enabled: bool) -> None:
+    data = image()
+    patch = ExperienceLevelDownPatch(xp_cap=enabled)
+    patch.apply(data)
+    detected = ExperienceLevelDownPatch.detect(data)
+    assert detected is not None and detected.options() == {"xp_cap": enabled}
+    assert ExperienceLevelDownPatch(xp_cap=not enabled).verify(data)
+    found = [p for p in detect_patches(data) if p.name == patch.name]
+    entries, problems = manifest(found)
+    assert problems == [] and len(entries) == 1
+    engine = parse_engine(dump_engine(Engine(patches=entries)))
+    rebuilt, problems = rebuild(engine)
+    assert problems == [] and len(rebuilt) == 1
+    fresh = image()
+    rebuilt[0].apply(fresh)
+    assert fresh == data
+    assert "experience-xp-cap" not in PATCHES
+
+
+def test_xp_cap_detection_requires_verified_helper_and_hooks() -> None:
+    data = image()
+    patch = ExperienceLevelDownPatch(xp_cap=True)
+    patch.apply(data)
+    located = find_section(data, xp._XP_CAP_SECTION)
+    assert located is not None
+    for off in [located[1], *(file_offset(data, va) for va in EXPERIENCE_XP_CAP_WINDOWS)]:
+        damaged = bytearray(data)
+        damaged[off] ^= 0xFF
+        assert patch.verify(damaged)
+        assert ExperienceLevelDownPatch.detect(damaged) is None
+
+
 @pytest.mark.parametrize("cap", [False, True])
 def test_registration_application_and_idempotence(cap: bool, tmp_path: Path) -> None:
-    patch = ExperienceXpCapPatch() if cap else UpgradeModuleRemovalPatch()
+    patch = ExperienceLevelDownPatch(xp_cap=True) if cap else UpgradeModuleRemovalPatch()
     data = upgrade_image()
-    if cap:
-        ExperienceLevelDownPatch().apply(data)
     assert PATCHES[patch.name] is type(patch)
     assert not patch.experimental and not patch.runtime_verified
     assert patch.detect(data) is None
     source, output = tmp_path / "source.dat", tmp_path / "patched.dat"
     source.write_bytes(data)
-    assert main(["apply", patch.name, "--in", str(source), "--out", str(output)]) == 0
-    assert main(["verify", patch.name, str(output)]) == 0
+    flags = ["--xp-cap"] if cap else []
+    assert main(["apply", patch.name, *flags, "--in", str(source), "--out", str(output)]) == 0
+    assert main(["verify", patch.name, *flags, str(output)]) == 0
     patch.apply(data)
     assert output.read_bytes() == data and patch.verify(data) == []
     assert isinstance(patch.detect(data), type(patch))
@@ -68,17 +101,12 @@ def test_upgrade_originals_checked_before_any_write(va: int) -> None:
 
 
 @pytest.mark.parametrize("va", list(EXPERIENCE_XP_CAP_WINDOWS))
-def test_cap_originals_and_dependency_checked_before_any_write(va: int) -> None:
+def test_cap_originals_checked_before_any_write(va: int) -> None:
     data = image()
-    snapshot = bytes(data)
-    with pytest.raises(ValueError, match="requires a verified"):
-        ExperienceXpCapPatch().apply(data)
-    assert data == snapshot
-    ExperienceLevelDownPatch().apply(data)
     data[file_offset(data, va)] ^= 0xFF
     snapshot = bytes(data)
     with pytest.raises(ValueError):
-        ExperienceXpCapPatch().apply(data)
+        ExperienceLevelDownPatch(xp_cap=True).apply(data)
     assert data == snapshot
 
 
@@ -87,13 +115,14 @@ def test_only_fingerprinted_windows_change_and_detours_decode(cap: bool) -> None
     capstone = pytest.importorskip("capstone")
     decoder = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     data = upgrade_image()
-    if cap:
-        ExperienceLevelDownPatch().apply(data)
     before = bytes(data)
-    patch = ExperienceXpCapPatch() if cap else UpgradeModuleRemovalPatch()
+    patch = ExperienceLevelDownPatch(xp_cap=True) if cap else UpgradeModuleRemovalPatch()
     patch.apply(data)
     windows = EXPERIENCE_XP_CAP_WINDOWS if cap else UPGRADE_MODULE_REMOVAL_WINDOWS
-    changed = {file_offset(before, va) + n for va, old in windows.items() for n in range(len(old))}
+    all_windows = {**xp._WINDOWS, **windows} if cap else windows
+    changed = {
+        file_offset(before, va) + n for va, old in all_windows.items() for n in range(len(old))
+    }
     assert all(
         a == b or n in changed
         for n, (a, b) in enumerate(
@@ -519,12 +548,14 @@ _BINARY = Path(__file__).resolve().parents[2] / "tools" / "BFME-FILES" / "game.d
 def test_real_binary_composition_and_original_preservation(upgrade_first: bool) -> None:
     original = _BINARY.read_bytes()
     data = bytearray(original)
-    patches = [LevelGrantSpecialPowerNegativeExperiencePatch(), ExperienceLevelDownPatch()]
+    patches = [
+        LevelGrantSpecialPowerNegativeExperiencePatch(),
+        ExperienceLevelDownPatch(xp_cap=True),
+    ]
     if upgrade_first:
         patches.insert(0, UpgradeModuleRemovalPatch())
     else:
         patches.append(UpgradeModuleRemovalPatch())
-    patches.append(ExperienceXpCapPatch())
     for patch in patches:
         patch.apply(data)
     assert all(patch.verify(data) == [] for patch in patches)

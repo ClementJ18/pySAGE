@@ -1,9 +1,9 @@
 # Dynamic XP lower and upper bounds
 
-`experience-xp-cap` bounds XP by the lowest and highest eligible level thresholds in RotWK
-`2.01.2614.37001`. It is separately selectable and requires an already verified
-[experience-level-down](experience-level-down.md) patch. The downward helper,
-lost-effect removal, delayed-grant cancellation and explicit level setter are
+The `xp_cap=True` option of [ExperienceLevelDownPatch](experience-level-down.md)
+bounds XP by the lowest and highest eligible level thresholds in RotWK
+`2.01.2614.37001`. It is disabled by default and enabled with `--xp-cap`.
+The downward helper, lost-effect removal, delayed-grant cancellation and explicit level setter are
 not rewritten. [upgrade-module-removal](upgrade-module-removal.md) is optional.
 
 For a highest allowed threshold of 1,000 XP:
@@ -88,10 +88,9 @@ All addresses are VAs, mapped with `file_offset` through the PE section table.
 
 These windows do not overlap the existing level-down hooks. The `.xpcap` section is
 allocated dynamically with the standard allocator, executable/readable and code-only.
-Relative jump bytes depend on the section location. Before writing, the full prerequisite
-patch and these original windows must verify. Unknown builds, damaged prerequisites and
-reapplication fail before mutation. Both verifiers check the preserved native anchors
-with only a completely verified companion's expected edits accepted.
+Relative jump bytes depend on the section location. Before writing either section,
+all level-down anchors and these original windows must match. Unknown builds and reapplication fail before mutation. The integrated
+verifier checks both complete helper bodies, their hooks and preserved native anchors.
 
 An older upper-only `.xpcap` binary must be rebuilt from the clean backup with this
 version. Reapplying over its existing cave is rejected; it is not silently upgraded
@@ -107,17 +106,15 @@ Run from the repository using Python 3.13. The source backup is never overwritte
 
 ```powershell
 .venv\Scripts\python.exe -m sage_patch apply level-grant-special-power-negative-experience --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch apply experience-level-down --in tools/BFME-FILES/experience-follow-up/game.dat --out tools/BFME-FILES/experience-follow-up/game.dat
+.venv\Scripts\python.exe -m sage_patch apply experience-level-down --xp-cap --in tools/BFME-FILES/experience-follow-up/game.dat --out tools/BFME-FILES/experience-follow-up/game.dat
 .venv\Scripts\python.exe -m sage_patch apply upgrade-module-removal --in tools/BFME-FILES/experience-follow-up/game.dat --out tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch apply experience-xp-cap --in tools/BFME-FILES/experience-follow-up/game.dat --out tools/BFME-FILES/experience-follow-up/game.dat
 .venv\Scripts\python.exe -m sage_patch verify level-grant-special-power-negative-experience tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch verify experience-level-down tools/BFME-FILES/experience-follow-up/game.dat
+.venv\Scripts\python.exe -m sage_patch verify experience-level-down --xp-cap tools/BFME-FILES/experience-follow-up/game.dat
 .venv\Scripts\python.exe -m sage_patch verify upgrade-module-removal tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch verify experience-xp-cap tools/BFME-FILES/experience-follow-up/game.dat
 ```
 
 Create the output directory first if needed. Python callers select
-`ExperienceXpCapPatch()` after `ExperienceLevelDownPatch()`; select
+`ExperienceLevelDownPatch(xp_cap=True)`; select
 `UpgradeModuleRemovalPatch()` independently before or after those patches.
 
 ## Validation and remaining game tests
@@ -127,7 +124,7 @@ mode filters, state changes and delayed grants. Tests cover below/exact/above ce
 further maximum-level XP, losses through several levels, old reserves, different
 MaxRanks, no configured limit, mode filtering, scaling, very large positive values,
 absolute XP, explicit grants, reascending and a simulated restored tracker. Native
-services and effect storage are modeled. Real-binary tests compose and verify all four
+services and effect storage are modeled. Real-binary tests compose and verify all three
 patches against the supplied original and confirm it is unchanged.
 
 Floor coverage includes thresholds `0`, `1` and other configured values, unchanged
