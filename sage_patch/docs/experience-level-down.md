@@ -20,9 +20,10 @@ Python callers can use `ExperienceLevelDownPatch()` and
 `LevelGrantSpecialPowerPatch()` in an `apply_patches` list, in either order.
 No INI fields, experience sinks or persistent tracker fields are added.
 
-XP bounds are an optional part of this patch, disabled by default. Use
-`ExperienceLevelDownPatch(xp_cap=True)` in Python or `--xp-cap` on the CLI to
-bound XP by the lowest and highest eligible ExperienceLevel thresholds. The
+XP bounds are enabled by default (`xp_cap=True`). `ExperienceLevelDownPatch()`
+and the CLI with no cap flag bound XP by the lowest and highest eligible
+ExperienceLevel thresholds. Use `ExperienceLevelDownPatch(xp_cap=False)` or
+`--no-xp-cap` to explicitly opt out. The
 lower bound follows the configured first level (for example, 0 or 1).
 
 ```sh
@@ -30,8 +31,9 @@ python -m sage_patch apply experience-level-down --xp-cap --in game.dat --out ga
 python -m sage_patch verify experience-level-down --xp-cap game.dat
 ```
 
-`--no-xp-cap` explicitly selects the default unbounded mode when building from a
-clean source. Changing the option on an already patched binary requires rebuilding
+`--no-xp-cap` explicitly selects unbounded XP when building from a clean source.
+Stored `xp_cap=False` manifests remain unbounded; entries omitting this option
+now use the enabled default. Changing the option on an already patched binary requires rebuilding
 from the original; it does not modify an existing installation in place. Detection
 recovers `xp_cap` from the verified helper sections, and generated manifests retain
 it for rebuilding. The former standalone `experience-xp-cap` registration and

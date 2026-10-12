@@ -1,4 +1,4 @@
-"""The combined signed XP and relationship fix changes exactly two bytes."""
+"""Signed XP, relationship filtering and the local parent-horde completion hook."""
 
 import struct
 from pathlib import Path
@@ -19,13 +19,16 @@ from sage_patch.addresses import (
     LEVEL_GRANT_SPECIAL_POWER_DISTRIBUTE_EXPERIENCE,
     LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE,
     LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE_BYTES,
+    LEVEL_GRANT_SPECIAL_POWER_HORDE_ANCHORS,
     LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_BYTES,
     LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_INSTRUCTION,
     UPGRADE_MODULE_REMOVAL_WINDOWS,
 )
 from sage_patch.patches import experience_level_down as xp
+from sage_patch.patches import level_grant_special_power as power
 from sage_patch.registry import PATCHES
-from sage_patch.utils import file_offset
+from sage_patch.utils import file_offset, find_section
+from tests.sage_patch.test_experience_level_down import image
 from tests.sage_patch.test_patching import _synthetic_game_dat, _tiny_pe
 
 GATE = LEVEL_GRANT_SPECIAL_POWER_EXPERIENCE_GATE
@@ -34,37 +37,36 @@ PATCHED_BYTES = bytes.fromhex("0f8491000000")
 MASK = LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_INSTRUCTION
 MASK_BYTES = LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_BYTES
 PATCHED_MASK = bytes.fromhex("c745b807000000")
-WINDOWS = [(GATE, STOCK_BYTES), (MASK, MASK_BYTES)]
+WINDOWS = [(va, old) for va, (old, _new) in power._windows(0).items()]
 _BINARY = Path(__file__).resolve().parents[2] / "tools" / "BFME-FILES" / "game.dat.backup"
 
 
 def synthetic_image() -> bytearray:
-    """Map the real VA into a small PE whose raw offset deliberately differs from its RVA."""
-    data = _tiny_pe()
-    struct.pack_into("<I", data, 0x178 + 12, 0x4C6E00)  # .text RVA
-    data.extend(b"\x00" * 0x200)
-    struct.pack_into("<I", data, 0x178 + 8, 0x400)
-    struct.pack_into("<I", data, 0x178 + 16, 0x400)
-    for va, old in WINDOWS:
+    """Map native VAs into a data-free PE whose raw offset differs from its RVA."""
+    data = image()
+    for va, old in {**LEVEL_GRANT_SPECIAL_POWER_HORDE_ANCHORS, **dict(WINDOWS)}.items():
         off = file_offset(data, va)
         data[off : off + len(old)] = old
     return data
 
 
-def test_apply_changes_only_the_condition_and_mask_bytes() -> None:
+def test_apply_changes_only_local_windows_and_appends_cave() -> None:
     data = synthetic_image()
     before = bytes(data)
     off = file_offset(data, GATE)
-    assert off == 0x295
+    assert off == GATE - 0x401000 + 0x200
     patch = LevelGrantSpecialPowerPatch()
     assert patch.verify(data)
     assert patch.detect(data) is None
     patch.apply(data)
-    assert len(data) == len(before)
-    assert [i for i, (old, new) in enumerate(zip(before, data, strict=True)) if old != new] == [
-        off + 1,
-        file_offset(data, MASK) + 3,
-    ]
+    assert len(data) > len(before)
+    changed = {file_offset(before, va) + i for va, old in WINDOWS for i in range(len(old))}
+    assert all(
+        a == b or i in changed
+        for i, (a, b) in enumerate(
+            zip(before[0x200:], data[0x200 : len(before)], strict=True), 0x200
+        )
+    )
     assert before[off + 1] == 0x8E and data[off + 1] == 0x84
     assert bytes(data[off : off + 6]) == PATCHED_BYTES
     mask_off = file_offset(data, MASK)
@@ -95,12 +97,49 @@ def test_unmapped_gate_is_rejected() -> None:
     assert patch.detect(data) is None
 
 
+@pytest.mark.parametrize("va", [*LEVEL_GRANT_SPECIAL_POWER_HORDE_ANCHORS, 0x873AAB])
+def test_native_horde_contracts_checked_before_allocation(va: int) -> None:
+    data = synthetic_image()
+    data[file_offset(data, va)] ^= 0xFF
+    before = bytes(data)
+    with pytest.raises(ValueError, match="expected .* got"):
+        LevelGrantSpecialPowerPatch().apply(data)
+    assert data == before
+
+
+def test_cave_and_untouched_horde_guard_are_verified() -> None:
+    data = synthetic_image()
+    patch = LevelGrantSpecialPowerPatch()
+    patch.apply(data)
+    section = find_section(data, power.SECTION_NAME)
+    assert section is not None
+    for off in [section[1], file_offset(data, 0x873AAB)]:
+        damaged = bytearray(data)
+        damaged[off] ^= 0xFF
+        assert patch.verify(damaged) and patch.detect(damaged) is None
+
+
+def test_horde_cave_disassembles_and_preserves_whole_iterator_call() -> None:
+    capstone = pytest.importorskip("capstone")
+    decoder = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    base = 0xF40000
+    code = power.build_code(base)
+    decoded = list(decoder.disasm(code, base))
+    assert sum(i.size for i in decoded) == len(code)
+    assert code[:6] == bytes.fromhex("ff9010010000")
+    assert any(i.mnemonic == "fxsave" for i in decoded)
+    assert any(i.mnemonic == "fxrstor" for i in decoded)
+    for va, (old, new) in power._windows(base).items():
+        assert sum(i.size for i in decoder.disasm(old, va)) == len(old) == len(new)
+        assert sum(i.size for i in decoder.disasm(new, va)) == len(new)
+
+
 def test_reapplication_is_rejected() -> None:
     data = synthetic_image()
     patch = LevelGrantSpecialPowerPatch()
     patch.apply(data)
     before = bytes(data)
-    with pytest.raises(ValueError, match="expected .* got"):
+    with pytest.raises(ValueError, match="already carries"):
         patch.apply(data)
     assert bytes(data) == before
 
@@ -250,6 +289,9 @@ def test_composes_with_commandset_without_changing_its_result(reverse: bool) -> 
     data[off : off + 6] = STOCK_BYTES
     mask_off = file_offset(data, MASK)
     data[mask_off : mask_off + 7] = MASK_BYTES
+    for va, old in {**LEVEL_GRANT_SPECIAL_POWER_HORDE_ANCHORS, **dict(WINDOWS)}.items():
+        site = file_offset(data, va)
+        data[site : site + len(old)] = old
     expected = bytearray(data)
     other = CommandSetLimitPatch(count=64)
     other.apply(expected)
@@ -257,10 +299,16 @@ def test_composes_with_commandset_without_changing_its_result(reverse: bool) -> 
     for patch in reversed(patches) if reverse else patches:
         patch.apply(data)
     assert all(patch.verify(data) == [] for patch in patches)
-    assert [i for i, (a, b) in enumerate(zip(expected, data, strict=True)) if a != b] == [
-        off + 1,
-        mask_off + 3,
-    ]
+    detected = other.detect(data)
+    assert detected is not None and detected.count == 64
+    if not reverse:
+        changed = {file_offset(expected, va) + i for va, old in WINDOWS for i in range(len(old))}
+        assert all(
+            a == b or i in changed
+            for i, (a, b) in enumerate(
+                zip(expected[0x200:], data[0x200 : len(expected)], strict=True), 0x200
+            )
+        )
 
 
 @pytest.mark.full
@@ -268,7 +316,7 @@ def test_composes_with_commandset_without_changing_its_result(reverse: bool) -> 
     not _BINARY.is_file(),
     reason="requires the local unpatched RotWK 2.01.2614.37001 game.dat.backup",
 )
-def test_real_binary_changes_only_two_bytes(tmp_path: Path) -> None:
+def test_real_binary_changes_only_local_windows_and_appends_verified_cave(tmp_path: Path) -> None:
     source = _BINARY
     before = source.read_bytes()
     # Confirm the copied native fragments and ModuleData evidence against the supplied image.
@@ -289,7 +337,14 @@ def test_real_binary_changes_only_two_bytes(tmp_path: Path) -> None:
     output = apply_patches(source, [patch], tmp_path / "game.dat")
     after = output.read_bytes()
     assert patch.verify(after) == []
-    assert len(after) == len(before)
-    changed = [i for i, (a, b) in enumerate(zip(before, after, strict=True)) if a != b]
-    assert changed == [file_offset(before, GATE) + 1, file_offset(before, MASK) + 3]
+    assert len(after) > len(before)
+    changed = {file_offset(before, va) + i for va, old in WINDOWS for i in range(len(old))}
+    assert all(
+        a == b or i in changed
+        for i, (a, b) in enumerate(
+            zip(before[0x1000:], after[0x1000 : len(before)], strict=True), 0x1000
+        )
+    )
+    assert after[file_offset(after, 0x873AAB) : file_offset(after, 0x873AAB) + 2] == b"\x76\x2f"
+    assert find_section(after, power.SECTION_NAME) is not None
     assert source.read_bytes() == before

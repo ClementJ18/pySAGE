@@ -320,11 +320,11 @@ class ExperienceLevelDownPatch(Patch):
     description = (
         "Lower unit levels on actual XP loss, including at maximum rank, preserving remaining XP. "
         "Remove lost AttributeModifiers and OBJECT upgrades; preserve PLAYER upgrades. "
-        "Enable optional dynamic XP bounds with --xp-cap. "
+        "Dynamic XP bounds are enabled by default; disable with --no-xp-cap. "
         "Combine with level-grant-special-power for negative Experience powers"
     )
 
-    def __init__(self, xp_cap: bool = False) -> None:
+    def __init__(self, xp_cap: bool = True) -> None:
         self.xp_cap = xp_cap
 
     @classmethod
@@ -332,8 +332,8 @@ class ExperienceLevelDownPatch(Patch):
         parser.add_argument(
             "--xp-cap",
             action=argparse.BooleanOptionalAction,
-            default=False,
-            help="bound XP by the lowest and highest eligible level thresholds (default: off)",
+            default=True,
+            help="bound XP by the lowest and highest eligible level thresholds (default: on)",
         )
 
     @classmethod

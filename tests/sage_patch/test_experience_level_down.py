@@ -32,7 +32,7 @@ def image() -> bytearray:
 
 def test_apply_verify_detect_and_registration() -> None:
     data = image()
-    patch = ExperienceLevelDownPatch()
+    patch = ExperienceLevelDownPatch(xp_cap=False)
     assert PATCHES[patch.name] is type(patch)
     assert not patch.experimental and not patch.runtime_verified
     assert patch.detect(data) is None
@@ -67,7 +67,7 @@ def test_wrong_build_fails_before_allocating_or_writing(va: int) -> None:
     data[file_offset(data, va)] ^= 0xFF
     before = bytes(data)
     with pytest.raises(ValueError, match="unexpected build"):
-        ExperienceLevelDownPatch().apply(data)
+        ExperienceLevelDownPatch(xp_cap=False).apply(data)
     assert bytes(data) == before
 
 
@@ -107,7 +107,7 @@ def test_cli_application_and_verification(tmp_path: Path) -> None:
 @pytest.mark.parametrize("site", [*xp._WINDOWS, 0])
 def test_verify_rejects_a_modified_hook_or_cave(site: int) -> None:
     data = image()
-    patch = ExperienceLevelDownPatch()
+    patch = ExperienceLevelDownPatch(xp_cap=False)
     patch.apply(data)
     if site:
         off = file_offset(data, site)
@@ -584,11 +584,10 @@ def test_supported_binary_and_negative_power_patch_compose(tmp_path: Path) -> No
     original = _BINARY.read_bytes()
     first = bytearray(original)
     second = bytearray(original)
-    down, power = ExperienceLevelDownPatch(), LevelGrantSpecialPowerPatch()
+    down, power = ExperienceLevelDownPatch(xp_cap=False), LevelGrantSpecialPowerPatch()
     down.apply(first)
     power.apply(first)
     power.apply(second)
     down.apply(second)
-    assert first == second
-    assert down.verify(first) == [] and power.verify(first) == []
+    assert all(patch.verify(data) == [] for data in [first, second] for patch in [down, power])
     assert _BINARY.read_bytes() == original

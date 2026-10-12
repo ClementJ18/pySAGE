@@ -2,7 +2,8 @@
 
 The `xp_cap=True` option of [ExperienceLevelDownPatch](experience-level-down.md)
 bounds XP by the lowest and highest eligible level thresholds in RotWK
-`2.01.2614.37001`. It is disabled by default and enabled with `--xp-cap`.
+`2.01.2614.37001`. It is enabled by default; use `--no-xp-cap` or
+`ExperienceLevelDownPatch(xp_cap=False)` to disable it.
 The downward helper, lost-effect removal, delayed-grant cancellation and explicit level setter are
 not rewritten. [upgrade-module-removal](upgrade-module-removal.md) is optional.
 

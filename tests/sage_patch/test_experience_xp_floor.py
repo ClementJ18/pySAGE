@@ -126,7 +126,7 @@ def test_nan_remains_unordered_and_is_not_a_floor_trigger() -> None:
 
 def test_floor_changes_only_existing_cap_windows_and_not_the_down_cave() -> None:
     data = image()
-    down = ExperienceLevelDownPatch()
+    down = ExperienceLevelDownPatch(xp_cap=False)
     down.apply(data)
     located = find_section(data, xp.SECTION_NAME)
     assert located is not None
