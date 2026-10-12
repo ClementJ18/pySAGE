@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sage_ini.engine import STOCK
-from sage_patch import ExperienceLevelDownPatch, LevelGrantSpecialPowerNegativeExperiencePatch
+from sage_patch import ExperienceLevelDownPatch, LevelGrantSpecialPowerPatch
 from sage_patch.__main__ import main
 from sage_patch.addresses import EXPERIENCE_LEVEL_DOWN_ANCHORS
 from sage_patch.asm import Asm
@@ -584,7 +584,7 @@ def test_supported_binary_and_negative_power_patch_compose(tmp_path: Path) -> No
     original = _BINARY.read_bytes()
     first = bytearray(original)
     second = bytearray(original)
-    down, power = ExperienceLevelDownPatch(), LevelGrantSpecialPowerNegativeExperiencePatch()
+    down, power = ExperienceLevelDownPatch(), LevelGrantSpecialPowerPatch()
     down.apply(first)
     power.apply(first)
     power.apply(second)

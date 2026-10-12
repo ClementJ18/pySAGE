@@ -10,7 +10,7 @@ import pytest
 from sage_ini.engine import Engine, dump_engine, parse_engine
 from sage_patch import (
     ExperienceLevelDownPatch,
-    LevelGrantSpecialPowerNegativeExperiencePatch,
+    LevelGrantSpecialPowerPatch,
     UpgradeModuleRemovalPatch,
 )
 from sage_patch.__main__ import main
@@ -549,7 +549,7 @@ def test_real_binary_composition_and_original_preservation(upgrade_first: bool) 
     original = _BINARY.read_bytes()
     data = bytearray(original)
     patches = [
-        LevelGrantSpecialPowerNegativeExperiencePatch(),
+        LevelGrantSpecialPowerPatch(),
         ExperienceLevelDownPatch(xp_cap=True),
     ]
     if upgrade_first:

@@ -6,18 +6,18 @@ AttributeModifiers through the native Object removal function, and removes only 
 upgrades through the native upgrade removal path. PLAYER upgrades are untouched.
 
 This is independently selectable. To let a `LevelGrantSpecialPower` supply negative XP,
-also apply [level-grant-special-power-negative-experience](level-grant-special-power-negative-experience.md).
+also apply [level-grant-special-power](level-grant-special-power.md).
 That patch remains a separate one-byte change; it is not duplicated here.
 
 ```sh
-python -m sage_patch apply level-grant-special-power-negative-experience --in tools/BFME-FILES/game.dat.backup --out game.dat
+python -m sage_patch apply level-grant-special-power --in tools/BFME-FILES/game.dat.backup --out game.dat
 python -m sage_patch apply experience-level-down --in game.dat --out game.dat
 python -m sage_patch verify experience-level-down game.dat
-python -m sage_patch verify level-grant-special-power-negative-experience game.dat
+python -m sage_patch verify level-grant-special-power game.dat
 ```
 
 Python callers can use `ExperienceLevelDownPatch()` and
-`LevelGrantSpecialPowerNegativeExperiencePatch()` in an `apply_patches` list, in either order.
+`LevelGrantSpecialPowerPatch()` in an `apply_patches` list, in either order.
 No INI fields, experience sinks or persistent tracker fields are added.
 
 XP bounds are an optional part of this patch, disabled by default. Use

@@ -85,7 +85,7 @@ New-Item -ItemType Directory -Force tools/BFME-FILES/experience-ui-fix
 .venv\Scripts\python.exe -m sage_patch verify special-power-pause-button tools/BFME-FILES/experience-ui-fix/game.dat
 .venv\Scripts\python.exe -m sage_patch verify experience-level-down --xp-cap tools/BFME-FILES/experience-ui-fix/game.dat
 .venv\Scripts\python.exe -m sage_patch verify upgrade-module-removal tools/BFME-FILES/experience-ui-fix/game.dat
-.venv\Scripts\python.exe -m sage_patch verify level-grant-special-power-negative-experience tools/BFME-FILES/experience-ui-fix/game.dat
+.venv\Scripts\python.exe -m sage_patch verify level-grant-special-power tools/BFME-FILES/experience-ui-fix/game.dat
 ```
 
 It can also be applied to a clean supported binary by itself. Python callers can

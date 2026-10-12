@@ -50,8 +50,8 @@ from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
-from sage_patch.patches.level_grant_special_power_negative_experience import (
-    LevelGrantSpecialPowerNegativeExperiencePatch,
+from sage_patch.patches.level_grant_special_power import (
+    LevelGrantSpecialPowerPatch,
 )
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
@@ -136,7 +136,7 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
-    "LevelGrantSpecialPowerNegativeExperiencePatch",
+    "LevelGrantSpecialPowerPatch",
     "LifetimeFieldsPatch",
     "LiveBridgePatch",
     "MapTransitionPatch",

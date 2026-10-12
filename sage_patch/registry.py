@@ -111,8 +111,8 @@ from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.lan_join_bystanders import LanJoinBystandersPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
-from sage_patch.patches.level_grant_special_power_negative_experience import (
-    LevelGrantSpecialPowerNegativeExperiencePatch,
+from sage_patch.patches.level_grant_special_power import (
+    LevelGrantSpecialPowerPatch,
 )
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.lobby_faction_byte import LobbyFactionBytePatch
@@ -279,7 +279,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     InflationReadoutPatch,
     InterpolationAlphaPatch,
     LargeGroupBonusPatch,
-    LevelGrantSpecialPowerNegativeExperiencePatch,
+    LevelGrantSpecialPowerPatch,
     LifetimeFieldsPatch,
     LiveBridgePatch,
     MapTransitionPatch,
