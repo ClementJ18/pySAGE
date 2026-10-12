@@ -22,7 +22,10 @@ from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
 )
-from sage_patch.patches.experience_level_down import ExperienceLevelDownPatch
+from sage_patch.patches.experience_level_down import (
+    ExperienceLevelDownPatch,
+    ExperienceXpCapPatch,
+)
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
@@ -78,6 +81,7 @@ from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
 from sage_patch.patches.special_power_refund_upgrade import (
     SpecialPowerRefundUpgradePatch,
     SpecialPowerRefundUpgradeWorldbuilderPatch,
@@ -92,6 +96,7 @@ from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.upgrade_module_removal import UpgradeModuleRemovalPatch
 from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 
@@ -116,6 +121,9 @@ __all__ = [
     "DesertWeatherWorldbuilderPatch",
     "FactionVariantsPatch",
     "ExperienceLevelDownPatch",
+    "ExperienceXpCapPatch",
+    "UpgradeModuleRemovalPatch",
+    "SpecialPowerPauseButtonPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
     "GiveUpgradeAllPatch",

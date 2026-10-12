@@ -11,6 +11,9 @@ from sage_patch.addresses.runtime import (
 )
 
 __all__ = [
+    "UPGRADE_MODULE_REMOVAL_ANCHORS",
+    "UPGRADE_MODULE_REMOVAL_WINDOWS",
+    "EXPERIENCE_XP_CAP_WINDOWS",
     "EXPERIENCE_LEVEL_COLLECTION",
     "EXPERIENCE_LEVEL_DOWN_ANCHORS",
     "EXPERIENCE_LEVEL_FIND_BY_KEY",
@@ -1936,4 +1939,92 @@ EXPERIENCE_LEVEL_DOWN_ANCHORS: dict[int, bytes] = {
     0x008D2688: bytes.fromhex(
         "568b7424088b068bceff501c84c075108b068bceff50208b066a008bceff50245ec3"
     ),
+}
+
+
+# RotWK 2.01.2614.37001 upgrade removal contracts; see docs/upgrade-module-removal.md.
+UPGRADE_MODULE_REMOVAL_ANCHORS: dict[int, bytes] = {
+    0x00691438: bytes.fromhex(
+        "558bec81ec90000000568bd1578b7d088b4f3833f6468bc183e11fd3e6c1e8058d84828c020000f7d621308bb24c0200008b0685c07442538d480c8b01ff50288bd885db7429ff77388d8d70ffffff6a00e8a3e8ffff8b038d8d70ffffff518bcbff500c84c0740753e8e21124005983c6048b0685c075c05b5f5ec9c20400"
+    ),
+    0x0068E083: bytes.fromhex(
+        "568bf168900000008d868c0200006a0050e88fee3a008bb64c02000083c40ceb168d480c8b01ff502885c0740750e8d24524005983c6048b0685c075e45ec3"
+    ),
+    0x008D2901: bytes.fromhex(
+        "56ff7424088bf1e87dfeffff84c0740e6a008d4ef0e854ffffffb001eb0232c05ec20400"
+    ),
+    0x008D278A: bytes.fromhex(
+        "558bec81ec20010000568bf18d8d70ffffffe8c57ed1ff8d8de0feffffe8ba7ed1ff8b068d8de0feffff518d8d70ffffff518bceff502cff75088d8d70ffffffe80770f3ff84c0740e807e04007408c6460400b001eb0232c05ec9c20400"
+    ),
+    0x008D2688: bytes.fromhex(
+        "568b7424088b068bceff501c84c075108b068bceff50208b066a008bceff50245ec3"
+    ),
+    0x004986C4: bytes.fromhex("8a4104c3"),
+    0x005B462D: bytes.fromhex("8a442404884104c20400"),
+    0x00863B85: bytes.fromhex("8b41f48a8036010000c3"),
+    0x00653173: bytes.fromhex(
+        "568bf1e8eb74f9ff8d8e90000000e8e074f9ff33c98d86200100008308ff8948048948088308ff888e2c010000888e2d010000898e24010000898e28010000888e2e0100008bc65ec3"
+    ),
+    0x006531CE: bytes.fromhex("568bf18d4e08c706c8eac600e894ffffff8bc65ec3"),
+    0x00C76B28: bytes.fromhex("7c6ac70058e54200000000002e010000"),
+    0x00C76A7C: bytes.fromhex("5065726d616e656e7400"),
+    0x00C6EA50: bytes.fromhex(
+        "c4864900bf268d00f3268d0001298d00eb889100b3268d00bff36300853b860001978b002d465b0076968b004f3b8600763b86003b3b8600453b8600763b8600"
+    ),
+    0x008B9701: bytes.fromhex(
+        "538bd98b03ff1084c074478b43f8568bb04c0200008b0685c0743655578d480c8b01ff50208bf885ff741b8b078b6bf48bcfff50183b853801000075098b076a018bcfff502483c6048b0685c075ce5f5d5e5bc3"
+    ),
+    0x008B9676: bytes.fromhex(
+        "53578bf98b47f88b984c0200008b0385c07450568d480c8b01ff50208bf085f674378b068bceff50188b4ff43b813801000075258b066a008bceff50248b47f480b83c0100000075108b0d2c41de00ff71408b068bceff502083c3048b0385c075b25e5f5bc3"
+    ),
+    0x008B955F: bytes.fromhex("8b49f86a006a12e8e2d2d6ffc3"),
+    0x00855388: bytes.fromhex("568bf18b06ff50308b068bceff503c8b068bceff50288b066a018bceff50245ec3"),
+    0x00863B4F: bytes.fromhex(
+        "8b41f456578b7c240c6a245983c0086a248bf0f3a58b7c2414598db090000000f3a55f5ec20800"
+    ),
+    0x008097D6: bytes.fromhex(
+        "8b44240433d22bc1568b34088531750f4283c10483fa2472f032c05ec20400b001ebf8"
+    ),
+    0x00896756: bytes.fromhex(
+        "807c240400568bf1741e837e0c007513a12c41de008b40408946108b06ff5008d95e14ff460ceb1b8b460c85"
+        "c07e144889460c750ea12c41de008b40402b46100146085ec20400"
+    ),
+    0x00896C72: bytes.fromhex(
+        "568bf1807e1800740432c05ec3538b5ef86a468bcbe86071bbff84c0740432c0eb5b85db578b7ef4743885ff"
+        "74348bcbe8d149dfff8bd885db74278b7f088bcfe88520dfff807859007417a12c41de008b7040578bcbe8a2"
+        "65e1ff3bf01bc040eb1a837e0c007512a12c41de008b40403b4608720533c040eb0233c05f5b5ec3"
+    ),
+    0x00C6E9D8: bytes.fromhex(
+        "c4864900bf268d00f3268d0001298d00eb889100b3268d00bff36300853b86005f958b002d465b0052958b00"
+        "4f3b8600763b86003b3b8600453b8600763b8600"
+    ),
+    0x00863B76: bytes.fromhex("ff71f88b49f483c108e8b8fe1800c3"),
+    0x008D286F: bytes.fromhex(
+        "8b410885c08b4904747585c9747181c128010000568b3183feff7462807c24080074338b490485c9760b5156"
+        "8bc8e8df8cdbffeb4933d28bce83e11f42d3e2c1ee058594b00c01000075338d8cb00c0100000911eb2133d2"
+        "8bce83e11f42d3e2c1ee058594b00c01000074128d8cb00c010000f7d221118bc8e84f8cdbff5ec20400"
+    ),
+    0x008D26BF: bytes.fromhex("56ff7424088bf18b06ff500884c0740b8bcee8b22cf8ffb001eb0232c05ec20400"),
+    0x008D26F3: bytes.fromhex(
+        "558d6c248c81ec20010000568bf18d4de4e85d7fd1ff8d8d54ffffffe8527fd1ff8b068d8d54ffffff518d4d"
+        "e4518bceff502c33c0837c85e40075104083f82472f332c05e83c574c9c20400807e040075f08b068bceff50"
+        "388b4d7c84c08d8554ffffff507407e85485ddffeb05e87070f3ff84c075cb8b068bceff50348b4d7c84c08d"
+        "45e4507407e83285ddffebb4e84e70f3ffebad"
+    ),
+    0x00863B3B: bytes.fromhex("8b41f48a8034010000c38b41f48a8035010000c3"),
+}
+UPGRADE_MODULE_REMOVAL_WINDOWS: dict[int, bytes] = {
+    0x006914A0: bytes.fromhex("53e8e2112400"),
+    0x008D2688: bytes.fromhex("568b742408"),
+    0x008D2698: bytes.fromhex("8b068bceff5020"),
+    0x008D27D3: bytes.fromhex("807e04007408"),
+    0x00896C72: bytes.fromhex("568bf1807e1800"),
+}
+
+# Cap effective XP before the level-down addition/setter windows and guard native MaxRank.
+EXPERIENCE_XP_CAP_WINDOWS: dict[int, bytes] = {
+    0x0079D6CD: bytes.fromhex("38550c7414"),
+    0x0079D6E1: bytes.fromhex("f30f1045fc"),
+    0x0079D921: bytes.fromhex("f30f10442408"),
+    0x0079D17B: bytes.fromhex("8bf885ff7421"),
 }

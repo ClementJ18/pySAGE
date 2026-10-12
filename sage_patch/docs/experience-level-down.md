@@ -20,6 +20,17 @@ Python callers can use `ExperienceLevelDownPatch()` and
 `LevelGrantSpecialPowerNegativeExperiencePatch()` in an `apply_patches` list, in either order.
 No INI fields, experience sinks or persistent tracker fields are added.
 
+Optional follow-ups are [upgrade-module-removal](upgrade-module-removal.md), which
+repairs execution state for reversible UpgradeModule callbacks, and
+[experience-xp-cap](experience-xp-cap.md), which caps positive XP and normalizes old
+reserves before a drain. Apply the XP cap after this patch. Both companions are
+verified explicitly; without them this patch retains the behavior documented below.
+
+For a grey disabled CommandButton after a lost upgrade pauses its SpecialPower,
+also select [special-power-pause-button](special-power-pause-button.md). This
+companion changes only the UI availability branch and leaves this patch and
+the existing removal/pause hooks unchanged.
+
 ## Binary evidence and hooks
 
 The supplied `tools/BFME-FILES/game.dat.backup` is 11,346,944 bytes, ImageBase `0x00400000`.

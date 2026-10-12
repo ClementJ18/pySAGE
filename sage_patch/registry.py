@@ -55,7 +55,10 @@ from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
 from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
-from sage_patch.patches.experience_level_down import ExperienceLevelDownPatch
+from sage_patch.patches.experience_level_down import (
+    ExperienceLevelDownPatch,
+    ExperienceXpCapPatch,
+)
 from sage_patch.patches.experimental.accel_module import AccelModulePatch
 from sage_patch.patches.experimental.ai_power_model_condition import AiPowerModelConditionPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
@@ -165,6 +168,7 @@ from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
 from sage_patch.patches.special_power_refund_upgrade import (
     SpecialPowerRefundUpgradePatch,
     SpecialPowerRefundUpgradeWorldbuilderPatch,
@@ -181,6 +185,7 @@ from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.upgrade_module_removal import UpgradeModuleRemovalPatch
 from sage_patch.patches.wall_layer_promotion import WallLayerPromotionPatch
 from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
 from sage_patch.patches.worldbuilder_label_assert import WorldbuilderLabelAssertPatch
@@ -250,6 +255,9 @@ _REGISTERED: tuple[type[Patch], ...] = (
     EvacuateContainedHeroesPatch,
     FactionVariantsPatch,
     ExperienceLevelDownPatch,
+    ExperienceXpCapPatch,
+    UpgradeModuleRemovalPatch,
+    SpecialPowerPauseButtonPatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
     GateCloseRepathPatch,
