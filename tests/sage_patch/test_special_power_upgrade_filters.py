@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import faulthandler
 import struct
+from pathlib import Path
 
 import pytest
 
@@ -68,6 +69,19 @@ from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.test_terrain_resource_exp import _pe32
 
 IMAGE_BASE = 0x400000
+
+
+@pytest.mark.full
+def test_applies_and_verifies_against_stock_rotwk() -> None:
+    """Synthetic fixtures cannot detect an incorrect engine-function fingerprint."""
+    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    if not path.is_file():
+        pytest.skip("RotWK stock image not present")
+    data = bytearray(path.read_bytes())
+    patch = SpecialPowerUpgradeFiltersPatch()
+    patch.apply(data)
+    assert patch.verify(data) == []
+
 
 #: Where the synthetic image parks the field-name strings, past every site the patch touches.
 STRINGS_VA = 0x00DB0000

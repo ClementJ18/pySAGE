@@ -69,6 +69,7 @@ from sage_patch.patches.experimental.castle_prefab import (
     CastlePrefabWorldbuilderPatch,
 )
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
+from sage_patch.patches.experimental.command_range_flyout import CommandRangeFlyoutPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
@@ -241,6 +242,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandSetButtonUpgradePatch,
     CommandSetLimitPatch,
     ConstructionInitialHealthPatch,
+    CommandRangeFlyoutPatch,
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
     CrashDumpPatch,
