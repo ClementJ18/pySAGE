@@ -66,6 +66,7 @@ from sage_patch.patches.object_image_upgrade import (
     ObjectImageUpgradeWorldbuilderPatch,
 )
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
+from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
@@ -140,6 +141,7 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
+    "PillageModuleExtensionPatch",
     "LevelGrantSpecialPowerPatch",
     "LifetimeFieldsPatch",
     "LiveBridgePatch",

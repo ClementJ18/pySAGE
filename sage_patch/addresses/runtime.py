@@ -115,6 +115,7 @@ __all__ = [
     "INI_PARSE_DURATION",
     "INI_PARSE_FIELDS",
     "INI_PARSE_INT",
+    "INI_PARSE_UNSIGNED_INT",
     "INI_PARSE_PERCENT_TO_REAL",
     "INI_PARSE_POSITIVE_REAL",
     "INI_PARSE_POSITIVE_REAL_BYTES",
@@ -195,6 +196,9 @@ OPERATOR_NEW = 0x0042F6E0
 #: const void *userData)`, writing to `store` == `instance + offset`. Both `UnitCost` entries
 #: already use it, so a new `Int` field needs no parser of its own.
 INI_PARSE_INT = 0x0042EC5E
+#: Unsigned dword parser, cdecl (INI*, instance, store, optional upper bound).
+#: PillageAmount and NumDamageEventsPerPillage use it; supports # constants.
+INI_PARSE_UNSIGNED_INT = 0x0042ECB2
 #: Two wide literals the description builder already joins lines with: `L"\n"` (the separator the
 #: `CONTROLBAR:Requirements` and `TOOLTIP:BuildDisabled` folds use) and `L"\n\n"` (the blank-line
 #: separator the two "cannot buy this" messages use). Neither is owned by any one site.

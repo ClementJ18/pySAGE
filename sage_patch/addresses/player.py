@@ -303,6 +303,7 @@ __all__ = [
     "UPGRADE_FIRST_SET_ENTRY",
     "UPGRADE_MASK_ANY",
     "UPGRADE_MASK_TEST_ANY",
+    "UPGRADE_MASK_TEST_ALL",
     "UPGRADE_TEMPLATE_INDEX",
     "UPGRADE_TEMPLATE_NEXT",
     "VICTORY_CONDITIONS_HAS_ACHIEVED_VICTORY",
@@ -917,6 +918,8 @@ SPECIAL_POWER_START_RECHARGE = 0x00896F70
 #: touch only `eax`/`ecx`/`edx` and (in `testForAny`) a saved `esi`.
 UPGRADE_MASK_ANY = 0x00444DCE
 UPGRADE_MASK_TEST_ANY = 0x008097D6
+#: All-of counterpart, thiscall on the held mask, one required-mask argument, ret 4.
+UPGRADE_MASK_TEST_ALL = 0x006AACB3
 # Confirmed ROTWK XP dispatch and interface query; docs/share-experience-all.md.
 SHARE_EXPERIENCE_DISPATCH = 0x00695588
 SHARE_EXPERIENCE_DISPATCH_BYTES = bytes.fromhex(

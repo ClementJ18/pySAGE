@@ -138,6 +138,7 @@ from sage_patch.patches.observer_switch import ObserverSwitchPatch
 from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
 from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
 from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
+from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import (
@@ -312,6 +313,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     PassiveAuraRevivePatch,
     PerfScopeSkipPatch,
     PerfStageReadoutPatch,
+    PillageModuleExtensionPatch,
     PlayerHealFilterPatch,
     PlayerUpgradeDiscountPatch,
     ProductionConditionPatch,
