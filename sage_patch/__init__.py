@@ -69,9 +69,13 @@ from sage_patch.patches import (
     WotrBattleObserversPatch,
     WotrLobbySlotsPatch,
 )
+from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
+from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
 from sage_patch.sagepatch import generate
 
 __all__ = [
+    "SlavedUpdateIdlePatch",
+    "TextEntryClipboardPatch",
     "EXPERIMENTAL_WARNING",
     "AiReviveGatePatch",
     "AutoDepositInflationPatch",

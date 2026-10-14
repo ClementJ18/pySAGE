@@ -79,6 +79,7 @@ from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
 from sage_patch.patches.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
+from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
 from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
 from sage_patch.patches.special_power_refund_upgrade import (
@@ -90,6 +91,7 @@ from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
 from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
 from sage_patch.patches.summon_carryover import SummonCarryoverPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
+from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
@@ -100,6 +102,8 @@ from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 
 __all__ = [
+    "SlavedUpdateIdlePatch",
+    "TextEntryClipboardPatch",
     "AiBuildQueueSkipPatch",
     "AiCommandNullTargetPatch",
     "AiConstructionGatePatch",

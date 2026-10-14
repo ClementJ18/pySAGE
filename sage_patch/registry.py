@@ -167,6 +167,7 @@ from sage_patch.patches.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
+from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
 from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
 from sage_patch.patches.special_power_refund_upgrade import (
@@ -180,6 +181,7 @@ from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetR
 from sage_patch.patches.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.summon_carryover import SummonCarryoverPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
+from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
@@ -204,6 +206,7 @@ from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 #: every command that walks the registry - `list`, the `apply` and `verify` sub-command lists,
 #: `sagepatch` - inherits that order rather than an order maintained by hand here.
 _REGISTERED: tuple[type[Patch], ...] = (
+    SlavedUpdateIdlePatch,
     AccelModulePatch,
     AiBuildQueueSkipPatch,
     AiCommandNullTargetPatch,
@@ -350,6 +353,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     StandaloneLauncherPatch,
     SummonCarryoverPatch,
     TerrainResourceExpPatch,
+    TextEntryClipboardPatch,
     TriggerRechargeListPatch,
     UniqueProductionIdPatch,
     UnitPlateOptionPatch,

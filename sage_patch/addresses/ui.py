@@ -14,6 +14,12 @@ from sage_patch.addresses.player import (
 )
 
 __all__ = [
+    "TEXT_ENTRY_INPUT",
+    "TEXT_ENTRY_CLIPBOARD_HOOK",
+    "TEXT_ENTRY_CLIPBOARD_RESUME",
+    "TEXT_ENTRY_SET_CURSOR",
+    "TEXT_ENTRY_CLIPBOARD_BYTES",
+    "TEXT_ENTRY_CLIPBOARD_ANCHORS",
     "STANCE_HOTKEY_SELECT_CALL",
     "CONTROL_BAR_COMMAND_TARGET_ROUTE",
     "CONTROL_BAR_COMMAND_DISPATCH_TABLE",
@@ -540,6 +546,28 @@ __all__ = [
     "WINDOW_TRANSITION_REVERSE_BYTES",
     "WINDOW_TRANSITION_SET_GROUP",
 ]
+
+# RotWK 2.01: the Ctrl navigation fallback, after Ctrl+Left/Right have branched away.
+TEXT_ENTRY_INPUT = 0x00722745
+TEXT_ENTRY_CLIPBOARD_HOOK = 0x00722A8A
+TEXT_ENTRY_CLIPBOARD_RESUME = 0x00722B87
+TEXT_ENTRY_SET_CURSOR = 0x007220D3
+TEXT_ENTRY_CLIPBOARD_BYTES = bytes.fromhex("89550ce9f5000000")
+TEXT_ENTRY_CLIPBOARD_ANCHORS = {
+    0x00DA1BDC: bytes.fromhex("1488c10045277200"),
+    0x00C18814: b"GadgetTextEntryInput\0",
+    TEXT_ENTRY_INPUT: bytes.fromhex("558bec83ec188b4d08535657"),
+    TEXT_ENTRY_SET_CURSOR: bytes.fromhex("558bec83ec0c8b4d0856"),
+    TEXT_ENTRY_CLIPBOARD_RESUME: bytes.fromhex("8b450ce913010000"),
+    # Hidden result pointer is popped by getText; backing header length is a WORD at +4.
+    0x0072264E: bytes.fromhex("8b0e8b018d55f052ff50088b45f033db3bc3895dfc74060fb74004"),
+    # StringBase::substring reads inline UTF-16 at header+8, not a pointer stored at +8.
+    0x00437881: bytes.fromhex("85ff8d77087505be0016bd00508d045650"),
+    # UnicodeString::~UnicodeString decrements the reference, frees at zero, clears m_data.
+    0x004367ED: bytes.fromhex(
+        "8b0685c0c7442418000000007418ff088b06833800750950e86699ffff83c404c70600000000"
+    ),
+}
 
 THE_IN_GAME_UI = 0x00DE4830
 #: The button-description builder's special-power case (`cmp ecx, 0x18`), which appends the
