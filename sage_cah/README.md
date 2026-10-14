@@ -134,10 +134,10 @@ the powers each class can buy with their unlock levels, and what each bling inde
 ```python
 from sage_cah.gamedata import scan_ini_root
 
-data = scan_ini_root("C:/Games/rotwk")           # a folder holding data/ini, or an ini root
-data.classes[3].name                             # "Diener der Dunkelheit"
-[p.command_button for p in data.powers_for(3)]   # what class 3 may buy
-data.bling_choices("CreateAHero_Helmet", 3, 0)   # what a helmet index counts into
+data = scan_ini_root("C:/Games/rotwk")  # a folder holding data/ini, or an ini root
+data.classes[3].name  # "Diener der Dunkelheit"
+[p.command_button for p in data.powers_for(3)]  # what class 3 may buy
+data.bling_choices("CreateAHero_Helmet", 3, 0)  # what a helmet index counts into
 ```
 
 `load_cah_game_data([("big", ".../ini.big"), ...])` does the same over ordered folders and `.big`

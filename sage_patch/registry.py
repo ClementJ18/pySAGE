@@ -55,6 +55,9 @@ from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
 from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
+from sage_patch.patches.experience_level_down import (
+    ExperienceLevelDownPatch,
+)
 from sage_patch.patches.experimental.accel_module import AccelModulePatch
 from sage_patch.patches.experimental.ai_power_model_condition import AiPowerModelConditionPatch
 from sage_patch.patches.experimental.battle_school import BattleSchoolPatch
@@ -66,6 +69,7 @@ from sage_patch.patches.experimental.castle_prefab import (
     CastlePrefabWorldbuilderPatch,
 )
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
+from sage_patch.patches.experimental.command_range_flyout import CommandRangeFlyoutPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
 from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
@@ -108,6 +112,9 @@ from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
 from sage_patch.patches.lan_join_bystanders import LanJoinBystandersPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
+from sage_patch.patches.level_grant_special_power import (
+    LevelGrantSpecialPowerPatch,
+)
 from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.lobby_faction_byte import LobbyFactionBytePatch
 from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
@@ -131,6 +138,7 @@ from sage_patch.patches.observer_switch import ObserverSwitchPatch
 from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
 from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
 from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
+from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import (
@@ -160,7 +168,9 @@ from sage_patch.patches.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
+from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
 from sage_patch.patches.special_power_refund_upgrade import (
     SpecialPowerRefundUpgradePatch,
     SpecialPowerRefundUpgradeWorldbuilderPatch,
@@ -172,11 +182,13 @@ from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetR
 from sage_patch.patches.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.summon_carryover import SummonCarryoverPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
+from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.upgrade_module_removal import UpgradeModuleRemovalPatch
 from sage_patch.patches.wall_layer_promotion import WallLayerPromotionPatch
 from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
 from sage_patch.patches.worldbuilder_label_assert import WorldbuilderLabelAssertPatch
@@ -195,6 +207,7 @@ from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 #: every command that walks the registry - `list`, the `apply` and `verify` sub-command lists,
 #: `sagepatch` - inherits that order rather than an order maintained by hand here.
 _REGISTERED: tuple[type[Patch], ...] = (
+    SlavedUpdateIdlePatch,
     AccelModulePatch,
     AiBuildQueueSkipPatch,
     AiCommandNullTargetPatch,
@@ -233,6 +246,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandSetButtonUpgradePatch,
     CommandSetLimitPatch,
     ConstructionInitialHealthPatch,
+    CommandRangeFlyoutPatch,
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
     CrashDumpPatch,
@@ -245,6 +259,9 @@ _REGISTERED: tuple[type[Patch], ...] = (
     DrawModuleScalePatch,
     EvacuateContainedHeroesPatch,
     FactionVariantsPatch,
+    ExperienceLevelDownPatch,
+    UpgradeModuleRemovalPatch,
+    SpecialPowerPauseButtonPatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
     GateCloseRepathPatch,
@@ -268,6 +285,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     InflationReadoutPatch,
     InterpolationAlphaPatch,
     LargeGroupBonusPatch,
+    LevelGrantSpecialPowerPatch,
     LifetimeFieldsPatch,
     LiveBridgePatch,
     MapTransitionPatch,
@@ -295,6 +313,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     PassiveAuraRevivePatch,
     PerfScopeSkipPatch,
     PerfStageReadoutPatch,
+    PillageModuleExtensionPatch,
     PlayerHealFilterPatch,
     PlayerUpgradeDiscountPatch,
     ProductionConditionPatch,
@@ -336,6 +355,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     StandaloneLauncherPatch,
     SummonCarryoverPatch,
     TerrainResourceExpPatch,
+    TextEntryClipboardPatch,
     TriggerRechargeListPatch,
     UniqueProductionIdPatch,
     UnitPlateOptionPatch,

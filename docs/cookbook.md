@@ -48,9 +48,9 @@ but grow additively (new fields are added as the schema is filled in).
 from pathlib import Path
 from sage_ini import load_game
 
-game = load_game(Path("data")).game        # assemble every ini under data/ into one Game
+game = load_game(Path("data")).game  # assemble every ini under data/ into one Game
 fighter = game.objects["GondorFighter"]
-print(fighter.BuildCost)                     # annotated fields convert on access
+print(fighter.BuildCost)  # annotated fields convert on access
 ```
 
 `load_game` returns a `LoadedGame` (`.game` and `.diagnostics`). Pass `bases=` to layer an
@@ -66,7 +66,7 @@ The model describes the stock engine, so a field or a name-table token that only
 from sage_ini import load_engine, load_game
 
 game = load_game("data", engine=load_engine("data/.sagepatch")).game
-game.specialpowers["MyHeroPower"].ManaCost      # a field only the patched engine has
+game.specialpowers["MyHeroPower"].ManaCost  # a field only the patched engine has
 ```
 
 Applying is process-wide (the schema lives on the model classes), so one engine is active at a
@@ -110,8 +110,8 @@ for obj in walk_objects(game, Object):
 non-macro value through unchanged (matching the engine's loose, case-insensitive lookup).
 
 ```python
-game.get_macro("HERO_HEALTH")   # -> "4000"
-game.get_macro("4000")          # -> "4000"  (not a macro: returned as-is)
+game.get_macro("HERO_HEALTH")  # -> "4000"
+game.get_macro("4000")  # -> "4000"  (not a macro: returned as-is)
 ```
 
 ## Follow BuildVariations (and other references)
@@ -138,9 +138,9 @@ from sage_ini import Xref
 
 xref = Xref(game)
 fighter = game.objects["GondorFighter"]
-print({o.name for o in xref.references(fighter)})     # what it points at
+print({o.name for o in xref.references(fighter)})  # what it points at
 print({o.name for o in xref.referenced_by(fighter)})  # what points at it
-print(xref.is_referenced(fighter))                    # used anywhere?
+print(xref.is_referenced(fighter))  # used anywhere?
 ```
 
 ## Edit, then reprint losslessly
@@ -160,7 +160,7 @@ for block in doc.children:
             if isinstance(child, Attribute) and child.key == "BuildCost":
                 block.children[i] = Attribute(key="BuildCost", value="250", span=child.span)
 
-new_text = print_document(doc)   # canonical formatting, BuildCost now 250, rest untouched
+new_text = print_document(doc)  # canonical formatting, BuildCost now 250, rest untouched
 ```
 
 (The `sage_lint format` command is this round-trip applied wholesale.)
@@ -176,6 +176,7 @@ its editor integration consume.
 from sage_ini import Diagnostics, Severity, walk_objects
 from sage_ini.model.ini_objects import Object
 
+
 def find_free_units(game) -> Diagnostics:
     """Flag every Object whose BuildCost is written as 0."""
     diagnostics = Diagnostics()
@@ -184,13 +185,14 @@ def find_free_units(game) -> Diagnostics:
             diagnostics.add(
                 "free-unit",
                 f"{obj.name} has BuildCost 0",
-                obj.span,                      # every node carries a Span (file:line)
+                obj.span,  # every node carries a Span (file:line)
                 Severity.WARNING,
             )
     return diagnostics
 
+
 for diag in find_free_units(game):
-    print(diag)            # "units.ini:12: warning: … [free-unit]"
+    print(diag)  # "units.ini:12: warning: … [free-unit]"
 ```
 
 A `Diagnostic` carries `code`, `message`, `span`, `severity` and an `extra` dict of
@@ -205,8 +207,8 @@ When you only need the syntax tree (formatting, a quick scan), skip assembly:
 ```python
 from sage_ini import parse_file
 
-result = parse_file("FXList.ini")     # ParseResult(document, diagnostics)
-for diag in result.diagnostics:        # parser-level problems (unclosed block, …)
+result = parse_file("FXList.ini")  # ParseResult(document, diagnostics)
+for diag in result.diagnostics:  # parser-level problems (unclosed block, …)
     print(diag)
 ```
 

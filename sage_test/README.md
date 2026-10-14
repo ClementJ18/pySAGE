@@ -5,15 +5,23 @@ and assert on what the game actually did.
 
 ```python
 scenario = Scenario("edict", seats=(Seat.human(faction=12), Seat.easy_ai(faction=10)))
-hero = scenario.place("AngmarMorgramir", at=(4180, 2500, 0), level=7,
-                      upgrades=tuple(f"Upgrade_Level_{n}" for n in range(1, 8)))
+hero = scenario.place(
+    "AngmarMorgramir",
+    at=(4180, 2500, 0),
+    level=7,
+    upgrades=tuple(f"Upgrade_Level_{n}" for n in range(1, 8)),
+)
 hall = scenario.place("AngmarBarracks", at=(4300, 2500, 0))
 
 with run_scenario(scenario, install, template, writable=True) as match:
     match.session.select([match.id_of(hero)])
-    time.sleep(2.0)                       # a cast ordered sooner is discarded in silence
-    match.session.cast("SpecialAbilitySchergendesGrossorks", form=CAST_LOCATION,
-                       position=match[hall].position, source_id=match.id_of(hero))
+    time.sleep(2.0)  # a cast ordered sooner is discarded in silence
+    match.session.cast(
+        "SpecialAbilitySchergendesGrossorks",
+        form=CAST_LOCATION,
+        position=match[hall].position,
+        source_id=match.id_of(hero),
+    )
     match.wait_until(lambda m: "Upgrade_RaiseShield" in m[hall].upgrades)
 ```
 
@@ -100,11 +108,14 @@ colours, start positions, starting resources and seed.
 ```python
 from sage_live.launch.game_info import LobbySettings
 
-scenario = Scenario("siege", seats=(
-    Seat.human(faction=3, start_position=0, team=0),
-    Seat.computer(faction=10, difficulty="brutal", start_position=1, team=1),
-    Seat.computer(faction=12, difficulty="hard", start_position=2, team=1),
-))
+scenario = Scenario(
+    "siege",
+    seats=(
+        Seat.human(faction=3, start_position=0, team=0),
+        Seat.computer(faction=10, difficulty="brutal", start_position=1, team=1),
+        Seat.computer(faction=12, difficulty="hard", start_position=2, team=1),
+    ),
+)
 with run_scenario(scenario, install, template, settings=LobbySettings(seed=42)) as match:
     ...
 ```

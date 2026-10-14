@@ -63,7 +63,7 @@ python -m sage_apt edit Palantir.xml --game "C:/.../Edain-Mod/_mod"
 ```python
 from sage_apt import AptError, apt_to_xml, xml_to_apt, write_viewer_html
 
-xml = apt_to_xml("SpellStore.apt")       # -> Path("SpellStore.xml")
+xml = apt_to_xml("SpellStore.apt")  # -> Path("SpellStore.xml")
 apt, const = xml_to_apt("SpellStore.xml")  # -> (Path("...apt"), Path("...const"))
 write_viewer_html("SpellStore.xml")
 

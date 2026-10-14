@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 __all__ = [
+    "GET_MODULE_HANDLE_A_IAT",
     "AMPERSAND_SCAN",
     "ARCHIVE_FILE_SYSTEM",
     "ARCHIVE_FILE_SYSTEM_LOAD_ARCHIVE",
@@ -114,6 +115,7 @@ __all__ = [
     "INI_PARSE_DURATION",
     "INI_PARSE_FIELDS",
     "INI_PARSE_INT",
+    "INI_PARSE_UNSIGNED_INT",
     "INI_PARSE_PERCENT_TO_REAL",
     "INI_PARSE_POSITIVE_REAL",
     "INI_PARSE_POSITIVE_REAL_BYTES",
@@ -194,6 +196,9 @@ OPERATOR_NEW = 0x0042F6E0
 #: const void *userData)`, writing to `store` == `instance + offset`. Both `UnitCost` entries
 #: already use it, so a new `Int` field needs no parser of its own.
 INI_PARSE_INT = 0x0042EC5E
+#: Unsigned dword parser, cdecl (INI*, instance, store, optional upper bound).
+#: PillageAmount and NumDamageEventsPerPillage use it; supports # constants.
+INI_PARSE_UNSIGNED_INT = 0x0042ECB2
 #: Two wide literals the description builder already joins lines with: `L"\n"` (the separator the
 #: `CONTROLBAR:Requirements` and `TOOLTIP:BuildDisabled` folds use) and `L"\n\n"` (the blank-line
 #: separator the two "cannot buy this" messages use). Neither is owned by any one site.
@@ -536,6 +541,8 @@ FLOAT_HUNDRED = 0x00BD88D8
 #: `kernel32!LoadLibraryA` in the IAT, which the engine calls for `D3D9.DLL` at `0x00525176`. The
 #: `accel-module` cave calls it the same way for `bfme2_accel.dll`.
 LOAD_LIBRARY_A_IAT = 0x00BD0188
+#: Borrow the already loaded DLL; used by the clipboard hook without increasing its refcount.
+GET_MODULE_HANDLE_A_IAT = 0x00BD0134
 #: `kernel32!GetProcAddress` in the IAT - how the probe reaches `D3DPERF_GetStatus`, which the
 #: engine itself never resolves.
 GET_PROC_ADDRESS_IAT = 0x00BD018C

@@ -1106,3 +1106,70 @@ AI_GROUP_ENTER_FILTER_TARGET = 0x0C
 #: `ebp` the filter's frame. Followed by `test al, al` / `jne keep`.
 AI_GROUP_ENTER_FILTER_MEMBER_TEST = 0x0076F540
 AI_GROUP_ENTER_FILTER_MEMBER_TEST_BYTES = bytes.fromhex("8b066a016a00538bceff909800000084c0750d")
+
+
+# RotWK 2.01 SlavedUpdate contracts; see docs/slaved-update-idle.md.
+SLAVED_IDLE_HOOK = 0x008A615A
+SLAVED_IDLE_FALLTHROUGH = 0x008A615F
+SLAVED_IDLE_GUARD = 0x008A6181
+SLAVED_IDLE_CTOR = 0x008A4F67
+SLAVED_IDLE_DTOR = 0x008A4EFC
+SLAVED_IDLE_XFER = 0x008A51F6
+SLAVED_IDLE_UPDATE = 0x008A5D00
+SLAVED_IDLE_GUARD_MOVEMENT = 0x008A567E
+SLAVED_IDLE_VTABLE = 0x00C6890C
+SLAVED_IDLE_UPDATE_VTABLE = 0x00C68844
+SLAVED_IDLE_HOOKS = {
+    0x008A615A: bytes.fromhex("77258b45f4"),
+    0x008A4F67: bytes.fromhex("56ff74240c"),
+    0x008A4EFC: bytes.fromhex("c7010c89c600"),
+    0x008A51F6: bytes.fromhex("558bec568b7508"),
+}
+SLAVED_IDLE_ANCHORS = {
+    SLAVED_IDLE_VTABLE: bytes.fromhex("c84f8a00b0888b00614f8a00f6518a00"),
+    SLAVED_IDLE_UPDATE_VTABLE: bytes.fromhex("005d8a00"),
+    SLAVED_IDLE_UPDATE: bytes.fromhex(
+        "558bec83ec38568bf18b462433c93bc18975f87e0448894624394e28750d394e247f0da1fc95de00"
+        "894624394e14750833c040e9d80100008d4e108b01ff501c84c0740ab8ffffff3fe9c2010000538b"
+        "5ef885db578b7ef4897df4895dfc"
+    ),
+    0x008A6131: bytes.fromhex(
+        "8b7de88b078bcfff90b801000084c0744d8b4dfc8d45d450e896dad3ffd905b00cdb00d9c9dff1ddd8"
+    ),
+    0x008A615F: bytes.fromhex(
+        "8b780c8b4dfc8d433850e876dad3ff8bc70fafc78945e0db45e0d9c9dff1ddd876558d7ef08bcfe8"
+        "27f1ffff6a00eb3c8bcfe86d21dcff85c0743c8b45f48b780c8b4dfc8d433850e838dad3ff8bc70f"
+        "afc78945e0db45e0d9c9dff1ddd876178d7ef08bcfe8e9f0ffff6a018d45d48bcf50e8a8f4ffff8b"
+        "7df4837f08000f8428fdffff8b4de88b01ff90b801000084c075268b4dfc8b7f0883c33853e8e3d9"
+        "d3ff8bc70fafc78945e0db45e0d9c9dff1ddd80f86f3fcffff8b4de88b01ff90b801000084c07528"
+        "8b7dfc6a016a1e8bcfe81806d8ffb800004000858734010000750d0987340100008bcfe8ed52deff"
+        "83c6f08bcee859f0ffff6a008d45d4508bcee818f4ffffe9a0fcffff"
+    ),
+    0x008A5684: bytes.fromhex("8bf18b4e088b5e04"),
+    0x008A56A7: bytes.fromhex("8b43108bc80fafc8"),
+    0x008A56E2: bytes.fromhex("837b10000f84a3000000"),
+    0x008A5123: bytes.fromhex("8b4374"),
+    0x00850C77: bytes.fromhex(
+        "8b068bceff501084c0751a8b068d4f14518bceff50788b068bceff500484c07404834f18ff"
+    ),
+    # Independent stock users of GameLogic->frame and the 5 Hz duration conversion.
+    0x00850C32: bytes.fromhex("a12c41de008b5040035424085251ff74240c8bc8e8d6acddffc20800"),
+    0x0088B759: bytes.fromhex("8b0d2c41de008b494003c8894e20"),
+    0x0073A450: bytes.fromhex("d80d10f6d9005151dd1c24ff158805bd005959e83c2b3000"),
+    0x00D9F608: bytes.fromhex("05000000"),
+    0x00D9F610: bytes.fromhex("0ad7a33b"),
+}
+__all__ += [
+    "SLAVED_IDLE_HOOK",
+    "SLAVED_IDLE_FALLTHROUGH",
+    "SLAVED_IDLE_GUARD",
+    "SLAVED_IDLE_CTOR",
+    "SLAVED_IDLE_DTOR",
+    "SLAVED_IDLE_XFER",
+    "SLAVED_IDLE_UPDATE",
+    "SLAVED_IDLE_GUARD_MOVEMENT",
+    "SLAVED_IDLE_VTABLE",
+    "SLAVED_IDLE_UPDATE_VTABLE",
+    "SLAVED_IDLE_HOOKS",
+    "SLAVED_IDLE_ANCHORS",
+]

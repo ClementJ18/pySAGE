@@ -138,8 +138,8 @@ document.subscribe(lambda change: print("changed:", change.kind))
 first = document.map.objects_list.object_list[0]
 document.execute(SetAttribute(first, "angle", 1.57, Change(ChangeKind.OBJECTS)))
 
-document.stack.undo()   # every edit is undoable
-document.save()         # byte-identical again, compressed as it was
+document.stack.undo()  # every edit is undoable
+document.save()  # byte-identical again, compressed as it was
 ```
 
 `MapDocument` caches the decoded terrain and patches it in place (`write_heights`, `write_cells`).

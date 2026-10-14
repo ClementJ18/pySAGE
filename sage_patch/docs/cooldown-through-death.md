@@ -266,10 +266,12 @@ what was asked.
 `lifetime-fields` declares its two:
 
 ```python
-Engine(fields=(
-    FieldDelta("SpecialPower", self.keyword, "Bool", False, self.name),
-    FieldDelta("SpecialPower", self.tick_keyword, "Bool", False, self.name),
-))
+Engine(
+    fields=(
+        FieldDelta("SpecialPower", self.keyword, "Bool", False, self.name),
+        FieldDelta("SpecialPower", self.tick_keyword, "Bool", False, self.name),
+    )
+)
 ```
 
 so `sage-patch sagepatch game.dat -o .sagepatch` writes them down and `sage-lint` stops calling them

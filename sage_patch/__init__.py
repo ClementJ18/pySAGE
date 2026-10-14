@@ -24,6 +24,7 @@ from sage_patch.patches import (
     CommandPointCostPatch,
     CommandPointUpkeepPatch,
     CommandSetLimitPatch,
+    ExperienceLevelDownPatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
     HeadlessPatch,
@@ -34,6 +35,7 @@ from sage_patch.patches import (
     HordeOrphanTargetPatch,
     InflationReadoutPatch,
     LargeGroupBonusPatch,
+    LevelGrantSpecialPowerPatch,
     LifetimeFieldsPatch,
     MaintenanceCostPatch,
     MapListSymbolsPatch,
@@ -42,6 +44,7 @@ from sage_patch.patches import (
     MultiContainPatch,
     MultiExecuteGatePatch,
     MultiSelectGroupPatch,
+    PillageModuleExtensionPatch,
     PlayerHealFilterPatch,
     ProductionConditionPatch,
     ProductionSplitPatch,
@@ -54,6 +57,7 @@ from sage_patch.patches import (
     SkirmishReplayPatch,
     SpawnUnionPatch,
     SpecialPowerMusicPatch,
+    SpecialPowerPauseButtonPatch,
     SpellStoreUpgradePatch,
     TerrainResourceExpPatch,
     TriggerRechargeListPatch,
@@ -62,12 +66,17 @@ from sage_patch.patches import (
     UpgradeAliasPatch,
     UpgradeDescriptionPatch,
     UpgradeGrantListsPatch,
+    UpgradeModuleRemovalPatch,
     WotrBattleObserversPatch,
     WotrLobbySlotsPatch,
 )
+from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
+from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
 from sage_patch.sagepatch import generate
 
 __all__ = [
+    "SlavedUpdateIdlePatch",
+    "TextEntryClipboardPatch",
     "EXPERIMENTAL_WARNING",
     "AiReviveGatePatch",
     "AutoDepositInflationPatch",
@@ -77,6 +86,9 @@ __all__ = [
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
     "FireAtAttackerPatch",
+    "ExperienceLevelDownPatch",
+    "UpgradeModuleRemovalPatch",
+    "SpecialPowerPauseButtonPatch",
     "FoundationRebindPatch",
     "HeadlessPatch",
     "HealingReceivedPatch",
@@ -87,6 +99,8 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
+    "PillageModuleExtensionPatch",
+    "LevelGrantSpecialPowerPatch",
     "LifetimeFieldsPatch",
     "MaintenanceCostPatch",
     "MapListSymbolsPatch",
