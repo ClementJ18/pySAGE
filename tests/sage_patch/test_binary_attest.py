@@ -51,7 +51,7 @@ from sage_patch.utils import find_section, va_to_offset  # noqa: E402
 
 from .synthetic import binary_attest_image  # noqa: E402
 
-_GAME_DAT = Path(r"C:\Program Files (x86)\Games\bfme\rotwk\game.dat")
+_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
 BASE = 0x00F00000
 

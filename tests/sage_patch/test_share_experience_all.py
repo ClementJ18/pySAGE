@@ -221,7 +221,7 @@ def test_nonidentity_file_mapping(image: bytearray) -> None:
 
 @pytest.mark.full
 def test_real_baseline_apply_verify() -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = Path(__file__).resolve().parents[2] / "game.dat"
     if not path.is_file():
         pytest.skip("no ROTWK baseline present")
     data = bytearray(path.read_bytes())

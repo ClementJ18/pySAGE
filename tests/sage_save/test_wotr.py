@@ -32,6 +32,7 @@ from sage_save import (
     encode_game_client,
     encode_game_logic,
     encode_living_world_logic,
+    find_interrupted_write,
     harvest_living_world_references,
     living_world_names,
     living_world_object_templates,
@@ -185,3 +186,13 @@ def test_truncated_save_container_does_not_parse():
     data = _require(WOTR_TRUNCATED).read_bytes()
     with pytest.raises(ValueError):
         parse_save(data)
+
+
+def test_truncated_save_stopped_in_living_world_logic():
+    """The engine aborted this save inside its first chunk, at the header of the
+    `LivingWorldScoreKeeper` objects-lost map (see `sage_patch/docs/living-campaign/
+    wotr-save-failure.md`)."""
+    found = find_interrupted_write(_require(WOTR_TRUNCATED).read_bytes())
+    assert found is not None
+    assert found.chunk == "CHUNK_LivingWorldLogic"
+    assert found.completed == ()

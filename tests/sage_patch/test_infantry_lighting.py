@@ -42,7 +42,7 @@ from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import INFANTRY_LIGHTING_LANE, infantry_lighting_image
 
-_GAME_DAT = Path(r"C:\Program Files (x86)\Games\bfme\rotwk\game.dat")
+_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
 #: What the default selection encodes: INFANTRY (bit 8) | CAVALRY (bit 9) | MONSTER (bit 10).
 DEFAULT_MASK = 0x07

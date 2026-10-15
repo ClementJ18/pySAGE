@@ -43,7 +43,7 @@ from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import observer_switch_image
 
-_GAME_DAT = Path(r"C:\Program Files (x86)\Games\bfme\rotwk\game.dat")
+_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
 #: Where the `call` sits inside the run that identifies it.
 _CALL_AT = OBSERVER_BAR_GATE_FINGERPRINT_BYTES.index(OBSERVER_BAR_GATE_CALL_BYTES)

@@ -40,7 +40,7 @@ PATCH_CLASSES = (MultiInstancePatch, MultiInstanceLauncherPatch)
 
 _INSTALL = Path(r"C:\Program Files (x86)\Games\bfme\rotwk")
 _BINARIES = {
-    MultiInstancePatch.name: _INSTALL / "game.dat",
+    MultiInstancePatch.name: Path(__file__).resolve().parents[2] / "game.dat",
     MultiInstanceLauncherPatch.name: _INSTALL / "lotrbfme2ep1.exe",
 }
 

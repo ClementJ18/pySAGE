@@ -16,6 +16,7 @@ from sage_patch.patches.ai_build_queue_skip import AiBuildQueueSkipPatch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.ai_disabled_regions import AiDisabledRegionsPatch
+from sage_patch.patches.ai_equivalent_build_gate import AiEquivalentBuildGatePatch
 from sage_patch.patches.ai_farm_kill_gate import AiFarmKillGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_hero_build_delay import AiHeroBuildDelayPatch
@@ -55,6 +56,10 @@ from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
 from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
+from sage_patch.patches.experience_award import (
+    ExperienceAwardPatch,
+    ExperienceAwardWorldbuilderPatch,
+)
 from sage_patch.patches.experience_level_down import (
     ExperienceLevelDownPatch,
 )
@@ -135,6 +140,7 @@ from sage_patch.patches.object_image_upgrade import (
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
 from sage_patch.patches.observer_switch import ObserverSwitchPatch
+from sage_patch.patches.os_name_fallback import OsNameFallbackPatch
 from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
 from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
 from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
@@ -159,11 +165,13 @@ from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
+from sage_patch.patches.save_temp_file import SaveTempFilePatch
 from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
 from sage_patch.patches.science_prereqs import (
     SciencePrereqPatch,
     SciencePrereqWorldbuilderPatch,
 )
+from sage_patch.patches.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
 from sage_patch.patches.script_debug_window import ScriptDebugWindowPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_ai_fallback import SkirmishAiFallbackPatch
@@ -183,6 +191,7 @@ from sage_patch.patches.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.summon_carryover import SummonCarryoverPatch
 from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
+from sage_patch.patches.texture_any_extension import TextureAnyExtensionPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
@@ -213,6 +222,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     AiCommandNullTargetPatch,
     AiConstructionGatePatch,
     AiDisabledRegionsPatch,
+    AiEquivalentBuildGatePatch,
     AiFarmKillGatePatch,
     AiFlagCaptureGatePatch,
     AiHeroBuildDelayPatch,
@@ -271,6 +281,8 @@ _REGISTERED: tuple[type[Patch], ...] = (
     HeadlessPatch,
     HealingReceivedPatch,
     HealingReceivedWorldbuilderPatch,
+    ExperienceAwardPatch,
+    ExperienceAwardWorldbuilderPatch,
     HeroArmyCarryoverPatch,
     HeroBarPatch,
     HeroBarSlotsPatch,
@@ -310,6 +322,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ObserverAllCommandsPatch,
     ObserverCommandRangePatch,
     ObserverSwitchPatch,
+    OsNameFallbackPatch,
     PassiveAuraRevivePatch,
     PerfScopeSkipPatch,
     PerfStageReadoutPatch,
@@ -332,9 +345,11 @@ _REGISTERED: tuple[type[Patch], ...] = (
     ReplayAnnotationsPatch,
     ReplayOutcomePatch,
     ReviveObjectBindingPatch,
+    SaveTempFilePatch,
     ScenarioPlayerFactionsPatch,
     SciencePrereqPatch,
     SciencePrereqWorldbuilderPatch,
+    ScoreKeeperDanglingKeysPatch,
     ScriptDebugWindowPatch,
     SecondResourcePatch,
     ShareExperienceAllPatch,
@@ -356,6 +371,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     SummonCarryoverPatch,
     TerrainResourceExpPatch,
     TextEntryClipboardPatch,
+    TextureAnyExtensionPatch,
     TriggerRechargeListPatch,
     UniqueProductionIdPatch,
     UnitPlateOptionPatch,

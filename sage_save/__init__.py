@@ -92,7 +92,10 @@ from sage_save.coverage import (
 from sage_save.diagnose import (
     KNOWN_CHUNK_VERSIONS,
     Diagnostic,
+    InterruptedWrite,
+    diagnose_container,
     diagnose_save,
+    find_interrupted_write,
     format_diagnosis,
 )
 from sage_save.edit import apply_json, apply_json_text
@@ -155,6 +158,7 @@ __all__ = [
     "GameLogicState",
     "GameStateHeader",
     "GameStateMap",
+    "InterruptedWrite",
     "LivingWorldLogicState",
     "NameList",
     "NamedReveal",
@@ -184,6 +188,7 @@ __all__ = [
     "check_save",
     "chunk_coverage",
     "coverage_summary",
+    "diagnose_container",
     "diagnose_save",
     "format_diagnosis",
     "decode_campaign",
@@ -211,6 +216,7 @@ __all__ = [
     "encode_tactical_view",
     "encode_team_factory",
     "extract_map",
+    "find_interrupted_write",
     "first_difference",
     "format_block_tree",
     "format_divergence",

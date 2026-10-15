@@ -38,7 +38,7 @@ MASK = LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_INSTRUCTION
 MASK_BYTES = LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_BYTES
 PATCHED_MASK = bytes.fromhex("c745b807000000")
 WINDOWS = [(va, old) for va, (old, _new) in power._windows(0).items()]
-_BINARY = Path(__file__).resolve().parents[2] / "tools" / "BFME-FILES" / "game.dat.backup"
+_BINARY = Path(__file__).resolve().parents[2] / "game.dat"
 
 
 def synthetic_image() -> bytearray:

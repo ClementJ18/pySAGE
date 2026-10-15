@@ -81,6 +81,11 @@ __all__ = [
     "RADAR_PLOT_SPAN_ENDS_BYTES",
     "RADAR_PRIORITY_STRUCTURE",
     "SURFACE_DRAW_PIXEL",
+    "TEXTURE_EXTENSION_TGA",
+    "TEXTURE_EXTENSION_TGA_BYTES",
+    "TEXTURE_GET_BY_NAME",
+    "TEXTURE_GET_BY_NAME_BYTES",
+    "TEXTURE_GET_BY_NAME_RESUME",
     "THE_DISPLAY",
     "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE",
     "W3D_HORDE_MODEL_DRAW_SET_MODEL_STATE_HOOK",
@@ -443,3 +448,14 @@ CONTROL_BAR_SELECT_PORTRAIT_RESUME = 0x0073D0A9
 CONTROL_BAR_BUTTON_IMAGE_FALLBACK = 0x0073D0F1
 CONTROL_BAR_BUTTON_IMAGE_FALLBACK_BYTES = bytes.fromhex("8b4c2404e9f5feffff")
 CONTROL_BAR_BUTTON_IMAGE_FALLBACK_RESUME = 0x0073CFEF
+#: The texture getter every loader goes through (83 callers: the W3D texture chunk, the mesh
+#: loader's direct reads, INI-named textures): `cdecl (TexturePtr *out, const char *name, a3, a4)`,
+#: returning `out`. It looks `name` up verbatim, and the asset cache indexes a texture under its
+#: `.tga` name whatever the file on disk is (`docs/texture-any-extension.md`). The hook is its
+#: first instruction, `mov eax, <EH handler>`; the `call EH_PROLOG` after it is where it resumes.
+TEXTURE_GET_BY_NAME = 0x00532875
+TEXTURE_GET_BY_NAME_BYTES = bytes.fromhex("b80f9bb700e871a6500083ec0c8365e80056")
+TEXTURE_GET_BY_NAME_RESUME = 0x0053287A
+#: The `".tga"` literal the W3D texture chunk loader compares an authored extension against.
+TEXTURE_EXTENSION_TGA = 0x00BDC7EC
+TEXTURE_EXTENSION_TGA_BYTES = bytes.fromhex("2e74676100")

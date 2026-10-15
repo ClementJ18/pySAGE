@@ -31,6 +31,8 @@ def test_reference_scopes_read_the_string_slot():
     "arg_type, scope, target",
     [
         (ScriptArgumentType.OBJECT_TYPE, Scope.GAME, "objects"),
+        # A template too, whatever its name says: "Build a building of type ...".
+        (ScriptArgumentType.OBJECT_NAME, Scope.GAME, "objects"),
         (ScriptArgumentType.SCIENCE_NAME, Scope.GAME, "sciences"),
         (ScriptArgumentType.UPGRADE_NAME, Scope.GAME, "upgrades"),
         (ScriptArgumentType.COMMAND_BUTTON_NAME, Scope.GAME, "commandbuttons"),

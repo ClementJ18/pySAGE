@@ -77,9 +77,16 @@ def named(kind: ScriptArgumentType, value: str) -> ScriptArgument:
 def test_only_map_scope_types_are_navigable():
     """An argument naming something the map declares can be gone to; one naming an ini
     definition, a scalar or a counter cannot."""
-    for kind in (T.OBJECT_NAME, T.UNIT_NAME, T.WAYPOINT_NAME, T.TEAM_REFERENCE, T.SCRIPT_NAME):
+    for kind in (T.UNIT_REFERENCE, T.UNIT_NAME, T.WAYPOINT_NAME, T.TEAM_REFERENCE, T.SCRIPT_NAME):
         assert navigable(kind)
-    for kind in (T.OBJECT_TYPE, T.UPGRADE_NAME, T.INTEGER, T.COUNTER_NAME, T.FLAG_NAME):
+    for kind in (
+        T.OBJECT_TYPE,
+        T.OBJECT_NAME,
+        T.UPGRADE_NAME,
+        T.INTEGER,
+        T.COUNTER_NAME,
+        T.FLAG_NAME,
+    ):
         assert not navigable(kind)
     assert target_kind(T.SUBROUTINE_NAME) is TargetKind.SCRIPT
     assert target_kind(9999) is None
@@ -87,7 +94,7 @@ def test_only_map_scope_types_are_navigable():
 
 def test_named_object_resolves_to_its_position():
     map = populated_map()
-    target = argument_target(named(T.OBJECT_NAME, "gandalf"), map)
+    target = argument_target(named(T.UNIT_NAME, "gandalf"), map)
     assert target is not None
     # The name reads as the map stores it, not as the argument happens to spell it.
     assert target.kind is TargetKind.OBJECT and target.position == (30.0, 40.0)
@@ -123,8 +130,8 @@ def test_area_team_player_and_script():
 
 def test_nothing_to_go_to():
     map = populated_map()
-    assert argument_target(named(T.OBJECT_NAME, "Saruman"), map) is None
-    assert argument_target(named(T.OBJECT_NAME, "  "), map) is None
+    assert argument_target(named(T.UNIT_NAME, "Saruman"), map) is None
+    assert argument_target(named(T.UNIT_NAME, "  "), map) is None
     assert argument_target(named(T.COUNTER_NAME, "Kills"), map) is None
     assert argument_target(ScriptArgument(T.INTEGER, int_value=3), map) is None
-    assert argument_target(named(T.OBJECT_NAME, "Gandalf"), Map()) is None
+    assert argument_target(named(T.UNIT_NAME, "Gandalf"), Map()) is None

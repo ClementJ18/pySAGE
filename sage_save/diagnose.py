@@ -9,6 +9,9 @@ A BFME save refuses to load for a small number of reasons, and this module tests
 - **A truncated or corrupt chunk** - a chunk whose bytes don't match its format. The container
   parse catches gross damage; the per-chunk decode of the 18 modelled chunks catches subtler
   drift (a decode that raises is a prime suspect for a save known to fail).
+- **An interrupted write** - a save the engine started and never finished. The engine leaves the
+  partial file in place when a subsystem's save code fails, so the file ends inside that
+  subsystem's chunk; `find_interrupted_write` names it (`diagnose_container` reports it).
 - **A chunk-version bump** - a subsystem serialized at a version the target engine doesn't
   support (e.g. a mod or a different title). Every chunk carries a `u8` version; we compare it
   to the vanilla-BFME2 baseline.
@@ -18,18 +21,19 @@ A BFME save refuses to load for a small number of reasons, and this module tests
 `diagnose_save` returns a ranked `list[Diagnostic]` (fatal → warning → info). It never raises on
 a decodable container: a chunk that fails to decode becomes a diagnostic, not an exception, so a
 broken save still produces a report. The container parse itself is the caller's responsibility
-(`parse_save` raises `ValueError` on a damaged container - the CLI turns that into a fatal
-diagnostic of its own).
+(`parse_save` raises `ValueError` on a damaged container); `diagnose_container` turns that error
+into the fatal findings for the raw bytes.
 
 **Honest framing**: a chunk failing to decode here is a *suspect*, not a proof - it can equally
 mean the save is from an engine/mod whose layout we don't model. The value is triage: for a save
 you already know won't load, this narrows "it won't load" to a short, concrete list.
 """
 
+import struct
 from dataclasses import dataclass
 
 from sage_save.chunks import CHUNK_CODECS
-from sage_save.save import SaveFile
+from sage_save.save import BLOCK_MARKER, EOF_TOKEN, HEADER_SIZE, MAGIC_EALA, MAGIC_RTS, SaveFile
 from sage_save.xref import SupportsLookup, check_save
 
 # The chunk versions every vanilla-BFME2 save writes (derived from the whole fixture corpus;
@@ -83,10 +87,81 @@ class Diagnostic:
     (None for whole-save findings)."""
 
     severity: str
-    # "container" | "chunk-decode" | "chunk-version" | "chunk-inventory" | "reference"
+    # "container" | "interrupted-write" | "chunk-decode" | "chunk-version" | "chunk-inventory" |
+    # "reference"
     category: str
     message: str
     chunk: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class InterruptedWrite:
+    """Where a save the engine never finished writing stops.
+
+    `GameState::saveGame` writes each chunk as name, `KOLB`, a zero end-offset placeholder and the
+    payload, and back-patches the end-offset only once the chunk's subsystem has serialized in
+    full. Any exception (an access violation included) aborts the save, and the engine closes the
+    file as it stands, so an aborted save keeps the chunks it finished and ends inside the one it
+    was writing, whose end-offset is still zero. `chunk` names that subsystem; `written` is how
+    many of its payload bytes reached the file. `chunk` is None when the file ends cleanly on a
+    chunk boundary with no `SG_EOF` after it."""
+
+    chunk: str | None
+    offset: int
+    written: int
+    completed: tuple[str, ...]
+
+
+def find_interrupted_write(data: bytes) -> InterruptedWrite | None:
+    """The chunk an interrupted save stopped in, or None when `data` is not an interrupted save
+    (a complete save, or damage of some other shape). Tolerant by design: it walks only as far as
+    the container stays well-formed and never raises."""
+    if len(data) < HEADER_SIZE or data[:4] != MAGIC_EALA or data[4:8] != MAGIC_RTS:
+        return None
+    completed: list[str] = []
+    position = HEADER_SIZE
+    size = len(data)
+    while position < size:
+        name_end = position + 1 + data[position]
+        name = data[position + 1 : name_end].decode("latin-1")
+        if name == EOF_TOKEN:
+            return None
+        payload_start = name_end + len(BLOCK_MARKER) + 4
+        if payload_start > size:
+            return InterruptedWrite(name, position, 0, tuple(completed))
+        if data[name_end : name_end + len(BLOCK_MARKER)] != BLOCK_MARKER:
+            return None
+        (end,) = struct.unpack_from("<I", data, name_end + len(BLOCK_MARKER))
+        if end == 0 or end > size:
+            return InterruptedWrite(name, position, size - payload_start, tuple(completed))
+        if end < payload_start:
+            return None
+        completed.append(name)
+        position = end
+    return InterruptedWrite(None, position, 0, tuple(completed))
+
+
+def diagnose_container(data: bytes, error: str) -> list[Diagnostic]:
+    """The findings for a save whose container does not parse: the parse error itself, and - when
+    the damage has the shape of an aborted write - which subsystem the engine was serializing when
+    it stopped. That subsystem is the one whose save code failed, so it is where to look next."""
+    found = [Diagnostic("fatal", "container", f"container did not parse: {error}")]
+    interrupted = find_interrupted_write(data)
+    if interrupted is None:
+        return found
+    if interrupted.chunk is None:
+        message = (
+            f"the save stops after {len(interrupted.completed)} complete chunk(s) with no SG_EOF - "
+            "the engine aborted the write between two subsystems"
+        )
+    else:
+        message = (
+            f"the save stops {interrupted.written} byte(s) into this chunk, whose end offset was "
+            "never written: the engine aborted the save while serializing this subsystem and left "
+            f"the partial file behind ({len(interrupted.completed)} complete chunk(s) before it)"
+        )
+    found.append(Diagnostic("fatal", "interrupted-write", message, interrupted.chunk))
+    return found
 
 
 def _check_chunk_inventory(save: SaveFile) -> list[Diagnostic]:

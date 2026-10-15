@@ -45,7 +45,7 @@ from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import hero_bar_slots_image
 
-_GAME_DAT = Path(r"C:\Program Files (x86)\Games\bfme\rotwk\game.dat")
+_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
 #: A width other than the default, so a test that passes only because both sides used the same
 #: fallback is not mistaken for one that checks the arithmetic.

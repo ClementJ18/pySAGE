@@ -1,7 +1,8 @@
 # Closing a gate changes nothing the pathfinder can see
 
-RotWK 2.01 `game.dat`, ImageBase `0x400000`. **Static recovery only — nothing here has been
-confirmed against a running game.** §7 lists the runtime checks that would.
+RotWK 2.01 `game.dat`, ImageBase `0x400000`. **Static recovery, except where a line says it was
+seen live** (§6's bracket, and the open-gate regression in §8). §7 lists the runtime checks still
+owed.
 
 **The finding in one sentence.** Everything that separates an open gate from a closed one in the
 pathfind grid is driven by the `GeometryForOpen` / `GeometryForClosed` lists on
@@ -13,7 +14,8 @@ earlier.
 **Play disagrees with half of that.** Reported in game: a move order given *after* a gate closes
 routes around it, for any gate and any owner, while a unit ordered through the gate *while it was
 open* walks through it after it shuts. So the pathfinder does see a closed gate as a wall when it
-plans - by some route §7 leaves open - and the leak is only the second half of the sentence: paths
+plans - an enemy's planner through the bracket in §6, the owner's by a route §7 leaves open - and
+the leak is only the second half of the sentence: paths
 already planned are never re-checked. §8 records that half and the `gate-close-repath` patch that
 closes it.
 
@@ -174,9 +176,24 @@ Two sibling methods on the gate manager exist and are reachable from nothing in 
 | `0x008ED65C` | for each registered gate that is `!isOpen()` and whose owner is `ALLIES` with the passed player, call `0x0089CA84` — *open the closed gate for pathing* |
 | `0x008ED69D` | the same walk, calling `0x0089C9FA` — *put it back* |
 
-That pair is the shape of a correct implementation: flip allied closed gates open for the
-duration of one player's path request, then restore them, so a closed gate is a wall to
-everybody else. It is dead code.
+That pair is dead code. Its mirror image, two functions further on, is live, and it is how the
+pathfinder tells one player's gates from another's:
+
+| | |
+|---|---|
+| `0x008ED6DC` | for each registered gate that is open for pathing (`0x0089C12F`) and whose owner is `ENEMIES` with the passed player (`0x0089C18E` returns `0`), call `0x0089C9FA` with its `Bool` argument `0` - *shut the open gate for this player's planner* |
+| `0x008ED726` | the same walk, calling `0x0089CA84` - *put it back* |
+
+`0x008EDE5B` calls the first before a player's queued path requests are served and `0x008EDEA2`
+calls the second straight after. So an open gate is a wall to an enemy's planner and a doorway to
+its owner's, and the pathing state of an open gate is not steady: with two hostile players on the
+map `module+0x2C` goes `2 -> 1 -> 2` about once a logic frame while the gate stands open at 100%
+(**seen live 2026-10-13** on both castle gates of an Imladris mirror with a Wild AI). This is the
+route §7 was missing for "a move order given after a gate closes routes around it".
+
+The bracket and a real close are told apart by close-for-pathing's `Bool` argument: the bracket
+passes `0`, the two calls in the module's `update` (`0x0089CE00`, `0x0089CE77`) pass `1`. The
+function itself uses it only to decide whether to run `0x0089C759` first.
 
 `FakePathfindPortalBehaviour` is a separate, live mechanism and is not the leak.
 `FakePathfindPortal::isAllowedThrough` (`0x0068229C`) requires `ALLIES` with the gate's owner
@@ -239,7 +256,11 @@ the recompute and falls to `0x0074927C`, which reads `[m_path+8]` without a chec
 ### The patch
 
 `gate-close-repath` turns the re-add call at the end of close-for-pathing (`0x0089CA78`) into a
-call into a cave. The cave makes the re-add, then walks `TheGameLogic`'s object hash (buckets at
+call into a cave. The cave makes the re-add, and returns there unless close-for-pathing's own
+`Bool` argument (`[esp+0x1c]` at the cave's entry) is set - the pathfinder's bracket of §6 passes
+`0`, and without this test every path through an open gate was destroyed a frame or two after it
+was planned, so units ordered through their own open gate took one step and stopped (found live
+2026-10-13). For a real close it then walks `TheGameLogic`'s object hash (buckets at
 `+0xB8`..`+0xBC`, each a chain of `{next, id, Object *}`; see `findObjectByID`'s walk at
 `0x006B4EA6`). For each object other than the gate with an `AIUpdate` (`+0x260`) holding a path and
 not waiting for the pathfinder, it measures every segment of the path (`Path+4` head, `PathNode+0`

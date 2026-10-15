@@ -186,8 +186,10 @@ that a whole-image checksum gates off ([`accel-port.md`](accel-port.md) §1.1). 
 identities exist that neither of those is:
 
 - **The owner of the device's focus window.** The engine creates that window on the game thread, and
-  the device the first effect is created on names it. This is the fix the `patched-builds` fork
-  carries ([`accel-module.md`](accel-module.md) §3, fix 1), with the call count kept as a fallback.
+  the device the first effect is created on names it. This is the fix the fork carries, on 1.0 as
+  `patched-builds` and on 2.0 as `edain-2.0` ([`accel-module.md`](accel-module.md) §3, fix 1), with
+  the call count kept as a fallback. Confirmed in Edain on 2026-10-15: in every run it named the
+  focus window's thread, where stock 2.0's call count named another.
 - **A site only the game thread executes, publishing `GetCurrentThreadId()` into a known
   location.** `GameLogic::update` (`sage_patch.addresses`'s `GAME_LOGIC_UPDATE`, already hooked by
   `live-bridge`) and the scene render at `0x0047177E` are both candidates, and a site signature

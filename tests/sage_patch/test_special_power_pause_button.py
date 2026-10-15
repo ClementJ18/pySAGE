@@ -276,7 +276,7 @@ def test_real_upgrade_lifecycle_and_ui_status(permanent: bool | None) -> None:
     assert world.evaluate() == 1
 
 
-_BINARY = Path(__file__).resolve().parents[2] / "tools" / "BFME-FILES" / "game.dat.backup"
+_BINARY = Path(__file__).resolve().parents[2] / "game.dat"
 
 
 @pytest.mark.full

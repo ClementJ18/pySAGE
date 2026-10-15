@@ -69,6 +69,7 @@ __all__ = [
     "DEBUG_CRASH_TAG_EBP",
     "DEBUG_CRASH_TAG_STORE",
     "DEBUG_CRASH_TAG_STORE_BYTES",
+    "DELETE_FILE_W_IAT",
     "DICT_SET_ASCII_STRING",
     "DICT_SET_ASCII_STRING_BYTES",
     "EMPTY_STRING",
@@ -86,6 +87,7 @@ __all__ = [
     "FLOAT_TEN",
     "FLOAT_TWO_PERCENT",
     "FTOL",
+    "GET_MODULE_HANDLE_A_IAT",
     "GET_PROC_ADDRESS_IAT",
     "GLOBAL_DATA",
     "GLOBAL_DATA_ACTIVE_MAP",
@@ -150,6 +152,13 @@ __all__ = [
     "NAME_KEY_FROM_STRING",
     "NAME_KEY_TO_NAME",
     "OPERATOR_NEW",
+    "OS_NAME_BUILDER",
+    "OS_NAME_NT_FALLBACK",
+    "OS_NAME_NT_FALLBACK_BYTES",
+    "OS_NAME_NT_MAJOR_FIVE_TEST",
+    "OS_NAME_NT_MAJOR_FIVE_TEST_BYTES",
+    "OS_NAME_NT_UNKNOWN_BRANCH",
+    "OS_NAME_NT_UNKNOWN_BRANCH_BYTES",
     "QUERY_PERFORMANCE_COUNTER_IAT",
     "READ_BINARY_MODE",
     "READ_BINARY_MODE_BYTES",
@@ -161,6 +170,7 @@ __all__ = [
     "STRCPY",
     "STRICMP",
     "STRLEN",
+    "STRRCHR_SLOT",
     "SUBSYSTEM_INIT",
     "SUBSYSTEM_LEGEND",
     "SUBSYSTEM_LOAD_LEGEND_FILES",
@@ -192,6 +202,24 @@ COMMAND_LINE_SKIRMISH_SETUP = 0x0063CB7B
 COMMAND_LINE_SKIRMISH_SETUP_BYTES = bytes.fromhex("6a028bcfe861460d00")
 COMMAND_LINE_SKIRMISH_SETUP_RESUME = 0x0063CB84
 OPERATOR_NEW = 0x0042F6E0
+#: The Windows-name builder of the startup hardware report: `__thiscall` on a five-dword record,
+#: `(platform, major, minor, build)`. It writes the name pointer to `[ecx]` and "UNKNOWN" to
+#: `[ecx+4]`. On NT it knows major 4 ("WINNT") and major 5 ("WIN2K", "WINXP", "WINXX"); for any
+#: other major it returns without writing `[ecx]`, and the report (`0x00A26C77`) prints the stack
+#: garbage there with `%s` - the startup crash in `msvcr71.dll` on Windows 10 and 11 unless the
+#: Windows XP compatibility mode reports version 5.1.
+OS_NAME_BUILDER = 0x00A25630
+#: `cmp edi, 5` - the NT major version against 5 ...
+OS_NAME_NT_MAJOR_FIVE_TEST = 0x00A256A3
+OS_NAME_NT_MAJOR_FIVE_TEST_BYTES = bytes.fromhex("83ff05")
+#: ... and `jne 0x00A257B1`, the bare `pop edi / pop esi / pop ebx / pop ecx / ret` that leaves
+#: the name pointer unset.
+OS_NAME_NT_UNKNOWN_BRANCH = 0x00A256A6
+OS_NAME_NT_UNKNOWN_BRANCH_BYTES = bytes.fromhex("0f8505010000")
+#: The major-5 arm's last case: `pop edi / pop esi / mov dword [ecx], "WINXX" / pop ebx / pop ecx /
+#: ret`, the same epilogue as the bare return with the name written.
+OS_NAME_NT_FALLBACK = 0x00A256CB
+OS_NAME_NT_FALLBACK_BYTES = bytes.fromhex("5f5ec701e845c9005b59c3")
 #: `INI::parseInt`, the stock `Int` field parser: cdecl `(INI*, void *instance, void *store,
 #: const void *userData)`, writing to `store` == `instance + offset`. Both `UnitCost` entries
 #: already use it, so a new `Int` field needs no parser of its own.
@@ -484,6 +512,8 @@ ASCII_STRING_ASSIGN = 0x00437BF0
 STRLEN = 0x00A3CF10
 STRCPY = 0x00A3CF16
 STRCMPI = 0x00A3D79A
+#: The import slot of `strrchr` (msvcr71), which stock code calls as `call [slot]`.
+STRRCHR_SLOT = 0x00BD05B8
 #: `INI::load`. `INI_LOAD` is the public wrapper (`AsciiString` by value, load type, `Xfer *`);
 #: `INI_LOAD_INNER` is where the work happens, including the `#define` pre-pass that fills
 #: `INI_MACRO_TABLE` - a `std::map<AsciiString, AsciiString>` whose `insert` keeps the first
@@ -549,3 +579,7 @@ GET_PROC_ADDRESS_IAT = 0x00BD018C
 #: `kernel32!QueryPerformanceCounter` in the IAT. Already called from seventeen engine sites, so
 #: the indirect-call form a cave needs is a pattern the image already carries.
 QUERY_PERFORMANCE_COUNTER_IAT = 0x00BD02E8
+#: `kernel32!GetModuleHandleA`, `kernel32!DeleteFileW` in the IAT. `save-temp-file` resolves
+#: `MoveFileExW`, which the engine never imports, through `GetModuleHandleA` + `GetProcAddress`.
+GET_MODULE_HANDLE_A_IAT = 0x00BD0134
+DELETE_FILE_W_IAT = 0x00BD0330

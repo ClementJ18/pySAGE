@@ -575,7 +575,7 @@ def test_reentrant_xp_loss_aborts_an_already_executing_native_grant(during_upgra
     assert world.r32(world.queue_nodes[0] + 0xC) == 0
 
 
-_BINARY = Path(__file__).resolve().parents[2] / "tools" / "BFME-FILES" / "game.dat.backup"
+_BINARY = Path(__file__).resolve().parents[2] / "game.dat"
 
 
 @pytest.mark.full

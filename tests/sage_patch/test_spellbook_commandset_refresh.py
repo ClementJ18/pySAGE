@@ -26,7 +26,7 @@ _OBJECT = 0x30000
 _NAME = 0x40000
 _STORE = 0x50000
 _SET = 0x60000
-_DIGEST = "948bac5ed89e33c605ac8b7e5c901e4b2554d953bc35b4ca3be4d7ff7c46cbd8"
+_DIGEST = "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26"
 
 
 def _at(data: bytes | bytearray, va: int, size: int) -> bytes:
@@ -403,9 +403,9 @@ def test_repeated_updates_upgrade_revoke_object_loss_and_player_switch() -> None
 
 @pytest.mark.full
 def test_real_binary_and_command_button_composition() -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = Path(__file__).resolve().parents[2] / "game.dat"
     if not path.exists():
-        pytest.skip("local pristine backup unavailable")
+        pytest.skip("needs the real game.dat")
     original = path.read_bytes()
     assert len(original) == 11_346_944
     assert hashlib.sha256(original).hexdigest() == _DIGEST
@@ -425,9 +425,9 @@ def test_real_binary_and_command_button_composition() -> None:
 
 @pytest.mark.full
 def test_all_used_addresses_against_the_clean_game_binary() -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = Path(__file__).resolve().parents[2] / "game.dat"
     if not path.exists():
-        pytest.skip("local pristine backup unavailable")
+        pytest.skip("needs the real game.dat")
     data = path.read_bytes()
     assert hashlib.sha256(data).hexdigest() == _DIGEST
     assert _at(data, ad.SPELLBOOK_UI_CACHE, len(refresh.CACHE_BYTES)) == refresh.CACHE_BYTES

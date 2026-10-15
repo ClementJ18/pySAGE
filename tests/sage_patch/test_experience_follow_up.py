@@ -539,7 +539,7 @@ def test_nested_removal_and_reset_do_not_repeat_the_active_callback() -> None:
     assert world.uc.mem_read(world.mux + 4, 1) == b"\x00"
 
 
-_BINARY = Path(__file__).resolve().parents[2] / "tools" / "BFME-FILES" / "game.dat.backup"
+_BINARY = Path(__file__).resolve().parents[2] / "game.dat"
 
 
 @pytest.mark.full

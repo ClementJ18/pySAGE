@@ -67,7 +67,7 @@ from sage_patch.utils import find_section, va_to_offset
 
 from .synthetic import recharge_rescale_image
 
-_GAME_DAT = Path(r"C:\Program Files (x86)\Games\bfme\rotwk\game.dat")
+_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
 #: The stock windows individual assertions read back through, by the VA the patch files them under.
 _HOOK_WINDOW = 0x0062E568

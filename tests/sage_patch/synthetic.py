@@ -70,6 +70,7 @@ from sage_patch.patches import deploy_before_attack as dba
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
+from sage_patch.patches import experience_award as xa
 from sage_patch.patches import gate_close_repath as gcr
 from sage_patch.patches import give_upgrade_all as gua
 from sage_patch.patches import grant_science_upgrade as gsu
@@ -95,7 +96,9 @@ from sage_patch.patches import production_split as ps
 from sage_patch.patches import render_rate as rrate
 from sage_patch.patches import replace_self_rubble as rsr
 from sage_patch.patches import revive_object_binding as rob
+from sage_patch.patches import save_temp_file as stf
 from sage_patch.patches import scenario_player_factions as spf
+from sage_patch.patches import score_keeper_dangling_keys as skdk
 from sage_patch.patches import script_debug_window as sdw
 from sage_patch.patches import skirmish_ai_fallback as saf
 from sage_patch.patches import special_power_refund_upgrade as spru
@@ -103,6 +106,7 @@ from sage_patch.patches import spell_recharge_targets as srt
 from sage_patch.patches import spellbook_commandset_refresh as sbcsr
 from sage_patch.patches import standalone_launcher as sl
 from sage_patch.patches import summon_carryover as sc
+from sage_patch.patches import texture_any_extension as tae
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_alias as ua
 from sage_patch.patches import upgrade_description as ud
@@ -528,6 +532,24 @@ def _sparse_image(planted: dict[int, bytes], image_base: int = IMAGE_BASE) -> by
     return _pe32(sections, max(pages) - image_base + 0x1000, image_base)
 
 
+def score_keeper_dangling_keys_image() -> bytearray:
+    """A stand-in carrying the four count-map windows and every site their caves return into.
+
+    Sparse: the merge sits in `LivingWorldScoreKeeper` at `0x008F3300`, the other three in
+    `xferObjectCountMap` 450 KB above it.
+    """
+    return _sparse_image({**{va: stock for va, stock, _routine in skdk.HOOKS}, **skdk.ANCHORS})
+
+
+def save_temp_file_image() -> bytearray:
+    """A stand-in carrying `saveGame`'s open call and three close sites, the store that makes
+    `[ebp-0x14]` the file, and the wide open the cave calls.
+
+    Sparse: `saveGame` is at `0x006DE498` and the open thunk 3.4 MB above it.
+    """
+    return _sparse_image({**{va: stock for va, stock, _r, _h in stf.HOOKS}, **stf.ANCHORS})
+
+
 def wall_layer_promotion_image() -> bytearray:
     """A stand-in carrying all three gated `setLayer` calls and the routines around them.
 
@@ -776,6 +798,12 @@ def evacuate_contained_heroes_image() -> bytearray:
             },
         }
     )
+
+
+def texture_any_extension_image() -> bytearray:
+    """A stand-in carrying the texture getter's head, the asset-cache lookup the wrapper calls and
+    the `.tga` literal it pushes."""
+    return _sparse_image(tae.ANCHORS)
 
 
 def model_condition_images_image() -> bytearray:
@@ -1566,6 +1594,25 @@ def healing_received_image() -> bytearray:
             **hr.ANCHORS,
             MODIFIER_STRINGS_VA: strings,
             hr.modifier_types.NAME_TABLE_VA: table,
+        }
+    )
+
+
+def experience_award_image() -> bytearray:
+    """A stand-in carrying every site `experience-award` reads or rewrites, plus the
+    modifier-type name table and the strings its pointers reach.
+
+    Sparse for the usual reason: `getExperienceValue`, its two callers, the name walk and the two
+    query thunks are spread over more than a megabyte and the patch touches ten bytes of it.
+    `healing-received`'s windows are planted too, so the pair can be applied to one image.
+    """
+    strings, table = _modifier_table_bytes()
+    return _sparse_image(
+        {
+            **xa.ANCHORS,
+            **hr.ANCHORS,
+            MODIFIER_STRINGS_VA: strings,
+            xa.modifier_types.NAME_TABLE_VA: table,
         }
     )
 

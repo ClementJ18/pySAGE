@@ -3,6 +3,7 @@
 from sage_patch.patches.ai_build_queue_skip import AiBuildQueueSkipPatch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
+from sage_patch.patches.ai_equivalent_build_gate import AiEquivalentBuildGatePatch
 from sage_patch.patches.ai_farm_kill_gate import AiFarmKillGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
@@ -22,6 +23,7 @@ from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
 )
+from sage_patch.patches.experience_award import ExperienceAwardPatch
 from sage_patch.patches.experience_level_down import (
     ExperienceLevelDownPatch,
 )
@@ -66,6 +68,7 @@ from sage_patch.patches.object_image_upgrade import (
     ObjectImageUpgradeWorldbuilderPatch,
 )
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
+from sage_patch.patches.os_name_fallback import OsNameFallbackPatch
 from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
@@ -77,7 +80,9 @@ from sage_patch.patches.repair_damage_cancel import RepairDamageCancelPatch
 from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
+from sage_patch.patches.save_temp_file import SaveTempFilePatch
 from sage_patch.patches.science_prereqs import SciencePrereqPatch
+from sage_patch.patches.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
 from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
@@ -108,6 +113,7 @@ __all__ = [
     "AiBuildQueueSkipPatch",
     "AiCommandNullTargetPatch",
     "AiConstructionGatePatch",
+    "AiEquivalentBuildGatePatch",
     "AiFarmKillGatePatch",
     "AiFlagCaptureGatePatch",
     "AiReviveGatePatch",
@@ -134,6 +140,7 @@ __all__ = [
     "GrantScienceUpgradeWorldbuilderPatch",
     "HeadlessPatch",
     "HealingReceivedPatch",
+    "ExperienceAwardPatch",
     "HideModifierFxPatch",
     "HeroBarSlotsPatch",
     "HeroManaPatch",
@@ -155,6 +162,7 @@ __all__ = [
     "MultiExecuteGatePatch",
     "MultiSelectGroupPatch",
     "ObjectivesScreenPatch",
+    "OsNameFallbackPatch",
     "ObjectImageUpgradePatch",
     "ObjectImageUpgradeWorldbuilderPatch",
     "PlayerHealFilterPatch",
@@ -168,7 +176,9 @@ __all__ = [
     "ReplaceSelfRubblePatch",
     "ReplayOutcomePatch",
     "ReviveObjectBindingPatch",
+    "SaveTempFilePatch",
     "SciencePrereqPatch",
+    "ScoreKeeperDanglingKeysPatch",
     "SecondResourcePatch",
     "ShareExperienceAllPatch",
     "SkirmishReplayPatch",

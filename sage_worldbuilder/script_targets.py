@@ -2,7 +2,7 @@
 
 An argument already carries the type tag that says what it names (`sage_map.scripts.ARG_SPECS`
 turns the tag into a map-local table), so the stored value and the map are enough to find the
-thing itself: the placed object an `OBJECT_NAME` names, the trigger area a `TRIGGER_AREA_NAME`
+thing itself: the placed object a `UNIT_NAME` names, the trigger area a `TRIGGER_AREA_NAME`
 names, the script a `SUBROUTINE_NAME` calls. `argument_target` is that lookup; the UI turns each
 result into a Go To button and hands it back to the window, which knows how to show each kind.
 

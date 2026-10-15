@@ -375,7 +375,9 @@ of it, and publishes its source under the MIT licence, but `sage_patch` ships no
 [`accel-module`](accel-module.md) makes `game.dat` load `bfme2_accel.dll` itself, and the fixes the
 DLL needs on a patched binary — its build gate is a checksum over the whole of `.text`
 ([`accel-port.md`](accel-port.md) §1.1) — live on a fork of his repository, to be offered upstream
-([`accel-module.md`](accel-module.md) §3). The technical points that shape that arrangement:
+([`accel-module.md`](accel-module.md) §3). As of 2026-10-15, Accelerator 2.0 does not yet run Edain
+with or without those fixes ([`accel-module.md`](accel-module.md) §4). The technical points that
+shape that arrangement:
 
 - **A cave, not an import descriptor, loads the DLL.** With an import descriptor Windows refuses to
   start a `game.dat` whose DLL is absent; with the cave the patched binary runs unchanged without

@@ -244,7 +244,13 @@ __all__ = [
     "CAN_ENTER_OBJECT_CONTAIN_LOAD_BYTES",
     "CAN_MAKE_UNIT",
     "CAN_MAKE_UNIT_ACCEPT",
+    "CAN_MAKE_UNIT_ACCEPT_TEMPLATE",
+    "CAN_MAKE_UNIT_ACCEPT_TEMPLATE_BYTES",
     "CAN_MAKE_UNIT_BUMP_SLOT",
+    "CAN_MAKE_UNIT_CAN_BUILD_CALL",
+    "CAN_MAKE_UNIT_CAN_BUILD_CALL_BYTES",
+    "CAN_MAKE_UNIT_EQUIVALENT_CALL",
+    "CAN_MAKE_UNIT_EQUIVALENT_CALL_BYTES",
     "CAN_MAKE_UNIT_NEXT_SLOT",
     "CAN_MAKE_UNIT_PRODUCTION_GATE",
     "CAN_MAKE_UNIT_PRODUCTION_GATE_CALL",
@@ -300,6 +306,9 @@ __all__ = [
     "ENTER_HINT_CONTAIN_LOAD_BYTES",
     "ENTER_HINT_SLAUGHTER_TEST",
     "ENTER_HINT_SLAUGHTER_TEST_BYTES",
+    "GATE_CLOSE_ARG_AT_READD",
+    "GATE_CLOSE_ARG_TEST",
+    "GATE_CLOSE_ARG_TEST_BYTES",
     "GATE_CLOSE_EPILOGUE",
     "GATE_CLOSE_EPILOGUE_BYTES",
     "GATE_CLOSE_FOR_PATHING",
@@ -308,6 +317,9 @@ __all__ = [
     "GATE_CLOSE_READD_CALL_BYTES",
     "GATE_CLOSE_READD_SETUP",
     "GATE_CLOSE_READD_SETUP_BYTES",
+    "GATE_PATHING_BRACKET_CLOSE_CALL",
+    "GATE_PATHING_BRACKET_CLOSE_CALL_BYTES",
+    "GATE_UPDATE_CLOSE_CALLS",
     "HERO_LEDGER_FIND_ENTRY",
     "HERO_LEDGER_FIND_ENTRY_ENTRY",
     "HERO_LEDGER_GET_ENTRY",
@@ -363,6 +375,22 @@ CAN_MAKE_UNIT_UPGRADE_GATE = 0x0079502A
 # Where the upgrade gate falls through to on success, and where the stock revive branch jumps
 # when a slot matches: resolve the player and answer the question.
 CAN_MAKE_UNIT_ACCEPT = 0x007950AD
+# The template the gate asks the player about, and why it has to be the wanted one. Derived
+# in `docs/ai-equivalent-build-gate.md`.
+
+#: `call ThingTemplate::isEquivalentTo` - a button stands for the wanted template when the
+#: two are equivalent, so they need not be the same template.
+CAN_MAKE_UNIT_EQUIVALENT_CALL = 0x0079501D
+CAN_MAKE_UNIT_EQUIVALENT_CALL_BYTES = bytes.fromhex("e8a085faff")
+#: `mov ecx, esi` / `call CommandButton::getThingTemplate` / `push eax` - the accept path
+#: fetches the button's template as the argument of the call below. `[ebp+0xc]` is the
+#: wanted one.
+CAN_MAKE_UNIT_ACCEPT_TEMPLATE = 0x007950BD
+CAN_MAKE_UNIT_ACCEPT_TEMPLATE_BYTES = bytes.fromhex("8bcee81881fcff50")
+#: `mov ecx, ebx` / `call Player::canBuild` (`0x006AC927`, `ret 4`): not in the player's
+#: disallowed set, `Buildable`, and every `Prerequisites` entry met.
+CAN_MAKE_UNIT_CAN_BUILD_CALL = 0x007950C5
+CAN_MAKE_UNIT_CAN_BUILD_CALL_BYTES = bytes.fromhex("8bcbe85b78f1ff")
 # `BuildAssistant`'s other gate (vtable `+0x64`), which every producer-facing path asks and which
 # reaches `canMakeUnit` by a virtual self-call; its return address tells AI queries apart.
 CAN_MAKE_UNIT_PRODUCTION_GATE = 0x00793ECB
@@ -935,6 +963,26 @@ GATE_CLOSE_READD_SETUP = 0x0089CA6F
 GATE_CLOSE_READD_SETUP_BYTES = bytes.fromhex("a1404bde008b481053")
 GATE_CLOSE_EPILOGUE = 0x0089CA7D
 GATE_CLOSE_EPILOGUE_BYTES = bytes.fromhex("5d5b5f5ec20400")
+#: The function's `Bool` argument says whether the gate is really shutting. Close-for-pathing has
+#: three live callers and only two of them close a gate: the two in the module's `update`
+#: (`GATE_UPDATE_CLOSE_CALLS`) pass `1`. The third is the pathfinder's bracket - before a player's
+#: queued path requests are served, the gate manager (`0x008ED6DC`, called from `0x008EDE5B`)
+#: closes for pathing every gate that player is an enemy of, and `0x008ED726` opens them again
+#: straight after (`0x008EDEA2`). That is what makes an open gate a wall to an enemy's planner, it
+#: runs on an open gate about once a logic frame, and it passes `0`
+#: (`GATE_PATHING_BRACKET_CLOSE_CALL`: `test eax, eax` / `jne` / `push eax`). Seen live 2026-10-13:
+#: `module+0x2C` going `2 -> 1 -> 2` every frame on a gate standing open at 100%.
+#: `GATE_CLOSE_ARG_TEST` is the function's own read of the argument, `cmp byte [esp+0xc], 0` two
+#: pushes in, which is what puts it at `[esp+0x1c]` when the re-add call is entered.
+GATE_CLOSE_ARG_TEST = 0x0089CA06
+GATE_CLOSE_ARG_TEST_BYTES = bytes.fromhex("807c240c007405e847fdffff")
+GATE_CLOSE_ARG_AT_READD = 0x1C
+GATE_UPDATE_CLOSE_CALLS = {
+    0x0089CDFB: bytes.fromhex("6a018d4eece8f5fbffff"),
+    0x0089CE72: bytes.fromhex("6a018d4eece87efbffff"),
+}
+GATE_PATHING_BRACKET_CLOSE_CALL = 0x008ED700
+GATE_PATHING_BRACKET_CLOSE_CALL_BYTES = bytes.fromhex("85c07508508bcfe8eef2faff")
 #: `Pathfinder::addObjectToPathfindMap(Object *)` - a wrapper over
 #: `addOrRemoveObjectFromPathfindMap` (`0x00936B7D`) with the add flag set. `__thiscall`, `ret 4`.
 PATHFINDER_ADD_OBJECT = 0x006E85E9

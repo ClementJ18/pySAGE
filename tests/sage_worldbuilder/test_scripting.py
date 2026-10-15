@@ -2,6 +2,7 @@
 scripts written by these builders reads back as the same data."""
 
 import io
+from types import SimpleNamespace
 
 from sage_map.assets.player_scripts import (
     PlayerScriptsList,
@@ -292,6 +293,10 @@ def test_a_map_symbol_is_offered_with_worldbuilders_run_time_names():
     ]
     areas = argument_choices(ScriptArgumentType.TRIGGER_AREA_NAME, {"trigger_areas": []}, None)
     assert areas[-1] == "Water Grid" and len(areas) == 5
+    # The object a "Build building" action takes is a template from the game, not a placed unit.
+    game = SimpleNamespace(tables={"objects": {"GondorBarracks": 1, "GondorArcherRange": 2}})
+    built = argument_choices(ScriptArgumentType.OBJECT_NAME, {"units": ["Gandalf"]}, game)
+    assert built == ["GondorArcherRange", "GondorBarracks"]
     # A map that declares one of them by hand is not offered it twice.
     assert argument_choices(ScriptArgumentType.TEAM_NAME, {"teams": ["<This Team>"]}, None) == [
         "<This Team>"

@@ -21,6 +21,7 @@ from sage_patch.addresses import (
     AI_WAITING_FOR_PATH_OFFSET,
     GAME_LOGIC_OBJECT_BUCKETS_BEGIN,
     GAME_LOGIC_OBJECT_BUCKETS_END,
+    GATE_CLOSE_ARG_AT_READD,
     GATE_CLOSE_EPILOGUE,
     GATE_CLOSE_FOR_PATHING,
     OBJECT_AI_UPDATE,
@@ -97,16 +98,28 @@ class TestTheCave:
         assert (cmp.mnemonic, cmp.op_str) == ("cmp", f"eax, {AI_STATE_NO_PATH_UNSAFE:#x}")
         assert je.mnemonic == "je"
 
+    def test_it_walks_only_when_the_gate_is_really_closing(self):
+        """Close-for-pathing's own `Bool` is 0 when the pathfinder brackets a hostile player's
+        requests, about once a frame on an open gate; the cave must then be the displaced call and
+        nothing else, before it has pushed anything."""
+        cmp, jne, ret = disassemble()[2:5]
+        assert (cmp.mnemonic, cmp.op_str) == (
+            "cmp",
+            f"byte ptr [esp + {GATE_CLOSE_ARG_AT_READD:#x}], 0",
+        )
+        assert jne.mnemonic == "jne" and _target(jne) == ret.address + ret.size
+        assert (ret.mnemonic, ret.op_str) == ("ret", "4")
+
     def test_it_saves_and_restores_the_callee_saved_registers(self):
         insns = disassemble()
-        pushes = [i.op_str for i in insns[2:6]]
+        pushes = [i.op_str for i in insns[5:9]]
         pops = [i.op_str for i in insns[-5:-1]]
         assert pushes == ["ebx", "esi", "edi", "ebp"]
         assert pops == list(reversed(pushes))
 
     def test_it_reads_the_gate_from_past_the_saves(self):
         """Four pushes on top of the return address put the caller's argument at `esp+0x14`."""
-        load = disassemble()[6]
+        load = disassemble()[9]
         assert (load.mnemonic, load.op_str) == ("mov", "ebp, dword ptr [esp + 0x14]")
 
     def test_it_returns_as_the_replaced_callee_did(self):
@@ -295,8 +308,10 @@ class _World:
     def _epilogue(self, _uc, _address, _size, _user) -> None:
         self.epilogue_regs = {name: self._reg(name) for name in ("ebx", "esi", "edi", "ebp", "esp")}
 
-    def close(self) -> _World:
-        """Run from the hook site to close-for-pathing's return, as the real function would."""
+    def close(self, *, closing: bool = True) -> _World:
+        """Run from the hook site to close-for-pathing's return, as the real function would.
+        `closing` is the function's own argument: set by the gate's update, clear when the
+        pathfinder brackets a hostile player's requests."""
         r = self.r
         esp = _STACK + 0x1000
         # What close-for-pathing's frame holds at the hook: the gate pushed for the call, the four
@@ -308,7 +323,7 @@ class _World:
             _SAVED["edi"],
             _SAVED["esi"],
             _SENTINEL,
-            1,
+            int(closing),
         ]
         self._put(esp, *frame)
         self.uc.reg_write(r.UC_X86_REG_ESP, esp)
@@ -330,11 +345,27 @@ class _World:
         return {names[ai] for ai in self.destroyed}
 
 
-def _run(*units: _Unit, **kwargs) -> _World:
-    return _World(list(units), **kwargs).close()
+def _run(*units: _Unit, closing: bool = True, **kwargs) -> _World:
+    return _World(list(units), **kwargs).close(closing=closing)
 
 
 class TestUnderEmulation:
+    def test_the_pathfinders_bracket_drops_nothing(self):
+        """The regression that stopped every unit at its own open gate: the per-request bracket
+        closes and reopens the gate for pathing without the gate moving, and a path through it has
+        to survive that."""
+        world = _run(_Unit("through", [(0.0, 100.0), (200.0, 100.0)], bucket=1), closing=False)
+        assert world.dropped() == set()
+        assert world.state_queries == []
+        assert world.added == [(_PATHFINDER, world.gate)]
+
+    def test_the_bracket_leaves_the_stack_and_registers_alone(self):
+        world = _run(_Unit("through", [(0.0, 100.0), (200.0, 100.0)], bucket=1), closing=False)
+        assert world.epilogue_regs["esp"] == world.frame_esp + 4
+        assert world.epilogue_regs["ebx"] == world.gate
+        assert world.final_esp == world.frame_esp + 4 * 7
+        assert world.final_regs == _SAVED
+
     def test_the_gate_goes_back_into_the_map_first(self):
         world = _run(_Unit("through", [(0.0, 100.0), (200.0, 100.0)], bucket=1))
         assert world.added == [(_PATHFINDER, world.gate)]

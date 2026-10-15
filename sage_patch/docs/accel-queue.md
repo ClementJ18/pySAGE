@@ -165,7 +165,7 @@ the DLL's engine-address list is mostly about writes that bypass the device.
 
 **The number that decides whether the render thread pays is drains per frame.** Every getter or
 creator the engine calls mid-frame costs a full stall. The DLL counts these (`0x10153F10` per method
-id); [`accel-module.md`](accel-module.md) §4 has the counts on Edain.
+id); [`accel-module.md`](accel-module.md) §5 has the counts on Edain.
 
 ## 6. Not established by this read
 

@@ -54,7 +54,7 @@ from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import upgrade_description_image
 
-_GAME_DAT = Path(r"C:\Program Files (x86)\Games\bfme\rotwk\game.dat")
+_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 
 
 def at(data: bytes | bytearray, va: int, count: int) -> bytes:

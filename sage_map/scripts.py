@@ -105,6 +105,10 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.BOOLEAN: ArgSpec("int_value", Scope.ENUM, "Boolean"),
     # Definitions in the assembled game (ini objects). target = Game.lookup table key.
     T.OBJECT_TYPE: _game("objects"),
+    # Despite its name, an object *template* as well: every template that takes one reads "Spawn
+    # unit of type", "Build a building of type", and maps store template names in it. A placed
+    # object's own name is UNIT_NAME.
+    T.OBJECT_NAME: _game("objects"),
     T.SCIENCE_NAME: _game("sciences"),
     T.UPGRADE_NAME: _game("upgrades"),
     T.COMMAND_BUTTON_NAME: _game("commandbuttons"),
@@ -143,7 +147,6 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.FLAG_NAME: _map("flags"),
     T.UNIT_NAME: _map("units"),  # a placed object with a name property
     T.UNIT_REFERENCE: _map("units"),
-    T.OBJECT_NAME: _map("units"),  # a named instance, not a template (that is OBJECT_TYPE)
     T.BOUNDARY_NAME: _map("boundaries"),
     # A camera and a camera animation are declared only by the map that uses them, so a miss here
     # is a real dangling reference rather than a name merged in at runtime.

@@ -27,7 +27,8 @@
   (container integrity, per-chunk decode, chunk-version drift, unknown chunks, and - with
   `--game` - the dangling fatal-reference check) and prints the findings ranked fatal → warning
   → info. Exit code is non-zero when a fatal problem is found. The go-to command for a save the
-  game refuses to load.
+  game refuses to load. On a save the engine stopped writing part-way, it names the chunk - the
+  subsystem - it was serializing when it stopped.
 - `scan <dir>` - the chunk-name/version inventory across a folder of saves: per file, plus an
   aggregate of every chunk name seen and the versions it appears at. Answers "which chunks does
   this game/save-kind write" without decoding any of them.
@@ -55,7 +56,7 @@ from sage_save.chunks import (
     object_modules,
 )
 from sage_save.coverage import chunk_coverage, coverage_summary
-from sage_save.diagnose import Diagnostic, diagnose_save, format_diagnosis
+from sage_save.diagnose import Diagnostic, diagnose_container, diagnose_save, format_diagnosis
 from sage_save.edit import apply_json_text
 from sage_save.export import save_to_json, save_to_json_full
 from sage_save.reversing import (
@@ -387,25 +388,24 @@ def _run_diagnose(args: argparse.Namespace) -> int:
     # The container parse is the first check: a save so damaged it won't even parse is itself the
     # top finding, so catch it here rather than let it crash the command.
     try:
-        save = parse_save(args.save.read_bytes())
-    except (ValueError, OSError) as exc:
+        data = args.save.read_bytes()
+        save = parse_save(data)
+    except OSError as exc:
+        data, save, error = b"", None, str(exc)
+    except ValueError as exc:
+        save, error = None, str(exc)
+    if save is None:
+        found = diagnose_container(data, error)
         if args.json:
-            payload = {
-                "diagnostics": [
-                    {
-                        "severity": "fatal",
-                        "category": "container",
-                        "chunk": None,
-                        "message": f"container did not parse: {exc}",
-                    }
-                ],
-                "fatal": 1,
-            }
-            print(json.dumps(payload, indent=2))
+            print(
+                json.dumps({"diagnostics": _diagnostics_json(found), "fatal": len(found)}, indent=2)
+            )
         else:
-            print("Diagnosis: 1 fatal, 0 warning, 0 info")
+            print(f"Diagnosis: {len(found)} fatal, 0 warning, 0 info")
             print("This save's container is damaged - it does not parse at all.\n")
-            print(f"  FATAL   container did not parse: {exc}")
+            for diag in found:
+                where = f" [{diag.chunk.removeprefix('CHUNK_')}]" if diag.chunk else ""
+                print(f"  FATAL  {where} {diag.message}")
         return 1
 
     game = None

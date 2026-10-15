@@ -10,7 +10,7 @@ stock.
 The moment is chosen for the DLL: `d3d9.dll` and `d3dx9_27.dll` are loaded, the device does not
 exist yet, and no effect has been created, so the render thread's hooks are in place before the
 first device call. The DLL has to come from a build that works on a `game.dat` other tools have
-patched (`../../docs/accel-module.md` §2): it identifies a build by a hash over all of `.text`,
+patched (`../../docs/accel-module.md` §3): it identifies a build by a hash over all of `.text`,
 which any patch changes.
 
 Derived from OH1A's `bfme2_accel.dll`, with his permission (`../../docs/accel-port.md` §3).
@@ -125,7 +125,8 @@ class AccelModulePatch(Patch):
     name = "accel-module"
     author = "officialNecro"
     experimental = True
-    # The loader cave armed in Edain on 2026-09-24; loading bfme2_accel.dll through it is unplayed
+    # The loader cave armed in Edain on 2026-09-24 and loads the DLL; the DLL itself does not yet
+    # run Edain (docs/accel-module.md §4.4)
     runtime_verified = "partly"
     description = (
         "Load OH1A's BFME2 Accelerator (bfme2_accel.dll) from the game directory when the engine "

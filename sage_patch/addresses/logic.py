@@ -20,6 +20,26 @@ __all__ = [
     "GAME_MESSAGE_GET_ARGUMENT_TYPE",
     "GAME_MESSAGE_COPY_CTOR",
     "GAME_MESSAGE_ARGUMENT_COUNT",
+    "GAME_STATE_SAVE_CATCH",
+    "GAME_STATE_SAVE_CATCH_CLOSE",
+    "GAME_STATE_SAVE_CATCH_CLOSE_RESUME",
+    "GAME_STATE_SAVE_CATCH_CLOSE_RESUME_BYTES",
+    "GAME_STATE_SAVE_CLOSE_BYTES",
+    "GAME_STATE_SAVE_DONE_CLOSE",
+    "GAME_STATE_SAVE_DONE_CLOSE_RESUME",
+    "GAME_STATE_SAVE_DONE_CLOSE_RESUME_BYTES",
+    "GAME_STATE_SAVE_FILE_STORE",
+    "GAME_STATE_SAVE_FILE_STORE_BYTES",
+    "GAME_STATE_SAVE_FILE_TYPE",
+    "GAME_STATE_SAVE_GAME",
+    "GAME_STATE_SAVE_OPEN_CALL",
+    "GAME_STATE_SAVE_OPEN_CALL_BYTES",
+    "GAME_STATE_SAVE_OPEN_CATCH",
+    "GAME_STATE_SAVE_OPEN_CATCH_RESUME",
+    "GAME_STATE_SAVE_OPEN_CATCH_RESUME_BYTES",
+    "GAME_STATE_XFER_SAVE_DATA",
+    "LOCAL_FILE_SYSTEM_OPEN_WIDE",
+    "LOCAL_FILE_SYSTEM_OPEN_WIDE_ENTRY",
     "MSG_CASTLE_UNPACK",
     "MSG_CASTLE_PACK",
     "MSG_CASTLE_UNPACK_EXPLICIT_OBJECT",
@@ -233,6 +253,9 @@ __all__ = [
     "NET_CRC_INTERVAL_STOCK",
     "OBJECT_HASH_ENTRY_NEXT",
     "OBJECT_HASH_ENTRY_OBJECT",
+    "OVERRIDABLE_DELETE_OVERRIDES",
+    "OVERRIDABLE_IS_OVERRIDE",
+    "OVERRIDABLE_NEXT_OVERRIDE",
     "PLAYBACK_INSTALLS_OBSERVER",
     "RECORDER_END_BRANCH",
     "RECORDER_END_BRANCH_BYTES",
@@ -303,6 +326,34 @@ __all__ = [
     "SELF_DESTRUCT_SCRATCH_EBP",
     "SELF_DESTRUCT_TRANSFER_ARM",
     "SELF_DESTRUCT_TRANSFER_ARM_BYTES",
+    "THING_FACTORY_RESET",
+    "THING_FACTORY_TEMPLATE_LIST",
+    "THING_TEMPLATE_NAME",
+    "THING_TEMPLATE_NEXT",
+    "XFER_OBJECT_COUNT_MAP",
+    "XFER_OBJECT_COUNT_MAP_COUNT",
+    "XFER_OBJECT_COUNT_MAP_COUNT_BYTES",
+    "XFER_OBJECT_COUNT_MAP_COUNT_RESUME",
+    "XFER_OBJECT_COUNT_MAP_COUNT_RESUME_BYTES",
+    "XFER_OBJECT_COUNT_MAP_DONE",
+    "XFER_OBJECT_COUNT_MAP_DONE_BYTES",
+    "XFER_OBJECT_COUNT_MAP_KEY_NAME",
+    "XFER_OBJECT_COUNT_MAP_KEY_NAME_BYTES",
+    "XFER_OBJECT_COUNT_MAP_KEY_NAME_RESUME",
+    "XFER_OBJECT_COUNT_MAP_KEY_NAME_RESUME_BYTES",
+    "XFER_OBJECT_COUNT_MAP_LOAD_COMPARE",
+    "XFER_OBJECT_COUNT_MAP_LOAD_COMPARE_BYTES",
+    "XFER_OBJECT_COUNT_MAP_LOAD_INT",
+    "XFER_OBJECT_COUNT_MAP_LOAD_INT_BYTES",
+    "XFER_OBJECT_COUNT_MAP_LOAD_NEXT",
+    "XFER_OBJECT_COUNT_MAP_LOAD_NEXT_BYTES",
+    "XFER_OBJECT_COUNT_MAP_NEXT",
+    "XFER_OBJECT_COUNT_MAP_NEXT_BYTES",
+    "XFER_OBJECT_COUNT_MAP_UNKNOWN_BRANCH",
+    "XFER_OBJECT_COUNT_MAP_UNKNOWN_BRANCH_BYTES",
+    "XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW",
+    "XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW_BYTES",
+    "XFER_SAVE_VTABLE",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -1067,3 +1118,97 @@ AIGROUP_REMOVE_NOT_OWNED_BY_SENDER_ESP = 0x10
 GAME_LOGIC_SCHEDULE_UPDATE = 0x00850C32
 GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE = 0x0062B921
 __all__ += ["GAME_LOGIC_SCHEDULE_UPDATE", "GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE"]
+
+#: Writing a save, derived in `docs/living-campaign/wotr-save-failure.md`.
+#: `GameState::saveGame(UnicodeString file, UnicodeString desc, int list, bool showMessage,
+#: bool isAutoSave)` - `__thiscall` on `THE_GAME_STATE`, `ret 0x14`. It opens the destination file
+#: itself (no temporary and rename), writes the 16-byte header through the `XferSave` at
+#: `XFER_SAVE_VTABLE`, and runs `GAME_STATE_XFER_SAVE_DATA` inside a `catch (...)` whose handler
+#: (`GAME_STATE_SAVE_CATCH`) shows `GUI:ErrorSavingGame`, closes the file and returns. The build
+#: is VC++ 7.1, whose `catch (...)` also catches structured exceptions, so an access violation in
+#: any snapshot's `xfer` lands there too and the partial file stays on disk.
+GAME_STATE_SAVE_GAME = 0x006DE498
+GAME_STATE_SAVE_CATCH = 0x006DE7DD
+#: `GameState::xferSaveData(Xfer *, int list)`: for each snapshot registered in `list`, write its
+#: name, `beginBlock`, `xferSnapshot`, `endBlock`; then `SG_EOF`. List 0 holds every chunk and is
+#: the one both the save menu and the autosave pass.
+GAME_STATE_XFER_SAVE_DATA = 0x006DDF2F
+#: `GameState::getSaveFileType()`: `4` on the War of the Ring map, `6` in a War of the Ring battle
+#: (`LivingWorldLogic` active, and `TheGameLogic+0x114` zero or not), else the campaign and
+#: skirmish types. It picks the file extension and the `GameInfo` the description is built from.
+GAME_STATE_SAVE_FILE_TYPE = 0x006DCFDF
+XFER_SAVE_VTABLE = 0x00C93AE0
+#: `xferObjectCountMap(Xfer *, std::map<const ThingTemplate *, Int> *)`: version 1, a `u16`
+#: count, then per entry the key's name (`[key+0x64]`, an `AsciiString`) and the `Int`. Saving
+#: dereferences every key unchecked; loading resolves each name through
+#: `THING_FACTORY_FIND_TEMPLATE` and throws at `XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW` when it is
+#: not a template.
+XFER_OBJECT_COUNT_MAP = 0x009617A0
+XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW = 0x0096189B
+#: Inside `XFER_OBJECT_COUNT_MAP`, register use is fixed for the whole function: `esi` the
+#: `Xfer`, `ebx` the map (header node at `[ebx]`, size at `[ebx+4]`), `edi` the node when saving
+#: and the entry index when loading, `[ebp-0x14]` the `u16` count, `[ebp-0x10]` the scratch `Int`.
+#: `_COUNT` loads the count it writes (`mov eax, [ebx+4]` / `lea ecx, [ebp-0x14]`); `_KEY_NAME` is
+#: the save loop's head, `mov eax, [edi+0x10]` / `add eax, 0x64` (the key's name), and `_NEXT` its
+#: iterator step. `_UNKNOWN_THROW` (5 bytes, `push 0` / `lea eax, [ebp-0x1c]`) is reached only
+#: from the load loop's `je` at `0x00961875`; `_LOAD_NEXT` is the load loop's head, `_LOAD_COMPARE`
+#: its `cmp di, [ebp-0x14]` / `jb`, `_DONE` where both loops end, and `_LOAD_INT` the stock
+#: `xferInt(&[ebp-0x10])` setup.
+XFER_OBJECT_COUNT_MAP_COUNT = 0x009617CC
+XFER_OBJECT_COUNT_MAP_COUNT_BYTES = bytes.fromhex("8b43048d4dec")
+XFER_OBJECT_COUNT_MAP_COUNT_RESUME = 0x009617D2
+XFER_OBJECT_COUNT_MAP_COUNT_RESUME_BYTES = bytes.fromhex("8945ec")
+XFER_OBJECT_COUNT_MAP_KEY_NAME = 0x009617FC
+XFER_OBJECT_COUNT_MAP_KEY_NAME_BYTES = bytes.fromhex("8b471083c064")
+XFER_OBJECT_COUNT_MAP_KEY_NAME_RESUME = 0x00961802
+XFER_OBJECT_COUNT_MAP_KEY_NAME_RESUME_BYTES = bytes.fromhex("508d4d08")
+XFER_OBJECT_COUNT_MAP_NEXT = 0x00961827
+XFER_OBJECT_COUNT_MAP_NEXT_BYTES = bytes.fromhex("57e87326acff")
+XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW_BYTES = bytes.fromhex("6a008d45e4")
+XFER_OBJECT_COUNT_MAP_UNKNOWN_BRANCH = 0x00961875
+XFER_OBJECT_COUNT_MAP_UNKNOWN_BRANCH_BYTES = bytes.fromhex("7424")
+XFER_OBJECT_COUNT_MAP_LOAD_NEXT = 0x00961856
+XFER_OBJECT_COUNT_MAP_LOAD_NEXT_BYTES = bytes.fromhex("8b068d4d08")
+XFER_OBJECT_COUNT_MAP_LOAD_INT = 0x00961877
+XFER_OBJECT_COUNT_MAP_LOAD_INT_BYTES = bytes.fromhex("8b068d4df051")
+XFER_OBJECT_COUNT_MAP_LOAD_COMPARE = 0x00961893
+XFER_OBJECT_COUNT_MAP_LOAD_COMPARE_BYTES = bytes.fromhex("663b7dec72bd")
+XFER_OBJECT_COUNT_MAP_DONE = 0x00961834
+XFER_OBJECT_COUNT_MAP_DONE_BYTES = bytes.fromhex("834dfcff")
+#: The four sites `save-temp-file` hooks. `_OPEN_CALL` is `saveGame`'s
+#: `call LOCAL_FILE_SYSTEM_OPEN_WIDE` with the wide path, `0x4A` and `0` on the stack; its result
+#: is stored to `[ebp-0x14]` by `_FILE_STORE`. Each `_CLOSE` is `mov ecx, [ebp-0x14]` /
+#: `mov eax, [ecx]` / `call [eax+8]` (`File::close`): after a completed save, in the
+#: `xferSaveData` catch handler, and in the `XferSave::open` catch handler
+#: (`GAME_STATE_SAVE_OPEN_CATCH`, the funclet's first instruction).
+GAME_STATE_SAVE_OPEN_CALL = 0x006DE5AC
+GAME_STATE_SAVE_OPEN_CALL_BYTES = bytes.fromhex("e85b5c3300")
+GAME_STATE_SAVE_FILE_STORE = 0x006DE5B3
+GAME_STATE_SAVE_FILE_STORE_BYTES = bytes.fromhex("8945ec")
+GAME_STATE_SAVE_CLOSE_BYTES = bytes.fromhex("8b4dec8b01ff5008")
+GAME_STATE_SAVE_DONE_CLOSE = 0x006DE76A
+GAME_STATE_SAVE_DONE_CLOSE_RESUME = 0x006DE772
+GAME_STATE_SAVE_DONE_CLOSE_RESUME_BYTES = bytes.fromhex("807d1400")
+GAME_STATE_SAVE_CATCH_CLOSE = 0x006DE856
+GAME_STATE_SAVE_CATCH_CLOSE_RESUME = 0x006DE85E
+GAME_STATE_SAVE_CATCH_CLOSE_RESUME_BYTES = bytes.fromhex("8d4d14")
+GAME_STATE_SAVE_OPEN_CATCH = 0x006DE8C6
+GAME_STATE_SAVE_OPEN_CATCH_RESUME = 0x006DE8CE
+GAME_STATE_SAVE_OPEN_CATCH_RESUME_BYTES = bytes.fromhex("51896514")
+#: `openFile(const wchar_t *path, int access, int size)` on `LOCAL_FILE_SYSTEM` - a thunk to its
+#: vtable slot `+0x8` (`0x00A187CD`, which sizes the path with `msvcr71!wcslen`), `ret 0xC`, NULL on
+#: failure. Not `FILE_SYSTEM_OPEN_FILE`: no archives, no mod directory, a wide path.
+LOCAL_FILE_SYSTEM_OPEN_WIDE = 0x00A1420C
+LOCAL_FILE_SYSTEM_OPEN_WIDE_ENTRY = bytes.fromhex("8b0dacc9de0033c0")
+#: `ThingFactory`: the templates as a singly linked list, head at `THING_FACTORY_TEMPLATE_LIST`,
+#: next at `THING_TEMPLATE_NEXT`; each template's map.ini overrides chain from
+#: `OVERRIDABLE_NEXT_OVERRIDE`, and `OVERRIDABLE_IS_OVERRIDE` marks one created by a `map.ini`
+#: pass. `THING_FACTORY_RESET` walks the list through `OVERRIDABLE_DELETE_OVERRIDES`, which
+#: deletes every template so marked - a `map.ini`-only template included - when the map ends.
+THING_FACTORY_TEMPLATE_LIST = 0x0C
+THING_TEMPLATE_NEXT = 0x494
+THING_TEMPLATE_NAME = 0x64
+OVERRIDABLE_NEXT_OVERRIDE = 0x04
+OVERRIDABLE_IS_OVERRIDE = 0x08
+THING_FACTORY_RESET = 0x006D120A
+OVERRIDABLE_DELETE_OVERRIDES = 0x005E2E2E

@@ -11,6 +11,14 @@ path passes within reach of the gate - a segment within the gate's bounding-circ
 unit's own - calls the engine's `destroyPath`. The unit's move state sees no path on its next update
 and plans a fresh one against the map the close just updated, exactly as a new order would.
 
+Close-for-pathing is not only called when a gate shuts. Before the pathfinder serves a player's
+queued requests it closes for pathing every gate that player is an enemy of, and opens them again
+straight after, which on a map with two hostile players is every open gate about once a logic
+frame. That caller passes the function's `Bool` argument as 0 and the two real closes in the gate's
+`update` pass 1, so the cave reads the argument and does nothing but the displaced call when it is
+0. Without that test every path through an open gate was dropped a frame or two after it was
+planned, and no unit could be ordered through its own open gate.
+
 Units the cave leaves alone: a unit still waiting for the pathfinder (its request is planned against
 the new map anyway), and one whose main state is `AI_STATE_NO_PATH_UNSAFE`, the one state in which
 the move state reads the path without checking it.
@@ -40,6 +48,9 @@ from ..addresses import (
     GAME_LOGIC_OBJECT_BUCKETS_END,
     GAME_LOGIC_OBJECT_HASH_WALK,
     GAME_LOGIC_OBJECT_HASH_WALK_BYTES,
+    GATE_CLOSE_ARG_AT_READD,
+    GATE_CLOSE_ARG_TEST,
+    GATE_CLOSE_ARG_TEST_BYTES,
     GATE_CLOSE_EPILOGUE,
     GATE_CLOSE_EPILOGUE_BYTES,
     GATE_CLOSE_FOR_PATHING,
@@ -48,6 +59,9 @@ from ..addresses import (
     GATE_CLOSE_READD_CALL_BYTES,
     GATE_CLOSE_READD_SETUP,
     GATE_CLOSE_READD_SETUP_BYTES,
+    GATE_PATHING_BRACKET_CLOSE_CALL,
+    GATE_PATHING_BRACKET_CLOSE_CALL_BYTES,
+    GATE_UPDATE_CLOSE_CALLS,
     OBJECT_AI_UPDATE,
     OBJECT_BOUNDING_CIRCLE_RADIUS,
     OBJECT_BOUNDING_CIRCLE_RADIUS_READ,
@@ -89,11 +103,15 @@ HOOK_ORIGINAL = GATE_CLOSE_READD_CALL_BYTES
 
 #: Every site the cave depends on, as `{va: bytes}`. The hooked call is asserted by
 #: `apply_byte_patch`; these are the function it sits in and the code around it, the four engine
-#: functions the cave calls, the layouts it walks (object hash, `Path`, bounding radius), and the
+#: functions the cave calls, the layouts it walks (object hash, `Path`, bounding radius), the
 #: move-state code that makes a destroyed path turn into a new plan and that the state exclusion
-#: protects.
+#: protects, and the three callers whose `Bool` argument tells a gate shutting from the
+#: pathfinder's bracket.
 ANCHORS = {
     GATE_CLOSE_FOR_PATHING: GATE_CLOSE_FOR_PATHING_ENTRY,
+    GATE_CLOSE_ARG_TEST: GATE_CLOSE_ARG_TEST_BYTES,
+    **GATE_UPDATE_CLOSE_CALLS,
+    GATE_PATHING_BRACKET_CLOSE_CALL: GATE_PATHING_BRACKET_CLOSE_CALL_BYTES,
     GATE_CLOSE_READD_SETUP: GATE_CLOSE_READD_SETUP_BYTES,
     GATE_CLOSE_EPILOGUE: GATE_CLOSE_EPILOGUE_BYTES,
     PATHFINDER_ADD_OBJECT: PATHFINDER_ADD_OBJECT_BYTES,
@@ -142,7 +160,9 @@ def build_code(base_va: int) -> bytes:
     """The cave: re-add the gate, then drop every path that runs through it.
 
     Entered by `call` from `HOOK_VA`, so `[esp+4]` is the gate `Object *` and `ecx` the pathfinder,
-    and it leaves by `ret 4` as the replaced callee did.
+    and it leaves by `ret 4` as the replaced callee did. Past the gate sit the four registers
+    close-for-pathing saved and its return address, so `[esp+0x1c]` is that function's own `Bool`
+    argument; the walk runs only when it is set.
 
     Registers through the walk: `ebp` the gate, `esi`/`edi` the bucket cursor and end, `ebx` the
     hash entry, `edx` the path node. `xmm7` holds the squared reach, `xmm0`/`xmm1` the segment's
@@ -151,6 +171,11 @@ def build_code(base_va: int) -> bytes:
     a = Asm(base_va)
     a.emit(0xFF, 0x74, 0x24, 0x04)  # push dword [esp+4]  ; the gate, again
     a.call_absolute(PATHFINDER_ADD_OBJECT)  # the displaced call (ret 4 pops the copy)
+    # close-for-pathing's own Bool: 0 is the pathfinder's bracket, not a gate shutting
+    a.emit(0x80, 0x7C, 0x24, GATE_CLOSE_ARG_AT_READD, 0x00)  # cmp byte [esp+0x1c], 0
+    a.jcc_short(JNE, "closing")
+    a.emit(0xC2, 0x04, 0x00)  # ret 4
+    a.label("closing")
     a.emit(0x53, 0x56, 0x57, 0x55)  # push ebx / esi / edi / ebp
     a.emit(0x8B, 0x6C, 0x24, 0x14)  # mov ebp, [esp+0x14]  ; the gate, past the four saves
     a.emit(0xA1, struct.pack("<I", THE_GAME_LOGIC))  # mov eax, [TheGameLogic]
