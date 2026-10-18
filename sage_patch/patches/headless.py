@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import struct
 
-from ...addresses import (
+from ..addresses import (
     CLI_COUNT_REF,
     CLI_DISPATCH,
     CLI_TABLE,
@@ -29,9 +29,9 @@ from ...addresses import (
     GLOBAL_DATA_USE_FPS_LIMIT,
     THE_DISPLAY,
 )
-from ...asm import JE, JLE, JNE, Asm
-from ...patcher import Patch
-from ...utils import (
+from ..asm import JE, JLE, JNE, Asm
+from ..patcher import Patch
+from ..utils import (
     allocate_section,
     apply_byte_patch,
     file_offset,
@@ -243,7 +243,6 @@ class HeadlessPatch(Patch):
     name = "headless"
     author = "officialNecro"
     runtime_verified = "yes"
-    experimental = True
     description = (
         "Add -headless / -renderEvery / -maxfps / -uncapped, and stop drawing when asked to. "
         "Command-line flags on game.dat, no INI change"

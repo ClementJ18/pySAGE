@@ -443,6 +443,16 @@ __all__ = [
     "MP_SETUP_WOTR_IS_HISTORICAL",
     "MULTIPLAYER_COLOR_VALUE",
     "MULTIPLAYER_SETTINGS_GET_COLOR",
+    "OBJECT_TOOLTIP_APPEND_LINE",
+    "OBJECT_TOOLTIP_APPEND_LINE_BYTES",
+    "OBJECT_TOOLTIP_BATTLES_FOUGHT",
+    "OBJECT_TOOLTIP_BATTLES_FOUGHT_BYTES",
+    "OBJECT_TOOLTIP_BUILD",
+    "OBJECT_TOOLTIP_DESCRIPTION_RELEASE",
+    "OBJECT_TOOLTIP_DESCRIPTION_RELEASE_BYTES",
+    "OBJECT_TOOLTIP_DESCRIPTION_RELEASE_RESUME",
+    "OBJECT_TOOLTIP_LINES_EBP",
+    "OBJECT_TOOLTIP_OBJECT_EBP",
     "OBSERVER_BAR_GATE_CALL",
     "OBSERVER_BAR_GATE_CALL_BYTES",
     "OBSERVER_BAR_GATE_FINGERPRINT",
@@ -545,6 +555,35 @@ __all__ = [
     "WINDOW_TRANSITION_REVERSE",
     "WINDOW_TRANSITION_REVERSE_BYTES",
     "WINDOW_TRANSITION_SET_GROUP",
+    "COMMAND_BUTTON_IS_READY",
+    "COMMAND_BUTTON_IS_READY_ENTRY",
+    "COMMAND_BUTTON_OPTIONS",
+    "COMMAND_BUTTON_OPTION_MULTI_EXECUTE",
+    "CONTROL_BAR_AVAILABILITY_RECHARGING",
+    "CONTROL_BAR_GET_COMMAND_AVAILABILITY_ENTRY",
+    "CONTROL_BAR_SLOT_AVAILABILITY_CALL_BYTES",
+    "CONTROL_BAR_MULTI_AVAILABILITY_CALL",
+    "CONTROL_BAR_MULTI_AVAILABILITY_CALL_BYTES",
+    "CONTROL_BAR_DO_COMMAND_READY_CALL",
+    "CONTROL_BAR_DO_COMMAND_READY_CALL_BYTES",
+    "CONTROL_BAR_DO_COMMAND_MULTI_READY_CALL",
+    "CONTROL_BAR_DO_COMMAND_MULTI_READY_CALL_BYTES",
+    "CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_GATE",
+    "CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_GATE_BYTES",
+    "IN_GAME_UI_GET_ALL_SELECTED_DRAWABLES_SLOT",
+    "SELECTION_LIST_DRAWABLE",
+    "CONTROL_BAR_MULTI_USABLE_PASS",
+    "CONTROL_BAR_MULTI_USABLE_PASS_BYTES",
+    "CONTROL_BAR_MULTI_USABLE_CLEAR_CALL",
+    "CONTROL_BAR_MULTI_USABLE_CLEAR_CALL_BYTES",
+    "WINDOW_CLEAR_STATUS",
+    "WINDOW_CLEAR_STATUS_BYTES",
+    "WINDOW_STATUS_RECHARGING",
+    "GAME_WINDOW_GET_DATA_ENTRY",
+    "GAME_WINDOW_GET_COMMAND_BUTTON_ENTRY",
+    "COMMAND_WINDOW_DATA_KIND",
+    "COMMAND_WINDOW_DATA_KIND_PROGRESS",
+    "GUI_COMMAND_SPECIAL_POWER_FROM_COMMAND_CENTER",
 ]
 
 # RotWK 2.01: the Ctrl navigation fallback, after Ctrl+Left/Right have branched away.
@@ -853,6 +892,31 @@ TOOLTIP_COST_BYTES = bytes.fromhex("508d45d850")
 #: `UnicodeString::~UnicodeString` - thiscall, no arguments. Needed because a suffix built with
 #: `UNICODE_STRING_FORMAT` is a real string with a real allocation, not a literal.
 UNICODE_STRING_DTOR = 0x004367B0
+#: The object tooltip: what hovering an object in the world shows (name, rank, stats, upgrades,
+#: battles fought, description). Built once per hover through the same request manager the button
+#: tooltip uses. `[ebp-0x18]` is the hovered `Object`, written once at entry; a null one jumps
+#: straight to `0x008EC13D`. `[ebp-0x1c]` is the line list, a `UnicodeString` every line joins.
+OBJECT_TOOLTIP_BUILD = 0x008EBC61
+OBJECT_TOOLTIP_OBJECT_EBP = -0x18
+OBJECT_TOOLTIP_LINES_EBP = -0x1C
+#: The builder's own "add a line": cdecl `(UnicodeString *lines, UnicodeString *line)`, caller
+#: cleans 8. It puts a newline first unless `lines` is still empty.
+OBJECT_TOOLTIP_APPEND_LINE = 0x008EBC3B
+OBJECT_TOOLTIP_APPEND_LINE_BYTES = bytes.fromhex("8b4c2404e84c94b4ff84c0750b8b4c24046a0a")
+#: The `TOOLTIP:BattlesFought` line, shown only above zero: `[esi+0x488]`, the fetch through
+#: `TheGameText`'s `+0x44` with the count left pushed, then (past these bytes) `0x00ADF7E0` into a
+#: zeroed temporary and `OBJECT_TOOLTIP_APPEND_LINE`. The idiom any further record line copies.
+OBJECT_TOOLTIP_BATTLES_FOUGHT = 0x008EC052
+OBJECT_TOOLTIP_BATTLES_FOUGHT_BYTES = bytes.fromhex(
+    "8b86880400003bc35f7e3f895dd48b0d044bde00508b0153680092c700"
+)
+#: The release of the description temporary, `call ~UnicodeString` with `ecx = &[ebp-0x28]`, after
+#: the description line and before the tooltip record is made. The last point where a line still
+#: lands in the tooltip. Not a branch target; `herobar` owns the seven bytes in front of it and
+#: resumes here.
+OBJECT_TOOLTIP_DESCRIPTION_RELEASE = 0x008EC120
+OBJECT_TOOLTIP_DESCRIPTION_RELEASE_BYTES = bytes.fromhex("e88ba6b4ff")
+OBJECT_TOOLTIP_DESCRIPTION_RELEASE_RESUME = 0x008EC125
 #: `AptMainMenu::Expansion1Campaign`, the FSCommand name, and the registration block that binds it
 #: to `MAIN_MENU_CAMPAIGN_HANDLER`: `push <name>` / `lea ecx, [ebp+8]` / `mov esi, <handler>`.
 #: Fingerprinting the registration rather than the handler alone is what proves `0x0091AF8C` is
@@ -1658,3 +1722,235 @@ COMMAND_RANGE_FLYOUT_ANCHORS.update(
         0x00941371: bytes.fromhex("807d0c00752f"),
     }
 )
+
+
+# Group cooldowns on a multi-execute special power (`docs/multi-execute-cooldown.md`).
+
+#: `CONTROL_BAR_GET_COMMAND_AVAILABILITY`'s prologue, and its answer for a special power whose
+#: module is not ready yet: the module's ready fraction goes to the progress out-argument and the
+#: answer is 5, which both slot updates paint as disabled with a recharge clock.
+CONTROL_BAR_GET_COMMAND_AVAILABILITY_ENTRY = bytes.fromhex("b81ec4ba00e8b3a70f00")
+CONTROL_BAR_AVAILABILITY_RECHARGING = 5
+#: The two calls to it that paint the bar. `CONTROL_BAR_UPDATE_AVAILABILITY_CALL` is the
+#: single-object update (`CONTROL_BAR_UPDATE_SLOT_AVAILABILITY`), which a selection of one type
+#: also gets: the context evaluator hands it one representative drawable, and only that unit is
+#: asked. `..._MULTI_...` is the mixed-selection update, which asks every member but paints the
+#: clock of whichever it asked last. Both: `__thiscall` on the ControlBar,
+#: `(button, window, Object *, Real *progress, Bool)`, `ret 0x14`.
+CONTROL_BAR_SLOT_AVAILABILITY_CALL_BYTES = bytes.fromhex("e853ecffff")
+CONTROL_BAR_MULTI_AVAILABILITY_CALL = 0x009449D6
+CONTROL_BAR_MULTI_AVAILABILITY_CALL_BYTES = bytes.fromhex("e858ddffff")
+#: `CommandButton::isReady(Object *)`, `__thiscall`, `ret 4`. For `SPECIAL_POWER` it answers
+#: whether the object's module for the button's power is at a ready fraction of exactly 1.0.
+COMMAND_BUTTON_IS_READY = 0x0075CC3E
+COMMAND_BUTTON_IS_READY_ENTRY = bytes.fromhex("56578b7c240c85ff")
+#: `ControlBar::doCommand`'s gate for the two special-power commands (`0x17`, `0x18`): with a
+#: context object it asks `isReady` of that object alone (`..._READY_CALL`); in the mixed
+#: context it asks every selected member and refuses on the first that is not ready
+#: (`..._MULTI_READY_CALL`). Either refusal drops the click before any message is posted.
+CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_GATE = 0x0094070F
+CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_GATE_BYTES = bytes.fromhex(
+    "85db7415538bcee823c5e1ff84c00f8533ffffffe91affffff837f70070f8524ffffff8b0d3048de008b01ff9024"
+    "01000085c08945e80f84f7feffff8b008b383bf80f84ebfeffff8b4708ffb0fc0000008bcee8d7c4e1ff84c00f84"
+    "d3feffff8b3f8b45e83b3875dfe9d9fe"
+)
+CONTROL_BAR_DO_COMMAND_READY_CALL = 0x00940716
+CONTROL_BAR_DO_COMMAND_READY_CALL_BYTES = bytes.fromhex("e823c5e1ff")
+CONTROL_BAR_DO_COMMAND_MULTI_READY_CALL = 0x00940762
+CONTROL_BAR_DO_COMMAND_MULTI_READY_CALL_BYTES = bytes.fromhex("e8d7c4e1ff")
+#: `CommandButton` `Options` word and its `OK_FOR_MULTI_EXECUTE` bit (entry 20 of the name table
+#: at `0x00DA4C88`).
+COMMAND_BUTTON_OPTIONS = 0x1C
+COMMAND_BUTTON_OPTION_MULTI_EXECUTE = 1 << 20
+#: `TheInGameUI` vtable slot answering the selected-drawable `std::list`: the list's first dword
+#: is its sentinel node, a node's first dword is `next`, and its `+8` the `Drawable *`.
+IN_GAME_UI_GET_ALL_SELECTED_DRAWABLES_SLOT = 0x124
+SELECTION_LIST_DRAWABLE = 0x08
+#: The mixed-selection update's final pass, for a slot at least one member answered usable for:
+#: enable the window, then clear status `0x80000000` and `0x1000000`. It leaves the recharge bit
+#: and any clock a recharging member requested earlier in the same frame. `..._CLEAR_CALL` is the
+#: last of the two clears, the hook for anything else the usable state should drop.
+CONTROL_BAR_MULTI_USABLE_PASS = 0x00944B45
+CONTROL_BAR_MULTI_USABLE_PASS_BYTES = bytes.fromhex(
+    "395cac2c8bce7e216a01e85f09ddff68000000808bcee8590addff68000000018bcee84d0addffeb06"
+)
+CONTROL_BAR_MULTI_USABLE_CLEAR_CALL = 0x00944B67
+CONTROL_BAR_MULTI_USABLE_CLEAR_CALL_BYTES = bytes.fromhex("e84d0addff")
+#: `GameWindow::clearStatus(mask)`: `window+8 &= ~mask`, `__thiscall`, `ret 4`. Both slot updates
+#: set `WINDOW_STATUS_RECHARGING` for an availability of 5.
+WINDOW_CLEAR_STATUS = 0x007155B9
+WINDOW_CLEAR_STATUS_BYTES = bytes.fromhex("8b5424048b4108f7d223d0895108c20400")
+WINDOW_STATUS_RECHARGING = 0x400000
+#: `GAME_WINDOW_GET_DATA` is `__thiscall` on the window (`mov eax, [ecx+0x2c]`) and
+#: `GAME_WINDOW_GET_COMMAND_BUTTON` `__cdecl(window)`.
+GAME_WINDOW_GET_DATA_ENTRY = bytes.fromhex("8b412cc38b4130c3")
+GAME_WINDOW_GET_COMMAND_BUTTON_ENTRY = bytes.fromhex("8b4c240485c97409")
+#: The command window's data record (`0x38` bytes): a one-frame overlay request. `+0` is its kind,
+#: 2 a recharge clock (`GAME_WINDOW_COMMAND_PROGRESS` writes it with the percentage at `+4` and the
+#: colour at `+8`). The button renderers (`0x004A4911` and its two twins) draw the request and
+#: reset the kind to 0, so a clock shows only in a frame that asked for it.
+COMMAND_WINDOW_DATA_KIND = 0x00
+COMMAND_WINDOW_DATA_KIND_PROGRESS = 2
+GUI_COMMAND_SPECIAL_POWER_FROM_COMMAND_CENTER = 0x17
+
+#: `upgrade-complete-skip-unnamed`. The local player's "upgrade complete" notice, inside
+#: `ProductionUpdate`'s completion of an upgrade entry (`edi` the `UpgradeTemplate`). It fetches
+#: `UPGRADE:UpgradeComplete` and the template's `DisplayName` label (an `AsciiString`, NULL or chars
+#: at `ASCII_STRING_CHARS_OFFSET`), formats them into `[ebp-0x18]` and copies that into the one
+#: argument slot left on the stack. Then it calls `TheInGameUI->message(fmt)`, a variadic member:
+#: `this` is pushed, the caller's `add esp, 4` at `0x008A212E` pops it, and the callee destroys the
+#: by-value string. The radar event, the EVA event and the two sounds after it are separate.
+UPGRADE_COMPLETE_FORMAT_KEY = 0x008A209E
+UPGRADE_COMPLETE_FORMAT_KEY_BYTES = bytes.fromhex("68a47fc600")
+UPGRADE_COMPLETE_MESSAGE = 0x008A2114
+#: `mov eax, [TheInGameUI]` / `mov ecx, [eax]` / `push eax` / `call [ecx+0x40]`.
+UPGRADE_COMPLETE_MESSAGE_BYTES = bytes.fromhex("a13048de008b0850ff5140")
+UPGRADE_COMPLETE_MESSAGE_RESUME = 0x008A211F
+IN_GAME_UI_MESSAGE_SLOT = 0x40
+#: `UpgradeTemplate+0x28`: the `DisplayName` label, an `AsciiString`.
+UPGRADE_TEMPLATE_DISPLAY_NAME = 0x28
+__all__ += [
+    "IN_GAME_UI_MESSAGE_SLOT",
+    "UPGRADE_COMPLETE_FORMAT_KEY",
+    "UPGRADE_COMPLETE_FORMAT_KEY_BYTES",
+    "UPGRADE_COMPLETE_MESSAGE",
+    "UPGRADE_COMPLETE_MESSAGE_BYTES",
+    "UPGRADE_COMPLETE_MESSAGE_RESUME",
+    "UPGRADE_TEMPLATE_DISPLAY_NAME",
+]
+
+#: `better-hud-toggle`. `MetaEventTranslator::translateGameMessage` (`0x005DA83D`), on a raw key
+#: message (`0x15` / `0x16`), has the key's DirectInput scan code in `[ebp-0xC]` (after the German
+#: layout's Y/Z swap) and its `KEY_STATE_*` word in `[ebp-0x10]` by the time it reaches the hook,
+#: which loads the shell pointer that picks the `UseableIn` mask. `..._CONSUMED` is where a matched
+#: `CommandMap` lands: it marks the message destroyed and runs the translator's tail.
+META_TRANSLATOR_KEY_HOOK = 0x005DA8C3
+META_TRANSLATOR_KEY_HOOK_BYTES = bytes.fromhex("a19078de00")  # mov eax, [SHELL]
+META_TRANSLATOR_KEY_RESUME = 0x005DA8C8
+META_TRANSLATOR_CONSUMED = 0x005DA99B
+META_TRANSLATOR_CONSUMED_BYTES = bytes.fromhex("c745e801000000")  # mov dword [ebp-0x18], 1
+#: The stores that put the key and its state where the hook reads them.
+META_TRANSLATOR_KEY_STORE = 0x005DA873
+META_TRANSLATOR_KEY_STORE_BYTES = bytes.fromhex("8b008945f4")  # mov eax,[eax] / mov [ebp-0xc],eax
+META_TRANSLATOR_STATE_STORE = 0x005DA89D
+META_TRANSLATOR_STATE_STORE_BYTES = bytes.fromhex("8b008365fc00a80c8945f0")
+META_TRANSLATOR_KEY_EBP = -0x0C
+META_TRANSLATOR_STATE_EBP = -0x10
+#: `KEY_F9` in the `CommandMap` key-name table (`0x00BF0BB8`).
+KEY_F9 = 0x43
+#: `KEY_STATE_*`: the transition bits, and every Ctrl / Shift / Alt bit (`0x04`-`0x80`).
+KEY_STATE_DOWN = 0x02
+KEY_STATE_AUTOREPEAT = 0x100
+KEY_STATE_MODIFIER_KEYS = 0xFC
+#: The engine's own HUD hide and show, the pair the `HIDE_UI` / `SHOW_UI` script actions
+#: (`0x15B` / `0x15C`), cinematics and every game start call. Both are cdecl and take one argument;
+#: show ignores its, and starts by calling hide. Hide takes down the palantir and the other APT HUD
+#: movies; show brings them back.
+UI_HIDE = 0x00804576
+UI_HIDE_ENTRY = bytes.fromhex("b89a91b900")  # mov eax, <SEH frame>
+UI_HIDE_RESUME = 0x0080457B
+UI_SHOW = 0x008046A1
+UI_SHOW_BYTES = bytes.fromhex("6a01e8cefeffff")  # push 1 / call UI_HIDE
+UI_SHOW_RESUME = 0x008046A8
+#: `InGameUI::postDraw` (`0x006A0BC0`): the top-left text messages are drawn only while
+#: `InGameUI+0x811` is set. `..._DONE` is that test's skip target, the rest of `postDraw`.
+IN_GAME_UI_MESSAGES_GATE = 0x006A0BD2
+IN_GAME_UI_MESSAGES_GATE_BYTES = bytes.fromhex("80bf11080000000f8444010000")
+IN_GAME_UI_MESSAGES_ON = 0x811
+IN_GAME_UI_MESSAGES_DRAW = 0x006A0BDF
+IN_GAME_UI_MESSAGES_DONE = 0x006A0D23
+#: `InGameUI::draw` (`0x006A3B59`) calling the floating-text pass, the rising "+N" over resource
+#: buildings (the list at `InGameUI+0x8A0`). Thiscall, no arguments.
+FLOATING_TEXT_DRAW_CALL = 0x006A3B6A
+FLOATING_TEXT_DRAW_CALL_BYTES = bytes.fromhex("e8eca0ffff")
+FLOATING_TEXT_DRAW = 0x0069DC5B
+FLOATING_TEXT_DRAW_ENTRY = bytes.fromhex("558bec83ec18")
+#: `Drawable`'s icon pass switch (`0x00679A04`), case 2: the veterancy pips. Thiscall on the
+#: `Drawable`, no arguments; it reads `GlobalData+0xEB8` (`VeterancyPipDrawObjectFilter`).
+VETERANCY_DRAW_CALL = 0x00679A31
+VETERANCY_DRAW_CALL_BYTES = bytes.fromhex("e869f9ffff")
+DRAWABLE_DRAW_VETERANCY = 0x0067939F
+DRAWABLE_DRAW_VETERANCY_ENTRY = bytes.fromhex("558bec83ec0c")
+#: The same switch, case 0: the "under construction" percentage over a building being built.
+#: Thiscall on the `Drawable`, no arguments; it formats `Object+0x288` with
+#: `CONTROLBAR:UnderConstruction` (the push at `..._LABEL`) in `DrawableCaptionFont`, and frees its
+#: display string once the object is no longer under construction.
+CONSTRUCT_PERCENT_DRAW_CALL = 0x00679A6D
+CONSTRUCT_PERCENT_DRAW_CALL_BYTES = bytes.fromhex("e887e2ffff")
+DRAWABLE_DRAW_CONSTRUCT_PERCENT = 0x00677CF9
+DRAWABLE_DRAW_CONSTRUCT_PERCENT_ENTRY = bytes.fromhex("b82879b800")  # mov eax, <SEH frame>
+CONSTRUCT_PERCENT_LABEL = 0x00677E66
+CONSTRUCT_PERCENT_LABEL_BYTES = bytes.fromhex("684411c100")  # push "CONTROLBAR:UnderConstruction"
+#: The two readers of `GameLogic+0x99`, the flag `OPTIONS_SET_OCCLUSION_MODE` writes (the
+#: behind-building silhouette). Each continues to a test of the unidentified byte
+#: `OCCLUSION_SUPPRESS` and skips the occlusion setup when it is set; the gates are that test.
+GAME_LOGIC_OCCLUSION_ENABLED = 0x99
+OCCLUSION_SUPPRESS = 0x00DD1E44
+OCCLUSION_FLAG_READ_A = 0x0047074D
+OCCLUSION_FLAG_READ_A_BYTES = bytes.fromhex("8b0d2c41de0080b9990000000074")
+OCCLUSION_GATE_A = 0x0047075C
+OCCLUSION_GATE_A_BYTES = bytes.fromhex("803d441edd0000751d")
+OCCLUSION_GATE_A_ON = 0x00470765
+OCCLUSION_GATE_A_OFF = 0x00470782
+OCCLUSION_FLAG_READ_B = 0x004707C1
+OCCLUSION_FLAG_READ_B_BYTES = bytes.fromhex("a12c41de0080b8990000000074")
+OCCLUSION_GATE_B = 0x004707CF
+OCCLUSION_GATE_B_BYTES = bytes.fromhex("803d441edd00007506")
+OCCLUSION_GATE_B_ON = 0x004707D8
+OCCLUSION_GATE_B_OFF = 0x004707DE
+__all__ += [
+    "CONSTRUCT_PERCENT_DRAW_CALL",
+    "CONSTRUCT_PERCENT_DRAW_CALL_BYTES",
+    "CONSTRUCT_PERCENT_LABEL",
+    "CONSTRUCT_PERCENT_LABEL_BYTES",
+    "DRAWABLE_DRAW_CONSTRUCT_PERCENT",
+    "DRAWABLE_DRAW_CONSTRUCT_PERCENT_ENTRY",
+    "DRAWABLE_DRAW_VETERANCY",
+    "DRAWABLE_DRAW_VETERANCY_ENTRY",
+    "FLOATING_TEXT_DRAW",
+    "FLOATING_TEXT_DRAW_CALL",
+    "FLOATING_TEXT_DRAW_CALL_BYTES",
+    "FLOATING_TEXT_DRAW_ENTRY",
+    "GAME_LOGIC_OCCLUSION_ENABLED",
+    "IN_GAME_UI_MESSAGES_DONE",
+    "IN_GAME_UI_MESSAGES_DRAW",
+    "IN_GAME_UI_MESSAGES_GATE",
+    "IN_GAME_UI_MESSAGES_GATE_BYTES",
+    "IN_GAME_UI_MESSAGES_ON",
+    "KEY_F9",
+    "KEY_STATE_AUTOREPEAT",
+    "KEY_STATE_DOWN",
+    "KEY_STATE_MODIFIER_KEYS",
+    "META_TRANSLATOR_CONSUMED",
+    "META_TRANSLATOR_CONSUMED_BYTES",
+    "META_TRANSLATOR_KEY_EBP",
+    "META_TRANSLATOR_KEY_HOOK",
+    "META_TRANSLATOR_KEY_HOOK_BYTES",
+    "META_TRANSLATOR_KEY_RESUME",
+    "META_TRANSLATOR_KEY_STORE",
+    "META_TRANSLATOR_KEY_STORE_BYTES",
+    "META_TRANSLATOR_STATE_EBP",
+    "META_TRANSLATOR_STATE_STORE",
+    "META_TRANSLATOR_STATE_STORE_BYTES",
+    "OCCLUSION_FLAG_READ_A",
+    "OCCLUSION_FLAG_READ_A_BYTES",
+    "OCCLUSION_FLAG_READ_B",
+    "OCCLUSION_FLAG_READ_B_BYTES",
+    "OCCLUSION_GATE_A",
+    "OCCLUSION_GATE_A_BYTES",
+    "OCCLUSION_GATE_A_OFF",
+    "OCCLUSION_GATE_A_ON",
+    "OCCLUSION_GATE_B",
+    "OCCLUSION_GATE_B_BYTES",
+    "OCCLUSION_GATE_B_OFF",
+    "OCCLUSION_GATE_B_ON",
+    "OCCLUSION_SUPPRESS",
+    "UI_HIDE",
+    "UI_HIDE_ENTRY",
+    "UI_HIDE_RESUME",
+    "UI_SHOW",
+    "UI_SHOW_BYTES",
+    "UI_SHOW_RESUME",
+    "VETERANCY_DRAW_CALL",
+    "VETERANCY_DRAW_CALL_BYTES",
+]

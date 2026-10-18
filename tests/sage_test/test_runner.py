@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from sage_live.launch import runner
 from sage_live.launch.runner import install_map, install_map_folder, launch_arguments
 
 
@@ -168,3 +169,23 @@ class TestInstallMapFolder:
         empty.mkdir(parents=True)
         with pytest.raises(FileNotFoundError):
             install_map_folder(empty, user_files=tmp_path / "user")
+
+
+class TestUserFilesDir:
+    """Where generated maps go. A map written to a folder the game does not scan is never cached,
+    and `-file` then starts an empty match with no seats - every order to it is silently dropped."""
+
+    def test_an_override_wins(self, tmp_path: Path):
+        assert runner.user_files_dir(tmp_path) == tmp_path
+
+    def test_the_recorded_folder_wins_over_the_default_name(self, monkeypatch, tmp_path: Path):
+        """The leaf name varies between releases ("My The Lord of the Rings, The Rise of the
+        Witch-king Files" on some installs), so the installer's record is the one to trust."""
+        recorded = tmp_path / "My The Lord of the Rings, The Rise of the Witch-king Files"
+        monkeypatch.setattr(runner, "user_data_dir", lambda game: recorded)
+        assert runner.user_files_dir() == recorded
+
+    def test_without_a_record_the_default_name_under_appdata(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setattr(runner, "user_data_dir", lambda game: None)
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        assert runner.user_files_dir() == tmp_path / runner.USER_FILES

@@ -27,6 +27,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sage_utils.installs import user_data_dir
+
 __all__ = [
     "USER_FILES",
     "GameProcess",
@@ -44,9 +46,18 @@ USER_FILES = "My Rise of the Witch-king Files"
 
 
 def user_files_dir(override: str | os.PathLike[str] | None = None) -> Path:
-    """Where the game keeps maps, replays and saves."""
+    """Where the game keeps maps, replays and saves.
+
+    The folder the installer recorded (`UserDataLeafName`, read by
+    `sage_utils.installs.user_data_dir`) when there is one, because its name varies between
+    releases - "My The Lord of the Rings, The Rise of the Witch-king Files" on some installs -
+    and a map written anywhere else is never cached, so `-file` silently starts an empty game
+    with no seats. `USER_FILES` is only the fallback for a machine with no registry entry."""
     if override is not None:
         return Path(override)
+    recorded = user_data_dir("rotwk")
+    if recorded is not None:
+        return recorded
     appdata = os.environ.get("APPDATA")
     if not appdata:
         raise RuntimeError("APPDATA is unset; pass an explicit user-files directory")

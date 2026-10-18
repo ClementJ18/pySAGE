@@ -6,19 +6,25 @@ once per logic frame that rescales the remaining time of every power on cooldown
 its multiplier. Data that never changes a multiplier mid-cooldown is unaffected. Logic-side: every
 peer needs the same binary.
 
-Derivation: `../../docs/recharge-rescale.md`.
+Composes with `spell-recharge-targets` in either order. That patch replaces the cast-time
+player discount with a call into its own cave, and the sweep checks for it at run time and calls
+the same routine, so a targeted discount moves a running cooldown too.
+
+Derivation: `../docs/recharge-rescale.md`.
 """
 
 from __future__ import annotations
 
 import struct
 
-from ...asm import JAE, JE, JG, JLE, JNE, Asm
-from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, call_rel32, find_section, u32, va_to_offset
+from ..asm import JAE, JE, JG, JLE, JNE, Asm
+from ..patcher import Patch
+from ..utils import allocate_section, apply_byte_patch, call_rel32, find_section, u32, va_to_offset
 
 __all__ = [
     "ANCHORS",
+    "DISCOUNT_FOLD_STOCK",
+    "DISCOUNT_FOLD_VA",
     "HOOK_CALL_VA",
     "RECHARGE_TIME_MODIFIER",
     "SECTION_NAME",
@@ -27,6 +33,7 @@ __all__ = [
     "SPI_READY_FRAME",
     "START_POWER_RECHARGE",
     "RechargeRescalePatch",
+    "build_asm",
     "build_section",
 ]
 
@@ -72,6 +79,14 @@ GET_SPELL_RECHARGE_MODIFIER = 0x006AAAD2  # __thiscall -> fld [Player+0x718], no
 FTOL = 0x00A3CFA4  # pops st(0) -> eax; clobbers eax, ecx, edx
 ONE_FLOAT = 0x00BD1908  # the engine's own 1.0f
 
+#: `startPowerRecharge`'s player discount: `je` past it, then `1 + Player[0x718]` into `[ebp-8]`.
+#: `spell-recharge-targets` replaces these bytes with `call <its gate>; jmp` past the rest, so they
+#: hold one of two forms and the sweep follows whichever it finds (`_emit_power`).
+DISCOUNT_FOLD_VA = 0x00896EC2
+DISCOUNT_FOLD_STOCK = bytes.fromhex("74118b4dfce8063ce1ffd8050819bd00d95df8")
+#: The other form: the `call`'s opcode, then after its displacement a short `jmp` over the rest.
+TARGETED_FOLD_TAIL = b"\xeb" + bytes([len(DISCOUNT_FOLD_STOCK) - 7])
+
 #: The hooked `call`, and the predicate behind it. Its `al`, with the caller's `bl`, is exactly
 #: the condition under which `0x0062E577` advances the frame counter.
 HOOK_CALL_VA = 0x0062E56A
@@ -108,11 +123,12 @@ ANCHORS: dict[int, bytes] = {
         "568bb14c020000eb16d94424088d480c8b0151d91c24ff90ac00000083c6048b0685c075e4"
     ),
     # startPowerRecharge, flavour 1: the entry, the SharedSyncedTimer divert, the pre-seeded
-    # RECHARGE_TIME query, the flag test and the Player+0x718 fold
+    # RECHARGE_TIME query and the flag test. The Player+0x718 fold after it has two forms and is
+    # checked on its own (`DISCOUNT_FOLD_STOCK`).
     0x00896E31: bytes.fromhex("558bec83ec0c568bf1578b7ef4837f08000f844b010000538b5ef885db0f843e01"),
     0x00896E6C: bytes.fromhex("e8cb1edfff807859007410ff75f48b4d"),
     0x00896E87: bytes.fromhex("f30f10050819bd006a016a008d45f4506a0c8bcbf30f1145f4e88859dfff"),
-    0x00896EBA: bytes.fromhex("8b4018c1e805a80174118b4dfce8063ce1ffd8050819bd00d95df8"),
+    0x00896EBA: bytes.fromhex("8b4018c1e805a801"),
     # ReloadTime at template+0x20, the two multiplies, the ftol and the `>= 1` clamp
     0x00896EE3: bytes.fromhex(
         "8b402085c08945fcdb45fc7d06d8059886bd00d84df8d84df4e8a3601a008bf885ff750147"
@@ -146,7 +162,8 @@ def _emit_power(a: Asm) -> None:
     The frame, as displacements from `ebp`: `-0x04` the attribute multiplier and `-0x08` the
     player factor (both Reals - the first is what `getModifierMultiplier` writes), `-0x0C` the
     template's `ReloadTime`, `-0x10` the recomputed duration, `-0x14` the stored duration,
-    `-0x18` the current frame, `-0x1C` the frames left, `-0x20` the template.
+    `-0x18` the current frame, `-0x1C` the frames left, `-0x20` the template, `-0x24` the raw
+    template before its final override (what `spell-recharge-targets` matches powers by).
 
     **The two factors stay in separate slots on purpose.** The stock formula is
     `fild ReloadTime / fmul <player> / fmul <attribute>` (`0x00896EEB`..`0x00896EF9`), and
@@ -162,7 +179,7 @@ def _emit_power(a: Asm) -> None:
     a.label("power")
     a.emit(0x55)  # push ebp
     a.emit(b"\x8b\xec")  # mov ebp, esp
-    a.emit(b"\x83\xec\x20")  # sub esp, 0x20
+    a.emit(b"\x83\xec\x24")  # sub esp, 0x24
     a.emit(0x53)  # push ebx
     a.emit(b"\x8b\xd8")  # mov ebx, eax                 ; the interface
 
@@ -193,6 +210,7 @@ def _emit_power(a: Asm) -> None:
     a.emit(b"\xff\x52", SPI_VTABLE_TEMPLATE_SLOT)  # call [edx+0x18]   ; getSpecialPowerTemplate
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "power_out")
+    a.emit(b"\x89\x45\xdc")  # mov [ebp-0x24], eax           ; the raw template
     a.emit(b"\x8b\xc8")  # mov ecx, eax
     a.call_absolute(GET_FINAL_OVERRIDE)  # call getFinalOverride
     a.emit(b"\x85\xc0")  # test eax, eax
@@ -218,17 +236,33 @@ def _emit_power(a: Asm) -> None:
     a.emit(b"\x8b\xce")  # mov ecx, esi                  ; the Object
     a.call_absolute(GET_MODIFIER_MULTIPLIER)  # call getModifierMultiplier   ; ret 0x10
 
-    a.emit(b"\x8b\x45\xe0")  # mov eax, [ebp-0x20]           ; the template
-    a.emit(b"\xf6\x40", TEMPLATE_FLAGS, TEMPLATE_RESPECT_RECHARGE_DISCOUNT)
-    a.jcc(JE, "power_no_upgrade")  # not RESPECT_RECHARGE_TIME_DISCOUNT
+    # The player factor. Stock never starts a recharge without a controlling player (0x00896E60),
+    # so without one there is nothing to recompute against and the factor stays 1.
     a.emit(b"\x8b\xce")  # mov ecx, esi
     a.call_absolute(GET_CONTROLLING_PLAYER)  # call getControllingPlayer
     a.emit(b"\x85\xc0")  # test eax, eax
     a.jcc(JE, "power_no_upgrade")
+    # Whichever form the cast-time fold has *now*, read at run time rather than baked in at
+    # apply time: `spell-recharge-targets` may be applied after this patch as well as before.
+    a.emit(b"\x80\x3d", u32(DISCOUNT_FOLD_VA), 0xE8)  # cmp byte [fold], 0xe8
+    a.jcc(JE, "power_targeted")
+    a.emit(b"\x8b\x4d\xe0")  # mov ecx, [ebp-0x20]           ; the template
+    a.emit(b"\xf6\x41", TEMPLATE_FLAGS, TEMPLATE_RESPECT_RECHARGE_DISCOUNT)
+    a.jcc(JE, "power_no_upgrade")  # not RESPECT_RECHARGE_TIME_DISCOUNT
     a.emit(b"\x8b\xc8")  # mov ecx, eax
     a.call_absolute(GET_SPELL_RECHARGE_MODIFIER)  # call <fld [Player+0x718]>
     a.emit(b"\xd8\x05", u32(ONE_FLOAT))  # fadd dword [1.0f]
     a.emit(b"\xd9\x5d\xf8")  # fstp dword [ebp-8]            ; = 1 + Player[0x718]
+    a.jmp("power_no_upgrade")
+    a.label("power_targeted")
+    a.emit(b"\xff\x75\xdc")  # push dword [ebp-0x24]         ; the raw template
+    a.emit(b"\xff\x75\xe0")  # push dword [ebp-0x20]         ; the template
+    a.emit(0x50)  # push eax                       ; the player
+    a.emit(b"\x8b\x0d", u32(DISCOUNT_FOLD_VA + 1))  # mov ecx, [fold+1]  ; the call's rel32
+    a.emit(b"\x81\xc1", u32(DISCOUNT_FOLD_VA + 5))  # add ecx, fold+5    ; -> its gate
+    a.emit(0x51)  # push ecx
+    a.call("targeted")
+    a.emit(b"\xd9\x5d\xf8")  # fstp dword [ebp-8]            ; the gate's own result
     a.label("power_no_upgrade")
 
     # frames_now = max(1, ftol(ReloadTime * player * attribute)) - the stock instruction sequence,
@@ -267,9 +301,39 @@ def _emit_power(a: Asm) -> None:
     # epilogue is correct for any esp - the one failure mode of a routine with this many early
     # exits, and the one nothing downstream would survive.
     a.label("power_out")
-    a.emit(b"\x8b\x5d\xdc")  # mov ebx, [ebp-0x24]           ; where the push put it
+    a.emit(b"\x8b\x5d\xd8")  # mov ebx, [ebp-0x28]           ; where the push put it
     a.emit(0xC9)  # leave
     a.emit(0xC3)  # ret
+
+
+def _emit_targeted(a: Asm) -> None:
+    """`stdcall targeted(gate, player, template, raw template) -> st(0)`, `ret 0x10`.
+
+    `spell-recharge-targets`' gate runs *inside* `startPowerRecharge` and reads that function's
+    frame: the player at `[ebp-4]`, the factor slot at `[ebp-8]` (seeded 1.0, which the stock
+    code stores just before), the raw template at `[edi+8]` (`edi` is the ability's `ModuleData`),
+    and the flags of the `RESPECT_RECHARGE_TIME_DISCOUNT` test. So this builds exactly that frame
+    and calls the gate as the engine does, which makes the factor bit-for-bit the one a cast
+    would compute now, targeted discount included."""
+    a.label("targeted")
+    a.emit(0x55)  # push ebp
+    a.emit(b"\x8b\xec")  # mov ebp, esp
+    a.emit(b"\x83\xec\x10")  # sub esp, 0x10
+    a.emit(0x57)  # push edi
+    a.emit(b"\x8b\x45\x0c")  # mov eax, [ebp+0xc]
+    a.emit(b"\x89\x45\xfc")  # mov [ebp-4], eax              ; the player
+    a.emit(b"\xc7\x45\xf8", u32(0x3F800000))  # mov dword [ebp-8], 1.0f
+    a.emit(b"\x8b\x45\x14")  # mov eax, [ebp+0x14]
+    a.emit(b"\x89\x45\xf0")  # mov [ebp-0x10], eax           ; the raw template ...
+    a.emit(b"\x8d\x7d\xe8")  # lea edi, [ebp-0x18]           ; ... at [edi+8]
+    a.emit(b"\x8b\x45\x10")  # mov eax, [ebp+0x10]           ; the template
+    a.emit(b"\x8b\x4d\x08")  # mov ecx, [ebp+8]              ; the gate
+    a.emit(b"\xf6\x40", TEMPLATE_FLAGS, TEMPLATE_RESPECT_RECHARGE_DISCOUNT)  # the flag test
+    a.emit(b"\xff\xd1")  # call ecx
+    a.emit(b"\xd9\x45\xf8")  # fld dword [ebp-8]
+    a.emit(0x5F)  # pop edi
+    a.emit(0xC9)  # leave
+    a.emit(b"\xc2\x10\x00")  # ret 0x10
 
 
 def _emit_object(a: Asm) -> None:
@@ -344,17 +408,47 @@ def _emit_tick(a: Asm) -> None:
     a.emit(0xC3)  # ret
 
 
-def build_section(base_va: int) -> tuple[bytes, int]:
-    """`(section content, tick thunk VA)` for a cave based at `base_va`.
+def build_asm(base_va: int) -> Asm:
+    """The cave based at `base_va`, assembled but not finished, so its labels can be read.
 
-    One `Asm` for all four routines so the internal calls resolve as labels: the
+    One `Asm` for all five routines so the internal calls resolve as labels: the
     innermost is emitted first, and only `tick` is reachable from outside."""
     a = Asm(base_va)
     _emit_power(a)
+    _emit_targeted(a)
     _emit_object(a)
     _emit_sweep(a)
     _emit_tick(a)
+    return a
+
+
+def build_section(base_va: int) -> tuple[bytes, int]:
+    """`(section content, tick thunk VA)` for a cave based at `base_va`."""
+    a = build_asm(base_va)
     return a.finish(), a.label_va("tick")
+
+
+def _fold_problems(data: bytes | bytearray) -> list[str]:
+    """The cast-time player discount holds one of the two forms the sweep follows.
+
+    Stock, or `spell-recharge-targets`' `call` and short `jmp` over the rest of the stock bytes,
+    with the call landing in mapped code. Anything else is a third patch the sweep cannot follow,
+    and following it blind would recompute a different formula from the one that set the
+    duration."""
+    off = va_to_offset(data, DISCOUNT_FOLD_VA)
+    if off is None:
+        return [f"anchor 0x{DISCOUNT_FOLD_VA:08x} is not mapped - not the expected build"]
+    got = bytes(data[off : off + len(DISCOUNT_FOLD_STOCK)])
+    if got == DISCOUNT_FOLD_STOCK:
+        return []
+    if got[0] == 0xE8 and got[5:7] == TARGETED_FOLD_TAIL:
+        gate = DISCOUNT_FOLD_VA + 5 + struct.unpack_from("<i", got, 1)[0]
+        if va_to_offset(data, gate) is not None:
+            return []
+    return [
+        f"anchor 0x{DISCOUNT_FOLD_VA:08x}: expected the stock player discount "
+        f"({DISCOUNT_FOLD_STOCK.hex()}) or spell-recharge-targets' call into it, got {got.hex()}"
+    ]
 
 
 class RechargeRescalePatch(Patch):
@@ -367,7 +461,6 @@ class RechargeRescalePatch(Patch):
         "change - the RECHARGE_TIME modifiers and SpellRechargeModifierUpgrade a mod already "
         "writes are what it re-reads"
     )
-    experimental = True
 
     def apply(self, data: bytearray) -> None:
         self._check_anchors(data)
@@ -434,7 +527,7 @@ class RechargeRescalePatch(Patch):
 
         `skip_call_bytes` blanks the five bytes of the hooked `call`, which is what lets the same
         table check an already-patched image."""
-        problems: list[str] = []
+        problems = _fold_problems(data)
         for va, expected in ANCHORS.items():
             off = va_to_offset(data, va)
             if off is None:

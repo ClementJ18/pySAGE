@@ -1,21 +1,18 @@
 # Running the game headless
 
-> ⚠ **Experimental.** This patch is **unstable and largely untested** — it lives in
-> [`patches/experimental/`](../patches/experimental/), `sage-patch list` marks it `exp`, and
-> `sage-patch apply` warns before it writes. The status note below says how far it actually
-> got; see the README's [Experimental patches](../README.md#-experimental-patches) note before
-> applying it.
-
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR). Derived
 statically — capstone over the image — and confirmed in game.
 
 - **Cost:** one cave (`.hless`, 0x190 bytes), two byte edits in the command-line caller, one
   11-byte redirect at the draw call.
-- **Risk:** low for what is built (§3a–c); §3d, the skirmish setup, is the real work and rests on
-  a `GameInfo` layout nobody has mapped yet.
-- **Status:** §3a–c **built** — see [`patches/experimental/headless.py`](../patches/experimental/headless.py). §3d and §3e
-  are **scoped only**; §3d is blocked on question 2 in [Open](#open). **Runtime-verified in
-  game.**
+- **Risk:** low. The draw interval starts at 1, so an applied patch that is passed none of its
+  options behaves as stock (§3b). What is still unproven is the suppressed path itself — questions
+  3 and 4 in [Open](#open).
+- **Status:** §3a–c **built** — see [`patches/headless.py`](../patches/headless.py) — and
+  **runtime-verified in game**. §3d is not part of this patch: it shipped separately as
+  [`command-line-skirmish`](../patches/experimental/command_line_skirmish.py), derived in
+  [`game-info.md`](game-info.md), which also answers question 2 in [Open](#open). §3e is
+  **scoped only**.
 
 ```sh
 sage-patch apply headless --in game.dat.backup --out game.dat   # no parameters
@@ -416,7 +413,7 @@ does something is the work, and it is per switch.
 
 ## Open
 
-The first two block §3d, which is why it is not built. The next two are how what *is* built
+The first blocked route 2 of §3d; the second is answered. The next two are how what *is* built
 gets proven. None needs more than an afternoon.
 
 1. **Do the `.wnd` menus still ship?** *(blocking)* The code and every control name for
@@ -425,10 +422,9 @@ gets proven. None needs more than an afternoon.
    dies and `_EA_RTS_HEADLESS` becomes actively harmful — it sends the shell to a screen that
    cannot load. This decides whether `-headless` should set the variable at all.
 
-2. **What does the auto-start `GameInfo` default to?** *(blocking)* The path builds a playable
-   skirmish from defaults nobody has inspected: how many slots, which sides, which AI. Run
-   `-file <map>` against an unpatched binary and look. If the defaults are sane, §3d shrinks
-   dramatically.
+2. **What does the auto-start `GameInfo` default to?** *(answered)* One random seat, no
+   options, and `TheGameInfo` never set — so a bare `-file` start loads nothing and faults.
+   [`game-info.md`](game-info.md) has the layout, and `command-line-skirmish` fills it.
 
 3. **Does suppressing `draw` starve anything?** *(verifies §3b)* `Display::draw` may also drive
    culling and view state that non-render code reads. Test at `-renderEvery 1` (which is the

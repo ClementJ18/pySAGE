@@ -25,6 +25,9 @@ from dataclasses import dataclass
 
 from sage_live.api.observation import GameObject, Observation
 from sage_live.api.session import Session
+from sage_live.backends import game_speed
+from sage_live.backends.game_speed import FAST_FORWARD
+from sage_live.backends.live_patch import LivePatchError, WindowsProcess
 from sage_test.scenario import Handle, Scenario
 
 __all__ = [
@@ -89,6 +92,32 @@ class Match:
     scenario: Scenario
     session: Session
     bindings: dict[int, int]
+    #: The game's process id, for what the session does not reach - the frame cap `fast` raises.
+    #: None for a match built around a session nobody launched here.
+    pid: int | None = None
+
+    @contextmanager
+    def fast(self, multiplier: int = FAST_FORWARD) -> Iterator[None]:
+        """Run the game `multiplier` times faster for the block, then at normal speed again.
+
+        For the waits - a timer running out, a unit walking - where a test only watches. It raises
+        the frame cap the main loop paces itself to (`sage_live.backends.game_speed`), so every
+        duration is still counted in logic frames and the simulation does exactly what it would
+        have; only the wall clock shrinks. Normal speed comes back on the way out whatever the
+        block did, before the test goes on to give orders at a human pace. A machine that cannot
+        draw that many frames runs as fast as it can rather than `multiplier` times."""
+        if self.pid is None:
+            raise RuntimeError("this match has no process id, so its speed cannot be changed")
+        process = WindowsProcess(self.pid)
+        try:
+            game_speed.set_speed(process, multiplier)
+            yield
+        finally:
+            try:
+                game_speed.set_speed(process, 1)
+            except LivePatchError:
+                pass  # the game is gone, and with it the speed
+            process.close()
 
     def id_of(self, handle: Handle) -> int:
         """The live `ObjectId` a handle bound to."""

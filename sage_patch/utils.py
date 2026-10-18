@@ -10,8 +10,14 @@ import logging
 import struct
 from collections.abc import Callable
 
+from sage_patch.pe import (
+    SHARED_SECTION_NAME,
+    SUBCAVE_ALIGN,
+    SUBCAVE_HEADER_SIZE,
+    SUBCAVE_MAGIC,
+    image_sections,
+)
 from sage_patch.pe import find as pe_find
-from sage_patch.pe import image_sections
 
 __all__ = [
     "align_up",
@@ -202,11 +208,86 @@ def allocate_section(
     **Always allocate a cave this way rather than at a fixed RVA.** Appending past the current
     highest section keeps the section table sorted by RVA whatever else has already been added,
     which is what lets a set of section-adding patches be applied in any order. A patch that
-    hardcodes its RVA composes only when it happens to be applied first."""
-    rva = next_section_rva(data)
-    base_va = image_base(data) + rva
-    appended = append_section(data, name, rva, build(base_va), characteristics)
-    assert appended == base_va
+    hardcodes its RVA composes only when it happens to be applied first.
+
+    The header block has room for a fixed number of section headers (89 on `game.dat`, whose
+    `SizeOfHeaders` cannot grow past `.text` at RVA 0x1000), fewer than there are cave patches.
+    So the last free slot is kept back: once it is all that is left, the cave goes into the
+    shared section `SHARED_SECTION_NAME` instead, which takes that slot and grows by one
+    named sub-cave per patch after it. `find_section` sees a sub-cave exactly as it sees a
+    section, so nothing downstream needs to know which kind it got."""
+    shared = pe_find(image_sections(data), SHARED_SECTION_NAME)
+    if shared is None and _free_section_slots(data) > 1:
+        rva = next_section_rva(data)
+        base_va = image_base(data) + rva
+        appended = append_section(data, name, rva, build(base_va), characteristics)
+        assert appended == base_va
+        return base_va
+    return _append_sub_cave(data, name, build, characteristics)
+
+
+def _free_section_slots(data: bytes | bytearray) -> int:
+    """How many more section headers fit between the section table and `SizeOfHeaders`."""
+    e = _e_lfanew(data)
+    opt = _optional_header_offset(data)
+    nsec = struct.unpack_from("<H", data, e + 6)[0]
+    szopt = struct.unpack_from("<H", data, e + 20)[0]
+    size_of_headers = struct.unpack_from("<I", data, opt + _OPT_SIZE_OF_HEADERS)[0]
+    end_of_table = e + 24 + szopt + nsec * _SECTION_HEADER_SIZE
+    return max(0, (size_of_headers - end_of_table) // _SECTION_HEADER_SIZE)
+
+
+def _append_sub_cave(
+    data: bytearray,
+    name: str,
+    build: Callable[[int], bytes],
+    characteristics: int,
+) -> int:
+    """Add `name` as a sub-cave of the shared section, creating that section in the last free
+    header slot if it does not exist yet, and return the sub-cave's content VA.
+
+    The shared section only works if it can grow, so it has to be the image's last section in
+    both address space and file. That holds by construction - once it exists nothing else is
+    appended - and is checked rather than assumed, since a binary from elsewhere could differ."""
+    if pe_find(image_sections(data), SHARED_SECTION_NAME) is None:
+        if _free_section_slots(data) < 1:
+            raise ValueError(
+                "no room in the PE header for another section, and no shared cave section to "
+                f"pack {name!r} into - rebuild from an unpatched game.dat so the last header slot "
+                f"is kept for {SHARED_SECTION_NAME}"
+            )
+        append_section(data, SHARED_SECTION_NAME, next_section_rva(data), b"", characteristics)
+
+    e = _e_lfanew(data)
+    opt = _optional_header_offset(data)
+    nsec = struct.unpack_from("<H", data, e + 6)[0]
+    szopt = struct.unpack_from("<H", data, e + 20)[0]
+    sec_align = struct.unpack_from("<I", data, opt + _OPT_SECTION_ALIGNMENT)[0]
+    file_align = struct.unpack_from("<I", data, opt + _OPT_FILE_ALIGNMENT)[0]
+    hdr_off = e + 24 + szopt + (nsec - 1) * _SECTION_HEADER_SIZE
+    if data[hdr_off : hdr_off + 8].rstrip(b"\x00") != SHARED_SECTION_NAME.encode("ascii"):
+        raise ValueError(f"{SHARED_SECTION_NAME} is not the last section header; it cannot grow")
+    vsize, rva, raw_size, praw = struct.unpack_from("<IIII", data, hdr_off + 8)
+    if align_up(rva + vsize, sec_align) != next_section_rva(data) or praw + raw_size != len(data):
+        raise ValueError(f"{SHARED_SECTION_NAME} is not at the end of the image; it cannot grow")
+
+    entry = align_up(vsize, SUBCAVE_ALIGN)
+    content_rva = rva + entry + SUBCAVE_HEADER_SIZE
+    base_va = image_base(data) + content_rva
+    content = build(base_va)
+    header = SUBCAVE_MAGIC + name.encode("ascii").ljust(8, b"\x00")[:8]
+    header += struct.pack("<I", len(content))
+
+    new_vsize = entry + SUBCAVE_HEADER_SIZE + len(content)
+    new_raw_size = align_up(new_vsize, file_align)
+    data += b"\x00" * (new_raw_size - raw_size)
+    data[praw + entry : praw + new_vsize] = header + content
+    old_characteristics = struct.unpack_from("<I", data, hdr_off + 36)[0]
+    struct.pack_into("<I", data, hdr_off + 8, new_vsize)
+    struct.pack_into("<I", data, hdr_off + 16, new_raw_size)
+    struct.pack_into("<I", data, hdr_off + 36, old_characteristics | characteristics)
+    struct.pack_into("<I", data, opt + _OPT_SIZE_OF_IMAGE, align_up(rva + new_vsize, sec_align))
+    log.info("  new sub-cave %-8s in %s va=0x%x vsize=0x%x", name, SHARED_SECTION_NAME, base_va, len(content))
     return base_va
 
 

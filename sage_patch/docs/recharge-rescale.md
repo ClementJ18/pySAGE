@@ -2,8 +2,8 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR); file offset is
 `VA - 0x400000` for everything cited here. Read **statically** on 2026-08-16 from the stock
-`game.dat` in this repo (11,346,944 bytes) with `pefile` + `capstone`. **Nothing below has been
-observed in a running game** - §9 is still entirely open.
+`game.dat` in this repo (11,346,944 bytes) with `pefile` + `capstone`. Confirmed in a running
+match on 2026-10-18: §9 says what that settled and what is still open.
 
 **The complaint.** `SpecialAbilityUpdate::startPowerRecharge` computes the whole cooldown once, at
 the moment the power fires, and stores an **absolute ready frame**. A recharge modifier that
@@ -19,17 +19,15 @@ multiplier, so a per-frame sweep can tell — in integers, with no float compari
 multiplier the engine *would* compute now differs from the one already in the cooldown, and rescale
 the remainder when it does.
 
-- **Cost:** 1 `call rel32` swap + 412 bytes of cave. No structure grows, no `ModuleData` changes,
+- **Cost:** 1 `call rel32` swap + 510 bytes of cave. No structure grows, no `ModuleData` changes,
   no ctor/dtor changes, no INI surface, no `.sagepatch` entry.
 - **Risk:** low-medium. The failure mode is a wrong cooldown length, not a crash; the one
   crash-shaped risk is the sweep itself walking a module list every frame.
 - **Status: implemented as `recharge-rescale`**
-  ([`../patches/experimental/recharge_rescale.py`](../patches/experimental/recharge_rescale.py)),
-  and **experimental**: it applies to and verifies against the real `game.dat`, it composes in
-  either order with `live-bridge`, `production-split` and `spawn-union`, and every address here
-  holds its stock bytes in the installed binary - but it has never been in a running match. See
-  [`../patches/experimental/`](../patches/experimental/) for what that promises and what it does
-  not.
+  ([`../patches/recharge_rescale.py`](../patches/recharge_rescale.py)) and **runtime-verified in
+  game**: an aura landing mid-cooldown rescales it, leaving the aura restores it, and the clock
+  never jumps (§9). It composes in either order with `live-bridge`, `production-split`,
+  `spawn-union` and `spell-recharge-targets`, whose targeted discount it follows too (§8).
 
 ## TL;DR
 
@@ -465,7 +463,7 @@ to skip: the sweep already reads `tmpl[+0x59]`.
 | | |
 |---|---|
 | edits to `.text` | 1 `call rel32` |
-| new sections | 1 (~250 bytes) |
+| new sections | 1 (510 bytes) |
 | INI surface | **none** — no keyword, no `.sagepatch` entry, no `sage_ini` change |
 | structures | none grow; no ctor, dtor or xfer change |
 | effort | ~1 day, most of it in the sweep and its `verify` |
@@ -490,8 +488,22 @@ What it does change:
   now pays out on the ability already spent rather than only on the next one. That is the point,
   and it is worth saying out loud to whoever tunes the mod.
 
-**Conflicts.** Nothing in the current `PATCHES` registry touches `0x0062E56A`, the object list
-walk, or any field of `SpecialPowerModule`. `live-bridge` takes `GameLogic::update`'s **entry**
+**Composition with `spell-recharge-targets`.** That patch
+([write-up](spell-recharge-targets.md)) replaces the `Player+0x718` fold at `0x00896EC2` with
+`call <gate1>; jmp` past the rest of the stock bytes. Its gate reads `startPowerRecharge`'s own
+frame: the player at `[ebp-4]`, the factor slot at `[ebp-8]`, the raw template at `[edi+8]` and the
+flags of the `RESPECT_RECHARGE_TIME_DISCOUNT` test. So the sweep reads the first byte at
+`0x00896EC2` **at run time**. If it is a `call`, a helper (`targeted`) builds exactly that frame
+and calls the same gate, so the factor is bit-for-bit what a cast would compute now, targeted
+discount included. Otherwise it keeps the stock fold. Reading it at run time rather than at apply
+time is what lets the two patches go on in either order. Apply and verify accept either form at
+that address and refuse anything else, since the sweep could not follow a third. The interface's
+template getter (slot `+0x18`, `0x008969CA`) is `[ModuleData+8]`, the same raw template the gate
+matches on. A targeted discount that changes mid-cooldown, such as a building finishing, now moves
+the running cooldown like any other multiplier.
+
+**Conflicts.** Nothing else in the `PATCHES` registry touches `0x0062E56A`, the object list walk,
+or any field of `SpecialPowerModule`. `live-bridge` takes `GameLogic::update`'s **entry**
 (`0x0062E4E8`, 5 bytes) and nothing else in the function, so the two compose in either order;
 `multi-execute-gate` and `hero-mana` both read special-power state but write neither field.
 
@@ -503,14 +515,25 @@ merges the two implementations, the premise moved and the patch must not apply.
 
 ## 9. What a live test has to settle
 
+Questions 2 and 3 are answered by Edain's engine test `tests/test_recharge_rescale_imrahil.py`,
+run through `sage-edain-toolbar-cli test` on 2026-10-18 (9 of 9 passed). Two level 10 Imrahils
+use Disziplin (`ReloadTime` 180000, 900 frames) out of reach of an Atheling Guard, whose
+leadership is `RECHARGE_TIME 67%`; one walks into the aura and back out, the other stays put. It
+passed on two binaries: Edain's patch set without `spell-recharge-targets` plus this patch, and
+Edain's shipped `game.dat` with this patch applied on top, so through `spell-recharge-targets`'
+gate (§8).
+
 1. **Which three module types use `0x00991500`** (§7.1), and whether any of them is common enough
    that skipping them is visible. This decides whether §7.1 stays a limitation or becomes a second
-   patch.
-2. **That the sweep sees every power.** Put a `RECHARGE_TIME` aura on a hero mid-cooldown and read
-   `interface+0x04` / `+0x08` out of process with `sage_live`; the duration must change on the
-   frame the aura lands, not on the next cast.
-3. **That the clock does not jump** when it does, and does not jump back when the aura expires —
-   §3.3 is derived from `0x00896D77`, not observed.
+   patch. One of them is `WeaponModeSpecialPowerUpdate`: Imrahil's Ehre carries one, and
+   `sage_live` reads garbage at the flavour-1 duration offset on it.
+2. **That the sweep sees every power.** *(answered)* The walker's duration went to 67% of 900
+   frames and his ready frame moved earlier while he was in the aura, with the remainder scaled by
+   the same factor as the duration. The Imrahil who stayed put kept his ready frame and duration
+   unchanged.
+3. **That the clock does not jump** *(answered)* when the aura lands or when it lapses: the
+   percent ready moved by no more than the frames between two reads. Out of the aura the duration
+   went back to 900 and the walker was still ready before the Imrahil who stayed put, who cast first.
 4. **That `0x0062E56A` runs exactly once per logic frame** across a pause, a save/load, and a
    replay — count sweeps against `TheGameLogic+0x40` from the cave.
 5. **Determinism.** Two patched clients, one aura, one long cooldown: the finish frames must agree

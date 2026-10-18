@@ -19,7 +19,8 @@ and RotWK 2.01's `Worldbuilder.exe` with and without `grant-science-upgrade-wb`.
 under an emulator against stand-ins for the engine lookups (§5). §7 is the in-game checklist still
 to run.
 
-**What it does:** an upgrade module that gives part of a spellbook power's cooldown back.
+**What it does:** an upgrade module that gives part of a spellbook power's cooldown back, or,
+with `RestartCooldown = Yes`, starts that cooldown over (§3.4).
 
 ```ini
 Behavior = SpecialPowerRefundUpgrade ModuleTag_MerchantRefund
@@ -34,6 +35,23 @@ When the module fires, the named power on the owning player's spellbook comes re
 `RefundPercent` of the cooldown it is running. The case it was written for: a summon that is only
 worth its cooldown if the player then does something with it, and that should cost less when they
 did not.
+
+The restart mode is for the opposite case: a power whose result the player can hand back, such as
+a permanent summon with a "send away" upgrade button on the summoned object. Sending it away
+should put the power back on cooldown, even though the cooldown from the original cast finished
+long ago:
+
+```ini
+Behavior = SpecialPowerRefundUpgrade ModuleTag_SendAwayCooldown
+    TriggeredBy     = Upgrade_SendAwayEnt
+    SpecialPower    = SpellBookSummonEnt
+    RestartCooldown = Yes
+End
+```
+
+Put it on the summoned object, beside whatever removes the object on the same upgrade. Upgrade
+modules fire at once and object removal waits for the end of the frame, so the module still finds
+its object and owner.
 
 ## 1. Why INI cannot do this today
 
@@ -103,12 +121,13 @@ extract it, and this is the third: it now lives in
 [`patches/utils/tooltip_twin.py`](../patches/utils/tooltip_twin.py), and `grant-science-upgrade`
 is built from it too. Its output did not change by a byte.
 
-### 3.1 Where the two fields live
+### 3.1 Where the three fields live
 
 | field | parser | ModuleData offset |
 |---|---|---|
 | `SpecialPower` | stock `AsciiString` parser `0x0042EE5E` | `+0x138` |
 | `RefundPercent` | `INI::parsePercentToReal` `0x0042EEFA` | `+0x140` |
+| `RestartCooldown` | `INI::parseBool` `0x0042E558` (one byte; the rest is padding) | `+0x144` |
 
 Tooltip's `ModuleData` is `0x140` bytes and ends in **two** `AsciiString`s. Its constructor
 (`0x0065563C`) assigns the empty string to both:
@@ -120,8 +139,9 @@ Tooltip's `ModuleData` is `0x140` bytes and ends in **two** `AsciiString`s. Its 
 
 `grant-science-upgrade.md` calls `+0x13C` unused, which is true of that module, but the slot is not
 free: it is a string with a destructor, and a float stored there would be released as a buffer when
-the `ModuleData` is destroyed. So this module's factory asks `operator new` for `0x144` bytes, runs
-Tooltip's constructor, and zeroes the last four (`and dword [esi+0x140], 0`). Nothing else has to
+the `ModuleData` is destroyed. So this module's factory asks `operator new` for `0x148` bytes, runs
+Tooltip's constructor, and zeroes the last eight (`and dword [esi+0x140], 0` /
+`and dword [esi+0x144], 0`). Nothing else has to
 change: the engine's `operator new` (`0x0042F6E0`) is a plain heap allocation freed without a size,
 and Tooltip's destructor never looks past `+0x13C`.
 
@@ -210,6 +230,35 @@ unknown name does nothing in game; `sage-lint` reports it instead, because `ini_
 The layout test is the module's own `startPowerRecharge`, the discriminator `recharge-rescale` §5.1
 uses, and it fails closed: a vtable holding neither known implementation is skipped.
 
+### 3.4 `RestartCooldown`
+
+Once the module for the named power is found on the spellbook, a set `RestartCooldown` takes a
+branch ahead of everything in §3.3:
+
+```asm
+cmp  byte [ebx+144h], 0 / je refund
+push 3F800000h                 ; 1.0f
+mov  ecx, esi / mov eax, [esi]
+call [eax+3Ch]                 ; startPowerRecharge(1.0), ret 4
+jmp  done
+```
+
+That is the module's own `startPowerRecharge`, called the way a cast calls it and the way stock
+`OnTriggerRechargeSpecialPower` calls it on another module (`0x00897A2A`..`0x00897A35`: `fld1`,
+`fstp [esp]`, `call [eax+0x3C]`, with the interface in `ecx`). So the cooldown restarts at full
+length from now, with the discounts that apply today (`recharge-rescale.md` §1).
+
+None of §3.3's checks apply, because none of them protect a call the engine makes itself:
+
+- **A ready power** is the case the mode exists for.
+- **A power that never recharged** gets its length from the template, not from a stored duration.
+- **A `SharedSyncedTimer` power** is sent to the player's timer by `startPowerRecharge`
+  (`0x00896E71`).
+- **The second cooldown layout** has its own implementation behind the same slot.
+- **A paused power** gets what a cast during the pause would get.
+
+`RestartCooldown` wins over `RefundPercent` when a block writes both.
+
 ## 4. Hook sites
 
 The registration stub replays the six arguments of the `addModule` call it displaces, so which
@@ -227,8 +276,11 @@ apply in any order.
 
 The editor half is parser-only: Tooltip's stock runtime factory and the editor's own `ModuleData`
 constructor, field-table builder and parsers (`AsciiString` `0x006D4C30`, percent `0x006D4D20`, the
-parser its `RepairHealthPercentPerSecond` rows name). Its `ModuleData` grows to `0x144` as the
-game's does, because the percent parser writes the same four bytes. Without it Worldbuilder cannot
+parser its `RepairHealthPercentPerSecond` rows name). Its `ModuleData` grows to `0x148` as the
+game's does, because the percent parser writes the same four bytes. The editor's Bool parser has
+not been located, and the editor never reads `RestartCooldown`, so that row uses the editor's
+`AsciiString` parser. It accepts the token and keeps a string in the four bytes, which Tooltip's
+destructor never frees: a few bytes per block, once, when the editor loads. Without it Worldbuilder cannot
 parse the block and closes during its loading screen.
 
 ## 5. What the emulator run checks
@@ -242,6 +294,13 @@ bytes, and stand-ins for the four lookups, then runs Apply:
 - every row of §3.3, an empty `SpecialPower`, an unknown name, and a missing player, spellbook or
   object change nothing;
 - `ebx`, `esi`, `edi` and the stack come back as they went in.
+
+`TestRestart` puts a recorder in interface slot `+0x3C` and checks that `RestartCooldown = Yes`:
+
+- makes exactly one `startPowerRecharge(1.0)` call on the power's interface;
+- does so whether the power is ready, recharging, never recharged, paused or on a shared timer;
+- ignores any `RefundPercent`;
+- does nothing for an unknown power or a missing player, spellbook or module.
 
 What it cannot check is the engine side of each lookup. That is §7.
 
@@ -278,5 +337,8 @@ What it cannot check is the engine side of each lookup. That is §7.
    refund fires.
 7. A skirmish AI owner's spell is refunded too.
 8. With an unknown `SpecialPower` name, the game loads and the module does nothing.
+9. `RestartCooldown = Yes` on a summoned object, triggered by its send-away upgrade: summon,
+   wait out the cooldown, send the object away. The spell's button goes back on cooldown for its
+   full length, with any `SpellRechargeModifierUpgrade` discount applied.
 9. Worldbuilder with `special-power-refund-upgrade-wb` loads a mod whose INI uses the block, and
    places the object.

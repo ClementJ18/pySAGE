@@ -78,7 +78,7 @@ Enable the plugin from a `conftest.py`:
 pytest_plugins = ["sage_test.plugin"]
 ```
 
-It adds `--install`, `--mod`, `--map-template` and `--keep-maps`, and the fixtures `install` (skips
+It adds `--install`, `--mod`, `--map-template`, `--keep-maps`, `--headless` and `--shard`, and the fixtures `install` (skips
 without `--install`, so a bare `pytest` never launches a game), `scenario_runner` and `map_runner`.
 
 Make a scenario **class- or module-scoped**, never function-scoped:
@@ -98,6 +98,21 @@ the engine refuses to start a second copy, so a leaked game breaks every later s
 exercises the ini being edited rather than the last release. Loading is slower, which is why casts
 are confirmed by retry (`Match.cast_and_confirm`). Outside pytest, use
 `sage_test.run.run_scenario`.
+
+`--headless` launches every game with `-renderEvery 0` (the `headless` patch): it simulates at the
+usual capped rate and draws nothing. Not `-headless`, which also uncaps the loop and can step a
+match past a state the suite is polling for.
+
+`--shard K/N` runs the K-th of N slices of the suite, dealt round-robin by test class (or module,
+for a test outside a class), so N pytest processes run N games at once without launching any
+scenario twice. It needs the `multi-instance` patch; generated and user-installed maps carry the
+shard in their names so the processes do not share files. `pytest-xdist -n N --dist loadscope`
+slices the same way and also works; sharding exists because a frozen app cannot start xdist's
+`python -c` workers.
+
+```sh
+for k in 1 2 3; do pytest tests --install "$ROTWK" --mod _mod --headless --shard $k/3 & done; wait
+```
 
 ## Choosing the match
 
@@ -163,5 +178,5 @@ Proven end to end from both a script and pytest: Edain's suite runs five asserti
 31-second launch and leaves no process or map behind, and `run_map` reaches a running match on
 `map mp harlindon` (and times out, as expected, with a broken `map.ini`).
 
-Not built yet: parallel runs. They need the `multi-instance` patch and worker-suffixed map names,
-which the plugin writes but nothing has exercised.
+Parallel runs (`--shard`, `--headless`) are built and unit-tested, but have not yet been run against
+the real engine with several games at once.

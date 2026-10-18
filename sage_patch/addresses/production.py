@@ -104,6 +104,18 @@ __all__ = [
     "OBJECT_STATUS_WORKER_REPAIRING",
     "PRODUCTION_BATCH_TEMPLATE_READ",
     "PRODUCTION_BATCH_TEMPLATE_READ_BYTES",
+    "PRODUCTION_CANCEL_ALL",
+    "PRODUCTION_CANCEL_ALL_BYTES",
+    "PRODUCTION_CANCEL_UNIT",
+    "PRODUCTION_CANCEL_UNIT_REFUND",
+    "PRODUCTION_CANCEL_UNIT_REFUND_BYTES",
+    "PRODUCTION_CANCEL_UNIT_REFUND_RESUME",
+    "PRODUCTION_CANCEL_UNIT_REFUND_SKIP",
+    "PRODUCTION_CANCEL_UPGRADE",
+    "PRODUCTION_CANCEL_UPGRADE_REFUND",
+    "PRODUCTION_CANCEL_UPGRADE_REFUND_BYTES",
+    "PRODUCTION_CANCEL_UPGRADE_REFUND_RESUME",
+    "PRODUCTION_CANCEL_UPGRADE_REFUND_SKIP",
     "PRODUCTION_ENTRY_KIND",
     "PRODUCTION_ENTRY_KIND_REVIVE",
     "PRODUCTION_ENTRY_NEXT",
@@ -112,6 +124,11 @@ __all__ = [
     "PRODUCTION_HORDE_PAYLOAD_CALL",
     "PRODUCTION_HORDE_PAYLOAD_CALL_BYTES",
     "PRODUCTION_INHERIT_ARMY_ID",
+    "PRODUCTION_ON_DIE",
+    "PRODUCTION_ON_DIE_BYTES",
+    "PRODUCTION_ON_DIE_SLOT",
+    "PRODUCTION_ON_LOSS",
+    "PRODUCTION_ON_LOSS_BYTES",
     "PRODUCTION_QUEUE_APPEND",
     "PRODUCTION_QUEUE_APPEND_BYTES",
     "PRODUCTION_QUEUE_HEAD",
@@ -437,6 +454,53 @@ PRODUCTION_UPDATE_PICK_RETURN_BYTES = bytes.fromhex("5b5f5ec3")  # pop ebx/edi/e
 #: `ProductionUpdate::append(entry)` - unconditional, tail-first, identical for all three kinds.
 PRODUCTION_QUEUE_APPEND = 0x008A0C99
 PRODUCTION_QUEUE_APPEND_BYTES = bytes.fromhex("558bec83ec4c")
+#: Losing a producer cancels its queue with a refund (`docs/production-death-refund.md`).
+#: `ProductionUpdate`'s `DieModuleInterface` sub-object sits at `+0x24`; its one-slot vtable at
+#: `PRODUCTION_ON_DIE_SLOT` names `PRODUCTION_ON_DIE`, a thunk that steps to the interface at
+#: `+0x20` and calls its slot 16 (`+0x40`), `PRODUCTION_ON_LOSS`. That slot is also called when
+#: the producer changes owner (`0x0069974D`), so only the thunk tells a death from a capture.
+PRODUCTION_ON_DIE_SLOT = 0x00C67DA8
+PRODUCTION_ON_DIE = 0x008A05A7
+#: `add ecx,-4` / `mov eax,[ecx]` / `call [eax+0x40]` / `ret 4`.
+PRODUCTION_ON_DIE_BYTES = bytes.fromhex("83c1fc8b01ff5040c20400")
+#: Interface slot 16: `cancelAndRefundAllProduction` through slot 15 (`+0x3C`), then releases a
+#: `RespawnUpdate` object it holds. Pinned through that slot-15 call.
+PRODUCTION_ON_LOSS = 0x008A1666
+PRODUCTION_ON_LOSS_BYTES = bytes.fromhex("b82c1fba00e880b81900568bf18b0657ff503c")
+#: Interface slot 15, `cancelAndRefundAllProduction`: raises `+0xFD` (cancel regardless of id or
+#: progress) and cancels the head entry until the queue is empty - kinds 1 and 3 through slot
+#: 10 (`+0x28`, `PRODUCTION_CANCEL_UNIT`), kind 2 through slot 4 (`+0x10`,
+#: `PRODUCTION_CANCEL_UPGRADE`).
+PRODUCTION_CANCEL_ALL = 0x008A05B2
+PRODUCTION_CANCEL_ALL_BYTES = bytes.fromhex(
+    "568bf1c686fd00000001eb198b46088b480449740649741c497510ff70108b168bceff5228837e080075e1"
+    "c686fd000000005ec3ff700c8b168bceff5210ebe5"
+)
+#: `cancelUpgrade(upgradeTemplate)`, interface slot 4. Its refund deposits the entry's paid
+#: amount (`+0x28`) into the owner's `Money` at `+0x90`; `..._SKIP` is the entry's removal after it.
+PRODUCTION_CANCEL_UPGRADE = 0x008A1140
+PRODUCTION_CANCEL_UPGRADE_REFUND = 0x008A1189
+#: `mov eax,[ebp+8]` / `push 1` / `lea ecx,[eax+0x3dc]` / `push ecx` / `push [esi+0x28]` /
+#: `lea ecx,[eax+0x90]` / `call MONEY_DEPOSIT`. The first five bytes are the hook.
+PRODUCTION_CANCEL_UPGRADE_REFUND_BYTES = bytes.fromhex(
+    "8b45086a018d88dc03000051ff76288d8890000000e81507f1ff"
+)
+PRODUCTION_CANCEL_UPGRADE_REFUND_RESUME = 0x008A118E
+PRODUCTION_CANCEL_UPGRADE_REFUND_SKIP = 0x008A11A3
+#: `cancelUnitCreate(productionID)`, interface slot 10, for units and hero revives alike. The
+#: refund is skipped when `[ebp-1]` is set (a finished unit waiting at the door); otherwise it
+#: deposits `+0x28` and takes the same amount back off the owner's `+0x3DC` tally (`0x0079DFC2`).
+#: `..._SKIP` is the revive-record release that follows, run for every cancel.
+PRODUCTION_CANCEL_UNIT = 0x008A13EE
+PRODUCTION_CANCEL_UNIT_REFUND = 0x008A1443
+#: `cmp byte [ebp-1],0` / `mov edi,eax` / `jne SKIP` / the deposit / the tally. The first eight
+#: bytes are the hook.
+PRODUCTION_CANCEL_UNIT_REFUND_BYTES = bytes.fromhex(
+    "807dff008bf8752b6a018d87dc03000050ff76288d8f90000000e85604f1ff8b4628f7d850ff76088d8fdc030000"
+    "e84ccbefff"
+)
+PRODUCTION_CANCEL_UNIT_REFUND_RESUME = 0x008A144B
+PRODUCTION_CANCEL_UNIT_REFUND_SKIP = 0x008A1476
 #: `ProductionInterface::getNextProduction(entry)`, interface vtable `+0x58`, and literally
 #: `entry ? entry->next : NULL` - which is what makes a raw `PRODUCTION_ENTRY_NEXT` walk equivalent.
 PRODUCTION_UPDATE_GET_NEXT = 0x008A1904
@@ -681,3 +745,33 @@ REPLACE_SELF_BUILD_CALL_BYTES = bytes.fromhex(
     "a10082de008b18894de0e8b5fddcffd945c850518b0d0082de00d91c248d45e45057ff75e0ff5338"
 )
 REPLACE_SELF_BUILD_RETURN = 0x008BB8DC
+
+#: `TransferToReplacement = PRODUCTION` (`replacement-transfer`).
+#: `Object::getProductionUpdateInterface(Bool)` - `__thiscall`, `ret 4`: the `ProductionUpdate`
+#: module's interface sub-object (module `+0x20`), or NULL. With the argument 0 it takes the first
+#: one found, as every caller in production does.
+OBJECT_GET_PRODUCTION_UPDATE_INTERFACE = 0x0068C327
+OBJECT_GET_PRODUCTION_UPDATE_INTERFACE_ENTRY = bytes.fromhex("568bb14c020000")
+#: The module's sub-object offset of that interface, so `interface - 0x20` is what
+#: `PRODUCTION_QUEUE_APPEND` takes in `ecx` (`queueUpgrade` does `lea ecx, [edi-0x20]`).
+PRODUCTION_INTERFACE_OFFSET = 0x20
+#: The id counter `requestUniqueUnitID` mints from (module `+0x30`, `docs/unique-production-id.md`)
+#: and the queue length `append` counts (module `+0x34`), as interface offsets.
+PRODUCTION_INTERFACE_ID_COUNTER = 0x10
+PRODUCTION_INTERFACE_QUEUE_LENGTH = 0x14
+#: Interface `+0x100` (module `+0x120`): nonzero while a finished unit is held at the door.
+#: `cancelUnitCreate` reads it with the entry's progress (`+0x14`, >= 100.0) to tell an entry
+#: whose unit is already out of the queue's hands; those are not refunded.
+PRODUCTION_INTERFACE_DOOR_HOLD = 0x100
+PRODUCTION_ENTRY_PROGRESS = 0x14
+PRODUCTION_ENTRY_PREV = 0x4C
+__all__ += [
+    "OBJECT_GET_PRODUCTION_UPDATE_INTERFACE",
+    "OBJECT_GET_PRODUCTION_UPDATE_INTERFACE_ENTRY",
+    "PRODUCTION_ENTRY_PREV",
+    "PRODUCTION_ENTRY_PROGRESS",
+    "PRODUCTION_INTERFACE_DOOR_HOLD",
+    "PRODUCTION_INTERFACE_ID_COUNTER",
+    "PRODUCTION_INTERFACE_OFFSET",
+    "PRODUCTION_INTERFACE_QUEUE_LENGTH",
+]

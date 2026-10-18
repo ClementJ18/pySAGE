@@ -165,6 +165,58 @@ class TestUtils:
         rvas = _section_rvas(data)
         assert rvas == sorted(rvas)
 
+    def test_allocate_section_packs_caves_once_the_header_is_full(self):
+        data = _tiny_pe()
+        e = 0x80
+        free = (0x400 - (e + 24 + 0xE0 + 40)) // 40
+        names = [f".c{i}" for i in range(free + 5)]
+        vas = {}
+        for name in names:
+            vas[name] = allocate_section(
+                data, name, lambda va, n=name: struct.pack("<I", va) + n.encode(), 0x60000020
+            )
+        # every header slot is used, the last by the shared section, and nothing overflowed
+        assert struct.unpack_from("<H", data, e + 6)[0] == 1 + free
+        assert e + 24 + 0xE0 + (1 + free) * 40 <= 0x400
+        assert find_section(data, ".sgcaves") is not None
+        for name in names:
+            found_va, off, vsize = find_section(data, name)
+            assert found_va == vas[name]
+            assert va_to_offset(data, found_va) == off
+            assert data[off : off + vsize] == struct.pack("<I", found_va) + name.encode()
+        size_of_image = struct.unpack_from("<I", data, e + 24 + 56)[0]
+        shared_va, _off, shared_size = find_section(data, ".sgcaves")
+        assert size_of_image == align_up(shared_va - 0x400000 + shared_size, 0x1000)
+
+    def test_sub_caves_are_found_in_a_mapped_image_too(self):
+        from sage_patch.pe import find, image_sections, mapped_sections
+
+        data = _tiny_pe()
+        free = (0x400 - (0x80 + 24 + 0xE0 + 40)) // 40
+        for i in range(free + 2):
+            allocate_section(data, f".c{i}", lambda va: b"payload", 0x60000020)
+        # lay the file out as the loader would, by RVA
+        memory = bytearray(struct.unpack_from("<I", data, 0x80 + 24 + 56)[0])
+        memory[0:0x400] = data[0:0x400]
+        for section in image_sections(data):
+            rva = section.virtual_address - 0x400000
+            memory[rva : rva + section.raw_size] = data[
+                section.raw_offset : section.raw_offset + section.raw_size
+            ]
+        read = lambda va, n: bytes(memory[va - 0x400000 : va - 0x400000 + n])  # noqa: E731
+        last = find(mapped_sections(read, 0x400000), f".c{free + 1}")
+        assert last is not None
+        assert last.virtual_address == find_section(data, f".c{free + 1}")[0]
+        assert read(last.virtual_address, last.virtual_size) == b"payload"
+
+    def test_a_full_header_without_a_shared_section_says_how_to_recover(self):
+        data = _tiny_pe()
+        free = (0x400 - (0x80 + 24 + 0xE0 + 40)) // 40
+        for i in range(free):  # fill every slot the old way, as pre-sharing builds did
+            append_section(data, f".c{i}", next_section_rva(data), b"x", 0x40000040)
+        with pytest.raises(ValueError, match="rebuild from an unpatched"):
+            allocate_section(data, ".late", lambda va: b"y", 0x40000040)
+
 
 class _NopPatch(Patch):
     name = "nop"

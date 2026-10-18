@@ -22,6 +22,10 @@ from dataclasses import dataclass
 __all__ = [
     "OPT_IMAGE_BASE",
     "SECTION_HEADER_SIZE",
+    "SHARED_SECTION_NAME",
+    "SUBCAVE_ALIGN",
+    "SUBCAVE_HEADER_SIZE",
+    "SUBCAVE_MAGIC",
     "Reader",
     "Section",
     "image_sections",
@@ -32,6 +36,12 @@ __all__ = [
 # Optional-header field offsets, relative to the optional header start.
 OPT_IMAGE_BASE = 28
 SECTION_HEADER_SIZE = 40
+
+# The section caves are packed into once the section table is full - see `_sub_caves`.
+SHARED_SECTION_NAME = ".sgcaves"
+SUBCAVE_MAGIC = b"SGCV"
+SUBCAVE_HEADER_SIZE = 16
+SUBCAVE_ALIGN = 16
 
 Reader = Callable[[int, int], "bytes | None"]
 
@@ -95,11 +105,12 @@ def read_headers(read: Reader, base: int = 0) -> Headers | None:
     )
 
 
-def _sections(read: Reader, headers: Headers, load_base: int) -> list[Section]:
+def _sections(read: Reader, headers: Headers, load_base: int, *, mapped: bool) -> list[Section]:
     """`load_base` is what RVAs are relative to: the header's ImageBase for a file image, and
     the address the image is actually mapped at for a live one. Those agree only while the
     image loads at its preferred base, so the caller says which it means rather than this
-    guessing from the header."""
+    guessing from the header. `mapped` says the same of `read`: whether it is addressed by
+    virtual address rather than file offset."""
     raw = read(headers.section_table, headers.section_count * SECTION_HEADER_SIZE)
     if not raw:
         return []
@@ -118,6 +129,38 @@ def _sections(read: Reader, headers: Headers, load_base: int) -> list[Section]:
                 raw_size=raw_size,
             )
         )
+    shared = find(out, SHARED_SECTION_NAME)
+    if shared is not None:
+        out.extend(_sub_caves(read, shared, mapped=mapped))
+    return out
+
+
+def _sub_caves(read: Reader, shared: Section, *, mapped: bool) -> list[Section]:
+    """The caves packed into the shared section, each listed as a `Section` of its own so a
+    lookup by name cannot tell a packed cave from one with its own section header.
+
+    The shared section is a chain of `SUBCAVE_HEADER_SIZE`-byte headers - magic, 8-byte name,
+    content size - each followed by its content, the next header at the following
+    `SUBCAVE_ALIGN` boundary. The walk stops at the section's end or the first missing magic."""
+    base = shared.virtual_address if mapped else shared.raw_offset
+    out: list[Section] = []
+    offset = 0
+    while offset + SUBCAVE_HEADER_SIZE <= shared.virtual_size:
+        header = read(base + offset, SUBCAVE_HEADER_SIZE)
+        if not header or len(header) < SUBCAVE_HEADER_SIZE or header[:4] != SUBCAVE_MAGIC:
+            break
+        size = struct.unpack_from("<I", header, 12)[0]
+        content = offset + SUBCAVE_HEADER_SIZE
+        out.append(
+            Section(
+                name=header[4:12].rstrip(b"\x00").decode("latin-1"),
+                virtual_address=shared.virtual_address + content,
+                virtual_size=size,
+                raw_offset=shared.raw_offset + content,
+                raw_size=size,
+            )
+        )
+        offset = (content + size + SUBCAVE_ALIGN - 1) & ~(SUBCAVE_ALIGN - 1)
     return out
 
 
@@ -131,7 +174,7 @@ def image_sections(data: bytes | bytearray) -> list[Section]:
 
     headers = read_headers(read, 0)
     # A file image's VAs are its own ImageBase plus the RVA.
-    return _sections(read, headers, headers.image_base) if headers else []
+    return _sections(read, headers, headers.image_base, mapped=False) if headers else []
 
 
 def mapped_sections(read: Reader, image_base: int) -> list[Section]:
@@ -144,7 +187,7 @@ def mapped_sections(read: Reader, image_base: int) -> list[Section]:
     headers = read_headers(read, image_base)
     # RVAs are relative to where the image is actually mapped, not to the ImageBase its
     # header prefers - those differ the moment an image is relocated.
-    return _sections(read, headers, image_base) if headers else []
+    return _sections(read, headers, image_base, mapped=True) if headers else []
 
 
 def find(sections: list[Section], name: str) -> Section | None:

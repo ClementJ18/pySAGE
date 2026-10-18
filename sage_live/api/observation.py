@@ -222,6 +222,10 @@ class SpecialPowerState:
     name: str
     ready_frame: int
     required_sciences: frozenset[int] = frozenset()
+    #: The length in frames of the cooldown that produced `ready_frame`, which the button clock
+    #: divides by. 0 where the module keeps none: the three module types on the second
+    #: `startPowerRecharge` store their ready frame in that slot instead.
+    duration: int = 0
 
     def unlocked_for(self, player: PlayerState) -> bool:
         return bool(self.required_sciences) and self.required_sciences <= player.sciences

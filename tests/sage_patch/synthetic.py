@@ -62,6 +62,7 @@ from sage_patch.patches import ai_farm_kill_gate as afk
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import ai_hero_build_delay as ahbd
 from sage_patch.patches import banner_modifier as bm
+from sage_patch.patches import better_hud_toggle as bht
 from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import castle_unpack_buttons as cubtn
 from sage_patch.patches import commandset_button_upgrade as cbu
@@ -70,6 +71,7 @@ from sage_patch.patches import deploy_before_attack as dba
 from sage_patch.patches import description_timers as dt
 from sage_patch.patches import desert_weather as dw
 from sage_patch.patches import desert_weather as wb
+from sage_patch.patches import drain_life_fix as dlf
 from sage_patch.patches import experience_award as xa
 from sage_patch.patches import gate_close_repath as gcr
 from sage_patch.patches import give_upgrade_all as gua
@@ -79,10 +81,12 @@ from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
 from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import interpolation_alpha as ia
+from sage_patch.patches import kill_count_tooltip as kct
 from sage_patch.patches import lobby_faction_byte as lfb
 from sage_patch.patches import mod_load_order as mlo
 from sage_patch.patches import model_condition_images as mci
 from sage_patch.patches import multi_contain as mcon
+from sage_patch.patches import multi_execute_cooldown as mxc
 from sage_patch.patches import multi_instance as mi
 from sage_patch.patches import multi_mod as mm
 from sage_patch.patches import object_image_upgrade as oi
@@ -92,9 +96,12 @@ from sage_patch.patches import perf_scope_skip as pss
 from sage_patch.patches import perf_stage_readout as psr
 from sage_patch.patches import player_upgrade_discount as pud
 from sage_patch.patches import production_condition as pc
+from sage_patch.patches import production_death_no_refund as pdnr
 from sage_patch.patches import production_split as ps
+from sage_patch.patches import recharge_rescale as rr
 from sage_patch.patches import render_rate as rrate
 from sage_patch.patches import replace_self_rubble as rsr
+from sage_patch.patches import replacement_transfer as rpx
 from sage_patch.patches import revive_object_binding as rob
 from sage_patch.patches import save_temp_file as stf
 from sage_patch.patches import scenario_player_factions as spf
@@ -109,6 +116,7 @@ from sage_patch.patches import summon_carryover as sc
 from sage_patch.patches import texture_any_extension as tae
 from sage_patch.patches import trigger_recharge_list as trl
 from sage_patch.patches import upgrade_alias as ua
+from sage_patch.patches import upgrade_complete_skip_unnamed as ucsu
 from sage_patch.patches import upgrade_description as ud
 from sage_patch.patches import upgrade_grant_lists as ugl
 from sage_patch.patches import wall_layer_promotion as wlp
@@ -122,7 +130,6 @@ from sage_patch.patches.experimental import command_line_skirmish as cls
 from sage_patch.patches.experimental import map_transition as mtr
 from sage_patch.patches.experimental import observer_all_commands as oac
 from sage_patch.patches.experimental import ranged_stand_off as rso
-from sage_patch.patches.experimental import recharge_rescale as rr
 from sage_patch.patches.experimental import shared_control_on_leave as scl
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import spellbook_hotkeys as sbhk
@@ -841,6 +848,66 @@ def repair_damage_cancel_image() -> bytearray:
     )
 
 
+def multi_execute_cooldown_image() -> bytearray:
+    """A stand-in carrying the availability evaluator's and `isReady`'s entries, the control bar's
+    two availability calls, and the `doCommand` special-power gate holding the two `isReady`
+    calls the patch redirects."""
+    return _sparse_image(
+        {**mxc.ANCHORS, **mxc.AVAILABILITY_SITES, **mxc.READY_SITES, **mxc.USABLE_SITES}
+    )
+
+
+def drain_life_fix_image() -> bytearray:
+    """A stand-in carrying the routines the drain cave calls, the stock drain it makes
+    unreachable, and the seven windows the patch rewrites."""
+    return _sparse_image({**dlf.ANCHORS, **dlf.STOCK_WINDOWS})
+
+
+def upgrade_complete_skip_unnamed_image() -> bytearray:
+    """A stand-in carrying the notice block's format-key push, the hooked message call and the
+    string destructor the cave calls."""
+    return _sparse_image(
+        {**ucsu.ANCHORS, ad.UPGRADE_COMPLETE_MESSAGE: ad.UPGRADE_COMPLETE_MESSAGE_BYTES}
+    )
+
+
+def kill_count_tooltip_image() -> bytearray:
+    """A stand-in carrying the kill scorer's increments, the tooltip's battles-fought line, its
+    append helper, the string destructor and the hooked description release."""
+    return _sparse_image(
+        {
+            **kct.ANCHORS,
+            ad.OBJECT_TOOLTIP_DESCRIPTION_RELEASE: ad.OBJECT_TOOLTIP_DESCRIPTION_RELEASE_BYTES,
+        }
+    )
+
+
+def better_hud_toggle_image() -> bytearray:
+    """A stand-in carrying the seven windows the patch rewrites and the anchors around them: the
+    meta translator's key stores and matched tail, the entries of the routines the cave reaches,
+    and the `GameLogic+0x99` reads ahead of both occlusion gates."""
+    return _sparse_image({**bht.ANCHORS, **{va: stock for va, stock, _ in bht.HOOKS.values()}})
+
+
+def replacement_transfer_image() -> bytearray:
+    """A stand-in carrying the bit-string parser the shim calls, both modules' stock field tables
+    and the six windows the patch rewrites: two table pushes, two constructor stores and the two
+    replacement sites."""
+    return _sparse_image(
+        {
+            **rpx.ANCHORS,
+            ad.REPLACE_SELF_FIELD_TABLE: ad.REPLACE_SELF_FIELD_TABLE_STOCK,
+            ad.SUMMON_REPLACEMENT_FIELD_TABLE: ad.SUMMON_REPLACEMENT_FIELD_TABLE_STOCK,
+            ad.REPLACE_SELF_FIELD_TABLE_PUSH: ad.REPLACE_SELF_FIELD_TABLE_PUSH_BYTES,
+            ad.REPLACE_SELF_MODULE_DATA_LIST_INIT: ad.REPLACE_SELF_MODULE_DATA_LIST_INIT_BYTES,
+            ad.REPLACE_SELF_NAME_COPY: ad.REPLACE_SELF_NAME_COPY_BYTES,
+            ad.SUMMON_REPLACEMENT_FIELD_TABLE_PUSH: ad.SUMMON_REPLACEMENT_FIELD_TABLE_PUSH_BYTES,
+            ad.SUMMON_REPLACEMENT_DEFAULT_STORES: ad.SUMMON_REPLACEMENT_DEFAULT_STORES_BYTES,
+            ad.SUMMON_REPLACEMENT_XP_RESTORE: ad.SUMMON_REPLACEMENT_XP_RESTORE_BYTES,
+        }
+    )
+
+
 def replace_self_rubble_image() -> bytearray:
     """A stand-in carrying the clearing loop whose predicate `call` is hooked, the predicate the
     cave falls through to, and the two call sites and prologues that make its frame walk sound."""
@@ -1537,6 +1604,19 @@ def lifetime_fields_image() -> bytearray:
     )
 
 
+def production_death_no_refund_image() -> bytearray:
+    """A stand-in carrying the `onDie` vtable slot, the stock thunk it names, the slot-16 routine
+    and cancel-all the thunk reaches, and both refund runs the patch hooks."""
+    return _sparse_image(
+        {
+            **pdnr.ANCHORS,
+            ad.PRODUCTION_ON_DIE_SLOT: struct.pack("<I", ad.PRODUCTION_ON_DIE),
+            ad.PRODUCTION_CANCEL_UPGRADE_REFUND: ad.PRODUCTION_CANCEL_UPGRADE_REFUND_BYTES,
+            ad.PRODUCTION_CANCEL_UNIT_REFUND: ad.PRODUCTION_CANCEL_UNIT_REFUND_BYTES,
+        }
+    )
+
+
 def production_split_image() -> bytearray:
     """A stand-in carrying every site `production-split` reads or rewrites, plus the
     modifier-type name table and the strings its pointers reach.
@@ -1649,7 +1729,7 @@ def recharge_rescale_image() -> bytearray:
     a second hardcoded copy here could only ever agree with it. Whether those addresses hold those
     bytes in the real build is what `TestInstalledBinary` answers.
     """
-    return _sparse_image(dict(rr.ANCHORS))
+    return _sparse_image({**rr.ANCHORS, rr.DISCOUNT_FOLD_VA: rr.DISCOUNT_FOLD_STOCK})
 
 
 #: Where the `trigger-recharge-list` stand-in parks the 35 field-name strings: a page below the

@@ -124,14 +124,18 @@ parser sets in the cave). A mod that never uses it pays nothing at recharge time
   for a negative float in stock, which is a separate question.
 - **Tooltips.** `description-timers` transcribes the stock formula to print a cooldown. With both
   patches installed, a button's printed time leaves out a targeted discount.
-- **`recharge-rescale`** (experimental) also transcribes the formula and anchors the 27 bytes at
-  `0x00896EBA`, so the two patches refuse to be applied together.
-
 ## 5. Composition
 
 Checked by applying each registered patch that builds with default arguments to the stock binary,
-alone and on top of this one, in both orders: every one still applies and verifies, except
-`recharge-rescale` (above).
+alone and on top of this one, in both orders: every one still applies and verifies.
+
+`recharge-rescale` recomputes the cast-time discount every frame to rescale running cooldowns. It
+checks `0x00896EC2` at run time and, when it finds this patch's `call`, calls `gate1` itself from a
+frame laid out like `startPowerRecharge`'s, so a targeted discount moves a running cooldown too
+([`recharge-rescale.md`](recharge-rescale.md) §8). The gate's frame contract is therefore part of
+this patch's interface: the player at `[ebp-4]`, the factor at `[ebp-8]`, the raw template at
+`[edi+8]` and the flags of the discount test.
+`tests/sage_patch/test_recharge_rescale_targets_emulated.py` holds the two to the same result.
 
 ## 6. To check in a game
 

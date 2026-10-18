@@ -8,18 +8,30 @@ owning player's spellbook comes ready sooner, by a percentage of the cooldown it
       RefundPercent = 50%
     End
 
+With `RestartCooldown = Yes` the module instead starts the named power's cooldown over, at its
+full length from now, whether or not it is running: the power's own `startPowerRecharge(1.0)`,
+the call a cast makes. That is for a power whose result the player can give back, such as a
+permanent summon sent away by an upgrade button on the summoned object:
+
+    Behavior = SpecialPowerRefundUpgrade ModuleTag_SendAwayCooldown
+      TriggeredBy     = Upgrade_SendAwayEnt
+      SpecialPower    = SpellBookSummonEnt
+      RestartCooldown = Yes
+    End
+
 The engine fixes a cooldown once, as an absolute ready frame, and nothing in INI can move it
 afterwards. Map scripts can: `PLAYER_SET_SPECIAL_POWER_COUNTDOWN` finds the player's spellbook
 object, finds the module for a named power on it and writes its ready frame. Apply makes the same
 three lookups and the same write, with the new frame worked out from the module's own cooldown
 length, so the refund is a share of the cooldown actually running and the button clock moves with
 it. A power that is ready, paused, on a shared timer or kept by the second cooldown layout is left
-alone.
+alone by a refund; a restart leaves all of that to `startPowerRecharge`, which handles each case
+itself.
 
 The module is registered by cloning `TooltipUpgrade`'s layout, as `grant-science-upgrade` does.
 Tooltip's `ModuleData` ends in two engine strings, so the name takes the first and the percentage
-gets four bytes of its own past them. `SpecialPowerRefundUpgradeWorldbuilderPatch` teaches the
-editor the block.
+and the restart flag get four bytes each past them. `SpecialPowerRefundUpgradeWorldbuilderPatch`
+teaches the editor the block.
 
 Derivation: `../docs/special-power-refund-upgrade.md`.
 """
@@ -36,6 +48,7 @@ from ..addresses import (
     GAME_DATA_ASCIISTRING_PARSER,
     GAME_LOGIC_FRAME,
     GET_FINAL_OVERRIDE,
+    INI_PARSE_BOOL,
     INI_PARSE_PERCENT_TO_REAL,
     OBJECT_GET_CONTROLLING_PLAYER,
     OBJECT_GET_SPECIAL_POWER_MODULE,
@@ -67,6 +80,7 @@ __all__ = [
     "MODULEDATA_SIZE",
     "POWER_FIELD",
     "REFUND_FIELD",
+    "RESTART_FIELD",
     "SECTION_NAME",
     "WORLDBUILDER_SECTION_NAME",
     "SpecialPowerRefundUpgradePatch",
@@ -80,10 +94,14 @@ POWER_FIELD = ("SpecialPower", 0x138)
 #: The refund as a fraction of the cooldown, a `Real` in the four bytes this module adds. Tooltip's
 #: second string at `+0x13C` cannot hold it: its destructor would free the float as a buffer.
 REFUND_FIELD = ("RefundPercent", tooltip_twin.MODULEDATA_SIZE)
-MODULEDATA_SIZE = tooltip_twin.MODULEDATA_SIZE + 4
-# `and dword [esi+0x140], 0`: Tooltip's constructor knows nothing of the added bytes, and a module
-# with no RefundPercent line must refund nothing.
-_ZERO_REFUND = b"\x83\xa6" + u32(REFUND_FIELD[1]) + b"\x00"
+#: `RestartCooldown`, a `Bool` in the next four bytes (the parser writes one; the rest is padding).
+RESTART_FIELD = ("RestartCooldown", tooltip_twin.MODULEDATA_SIZE + 4)
+MODULEDATA_SIZE = tooltip_twin.MODULEDATA_SIZE + 8
+# `and dword [esi+0x140], 0` / `and dword [esi+0x144], 0`: Tooltip's constructor knows nothing of
+# the added bytes, and a module with neither line must do nothing.
+_ZERO_REFUND = (
+    b"\x83\xa6" + u32(REFUND_FIELD[1]) + b"\x00" + b"\x83\xa6" + u32(RESTART_FIELD[1]) + b"\x00"
+)
 
 # RemoveUpgradeUpgrade's addModule call: `push 0x6505C4` (ModuleData factory), `push 0x65058C`
 # (runtime factory), `mov ecx, edi`, the unwind-state store `mov [ebp-4], 0xD7`, then the call.
@@ -107,14 +125,20 @@ _STRINGS = (
     ("block_name", BLOCK_NAME),
     ("power_name", POWER_FIELD[0]),
     ("refund_name", REFUND_FIELD[0]),
+    ("restart_name", RESTART_FIELD[0]),
 )
+#: `1.0f`: the argument a cast passes to `startPowerRecharge`, meaning the whole cooldown.
+_FULL_RECHARGE = 0x3F800000
 
 
-def _field_table(layout: dict[str, int], string_parser: int, percent_parser: int) -> bytes:
+def _field_table(
+    layout: dict[str, int], string_parser: int, percent_parser: int, bool_parser: int
+) -> bytes:
     return tooltip_twin.field_table(
         [
             (layout["power_name"], string_parser, POWER_FIELD[1]),
             (layout["refund_name"], percent_parser, REFUND_FIELD[1]),
+            (layout["restart_name"], bool_parser, RESTART_FIELD[1]),
         ]
     )
 
@@ -144,8 +168,10 @@ class SpecialPowerRefundUpgradePatch(Patch):
     description = (
         "Adds a new Behavior SpecialPowerRefundUpgrade: when its TriggeredBy upgrade fires, the "
         "SpecialPower it names on the controlling player's spellbook comes ready sooner by "
-        "RefundPercent of the cooldown it is running, and the button clock jumps with it. A power "
-        "that is already ready is left alone, and nothing is undone when the upgrade is removed"
+        "RefundPercent of the cooldown it is running, and the button clock jumps with it; with "
+        "RestartCooldown = Yes it instead starts that power's cooldown over at full length, as "
+        "if it had just been cast (e.g. when a permanent summon is sent away). Nothing is undone "
+        "when the upgrade is removed"
     )
 
     @staticmethod
@@ -155,7 +181,7 @@ class SpecialPowerRefundUpgradePatch(Patch):
             (
                 ("upgrade", tooltip_twin.UPGRADE_VTABLE_SIZE),
                 ("moduledata", tooltip_twin.MODULEDATA_VTABLE_SIZE),
-                ("table", 3 * tooltip_twin.FIELD_ROW_SIZE),
+                ("table", 4 * tooltip_twin.FIELD_ROW_SIZE),
             ),
         )
 
@@ -207,6 +233,17 @@ class SpecialPowerRefundUpgradePatch(Patch):
         a.emit(b"\x85\xc0")
         a.jcc(JE, "apply_done")  # the spellbook has no module for it
         a.emit(b"\x8b\xf0")  # mov esi, eax              ; the SpecialPowerModuleInterface
+
+        # RestartCooldown: start the cooldown over, as a cast does. startPowerRecharge picks the
+        # length (with today's discounts) and handles shared timers and either layout itself, so
+        # none of the refund's checks apply.
+        a.emit(b"\x80\xbb", u32(RESTART_FIELD[1]), b"\x00")  # cmp byte [ebx+0x144], 0
+        a.jcc(JE, "apply_refund")
+        a.emit(0x68, u32(_FULL_RECHARGE))  # push 1.0f
+        a.emit(b"\x8b\xce", b"\x8b\x06")  # mov ecx, esi / mov eax, [esi]
+        a.emit(b"\xff\x50", _SLOT_START_POWER_RECHARGE)  # call [eax+0x3c]   ; ret 4
+        a.jmp("apply_done")
+        a.label("apply_refund")
 
         # Only the layout that keeps a cooldown length beside the ready frame: the module's own
         # startPowerRecharge says which one it is.
@@ -262,7 +299,9 @@ class SpecialPowerRefundUpgradePatch(Patch):
         out = bytearray(
             tooltip_twin.copied_vtables(data, code.label_va("apply"), code.label_va("unapply"))
         )
-        out += _field_table(layout, GAME_DATA_ASCIISTRING_PARSER, INI_PARSE_PERCENT_TO_REAL)
+        out += _field_table(
+            layout, GAME_DATA_ASCIISTRING_PARSER, INI_PARSE_PERCENT_TO_REAL, INI_PARSE_BOOL
+        )
         out += _strings()
         out += b"\0" * (-len(out) % 4)
         assert base + len(out) == layout["code"]
@@ -314,6 +353,7 @@ class SpecialPowerRefundUpgradePatch(Patch):
             fields=(
                 FieldDelta(BLOCK_NAME, POWER_FIELD[0], "Ref:specialpowers", patch=self.name),
                 FieldDelta(BLOCK_NAME, REFUND_FIELD[0], "Float", 0.0, self.name),
+                FieldDelta(BLOCK_NAME, RESTART_FIELD[0], "Bool", False, self.name),
             ),
         )
 
@@ -335,20 +375,20 @@ class SpecialPowerRefundUpgradeWorldbuilderPatch(Patch):
     """Teach **Worldbuilder** to parse the SpecialPowerRefundUpgrade behavior.
 
     **This patch targets `Worldbuilder.exe`, not `game.dat`.** It is the authoring half of
-    `SpecialPowerRefundUpgradePatch`: the editor gains the block name and its two fields.
+    `SpecialPowerRefundUpgradePatch`: the editor gains the block name and its three fields.
     """
 
     name = "special-power-refund-upgrade-wb"
     author = "officialNecro"
     description = (
         "Worldbuilder.exe (not game.dat): register the SpecialPowerRefundUpgrade Behavior and its "
-        "SpecialPower and RefundPercent fields, so the editor can load object templates written "
-        "for a game.dat carrying special-power-refund-upgrade; parser-only"
+        "SpecialPower, RefundPercent and RestartCooldown fields, so the editor can load object "
+        "templates written for a game.dat carrying special-power-refund-upgrade; parser-only"
     )
 
     @staticmethod
     def _layout(base: int) -> dict[str, int]:
-        return _layout(base, (("table", 3 * tooltip_twin.FIELD_ROW_SIZE),))
+        return _layout(base, (("table", 4 * tooltip_twin.FIELD_ROW_SIZE),))
 
     def _assemble(self, base: int) -> Asm:
         layout = self._layout(base)
@@ -377,6 +417,11 @@ class SpecialPowerRefundUpgradeWorldbuilderPatch(Patch):
                 layout,
                 WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER,
                 WORLDBUILDER_INI_PARSE_PERCENT_TO_REAL,
+                # The editor's Bool parser has not been located. It never reads the field, so
+                # its string parser stands in: it accepts the token and keeps it in the four
+                # bytes, which the ModuleData's destructor does not free (a few bytes per block,
+                # once, in the editor).
+                WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER,
             )
         )
         out += _strings()

@@ -330,6 +330,7 @@ __all__ = [
     "OBJECT_ARMY_EXCLUDED_BIT",
     "OBJECT_ARMY_ID",
     "OBJECT_ATTEMPT_HEALING",
+    "OBJECT_BATTLES_FOUGHT",
     "OBJECT_BODY_MODULE",
     "OBJECT_BOUNDING_CIRCLE_RADIUS",
     "OBJECT_BOUNDING_CIRCLE_RADIUS_READ",
@@ -379,11 +380,15 @@ __all__ = [
     "OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE",
     "OBJECT_IS_LOCALLY_CONTROLLED",
     "OBJECT_IS_LOCALLY_CONTROLLED_BYTES",
+    "OBJECT_KILLS",
+    "OBJECT_KILLS_MIRROR",
     "OBJECT_MODULE_LIST",
     "OBJECT_POSITION",
     "OBJECT_POSITION_Z",
     "OBJECT_PRODUCER_ID",
     "OBJECT_REMOVE_MODIFIER_LIST",
+    "OBJECT_SCORE_KILL_COUNT",
+    "OBJECT_SCORE_KILL_COUNT_BYTES",
     "OBJECT_SCRIPT_NAME",
     "OBJECT_SET_ARMY_ID",
     "OBJECT_SET_LAYER",
@@ -520,6 +525,37 @@ __all__ = [
     "WEAPON_TARGET_IN_RANGE",
     "WEAPON_TARGET_IN_RANGE_BYTES",
     "WEAPON_TEMPLATE_MELEE_OFFSET",
+    "INI_PARSE_BIT_STRING_32",
+    "INI_PARSE_BIT_STRING_32_ENTRY",
+    "REPLACE_SELF_FIELD_TABLE",
+    "REPLACE_SELF_FIELD_TABLE_STOCK",
+    "REPLACE_SELF_FIELD_TABLE_PUSH",
+    "REPLACE_SELF_FIELD_TABLE_PUSH_BYTES",
+    "REPLACE_SELF_MODULE_DATA_CTOR",
+    "REPLACE_SELF_MODULE_DATA_LIST_INIT",
+    "REPLACE_SELF_MODULE_DATA_LIST_INIT_BYTES",
+    "REPLACE_SELF_MODULE_DATA_LIST_INIT_RESUME",
+    "REPLACE_SELF_FREE_OFFSET",
+    "REPLACE_SELF_UPGRADE_IMPLEMENTATION",
+    "REPLACE_SELF_NAME_COPY",
+    "REPLACE_SELF_NAME_COPY_BYTES",
+    "REPLACE_SELF_NAME_COPY_RESUME",
+    "REPLACE_SELF_FRAME_MODULE_DATA",
+    "REPLACE_SELF_OLD_OBJECT_DISP",
+    "SUMMON_REPLACEMENT_FIELD_TABLE",
+    "SUMMON_REPLACEMENT_FIELD_TABLE_STOCK",
+    "SUMMON_REPLACEMENT_FIELD_TABLE_PUSH",
+    "SUMMON_REPLACEMENT_FIELD_TABLE_PUSH_BYTES",
+    "SUMMON_REPLACEMENT_MODULE_DATA_CTOR",
+    "SUMMON_REPLACEMENT_DEFAULT_STORES",
+    "SUMMON_REPLACEMENT_DEFAULT_STORES_BYTES",
+    "SUMMON_REPLACEMENT_FREE_OFFSET",
+    "SUMMON_REPLACEMENT_CREATE",
+    "SUMMON_REPLACEMENT_XP_RESTORE",
+    "SUMMON_REPLACEMENT_XP_RESTORE_BYTES",
+    "SUMMON_REPLACEMENT_XP_RESTORE_RESUME",
+    "SUMMON_REPLACEMENT_FRAME_MODULE",
+    "EXPERIENCE_TRACKER_FEEDBACK",
 ]
 
 # `ThePartitionManager` and `TheShroudManager`, the two subsystems holding visibility state
@@ -1110,6 +1146,22 @@ OBJECT_UPGRADE_MASK = 0x28C
 # `Object::m_containedBy` - the horde a battalion member belongs to, and the field every
 # member-versus-lone-unit test in the delivery path branches on.
 OBJECT_CONTAINED_BY = 0x27C
+# The object's identity record, 0x18 bytes at `+0x488`: battles fought, two kill counts, the
+# custom name (`UnicodeString`, `+0x494`), an `AsciiString` and a byte. `Object::Object` zeroes it
+# (`0x008E4919`), the mount swap copies it across (`0x008B14B0`), and a savegame keeps all of it.
+# The object tooltip prints the battles at `OBJECT_TOOLTIP_BATTLES_FOUGHT` and the name at
+# `0x008EBD3C`; nothing prints the kills.
+OBJECT_BATTLES_FOUGHT = 0x488
+OBJECT_KILLS = 0x48C
+# Incremented with `OBJECT_KILLS` and never apart from it: the two read equal across every kill
+# of a live match.
+OBJECT_KILLS_MIRROR = 0x490
+# The one site that counts a kill, in the kill scorer `0x006955BC`: both counters on the killer,
+# then on its container when that is a `KINDOF_HORDE`. The killer has already been walked up to
+# its producer for `PASS_EXPERIENCE_TO_PRODUCER`, and only enemies of another player reach it, so
+# a battalion's count is the sum of its members' and a summon's kills go to its summoner.
+OBJECT_SCORE_KILL_COUNT = 0x00695701
+OBJECT_SCORE_KILL_COUNT_BYTES = bytes.fromhex("ff86900400008b867c020000ff868c040000")
 # `Object::canAcceptUpgrade(u)`: the player must satisfy the upgrade's `RequiredObjectFilter`
 # (`UpgradeTemplate+0x80`), and the object must own a module whose upgrade interface says it would
 # fire on the resulting mask - `TriggeredBy` that upgrade, in ini terms. Recurses into `+0x258`,
@@ -2306,3 +2358,257 @@ PILLAGE_ANCHORS: dict[int, bytes] = {
         "8b4424045633f6572bc88b108b3c0123fa3bfa75104683c00483fe2472ecb0015f5ec2040032c0ebf7"
     ),
 }
+
+
+# Transferring upgrades and experience to a replacement (`docs/replacement-transfer.md`).
+
+#: `INI::parseBitString32(ini, instance, store, nameList)`, `__cdecl`: ORs or overwrites the dword
+#: at `store` from a list of names in the NULL-terminated `nameList`, reading the current value
+#: first so `+NAME` / `-NAME` edit it. Every `BitFlags` field in the build uses it.
+INI_PARSE_BIT_STRING_32 = 0x0042E840
+INI_PARSE_BIT_STRING_32_ENTRY = bytes.fromhex("558bec83ec0c8b4514")
+#: `ReplaceSelfUpgrade`'s own field table (`ReplaceWith`, `AndThenAddA`; the `UpgradeMux` table is
+#: walked separately), and the one instruction that names it, in its parse callback.
+REPLACE_SELF_FIELD_TABLE = 0x00C6F6E8
+REPLACE_SELF_FIELD_TABLE_STOCK = bytes.fromhex(
+    "dcf6c6009ee542000000000038010000d0f6c6009ee54200000000003801000000000000000000000000000000000000"
+)
+REPLACE_SELF_FIELD_TABLE_PUSH = 0x008BB169
+REPLACE_SELF_FIELD_TABLE_PUSH_BYTES = bytes.fromhex("68e8f6c600")
+#: `ReplaceSelfUpgradeModuleData`'s constructor. `+0x137` is the `UpgradeMux` base's tail padding
+#: (`docs/foundation-rebind.md` 6.4): no constructor writes it and no row names it. The shared mux
+#: constructor is pinned by `upgrade-module-removal`, so it is cleared here instead, from the
+#: derived constructor's `lea esi, [edi+0x138]` ahead of the `ReplaceWith` list's init.
+REPLACE_SELF_MODULE_DATA_CTOR = 0x008BBA3A
+REPLACE_SELF_MODULE_DATA_LIST_INIT = 0x008BBA59
+REPLACE_SELF_MODULE_DATA_LIST_INIT_BYTES = bytes.fromhex("8db738010000")
+REPLACE_SELF_MODULE_DATA_LIST_INIT_RESUME = 0x008BBA5F
+REPLACE_SELF_FREE_OFFSET = 0x137
+#: `ReplaceSelfUpgrade::upgradeImplementation`. Per replacement, once the new object is built and
+#: placed: `lea eax, [ebp-0x24]` / `lea ecx, [edi+0x88]` ahead of the script-name copy. `edi` is the
+#: new object, `[esi-8]` the one being replaced (already handed to `destroyObject`, which only
+#: queues it) and `[ebp-0x50]` the `ModuleData`. Between the windows `foundation-rebind` pins at
+#: `0x008BB8D9` and `0x008BB955`; nothing branches into it.
+REPLACE_SELF_UPGRADE_IMPLEMENTATION = 0x008BB5FA
+REPLACE_SELF_NAME_COPY = 0x008BB8F6
+REPLACE_SELF_NAME_COPY_BYTES = bytes.fromhex("8d45dc8d8f88000000")
+REPLACE_SELF_NAME_COPY_RESUME = 0x008BB8FF
+REPLACE_SELF_FRAME_MODULE_DATA = -0x50
+REPLACE_SELF_OLD_OBJECT_DISP = -0x08
+#: `SummonReplacementSpecialAbilityUpdate`'s own field table and its one reference.
+SUMMON_REPLACEMENT_FIELD_TABLE = 0x00C05AF8
+SUMMON_REPLACEMENT_FIELD_TABLE_STOCK = bytes.fromhex(
+    "1852c0005eec420000000000d00000000852c00058e5420000000000d4000000ec51c00058e5420000000000"
+    "d5000000d851c00000ed420000000000d80000007c2bbf002f39760000000000dc000000045ac00000ed4200"
+    "00000000e0000000e859c00058e5420000000000e4000000c859c00058e5420000000000e5000000b859c000"
+    "5eee420000000000e80000009859c000d6ee420000000000ec00000000000000000000000000000000000000"
+)
+SUMMON_REPLACEMENT_FIELD_TABLE_PUSH = 0x0064F569
+SUMMON_REPLACEMENT_FIELD_TABLE_PUSH_BYTES = bytes.fromhex("68f85ac000")
+#: Its `ModuleData` constructor stores `TriggerInstantlyOnCreate` (`+0xE4`) and
+#: `CancelDisguiseWhenDismounting` (`+0xE5`) as two bytes from `ebx` (zero); `+0xE6`/`+0xE7` are
+#: padding ahead of `MountedTemplate` at `+0xE8`, written by nothing.
+SUMMON_REPLACEMENT_MODULE_DATA_CTOR = 0x008B21DA
+SUMMON_REPLACEMENT_DEFAULT_STORES = 0x008B223D
+SUMMON_REPLACEMENT_DEFAULT_STORES_BYTES = bytes.fromhex("889ee4000000889ee5000000")
+SUMMON_REPLACEMENT_FREE_OFFSET = 0xE6
+#: The replacement itself: build `MountedTemplate` through `TheBuildAssistant` (`esi` the new
+#: object, `edi` the old, `[ebp-0x18]` the module), copy the name, then the experience with
+#: level-up feedback off. `..._XP_RESTORE` is the feedback flag being put back, ten bytes of two
+#: whole instructions ending where `mount-health-ratio`'s pinned sequence begins.
+SUMMON_REPLACEMENT_CREATE = 0x008B228C
+SUMMON_REPLACEMENT_XP_RESTORE = 0x008B2365
+SUMMON_REPLACEMENT_XP_RESTORE_BYTES = bytes.fromhex("8b866c020000c6403c01")
+SUMMON_REPLACEMENT_XP_RESTORE_RESUME = 0x008B236F
+SUMMON_REPLACEMENT_FRAME_MODULE = -0x18
+#: `ExperienceTracker+0x3C`: passed to the level check by `EXPERIENCE_TRACKER_SET_ABSOLUTE`; the
+#: swaps clear it around their copy so a carried level does not replay its level-up effects.
+EXPERIENCE_TRACKER_FEEDBACK = 0x3C
+
+#: `TransferToReplacement`'s `HEALTH`, `RALLY` and `SELECTION` flags (`replacement-transfer`).
+#: The rest of the summon swap after its health copy: `push 0xa` / `mov ecx, esi` /
+#: `call Object::getDrawable`. `ebx`, written by the copy, is written again before it is next read
+#: (`0x008B23CB`), so a jump here skips the copy and nothing else.
+SUMMON_REPLACEMENT_HEALTH_COPY_END = 0x008B2392
+SUMMON_REPLACEMENT_HEALTH_COPY_END_BYTES = bytes.fromhex("6a0a8bcee878bce5ff")
+#: `BodyModule::setHealth(float)` - body vtable `+0xAC`, `__thiscall`, `ret 4`; the swaps use it
+#: for their absolute health copy.
+BODY_SET_HEALTH_SLOT = 0xAC
+#: `Object::getExitInterface()` - `__thiscall`, walks the modules at `Object+0x24C` (slot `+0x50`)
+#: and falls back to the contain module's (`+0x258`, slot `+0x74`); NULL when neither has one.
+OBJECT_GET_EXIT_INTERFACE = 0x0068BB14
+OBJECT_GET_EXIT_INTERFACE_ENTRY = bytes.fromhex("56578bf98bb74c02000033c0")
+#: `ExitInterface` slots shared by `QueueProductionExitUpdate` (`0x00C682C4`),
+#: `DefaultProductionExit` and `SupplyCenterProductionExit` (`0x00C61A68`, `0x00C697A8`): `+0x1C`
+#: set the rally point from a `Coord3D *` (`ret 4`), `+0x20` get it (`Coord3D *`, NULL when unset).
+EXIT_INTERFACE_SET_RALLY_POINT_SLOT = 0x1C
+EXIT_INTERFACE_GET_RALLY_POINT_SLOT = 0x20
+#: `Player::findSquadOf(Object *)` - `__thiscall`, `ret 4`: the index (0-9) of the first of the
+#: player's ten control groups (`Player+0x728`) holding the object, or -1.
+PLAYER_FIND_SQUAD = 0x006AABB2
+PLAYER_FIND_SQUAD_ENTRY = bytes.fromhex("565733ff8db128070000")
+#: `Drawable+0x43C` - set while the local player has the drawable selected.
+DRAWABLE_SELECTED = 0x43C
+#: `TheInGameUI` vtable slots the summon swap uses: `+0x108` select a drawable, `+0x10C` deselect
+#: one; both `__thiscall`, `ret 4`.
+IN_GAME_UI_SELECT_DRAWABLE_SLOT = 0x108
+IN_GAME_UI_DESELECT_DRAWABLE_SLOT = 0x10C
+#: `MSG_CREATE_SELECTED_GROUP` (`Boolean` new group, `ObjectId`...) and `MSG_ADD_TO_TEAM0..9`.
+MSG_CREATE_SELECTED_GROUP = 0x3E9
+MSG_ADD_TO_TEAM0 = 0x472
+#: `OBJECT_GET_CONTROLLING_PLAYER` whole.
+OBJECT_GET_CONTROLLING_PLAYER_ENTRY = bytes.fromhex("8b891c03000085c97405e9e846110033c0c3")
+__all__ += [
+    "OBJECT_GET_CONTROLLING_PLAYER_ENTRY",
+    "BODY_SET_HEALTH_SLOT",
+    "DRAWABLE_SELECTED",
+    "EXIT_INTERFACE_GET_RALLY_POINT_SLOT",
+    "EXIT_INTERFACE_SET_RALLY_POINT_SLOT",
+    "IN_GAME_UI_DESELECT_DRAWABLE_SLOT",
+    "IN_GAME_UI_SELECT_DRAWABLE_SLOT",
+    "MSG_ADD_TO_TEAM0",
+    "MSG_CREATE_SELECTED_GROUP",
+    "OBJECT_GET_EXIT_INTERFACE",
+    "OBJECT_GET_EXIT_INTERFACE_ENTRY",
+    "PLAYER_FIND_SQUAD",
+    "PLAYER_FIND_SQUAD_ENTRY",
+    "SUMMON_REPLACEMENT_HEALTH_COPY_END",
+    "SUMMON_REPLACEMENT_HEALTH_COPY_END_BYTES",
+]
+
+#: `drain-life-fix`. `DamageNugget`'s `DrainLife` (Bool, `+0x1B4`) and `DrainLifeMultiplier`
+#: (Real, `+0x1B8`), shared by every nugget derived from it (`DOTNugget` among them).
+DAMAGE_NUGGET_DRAIN_LIFE = 0x1B4
+DAMAGE_NUGGET_DRAIN_LIFE_MULTIPLIER = 0x1B8
+#: `DamageNugget::doDamage` (`0x0090E683`): build the `DamageInfo`, `target->attemptDamage(info)`,
+#: then heal the source by `multiplier x info.actualDamageDealt`. `..._ATTEMPT_CALL` is that
+#: `attemptDamage` call (`esi` the nugget); `..._DRAIN_SKIP` is the `je` past the drain taken when
+#: `DrainLife` is off.
+DAMAGE_NUGGET_DO_DAMAGE = 0x0090E683
+DAMAGE_NUGGET_ATTEMPT_CALL = 0x0090E6C7
+DAMAGE_NUGGET_ATTEMPT_CALL_BYTES = bytes.fromhex("e8b1a7d8ff")
+DAMAGE_NUGGET_DRAIN_SKIP = 0x0090E6E5
+DAMAGE_NUGGET_DRAIN_SKIP_BYTES = bytes.fromhex("743b")
+#: The drain it skips, pinned whole: multiplier x `[ebp-0xc]` (the output's damage dealt), the
+#: source by `info+8`, not a `PROJECTILE`, `source->attemptHealing(amount, 0)`.
+DAMAGE_NUGGET_DRAIN = 0x0090E6CC
+DAMAGE_NUGGET_DRAIN_BYTES = bytes.fromhex(
+    "80beb401000000f30f1086b8010000f30f5945f4f30f114510743b0f2e0594b5c1009ff6c4447b2eff7708"
+    "8b0d2c41de00e87fafb3ff85c0741c8b4804f6810b010000027510d945106a00518bc8d91c24e8101ed8ff"
+)
+#: `DOTNugget::doDamage` (`0x00911407`): registers the over-time damage with the manager at
+#: `TheGameLogic+0x174` (`DOT_MANAGER_ADD`, `__thiscall(targetID, entry)`, the entry a
+#: `DamageInfo` followed by interval/duration/next-frame), then deals the first hit through
+#: `DamageNugget::doDamage`. The manager's later ticks (`0x00820F86`) call
+#: `Object::attemptDamage` on the stored `DamageInfo` in place.
+DOT_NUGGET_DO_DAMAGE = 0x00911407
+DOT_NUGGET_ADD_CALL = 0x00911477
+DOT_NUGGET_ADD_CALL_BYTES = bytes.fromhex("e8f7fbf0ff")
+DOT_MANAGER_ADD = 0x00821073
+#: `Object::attemptDamage(DamageInfo *)`: a positive delay (`info+0x28`) queues a copy on the
+#: object's delayed list (`Object+0x460`), otherwise it calls `OBJECT_DAMAGE_NOW`, the
+#: body-damage step that fills in the output. The delayed list's update (`0x00697EB6`) calls
+#: `OBJECT_DAMAGE_NOW` directly when a delay runs out. Those two calls are every way queued or
+#: immediate weapon damage reaches a body.
+OBJECT_ATTEMPT_DAMAGE = 0x00698E7D
+OBJECT_DAMAGE_NOW = 0x00697E50
+OBJECT_DAMAGE_NOW_ENTRY = bytes.fromhex("568bf1f6865804000001")
+OBJECT_ATTEMPT_DAMAGE_NOW_CALL = 0x00698EBA
+OBJECT_DELAYED_DAMAGE_NOW_CALL = 0x00697EEA
+OBJECT_ATTEMPT_DAMAGE_NOW_CALL_BYTES = bytes.fromhex("e891efffff")
+OBJECT_DELAYED_DAMAGE_NOW_CALL_BYTES = bytes.fromhex("e861ffffff")
+#: `Object::attemptHealing(Real amount, Object *source)` - `__thiscall`, `ret 8`.
+OBJECT_ATTEMPT_HEALING = 0x00690532
+OBJECT_ATTEMPT_HEALING_ENTRY = bytes.fromhex("558bec83ec7c568bb15c020000")
+#: `DamageInfo` (`0x7C` bytes): vtable, the input at `+0x04`, the output at `+0x6C`. Offsets here
+#: are from the `DamageInfo`: source `ObjectID` `+0x08`, damage type `+0x10`, delay `+0x28`,
+#: damage dealt `+0x70`. `DAMAGE_TYPE_HEALING` (7) is the type the drain skips.
+DAMAGE_INFO_SOURCE_ID = 0x08
+DAMAGE_INFO_DAMAGE_TYPE = 0x10
+DAMAGE_INFO_DAMAGE_DEALT = 0x70
+DAMAGE_TYPE_HEALING = 7
+#: The input's Bool at input `+0x4C` (`DamageInfo+0x50`) is followed by three bytes of padding
+#: that the input constructor leaves unset and the memberwise copy constructor doesn't copy. Each
+#: of its two byte moves, widened to a dword move of the same length, makes them a field that is
+#: zeroed and copied: the constructor's `mov byte [eax+0x4c], cl` (`ecx` zero) and the copy's
+#: `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl`.
+DAMAGE_INFO_INPUT_CTOR_BYTE_STORE = 0x00663492
+DAMAGE_INFO_INPUT_CTOR_BYTE_STORE_BYTES = bytes.fromhex("88484c")
+DAMAGE_INFO_INPUT_COPY_BYTE_MOVE = 0x00662ADA
+DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES = bytes.fromhex("8a514c88504c")
+DAMAGE_INFO_PAD_DWORD = 0x50
+#: `KINDOF_PROJECTILE` (bit 25): `ThingTemplate+0x10B` bit 1; the drain never heals one.
+KINDOF_PROJECTILE_BYTE = 0x10B
+KINDOF_PROJECTILE_MASK = 0x02
+__all__ += [
+    "DAMAGE_INFO_DAMAGE_DEALT",
+    "DAMAGE_INFO_DAMAGE_TYPE",
+    "DAMAGE_INFO_INPUT_COPY_BYTE_MOVE",
+    "DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES",
+    "DAMAGE_INFO_INPUT_CTOR_BYTE_STORE",
+    "DAMAGE_INFO_INPUT_CTOR_BYTE_STORE_BYTES",
+    "DAMAGE_INFO_PAD_DWORD",
+    "DAMAGE_INFO_SOURCE_ID",
+    "DAMAGE_NUGGET_ATTEMPT_CALL",
+    "DAMAGE_NUGGET_ATTEMPT_CALL_BYTES",
+    "DAMAGE_NUGGET_DO_DAMAGE",
+    "DAMAGE_NUGGET_DRAIN",
+    "DAMAGE_NUGGET_DRAIN_BYTES",
+    "DAMAGE_NUGGET_DRAIN_LIFE",
+    "DAMAGE_NUGGET_DRAIN_LIFE_MULTIPLIER",
+    "DAMAGE_NUGGET_DRAIN_SKIP",
+    "DAMAGE_NUGGET_DRAIN_SKIP_BYTES",
+    "DAMAGE_TYPE_HEALING",
+    "DOT_MANAGER_ADD",
+    "DOT_NUGGET_ADD_CALL",
+    "DOT_NUGGET_ADD_CALL_BYTES",
+    "DOT_NUGGET_DO_DAMAGE",
+    "KINDOF_PROJECTILE_BYTE",
+    "KINDOF_PROJECTILE_MASK",
+    "OBJECT_ATTEMPT_DAMAGE",
+    "OBJECT_ATTEMPT_DAMAGE_NOW_CALL",
+    "OBJECT_ATTEMPT_DAMAGE_NOW_CALL_BYTES",
+    "OBJECT_ATTEMPT_HEALING",
+    "OBJECT_ATTEMPT_HEALING_ENTRY",
+    "OBJECT_DAMAGE_NOW",
+    "OBJECT_DAMAGE_NOW_ENTRY",
+    "OBJECT_DELAYED_DAMAGE_NOW_CALL",
+    "OBJECT_DELAYED_DAMAGE_NOW_CALL_BYTES",
+]
+
+#: `TransferToReplacement = HORDE` (`replacement-transfer`). The horde's member bookkeeping, read
+#: off `HordeContain::onObjectCreated`'s strength trim (`0x00871C28`), which drops members by
+#: `HORDE_IFACE_REMOVE_MEMBER_SLOT` and then `GAME_LOGIC_DESTROY_OBJECT`, the pair that frees the
+#: member's formation slot for a later replenish.
+#: Horde-interface slot `+0x34` (`0x0087370B`, `ret 4`): a member is leaving the horde.
+HORDE_IFACE_REMOVE_MEMBER_SLOT = 0x34
+HORDE_IFACE_REMOVE_MEMBER = 0x0087370B
+HORDE_IFACE_REMOVE_MEMBER_ENTRY = bytes.fromhex("b892f7b900e8db971c00")
+#: `HordeContain`'s horde-interface vtable, whose slot `+0x34` is the routine above.
+HORDE_IFACE_VTABLE = 0x00C5B1F8
+#: The leader's and the banner carrier's `ObjectID`s, `HordeContain` module `+0x264` / `+0x26C`
+#: (`docs/banner-carrier-modifier.md`); as horde-interface offsets (module `+0x11C`) below.
+HORDE_IFACE_LEADER_ID = 0x264 - HORDE_CONTAIN_IFACE
+HORDE_IFACE_BANNER_CARRIER_ID = 0x26C - HORDE_CONTAIN_IFACE
+#: `HORDE_EXPERIENCE_ADD(member, Real delta)`: `__thiscall` on the horde interface, `ret 8`. Adds
+#: `delta` to the member's group account (key: the template's word at
+#: `OBJECT_TEMPLATE_EXPERIENCE_GROUP_OFFSET`), sets every member of that group to the account and
+#: raises the horde's own tracker to it. `HORDE_EXPERIENCE_GROUP_LOOKUP_OR_INSERT(WORD *key)`:
+#: `__thiscall` on the interface's account map (`+HORDE_EXPERIENCE_GROUPS_OFFSET`), `ret 4`,
+#: inserts a missing account at 0.0 and returns a pointer to its `Real`.
+HORDE_EXPERIENCE_ADD_ENTRY = bytes.fromhex("558bec51518b450885c0568bf1")
+HORDE_EXPERIENCE_GROUP_LOOKUP_OR_INSERT_ENTRY = bytes.fromhex("558bec5151568b750857568b")
+OBJECT_GET_HORDE_IFACE_ENTRY = bytes.fromhex("8b895802000085c97503")
+GAME_LOGIC_DESTROY_OBJECT_ENTRY = bytes.fromhex("53578b7c240c85ff")
+__all__ += [
+    "GAME_LOGIC_DESTROY_OBJECT_ENTRY",
+    "HORDE_EXPERIENCE_ADD_ENTRY",
+    "HORDE_EXPERIENCE_GROUP_LOOKUP_OR_INSERT_ENTRY",
+    "HORDE_IFACE_BANNER_CARRIER_ID",
+    "HORDE_IFACE_LEADER_ID",
+    "HORDE_IFACE_REMOVE_MEMBER",
+    "HORDE_IFACE_REMOVE_MEMBER_ENTRY",
+    "HORDE_IFACE_REMOVE_MEMBER_SLOT",
+    "HORDE_IFACE_VTABLE",
+    "OBJECT_GET_HORDE_IFACE_ENTRY",
+]

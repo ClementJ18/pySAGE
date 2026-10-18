@@ -25,10 +25,20 @@ fixture depends on it.
 built `.big` archives, so a suite would be testing the last release rather than the working tree.
 Point it at the folder holding `data/ini` and the ini on disk is what the test exercises.
 
-**One game at a time.** The engine refuses to start a second copy of itself unless `multi-instance`
-is applied, so scenarios are serial by nature: each fixture's `with` block ends - killing the
-process - before the next class begins. Under `pytest-xdist` each worker needs both that patch and
-its own map name, which the runner handles by suffixing the worker id.
+**One game at a time, per process.** The engine refuses to start a second copy of itself unless
+`multi-instance` is applied, so scenarios are serial by nature: each fixture's `with` block ends -
+killing the process - before the next class begins. With that patch, `--shard K/N` runs the K-th
+of N slices of the suite, and N pytest processes with one slice each run N games side by side.
+Each needs its own map names, which the runners handle by suffixing the shard (or, under
+`pytest-xdist`, the worker id). The suite is sliced by **test class, or module for a test outside
+a class** - the scope a scenario fixture lives at - so one scenario is never launched in two
+processes. `pytest-xdist` with `--dist loadscope` groups the same way, and works too.
+
+**`--headless` stops the games drawing.** Each launch gets `-renderEvery 0`, which needs the
+`headless` patch: the window still opens and the match simulates exactly as before, at the same
+capped rate, but no frame is drawn - which is most of what several copies at once would cost.
+`-headless` itself is not used because it also uncaps the loop, and a match running faster than
+the suite polls it can step over a state a test is waiting to see.
 """
 
 from __future__ import annotations
@@ -99,21 +109,105 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "failing scenario can be opened in WorldBuilder",
     )
 
+    group.addoption(
+        "--headless",
+        action="store_true",
+        help="launch every game with -renderEvery 0, so it simulates without drawing. Needs the "
+        "headless patch on game.dat",
+    )
+    group.addoption(
+        "--shard",
+        action="store",
+        default=None,
+        metavar="K/N",
+        help="run only the K-th of N slices of the suite (1-based), sliced by test class, so N "
+        "processes run N games at once. Needs the multi-instance patch on game.dat",
+    )
+
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "engine: needs a real game; skipped unless --install names an install",
     )
+    _shard(config)  # a malformed --shard fails here, before anything is collected
 
 
-def _worker_id() -> str:
-    """This xdist worker, or `master` when running single-process.
+def _shard(config: pytest.Config) -> tuple[int, int] | None:
+    """`--shard` as (K, N), 1 <= K <= N, or None when the whole suite runs in this process."""
+    given = config.getoption("--shard")
+    if given is None:
+        return None
+    try:
+        index, count = (int(part) for part in given.split("/"))
+    except ValueError:
+        raise pytest.UsageError(f"--shard takes K/N, as in 2/4 - not {given!r}") from None
+    if not 1 <= index <= count:
+        raise pytest.UsageError(f"--shard {given}: K has to be between 1 and N")
+    return index, count
 
-    Read from the environment rather than the `worker_id` fixture so the plugin does not require
-    `pytest-xdist` to be installed at all.
+
+#: Fixture scopes wide enough that every test sharing one of their parameter values shares one
+#: game: a shard must keep them together, or the scenario is launched in two processes.
+_SHARED_SCOPES = frozenset({"class", "module", "package", "session"})
+
+
+def _scope(item: pytest.Item) -> str:
+    """The unit a shard takes whole: the scenario fixture's node - the item's class, else its
+    module - and, when a class- or module-scoped fixture is parametrized, which of its values
+    the item runs with.
+
+    Without the parameter a class that runs one scenario per unit (`params=UNITS` on its scenario
+    fixture) is a single unit of work, and the whole parametrized class lands in one shard however
+    many there are. Function-scoped parameters are left out: every value of those runs in the same
+    game, so splitting on them would launch it twice."""
+    node = item.getparent(pytest.Class) or item.getparent(pytest.Module)
+    key = node.nodeid if node is not None else item.nodeid
+    callspec = getattr(item, "callspec", None)
+    if callspec is None:
+        return key
+    definitions = item._fixtureinfo.name2fixturedefs  # noqa: SLF001 - pytest's own record of scopes
+    shared = sorted(
+        f"{name}={callspec.indices[name]}"
+        for name in callspec.params
+        if name in definitions and definitions[name][-1].scope in _SHARED_SCOPES
+    )
+    return f"{key}[{','.join(shared)}]" if shared else key
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Under `--shard`, keep only this shard's scopes, dealt round-robin in collection order.
+
+    Collection order is the same in every process given the same arguments, so the N shards
+    partition the suite between them without having to talk to each other.
     """
+    shard = _shard(config)
+    if shard is None:
+        return
+    index, count = shard
+    scopes = list(dict.fromkeys(_scope(item) for item in items))
+    mine = set(scopes[index - 1 :: count])
+    deselected = [item for item in items if _scope(item) not in mine]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = [item for item in items if _scope(item) in mine]
+
+
+def _worker_id(config: pytest.Config) -> str:
+    """This process's name among several, or `master` when it is the only one.
+
+    `--shard K/N` makes it `shardK`; under xdist it is the worker id, read from the environment
+    rather than the `worker_id` fixture so the plugin does not require `pytest-xdist` at all.
+    """
+    shard = _shard(config)
+    if shard is not None and shard[1] > 1:
+        return f"shard{shard[0]}"
     return os.environ.get("PYTEST_XDIST_WORKER", "master")
+
+
+def _engine_args(config: pytest.Config) -> tuple[str, ...]:
+    """What every launch adds to the command line for the options this run was given."""
+    return ("-renderEvery", "0") if config.getoption("--headless") else ()
 
 
 @pytest.fixture(scope="session")
@@ -144,7 +238,8 @@ def scenario_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[S
     template = request.config.getoption("--map-template")
     keep_map = bool(request.config.getoption("--keep-maps"))
     mod_tree = request.config.getoption("--mod")
-    worker = _worker_id()
+    engine_args = _engine_args(request.config)
+    worker = _worker_id(request.config)
 
     def run(
         scenario: Scenario,
@@ -168,6 +263,7 @@ def scenario_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[S
             keep_map=keep_map,
             windowed=windowed,
             mod=mod or mod_tree,
+            engine_args=engine_args,
         )
 
     yield run
@@ -190,6 +286,7 @@ def map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[MapRun
     run exercise the map.ini in the working tree rather than the last release's.
     """
     mod_tree = request.config.getoption("--mod")
+    engine_args = _engine_args(request.config)
 
     def run(
         argument: str,
@@ -210,6 +307,7 @@ def map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[MapRun
             timeout=timeout,
             windowed=windowed,
             mod=mod or mod_tree,
+            engine_args=engine_args,
         )
 
     yield run
@@ -227,9 +325,13 @@ def user_map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[M
             assert session.observe().in_match
 
     `--keep-maps` leaves the installed copy behind, exactly as it does for a scenario's map.
+    Under `--shard` the copy's name carries the shard, as a scenario's does, so two processes
+    installing the same map do not write over and then delete each other's.
     """
     keep_map = bool(request.config.getoption("--keep-maps"))
     mod_tree = request.config.getoption("--mod")
+    engine_args = _engine_args(request.config)
+    worker = _worker_id(request.config)
 
     def run(
         source: str | Path,
@@ -243,6 +345,8 @@ def user_map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[M
         windowed: bool = True,
         mod: str | None = None,
     ) -> AbstractContextManager:
+        if worker != "master":
+            name = f"{name or Path(source).name}_{worker}"
         return run_user_map(
             source,
             install,
@@ -255,6 +359,7 @@ def user_map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[M
             timeout=timeout,
             windowed=windowed,
             mod=mod or mod_tree,
+            engine_args=engine_args,
         )
 
     yield run

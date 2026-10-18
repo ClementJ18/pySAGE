@@ -22,6 +22,7 @@ from sage_patch.addresses import (
     GAME_DATA_ASCIISTRING_PARSER,
     GAME_LOGIC_FRAME,
     GET_FINAL_OVERRIDE,
+    INI_PARSE_BOOL,
     INI_PARSE_PERCENT_TO_REAL,
     OBJECT_GET_CONTROLLING_PLAYER,
     OBJECT_GET_SPECIAL_POWER_MODULE,
@@ -52,6 +53,7 @@ from sage_patch.patches.special_power_refund_upgrade import (
     MODULEDATA_SIZE,
     POWER_FIELD,
     REFUND_FIELD,
+    RESTART_FIELD,
     SECTION_NAME,
     WORLDBUILDER_SECTION_NAME,
     SpecialPowerRefundUpgradePatch,
@@ -108,14 +110,17 @@ def _call_targets(body: bytes, va: int) -> list[int]:
 
 
 def _rows(image: bytearray, table_va: int) -> list[tuple[str, int, int, int]]:
+    """The table's rows up to and including its terminator."""
     rows = []
-    for index in range(3):
+    for index in range(16):
         name_va, parser, userdata, offset = struct.unpack(
             "<4I", _read(image, table_va + 16 * index, 16)
         )
         name = _read(image, name_va, 32).split(b"\0")[0].decode() if name_va else ""
         rows.append((name, parser, userdata, offset))
-    return rows
+        if not name_va:
+            return rows
+    raise AssertionError("unterminated field table")
 
 
 def test_apply_verify_and_detect(image: bytearray) -> None:
@@ -155,26 +160,30 @@ def test_hook_replaces_only_the_remove_upgrade_registration_call(image: bytearra
     assert image[off + 5 : off + 32] == stock[off + 5 : off + 32]
 
 
-def test_field_table_is_a_string_row_and_a_percent_row(patched: bytearray) -> None:
+def test_field_table_is_a_string_a_percent_and_a_bool_row(patched: bytearray) -> None:
     patch = SpecialPowerRefundUpgradePatch()
     base, _off, _size = find_section(patched, SECTION_NAME) or pytest.fail("missing section")
     assert _rows(patched, patch._layout(base)["table"]) == [
         ("SpecialPower", GAME_DATA_ASCIISTRING_PARSER, 0, 0x138),
         ("RefundPercent", INI_PARSE_PERCENT_TO_REAL, 0, 0x140),
+        ("RestartCooldown", INI_PARSE_BOOL, 0, 0x144),
         ("", 0, 0, 0),
     ]
 
 
-def test_the_percentage_gets_its_own_bytes_past_the_two_strings(patched: bytearray) -> None:
+def test_the_percentage_and_the_flag_get_their_own_bytes_past_the_two_strings(
+    patched: bytearray,
+) -> None:
     # Tooltip's ModuleData ends in AsciiStrings at +0x138 and +0x13C, both destroyed with it.
     assert POWER_FIELD[1] == 0x138
     assert REFUND_FIELD[1] == tooltip_twin.MODULEDATA_SIZE == 0x140
-    assert MODULEDATA_SIZE == 0x144
+    assert RESTART_FIELD[1] == 0x144
+    assert MODULEDATA_SIZE == 0x148
     patch = SpecialPowerRefundUpgradePatch()
     body = _body(patched, SECTION_NAME, patch, "moduledata_factory", "build_fields")
     assert body.startswith(b"\x55\x8b\xec\x56\x68" + struct.pack("<I", MODULEDATA_SIZE))
-    # Zeroed after Tooltip's constructor, which knows nothing of it.
-    assert b"\x83\xa6\x40\x01\x00\x00\x00\xc7\x06" in body
+    # Both zeroed after Tooltip's constructor, which knows nothing of them.
+    assert b"\x83\xa6\x40\x01\x00\x00\x00\x83\xa6\x44\x01\x00\x00\x00\xc7\x06" in body
 
 
 def test_registration_replays_stock_then_adds_wrapped_runtime_factory(patched: bytearray) -> None:
@@ -241,6 +250,7 @@ def test_ini_surface_declares_the_new_behavior() -> None:
     assert [(field.name, field.type) for field in surface.fields] == [
         ("SpecialPower", "Ref:specialpowers"),
         ("RefundPercent", "Float"),
+        ("RestartCooldown", "Bool"),
     ]
     assert all(parse_type(field.type)[1] == "" for field in surface.fields)
 
@@ -290,6 +300,8 @@ def test_worldbuilder_registers_with_stock_runtime_and_editor_parsers(wb_image: 
     assert _rows(wb_image, patch._layout(base)["table"]) == [
         ("SpecialPower", WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER, 0, 0x138),
         ("RefundPercent", WORLDBUILDER_INI_PARSE_PERCENT_TO_REAL, 0, 0x140),
+        # The editor's string parser stands in for its unlocated Bool parser: it accepts the token.
+        ("RestartCooldown", WORLDBUILDER_OBJECT_IMAGE_UPGRADE_ASCIISTRING_PARSER, 0, 0x144),
         ("", 0, 0, 0),
     ]
     # The editor's percent parser writes +0x140 too, so its ModuleData grows as the game's does.
@@ -332,6 +344,9 @@ _GET_TEMPLATE_STUB = _STUBS  # interface slot +0x18
 # The engine's `setReadyFrame`, the routine interface slot +0x20 holds in the stock vtable.
 _SET_READY_FRAME = 0x0099344A
 _OTHER_START_POWER_RECHARGE = 0x00991500
+# A stand-in for interface slot +0x3C that records its `this` and argument and does nothing else.
+_RECORD = _STUBS + 0x800
+_RECORDING_START_POWER_RECHARGE = _STUBS + 0x100
 
 _STUB_CODE = {
     OBJECT_GET_CONTROLLING_PLAYER: b"\x8b\x81" + struct.pack("<I", _OBJECT_OWNER) + b"\xc3",
@@ -342,6 +357,14 @@ _STUB_CODE = {
     SPECIAL_POWER_STORE_FIND_TEMPLATE: bytes.fromhex("8b4424048b00c20400"),
     OBJECT_GET_SPECIAL_POWER_MODULE: b"\x8b\x41" + bytes([_OBJECT_POWER_MODULE]) + b"\xc2\x04\x00",
     _GET_TEMPLATE_STUB: b"\x8b\x41" + bytes([_INTERFACE_TEMPLATE]) + b"\xc3",
+    # mov eax, [esp+4] / mov [record], eax / mov [record+4], ecx / inc dword [record+8] / ret 4
+    _RECORDING_START_POWER_RECHARGE: b"\x8b\x44\x24\x04\xa3"
+    + struct.pack("<I", _RECORD)
+    + b"\x89\x0d"
+    + struct.pack("<I", _RECORD + 4)
+    + b"\xff\x05"
+    + struct.pack("<I", _RECORD + 8)
+    + b"\xc2\x04\x00",
 }
 
 _NOW = 10_000
@@ -434,6 +457,18 @@ class _Machine:
 
     def set_refund(self, fraction: float) -> None:
         self.write(self.module_data + REFUND_FIELD[1], struct.pack("<f", fraction))
+
+    def set_restart(self) -> None:
+        """`RestartCooldown = Yes`, with slot +0x3C recording what it is asked."""
+        self.write(self.module_data + RESTART_FIELD[1], b"\x01")
+        self.set_flavour(_RECORDING_START_POWER_RECHARGE)
+        self.write(_RECORD, bytes(12))
+
+    def restarts(self) -> list[tuple[float, int]]:
+        """Run Apply; return each recorded `startPowerRecharge` call as (argument, this)."""
+        self.remaining()
+        argument, this, count = struct.unpack("<fII", bytes(self.uc.mem_read(_RECORD, 12)))
+        return [(argument, this)] * count
 
     def remaining(self) -> int:
         """Frames left on the cooldown after Apply has run, with the caller's registers and stack
@@ -540,3 +575,63 @@ class TestApply:
     def test_an_object_that_is_gone_does_nothing(self, machine: _Machine) -> None:
         machine.write(machine.mux + tooltip_twin.MUX_OBJECT, bytes(4))
         assert machine.remaining() == 5_400
+
+
+class TestRestart:
+    """`RestartCooldown = Yes`: the power's own startPowerRecharge(1.0), whatever its state."""
+
+    def test_it_starts_the_power_over_as_a_cast_does(self, machine: _Machine) -> None:
+        machine.set_restart()
+        assert machine.restarts() == [(1.0, machine.interface)]
+
+    def test_it_leaves_the_ready_frame_to_start_power_recharge(self, machine: _Machine) -> None:
+        # The recorder does not move it, so anything that did would be the cave's own write.
+        machine.set_restart()
+        assert machine.remaining() == 5_400
+
+    @pytest.mark.parametrize("remaining", [0, -300, 5_400])
+    def test_ready_or_not(self, machine: _Machine, remaining: int) -> None:
+        # The case it exists for: a permanent summon whose cooldown finished long ago.
+        machine.set_cooldown(duration=_DURATION, remaining=remaining)
+        machine.set_restart()
+        assert machine.restarts() == [(1.0, machine.interface)]
+
+    def test_it_ignores_any_refund(self, machine: _Machine) -> None:
+        machine.set_refund(1.0)
+        machine.set_restart()
+        assert machine.restarts() == [(1.0, machine.interface)]
+        assert machine.remaining() == 5_400
+
+    @pytest.mark.parametrize(
+        "case", ["never recharged", "paused", "shared timer"], ids=lambda case: case
+    )
+    def test_the_refund_guards_do_not_apply(self, machine: _Machine, case: str) -> None:
+        # startPowerRecharge sets the length and diverts a shared timer itself.
+        if case == "never recharged":
+            machine.set_cooldown(duration=0, remaining=0)
+        elif case == "paused":
+            machine.write(machine.interface + 0x0C, struct.pack("<I", 1))
+        else:
+            machine.write(machine.template + 0x59, b"\x01")
+        machine.set_restart()
+        assert machine.restarts() == [(1.0, machine.interface)]
+
+    @pytest.mark.parametrize(
+        ("holder", "field"),
+        [
+            ("owner", _OBJECT_OWNER),
+            ("player", _PLAYER_SPELLBOOK),
+            ("spellbook", _OBJECT_POWER_MODULE),
+        ],
+    )
+    def test_nothing_to_restart_does_nothing(
+        self, machine: _Machine, holder: str, field: int
+    ) -> None:
+        machine.set_restart()
+        machine.write(getattr(machine, holder) + field, bytes(4))
+        assert machine.restarts() == []
+
+    def test_an_unknown_power_does_nothing(self, machine: _Machine) -> None:
+        machine.set_restart()
+        machine.set_power(machine.alloc(0x10))
+        assert machine.restarts() == []

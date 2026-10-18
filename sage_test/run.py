@@ -117,6 +117,7 @@ def run_map(
     timeout: float = DEFAULT_TIMEOUT,
     windowed: bool = True,
     mod: str | Path | None = None,
+    engine_args: Sequence[str] = (),
 ) -> Iterator[Session]:
     """Start a map that already exists, and yield the running game.
 
@@ -141,7 +142,14 @@ def run_map(
         raise EngineUnavailable(f"no game.dat in {install}")
 
     game_info = _game_info(seats, settings)
-    process = launch(argument, game_dat, game_info=game_info, mod=mod, windowed=windowed)
+    process = launch(
+        argument,
+        game_dat,
+        game_info=game_info,
+        mod=mod,
+        windowed=windowed,
+        extra=tuple(engine_args),
+    )
     session = None
     try:
         session = _await_session(process, timeout, writable)
@@ -166,6 +174,7 @@ def run_user_map(
     timeout: float = DEFAULT_TIMEOUT,
     windowed: bool = True,
     mod: str | Path | None = None,
+    engine_args: Sequence[str] = (),
 ) -> Iterator[Session]:
     """Install a map folder into the user files, start it there, and clean up afterwards.
 
@@ -188,7 +197,14 @@ def run_user_map(
 
     game_info = _game_info(seats, settings)
     installed = install_map_folder(source, name=name, extras=extras)
-    process = launch(installed.argument, game_dat, game_info=game_info, mod=mod, windowed=windowed)
+    process = launch(
+        installed.argument,
+        game_dat,
+        game_info=game_info,
+        mod=mod,
+        windowed=windowed,
+        extra=tuple(engine_args),
+    )
     session = None
     try:
         session = _await_session(process, timeout, writable)
@@ -215,6 +231,7 @@ def run_scenario(
     tolerance: float = DEFAULT_TOLERANCE,
     windowed: bool = True,
     mod: str | Path | None = None,
+    engine_args: Sequence[str] = (),
 ) -> Iterator[Match]:
     """Bring `scenario` up as a running match, and take it down again afterwards.
 
@@ -228,6 +245,9 @@ def run_scenario(
     `mod` runs the game against an uncompiled mod tree (`-mod`), so a test exercises the ini as
     it is on disk rather than as it was last built into `.big` archives. That is the difference
     between a suite that guards a release and one you can run against the edit you just made.
+
+    `engine_args` go on the end of the command line as they are - `("-renderEvery", "0")` for a
+    run that does not draw, which needs the `headless` patch.
 
     **The teardown is the point.** Whatever happens in the body - a failed assertion, a timeout,
     a keyboard interrupt - the process is killed and the generated map removed, because the next
@@ -247,11 +267,20 @@ def run_scenario(
     # costs far more than the launch it would be shortening.
     map_path, file_argument = install_map(scenario.name, write_map(parsed, compress=False))
 
-    process = launch(file_argument, game_dat, game_info=game_info, mod=mod, windowed=windowed)
+    process = launch(
+        file_argument,
+        game_dat,
+        game_info=game_info,
+        mod=mod,
+        windowed=windowed,
+        extra=tuple(engine_args),
+    )
     session = None
     try:
         session = _await_session(process, timeout, writable)
-        yield Match(scenario, session, bind_handles(scenario, session.observe(), tolerance))
+        yield Match(
+            scenario, session, bind_handles(scenario, session.observe(), tolerance), process.pid
+        )
     finally:
         if session is not None:
             session.close()

@@ -28,6 +28,7 @@ from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
+from sage_patch.patches.better_hud_toggle import BetterHudTogglePatch
 from sage_patch.patches.binary_attest import BinaryAttestPatch
 from sage_patch.patches.cah_factions import (
     CahFactionsPatch,
@@ -54,6 +55,7 @@ from sage_patch.patches.desert_weather import (
 )
 from sage_patch.patches.desync_debug import DesyncDebugPatch
 from sage_patch.patches.detachable_rider_heal import DetachableRiderHealPatch
+from sage_patch.patches.drain_life_fix import DrainLifeFixPatch
 from sage_patch.patches.draw_module_scale import DrawModuleScalePatch
 from sage_patch.patches.evacuate_contained_heroes import EvacuateContainedHeroesPatch
 from sage_patch.patches.experience_award import (
@@ -76,7 +78,6 @@ from sage_patch.patches.experimental.castle_prefab import (
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
 from sage_patch.patches.experimental.command_range_flyout import CommandRangeFlyoutPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
-from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.hide_selection_details import HideSelectionDetailsPatch
@@ -85,7 +86,6 @@ from sage_patch.patches.experimental.living_world_override import LivingWorldOve
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
 from sage_patch.patches.experimental.observer_all_commands import ObserverAllCommandsPatch
 from sage_patch.patches.experimental.ranged_stand_off import RangedStandOffPatch
-from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.shared_control_on_leave import SharedControlOnLeavePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
@@ -102,6 +102,7 @@ from sage_patch.patches.grant_science_upgrade import (
     GrantScienceUpgradePatch,
     GrantScienceUpgradeWorldbuilderPatch,
 )
+from sage_patch.patches.headless import HeadlessPatch
 from sage_patch.patches.healing_received import (
     HealingReceivedPatch,
     HealingReceivedWorldbuilderPatch,
@@ -115,6 +116,7 @@ from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
+from sage_patch.patches.kill_count_tooltip import KillCountTooltipPatch
 from sage_patch.patches.lan_join_bystanders import LanJoinBystandersPatch
 from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
 from sage_patch.patches.level_grant_special_power import (
@@ -129,6 +131,7 @@ from sage_patch.patches.model_condition_images import ModelConditionImagesPatch
 from sage_patch.patches.mount_health_ratio import MountHealthRatioPatch
 from sage_patch.patches.mount_swap_eject import MountSwapEjectPatch
 from sage_patch.patches.multi_contain import MultiContainPatch
+from sage_patch.patches.multi_execute_cooldown import MultiExecuteCooldownPatch
 from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
 from sage_patch.patches.multi_mod import MultiModPatch
@@ -151,6 +154,7 @@ from sage_patch.patches.production_condition import (
     ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch,
 )
+from sage_patch.patches.production_death_no_refund import ProductionDeathNoRefundPatch
 from sage_patch.patches.production_split import (
     ProductionSplitPatch,
     ProductionSplitWorldbuilderPatch,
@@ -159,9 +163,11 @@ from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.quiet_exit import QuietExitPatch
 from sage_patch.patches.radar_structure_discs import RadarStructureDiscsPatch
 from sage_patch.patches.rebuild_hole_repair import RebuildHoleRepairPatch
+from sage_patch.patches.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.render_rate import RenderRatePatch
 from sage_patch.patches.repair_damage_cancel import RepairDamageCancelPatch
 from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
+from sage_patch.patches.replacement_transfer import ReplacementTransferPatch
 from sage_patch.patches.replay_annotations import ReplayAnnotationsPatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch
 from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
@@ -195,6 +201,7 @@ from sage_patch.patches.texture_any_extension import TextureAnyExtensionPatch
 from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
 from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
+from sage_patch.patches.upgrade_complete_skip_unnamed import UpgradeCompleteSkipUnnamedPatch
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 from sage_patch.patches.upgrade_module_removal import UpgradeModuleRemovalPatch
@@ -236,6 +243,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     BannerFilterPatch,
     BannerModifierPatch,
     BattleSchoolPatch,
+    BetterHudTogglePatch,
     BinaryAttestPatch,
     CahFactionsPatch,
     CahFactionsWorldbuilderPatch,
@@ -266,6 +274,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     DesertWeatherWorldbuilderPatch,
     DesyncDebugPatch,
     DetachableRiderHealPatch,
+    DrainLifeFixPatch,
     DrawModuleScalePatch,
     EvacuateContainedHeroesPatch,
     FactionVariantsPatch,
@@ -296,6 +305,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     InfantryLightingPatch,
     InflationReadoutPatch,
     InterpolationAlphaPatch,
+    KillCountTooltipPatch,
     LargeGroupBonusPatch,
     LevelGrantSpecialPowerPatch,
     LifetimeFieldsPatch,
@@ -311,6 +321,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     MountHealthRatioPatch,
     MountSwapEjectPatch,
     MultiContainPatch,
+    MultiExecuteCooldownPatch,
     MultiExecuteGatePatch,
     MultiInstanceLauncherPatch,
     MultiInstancePatch,
@@ -331,6 +342,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     PlayerUpgradeDiscountPatch,
     ProductionConditionPatch,
     ProductionConditionWorldbuilderPatch,
+    ProductionDeathNoRefundPatch,
     ProductionSplitPatch,
     ProductionSplitWorldbuilderPatch,
     QueueIgnoreCpPatch,
@@ -338,6 +350,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     RadarStructureDiscsPatch,
     RebuildHoleRepairPatch,
     RepairDamageCancelPatch,
+    ReplacementTransferPatch,
     RangedStandOffPatch,
     RechargeRescalePatch,
     RenderRatePatch,
@@ -376,6 +389,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     UniqueProductionIdPatch,
     UnitPlateOptionPatch,
     UpgradeDescriptionPatch,
+    UpgradeCompleteSkipUnnamedPatch,
     UpgradeAliasPatch,
     UpgradeGrantListsPatch,
     WallLayerPromotionPatch,

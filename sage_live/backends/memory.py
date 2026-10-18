@@ -313,6 +313,8 @@ class EngineLayout:
     # discounted cooldown (confirmed live), which is shorter than the ini's `ReloadTime`.
     module_data: int = 0x04
     module_ready_frame: int = 0x18
+    # The cooldown's own length beside it (`docs/recharge-rescale.md` section 1).
+    module_duration: int = 0x14
     module_data_template: int = 0x08
     # A module list longer than this is a bad read; the spellbook carries about 140.
     max_modules: int = 1 << 10
@@ -1463,7 +1465,10 @@ class MemoryBackend:
             name = self._ascii(template + lay.power_name)
             ready = self._i32(module + lay.module_ready_frame)
             if name and ready is not None:
-                found.append(SpecialPowerState(name, ready, self._required_sciences(template)))
+                duration = self._i32(module + lay.module_duration) or 0
+                found.append(
+                    SpecialPowerState(name, ready, self._required_sciences(template), duration)
+                )
         return tuple(found)
 
     def _required_sciences(self, template: int) -> frozenset[int]:

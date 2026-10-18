@@ -27,13 +27,11 @@ from sage_patch.patches.experience_award import ExperienceAwardPatch
 from sage_patch.patches.experience_level_down import (
     ExperienceLevelDownPatch,
 )
-from sage_patch.patches.experimental.headless import HeadlessPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
-from sage_patch.patches.experimental.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
 from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
@@ -47,6 +45,7 @@ from sage_patch.patches.grant_science_upgrade import (
     GrantScienceUpgradePatch,
     GrantScienceUpgradeWorldbuilderPatch,
 )
+from sage_patch.patches.headless import HeadlessPatch
 from sage_patch.patches.healing_received import HealingReceivedPatch
 from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
 from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
@@ -76,6 +75,7 @@ from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.production_split import ProductionSplitPatch
 from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.radar_structure_discs import RadarStructureDiscsPatch
+from sage_patch.patches.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.repair_damage_cancel import RepairDamageCancelPatch
 from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
 from sage_patch.patches.replay_outcome import ReplayOutcomePatch

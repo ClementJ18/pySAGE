@@ -31,8 +31,10 @@ from pathlib import Path
 import pytest
 
 from sage_patch import apply_patches
-from sage_patch.patches.experimental.recharge_rescale import (
+from sage_patch.patches.recharge_rescale import (
     ANCHORS,
+    DISCOUNT_FOLD_STOCK,
+    DISCOUNT_FOLD_VA,
     FTOL,
     GAME_LOGIC_FIRST_OBJECT,
     GAME_LOGIC_FRAME,
@@ -63,6 +65,7 @@ from sage_patch.patches.experimental.recharge_rescale import (
     RechargeRescalePatch,
     build_section,
 )
+from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
 from sage_patch.utils import find_section, va_to_offset
 
 from .synthetic import recharge_rescale_image
@@ -155,11 +158,11 @@ class TestRoundTrip:
     def test_the_patch_is_attributed(self) -> None:
         assert RechargeRescalePatch.author
 
-    def test_the_patch_declares_itself_experimental(self) -> None:
-        """It lives in `patches/experimental`, and the attribute is what `apply` warns from. The
-        suite-wide `TestExperimentalPatchesAreDeclared` checks the pair agrees; this says which
-        side of the pair this patch is on."""
-        assert RechargeRescalePatch.experimental is True
+    def test_the_patch_is_not_experimental(self) -> None:
+        """It graduated after a live run (`docs/recharge-rescale.md` section 9). The suite-wide
+        `TestExperimentalPatchesAreDeclared` checks the attribute and the package agree; this says
+        which side of the pair this patch is on."""
+        assert RechargeRescalePatch.experimental is False
 
 
 class TestTheEdit:
@@ -369,19 +372,20 @@ class TestTheFlavourTest:
 
 class TestTheArithmetic:
     def test_the_fpu_stack_balances(self, image: bytearray) -> None:
-        """Three values go onto the x87 stack and three come off: two `fild`s and the `fld` inside
-        the player-modifier getter, against one `fstp` and two `ftol`s (which pop). A leak here
+        """Four values go onto the x87 stack and four come off: two `fild`s, the `fld` inside the
+        player-modifier getter and the `fld` that hands back the targeted gate's factor, against
+        two `fstp`s (one per path into the factor slot) and two `ftol`s (which pop). A leak here
         would not fail in the frame that caused it - it would overflow the engine's FPU stack
         minutes later, in unrelated code."""
         instructions = _disassembled(_patched(image))
-        pushes = sum(1 for i in instructions if i.mnemonic == "fild")
+        pushes = sum(1 for i in instructions if i.mnemonic in ("fild", "fld"))
         pops = sum(1 for i in instructions if i.mnemonic == "fstp")
         for i in instructions:
             if i.mnemonic == "call" and i.op_str.startswith("0x"):
                 target = int(i.op_str, 16)
                 pushes += target == GET_SPELL_RECHARGE_MODIFIER  # `fld [Player+0x718]`
                 pops += target == FTOL  # consumes st(0)
-        assert pushes == pops == 3
+        assert pushes == pops == 4
 
     def test_the_two_factors_multiply_in_the_stock_order_and_precision(
         self, image: bytearray
@@ -394,8 +398,8 @@ class TestTheArithmetic:
         one `fstp` (the player factor into its own slot) and **two consecutive `fmul`s**.
 
         The `fadd` also has to name the engine's own 1.0f, which is the constant the stock gate
-        adds at `0x00896ECC` - read back out of the anchor rather than restated."""
-        one_float = ANCHORS[_FLAG_WINDOW][ANCHORS[_FLAG_WINDOW].index(b"\xd8\x05") + 2 :][:4]
+        adds at `0x00896ECC` - read back out of the stock bytes rather than restated."""
+        one_float = DISCOUNT_FOLD_STOCK[DISCOUNT_FOLD_STOCK.index(b"\xd8\x05") + 2 :][:4]
         mnemonics = [
             (i.mnemonic, i.op_str) for i in _disassembled(_patched(image)) if i.mnemonic[0] == "f"
         ]
@@ -403,12 +407,14 @@ class TestTheArithmetic:
         assert [m for m, _ in mnemonics] == [
             "fadd",
             "fstp",  # 1 + Player[0x718] -> its own slot
+            "fstp",  # or spell-recharge-targets' factor -> the same slot
             "fild",
             "fmul",
             "fmul",  # ReloadTime * player * attribute -> frames_now
             "fild",
             "fimul",
             "fidiv",  # remaining * frames_now / duration
+            "fld",  # `targeted` handing the gate's result back
         ]
         # and the engine's own sequence, for the same three steps, in the same order
         stock = ANCHORS[_RELOAD_WINDOW]
@@ -462,6 +468,45 @@ class TestTheBuildFingerprint:
         data = _patched(image)
         assert RechargeRescalePatch().verify(data) == []
         assert at(data, HOOK_CALL_VA, 5) != _call_bytes(HOOK_CALL_VA, LOGIC_FRAME_GATE)
+
+    def test_spell_recharge_targets_form_of_the_fold_is_accepted(self, image: bytearray) -> None:
+        """That patch's `call <gate>; jmp` past the stock bytes is the one other form the sweep
+        follows, so an image carrying it applies and verifies."""
+        data = bytearray(image)
+        off = va_to_offset(data, DISCOUNT_FOLD_VA)
+        assert off is not None
+        targeted = _call_bytes(DISCOUNT_FOLD_VA, _RECHARGE_ENTRY) + bytes.fromhex("eb0c")
+        data[off : off + len(DISCOUNT_FOLD_STOCK)] = targeted.ljust(
+            len(DISCOUNT_FOLD_STOCK), b"\x90"
+        )
+        RechargeRescalePatch().apply(data)
+        assert RechargeRescalePatch().verify(data) == []
+
+    @pytest.mark.parametrize(
+        "fold",
+        [
+            bytes.fromhex("90") * 19,  # some third patch
+            b"\xe8" + struct.pack("<i", 0x10000000) + bytes.fromhex("eb0c") + b"\x90" * 12,
+        ],
+        ids=("rewritten", "call-into-nothing"),
+    )
+    def test_any_other_fold_refuses_to_apply(self, image: bytearray, fold: bytes) -> None:
+        data = bytearray(image)
+        off = va_to_offset(data, DISCOUNT_FOLD_VA)
+        assert off is not None
+        data[off : off + len(fold)] = fold
+        with pytest.raises(ValueError, match="not the expected build"):
+            RechargeRescalePatch().apply(data)
+
+    def test_the_fold_is_read_at_run_time(self, image: bytearray) -> None:
+        """The form is tested in the cave, not chosen at apply time, which is what lets
+        `spell-recharge-targets` be applied after this patch as well as before."""
+        tests = [
+            i.op_str
+            for i in _disassembled(_patched(image))
+            if i.mnemonic == "cmp" and f"0x{DISCOUNT_FOLD_VA:x}" in i.op_str
+        ]
+        assert tests == [f"byte ptr [0x{DISCOUNT_FOLD_VA:x}], 0xe8"]
 
     def test_a_moved_cave_fails_verification(self, image: bytearray) -> None:
         """Every engine call in the cave is a resolved displacement, so a cave built for another
@@ -528,3 +573,17 @@ class TestInstalledBinary:
         RechargeRescalePatch().apply(data)
         assert RechargeRescalePatch().verify(data) == []
         assert RechargeRescalePatch.detect(data) is not None
+
+    @pytest.mark.parametrize("rescale_first", [True, False], ids=("rescale-first", "targets-first"))
+    def test_it_composes_with_spell_recharge_targets(
+        self, game: bytes, rescale_first: bool
+    ) -> None:
+        targets = SpellRechargeTargetsPatch
+        order = (
+            [RechargeRescalePatch, targets] if rescale_first else [targets, RechargeRescalePatch]
+        )
+        data = bytearray(game)
+        for patch in order:
+            patch().apply(data)
+        assert RechargeRescalePatch().verify(data) == []
+        assert targets().verify(data) == []
