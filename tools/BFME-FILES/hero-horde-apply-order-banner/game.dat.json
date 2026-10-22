@@ -1,0 +1,262 @@
+{
+  "source_sha256": "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26",
+  "output_sha256": "a7c0afa4572eafb09861567a5932ccd87ef5e963e46af2fff6826ec2cef7e85d",
+  "upstream_commit": "4b0cdd8408f9e305a766131cd616db135c43fe7d",
+  "selection_sha256": "442df00dd9e7871b5441fe6bf3eabe2a68d39bbef0917e834bd1d87112dcdde5",
+  "patches": [
+    {
+      "name": "spell-store-upgrade",
+      "options": "{}"
+    },
+    {
+      "name": "commandset-limit",
+      "options": "{'count': 64}"
+    },
+    {
+      "name": "desert-weather",
+      "options": "{'weather': 'DESERT', 'condition': 'SAND'}"
+    },
+    {
+      "name": "unique-production-id",
+      "options": "{}"
+    },
+    {
+      "name": "herobar",
+      "options": "{'kindof': 'HEROBAR', 'group_kindof': 'HEROBAR_GROUP', 'jump_window': 500, 'group_tooltip': ''}"
+    },
+    {
+      "name": "hero-horde-death",
+      "options": "{}"
+    },
+    {
+      "name": "queue-ignore-cp",
+      "options": "{'keyword': 'QueueIgnoreCP'}"
+    },
+    {
+      "name": "production-split",
+      "options": "{'ai_sites': False}"
+    },
+    {
+      "name": "foundation-rebind",
+      "options": "{}"
+    },
+    {
+      "name": "commandset-button-upgrade",
+      "options": "{}"
+    },
+    {
+      "name": "spawn-union",
+      "options": "{}"
+    },
+    {
+      "name": "description-timers",
+      "options": "{}"
+    },
+    {
+      "name": "upgrade-description",
+      "options": "{'separator': 'blank-line', 'also_blocked': False}"
+    },
+    {
+      "name": "observer-command-range",
+      "options": "{}"
+    },
+    {
+      "name": "trigger-recharge-list",
+      "options": "{}"
+    },
+    {
+      "name": "horde-exit-absorption",
+      "options": "{}"
+    },
+    {
+      "name": "hero-bar-slots",
+      "options": "{'count': 32}"
+    },
+    {
+      "name": "hero-recruit-parallel",
+      "options": "{}"
+    },
+    {
+      "name": "multi-execute-gate",
+      "options": "{}"
+    },
+    {
+      "name": "science-prereqs",
+      "options": "{'report_missing': True, 'all_keywords': False}"
+    },
+    {
+      "name": "spellbook-commandset-refresh",
+      "options": "{}"
+    },
+    {
+      "name": "desync-debug",
+      "options": "{'crc_interval': 1, 'verify_client_crc': False}"
+    },
+    {
+      "name": "fire-at-attacker",
+      "options": "{'keyword': 'FireAtAttacker'}"
+    },
+    {
+      "name": "large-group-bonus",
+      "options": "{'keyword': 'CountLooseObjects'}"
+    },
+    {
+      "name": "share-experience-all",
+      "options": "{}"
+    },
+    {
+      "name": "special-power-music",
+      "options": "{}"
+    },
+    {
+      "name": "object-image-upgrade",
+      "options": "{}"
+    },
+    {
+      "name": "asset-load-profile",
+      "options": "{}"
+    },
+    {
+      "name": "castle-prefab",
+      "options": "{}"
+    },
+    {
+      "name": "castle-prefab-commandbutton",
+      "options": "{}"
+    },
+    {
+      "name": "render-rate",
+      "options": "{'fps': 60}"
+    },
+    {
+      "name": "faction-variants",
+      "options": "{}"
+    },
+    {
+      "name": "crash-dump",
+      "options": "{'normal': 7013, 'deep': 7015}"
+    },
+    {
+      "name": "repair-damage-cancel",
+      "options": "{}"
+    },
+    {
+      "name": "map-list-symbols",
+      "options": "{'keyword': 'mapSymbol', 'symbols': 15, 'sort': 'key'}"
+    },
+    {
+      "name": "construction-initial-health",
+      "options": "{'percent': 10.0}"
+    },
+    {
+      "name": "healing-received",
+      "options": "{'keyword': 'HEALING_RECEIVED'}"
+    },
+    {
+      "name": "inflation-readout",
+      "options": "{}"
+    },
+    {
+      "name": "command-point-cost",
+      "options": "{'keyword': 'CommandPointCost'}"
+    },
+    {
+      "name": "castle-unpack-clearance",
+      "options": "{}"
+    },
+    {
+      "name": "hide-modifier-fx",
+      "options": "{'keyword': 'HideModifierFX'}"
+    },
+    {
+      "name": "mount-health-ratio",
+      "options": "{}"
+    },
+    {
+      "name": "mount-swap-eject",
+      "options": "{}"
+    },
+    {
+      "name": "passive-aura-revive",
+      "options": "{}"
+    },
+    {
+      "name": "player-upgrade-discount",
+      "options": "{}"
+    },
+    {
+      "name": "revive-object-binding",
+      "options": "{}"
+    },
+    {
+      "name": "attribute-modifier-aura-conflicts",
+      "options": "{}"
+    },
+    {
+      "name": "multi-mod",
+      "options": "{}"
+    },
+    {
+      "name": "mod-load-order",
+      "options": "{}"
+    },
+    {
+      "name": "command-line-skirmish",
+      "options": "{'human_faction': 3, 'ai_faction': 10, 'resources': 5000}"
+    },
+    {
+      "name": "headless",
+      "options": "{}"
+    },
+    {
+      "name": "multi-instance",
+      "options": "{}"
+    },
+    {
+      "name": "experience-level-down",
+      "options": "{'xp_cap': True}"
+    },
+    {
+      "name": "level-grant-special-power",
+      "options": "{}"
+    },
+    {
+      "name": "upgrade-module-removal",
+      "options": "{}"
+    },
+    {
+      "name": "special-power-pause-button",
+      "options": "{}"
+    },
+    {
+      "name": "special-power-upgrade-filters",
+      "options": "{}"
+    },
+    {
+      "name": "command-range-flyout",
+      "options": "{}"
+    },
+    {
+      "name": "text-entry-clipboard",
+      "options": "{}"
+    },
+    {
+      "name": "slaved-update-idle",
+      "options": "{'wander_min_ms': 6000, 'wander_max_ms': 14191, 'idle_min_ms': 4000, 'idle_max_ms': 7095}"
+    },
+    {
+      "name": "pillage-module-extension",
+      "options": "{}"
+    },
+    {
+      "name": "horde-herobar",
+      "options": "{}"
+    },
+    {
+      "name": "ai-hero-build-delay",
+      "options": "{}"
+    }
+  ],
+  "health_source_rule": "MELEE_HORDE + BannerCarrierDestroyHordeOnDeath: native banner ratio; ordinary MELEE: stock; other HORDE: aggregate",
+  "validation": "all 63 patches verified; no game runtime test of banner correction"
+}

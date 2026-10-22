@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "status": "experimental; static and emulation checks only; no game runtime validation",
+  "source": "/var/home/ostkannit/projects/pySAGE/tools/BFME-FILES/game.dat.backup",
+  "source_sha256": "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26",
+  "output": "/var/home/ostkannit/projects/pySAGE/tools/BFME-FILES/hero-horde-all-banner/game.dat",
+  "output_sha256": "ec6cc1317b356b026cdd6569032adc5f43e0865b1a1a2c9e6fd815d717bfbf71",
+  "patches": [
+    "hero-horde-death",
+    "combo-horde-recruitment",
+    "horde-herobar"
+  ],
+  "hook": {
+    "va": "0x87386c",
+    "rva": "0x47386c",
+    "file_offset": "0x47386c"
+  },
+  "anchors": {
+    "0x87370b": "b892f7b900e8db971c0083ec548365f00056578b7d0885ff8bf1",
+    "0x873821": "8d9ee4feffff8b038bcbff909400000084c075ec",
+    "0x873835": "8d45ec508bcbe8581dffff8b40048b0039007534837e5800752e8b86e8feffff6a008d4f3851ffb0500200008b0d7036de00e882a1d6ff",
+    "0x873872": "8b0d2c41de00e82e83dbff",
+    "0xc5b22c": "0b378700",
+    "0xc5becc": "0b378700",
+    "0xc5cfdc": "0b378700",
+    "0x68bda5": "568bb14c0200005733ffeb0e8b01ff50103b44240c",
+    "0x5487ec": "b847a8b700e8fa464f00",
+    "0xc0b098": "5265737061776e55706461746500",
+    "0x8b3286": "c70660c3c600c7460c0073c600c7461054c3c600",
+    "0x8b3744": "558bec83ec1c53568bf18b4e2c85c98b46048b5e088945fc740983f9040f85370100008b8b6c0200008b4924",
+    "0x8b3783": "8d880c010000578d45e450",
+    "0x8b3797": "e85a03d5ff8b4dfc81c10c0100008bf88b013bf8",
+    "0x8b37d4": "e81d03d5ff8bf83b7df8751268ffffff3f538bcee845d4f9ff",
+    "0x8b381e": "53e8bee4deff6a048bcbe805ecddff6a018bcbe81aa1ddff",
+    "0x8b3841": "807f20008bcb0f94c0884640",
+    "0x8b3875": "8bcf5053e814dfecff",
+    "0x8b389d": "5f5e5bc9c3",
+    "0x68d963": "8d8e580400008a010f84aa000000a8010f85de0000000c01",
+    "0x44a573": "f68013010000047405ff45c0eb03",
+    "0x855d25": "8b4604f6801501000020",
+    "0x603af6": "8b118b4a0485c9578b7c24088bc27417568b3739711072078bc18b4908eb038b490c85c975ed5e3bc274078b0f3b481073028bc25fc20400",
+    "0x8c4a1a": "c7069020c700c7460c082fc700c74610e01fc700",
+    "0xc72038": "de478c00",
+    "0xc72064": "b44a8c00",
+    "0x87193c": "39866c0200000f858d000000",
+    "0x871950": "80bf2402000000745c",
+    "0x876427": "8d866c02000050578bcee85effffff",
+    "0x449681": "837c24040074148d4424045081c1b4000000e8f7b7260085c0750433c0eb038b4008c20400",
+    "0x8c1d75": "f30f1041100f2f0594b5c1007607d94108d87110c3",
+    "0xda1044": "2860c100",
+    "0xc16028": "4d454c45455f484f52444500",
+    "0x92d5d7": "8b45e08b885c02000085c9c745bc010000007423",
+    "0x92d5f0": "d80dd888bd00d8059c86bd00e8a3f9100083f8647f0885c07d0733c0eb036a6458",
+    "0x92d611": "8945cc83f8018d45bc7c038d45cc",
+    "0x86620e": "538bd98b4334568b303bf07449578b7e088b4704f6800c01000002",
+    "0x86c8ac": "8b81e8feffff8b8098000000c3",
+    "0x872a6f": "8d41e081c1fc000000f7"
+  },
+  "sections": [
+    {
+      "name": ".text",
+      "va": "0x401000",
+      "file_offset": "0x1000",
+      "size": 8187904
+    },
+    {
+      "name": ".rdata",
+      "va": "0xbd0000",
+      "file_offset": "0x7d0000",
+      "size": 1806336
+    },
+    {
+      "name": ".data",
+      "va": "0xd89000",
+      "file_offset": "0x989000",
+      "size": 528384
+    },
+    {
+      "name": "STLPORT_",
+      "va": "0xe0a000",
+      "file_offset": "0xa0a000",
+      "size": 4096
+    },
+    {
+      "name": "rts.ver",
+      "va": "0xe0b000",
+      "file_offset": "0xa0b000",
+      "size": 4096
+    },
+    {
+      "name": ".rsrc",
+      "va": "0xe0c000",
+      "file_offset": "0xa0c000",
+      "size": 28672
+    },
+    {
+      "name": "        ",
+      "va": "0xe13000",
+      "file_offset": "0xa13000",
+      "size": 704512
+    },
+    {
+      "name": "stxt774",
+      "va": "0xebf000",
+      "file_offset": "0xabf000",
+      "size": 12288
+    },
+    {
+      "name": "stxt371",
+      "va": "0xec2000",
+      "file_offset": "0xac2000",
+      "size": 16384
+    },
+    {
+      "name": ".mackt\u0000M",
+      "va": "0xec6000",
+      "file_offset": "0xac6000",
+      "size": 16384
+    },
+    {
+      "name": ".danetta",
+      "va": "0xeca000",
+      "file_offset": "0xaca000",
+      "size": 33170
+    },
+    {
+      "name": ".hhrdead",
+      "va": "0xed3000",
+      "file_offset": "0xad2400",
+      "size": 328
+    },
+    {
+      "name": ".cmbhrd",
+      "va": "0xed4000",
+      "file_offset": "0xad2600",
+      "size": 34
+    },
+    {
+      "name": ".hrdhbar",
+      "va": "0xed5000",
+      "file_offset": "0xad2800",
+      "size": 384
+    }
+  ]
+}
