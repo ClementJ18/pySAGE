@@ -717,6 +717,9 @@ GAME_LOGIC_UPDATE_ENTRY = bytes.fromhex("b8da41b800")  # mov eax, 0xB841DA - exa
 # chunk with (`RecorderClass::writeToFile` reads it, not the message), so anything writing a
 # chunk of its own has to use the same source to land on the same timecode.
 GAME_LOGIC_FRAME = 0x40
+# Native RotWK accessor 0x0090F92C and GameEngine caller 0x006329D4.
+GAME_LOGIC_PAUSED = 0x124
+__all__ += ["GAME_LOGIC_PAUSED"]
 GAME_TEXT_FORMAT_SLOT = 0x44
 # `MSG_CLEAR_GAME_DATA`, which ends a recording. It has thirteen emitters, so hook its consumer (the
 # recorder), not an emitter.

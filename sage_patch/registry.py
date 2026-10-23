@@ -76,9 +76,14 @@ from sage_patch.patches.experimental.castle_prefab import (
     CastlePrefabPatch,
     CastlePrefabWorldbuilderPatch,
 )
+from sage_patch.patches.experimental.cloudy_hardware_fog import CloudyHardwareFogPatch
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
 from sage_patch.patches.experimental.command_range_flyout import CommandRangeFlyoutPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
+from sage_patch.patches.experimental.foggy_weather import (
+    FoggyWeatherPatch,
+    FoggyWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
 from sage_patch.patches.experimental.hero_horde_death import HeroHordeDeathPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
@@ -259,6 +264,9 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CastlePrefabWorldbuilderPatch,
     CastleUnpackButtonsPatch,
     CastleUnpackClearancePatch,
+    CloudyHardwareFogPatch,
+    FoggyWeatherPatch,
+    FoggyWeatherWorldbuilderPatch,
     ComboHordeRecruitmentPatch,
     CommandLineSkirmishPatch,
     CommandPointCostPatch,

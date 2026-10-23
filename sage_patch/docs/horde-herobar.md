@@ -275,7 +275,8 @@ Die Anzeige ist lokal auf die Heldenleiste begrenzt; es werden keine HP oder Ste
 - BodyInterface des gefundenen Bannerobjects: Object+0x25C, nativer Getter Slot+0x14.
 
 Diese Bytes sind neue Anker im Patch. Die Nachprüfung nutzte das Originalbackup,
-`GAME_DAT_DIRECT/hero-bar-horde-health-de.md`, die bestätigte native Bannerbuchhaltung und
+die lokale Untersuchungsnotiz zur Hero-Bar-Hordengesundheit in `GAME_DAT_DIRECT`,
+die bestätigte native Bannerbuchhaltung und
 Open-BFME-2 als Referenz. Das gesperrte Ghidra-Projekt wurde nicht geändert.
 
 Die Cave hat weiterhin dieselbe PUSHAD/PUSHFD- und x87-Rückgabe-Konvention.
