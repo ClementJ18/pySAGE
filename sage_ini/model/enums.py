@@ -33,6 +33,7 @@ __all__ = [
     "CreditStyle",
     "DamageFXType",
     "DamageFXTypes",
+    "DamageSubType",
     "DamageType",
     "DeathFlags",
     "DeathType",
@@ -1554,32 +1555,24 @@ class DamageType(BFMEEnum):
     CAVALRY_RANGED = 25
     POISON = 26
     FROST = 27
-    GOOD_ARROW_PIERCE = 28
-    EVIL_ARROW_PIERCE = 29
-    SWORD_SLASH = 30
-    WITCH_KING_MORGUL_BLADE = 31
-    BALROG_SWORD = 32
-    BALROG_WHIP = 33
-    ELECTRIC = 34
-    GIMLI_LEAP = 35
-    BIG_ROCK = 36
-    CLUBBING = 37
-    BECOME_UNDEAD = 38
-    BOLT = 39
-    TORNADO = 40
-    FLOOD_HORSE = 41
-    FIRE3 = 42
-    BECOME_UNDEAD_ONCE = 43
-    NECRO1 = 44
-    NECRO2 = 45
     # The armor and damage-FX parsers test for `DEFAULT` before they scan the name array: it is
     # the catch-all row, not a damage kind of its own.
     DEFAULT = 46
-    FIRE = (FLAME, LOGICAL_FIRE)
 
 
-# DamageFX selectors (`DamageFXType`) are keyed by the same engine names.
-DamageFXTypes = DamageType
+class DamageSubType(BFMEEnum):
+    """A damage nugget's `DamageSubType`, and what `DamageFilteredCreateObjectDie` triggers on.
+
+    The engine's table at `0x00DAF5CC` has these four names only (`game.dat` 2.01.2614.37001);
+    any other token stops the game at load (`Token '...' is not a valid member of the index
+    list`). Edain uses `BECOME_UNDEAD` and `BECOME_UNDEAD_ONCE` for the Morgul Blade wraiths and
+    `SELF` for the Brood Nest's cocoons.
+    """
+
+    NORMAL = 0
+    BECOME_UNDEAD = 1
+    SELF = 2
+    BECOME_UNDEAD_ONCE = 3
 
 
 class DeathType(BFMEEnum):
@@ -2262,6 +2255,10 @@ class DamageFXType(BFMEEnum):
     EARTH1 = enum.auto()
     EARTH2 = enum.auto()
     DEFAULT = enum.auto()
+
+
+# A `DamageFXTypes` filter names hit-FX flavours, not damage types.
+DamageFXTypes = DamageFXType
 
 
 class ObjectShadowType(BFMEEnum):

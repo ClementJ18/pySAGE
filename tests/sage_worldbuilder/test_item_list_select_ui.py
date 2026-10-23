@@ -95,3 +95,13 @@ def test_a_locked_selection_is_kept(window):
     window.lock_selection_action.trigger()
     panel.tree.itemDoubleClicked.emit(row_node(panel, ItemKind.OBJECT, "Tree"), 0)
     assert window.document.selection.items == (rock,)
+
+
+def test_selecting_an_object_brings_up_object_properties(window):
+    tree, _rock = window.document.map.objects_list.object_list
+    zone = window.document.map.trigger_areas.trigger_areas[0]
+    window.object_dock.hide()
+    window.document.selection.set([zone])
+    assert window.object_dock.isHidden()
+    window.document.selection.set([tree])
+    assert not window.object_dock.isHidden()

@@ -123,7 +123,7 @@ def watch(backend: BridgeBackend, horde_id: int, until_frame: int, order_at: int
     """Sample every frame from now to `until_frame`, sending the order at `order_at`.
 
     Sampled as fast as the reader goes and de-duplicated by frame, because the logic ticks at
-    30 Hz and a poll loop does not line up with it. One sample per frame is what makes "the
+    5 Hz and a poll loop does not line up with it. One sample per frame is what makes "the
     frame it broke" a real answer rather than the frame we happened to look.
     """
     seen: dict[int, Sample] = {}

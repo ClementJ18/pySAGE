@@ -273,9 +273,7 @@ tick rate (`_NOMINAL_SECONDS_PER_FRAME` in [`sage_replay/replay.py`](../../sage_
 A recorded timecode is a logic frame, so the recordings and the constant block agree.
 
 So the displayed value is `frames / [0x00D9F608]`, read live — a mod that changed the rate moves
-the readout with it. (Note this is also why
-[`recharge-rescale.md`](recharge-rescale.md) §3.2's worked example, which converts at 30 fps, reads
-six times short; the arithmetic there is unaffected, only the seconds in its table.)
+the readout with it.
 
 A one-decimal readout wants a `double` vararg. That is also the engine's own move, at
 `0x00677E5A`..`0x00677E7B` (`CONTROLBAR:UnderConstructionDesc`): `fld` the real, `push ecx / push

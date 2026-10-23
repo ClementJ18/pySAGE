@@ -90,7 +90,7 @@ def test_panels_can_be_dragged_out_and_grouped_into_one_window(qapp, tmp_path, m
     install = tmp_path / "install"
     install.mkdir()
     monkeypatch.setattr("sage_worldbuilder.gamedata.user_data_dir", lambda game: tmp_path)
-    window = MainWindow(Settings(install=str(install)), load_game_data=False)
+    window = MainWindow(Settings(install=str(install), lock_layout=False), load_game_data=False)
     try:
         options = window.dockOptions()
         assert options & QMainWindow.DockOption.GroupedDragging
@@ -173,6 +173,15 @@ def editor(tmp_path, monkeypatch, settings=None):
     install.mkdir(exist_ok=True)
     monkeypatch.setattr("sage_worldbuilder.gamedata.user_data_dir", lambda game: tmp_path)
     return MainWindow(settings or Settings(install=str(install)), load_game_data=False)
+
+
+def test_a_new_editor_starts_with_the_layout_locked(qapp, tmp_path, monkeypatch):
+    window = editor(tmp_path, monkeypatch)
+    try:
+        assert window.lock_layout_action.isChecked()
+        assert not window.dockOptions() & QMainWindow.DockOption.AllowTabbedDocks
+    finally:
+        window.close()
 
 
 def drag_title_bar(qapp, dock):
@@ -269,7 +278,9 @@ class QDockWidgetGroupWindow(QWidget):
 def test_a_locked_group_window_cannot_start_a_dock_drag(qapp, tmp_path, monkeypatch):
     """Qt lets a window of several panels dock anywhere, whatever their allowed areas; the lock
     keeps its title bar from starting that drag."""
-    window = editor(tmp_path, monkeypatch)
+    window = editor(
+        tmp_path, monkeypatch, Settings(install=str(tmp_path / "install"), lock_layout=False)
+    )
     group = QDockWidgetGroupWindow(window)
     try:
         group.show()

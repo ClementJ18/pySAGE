@@ -61,9 +61,11 @@ from sage_patch.patches import ai_command_null_target as acnt
 from sage_patch.patches import ai_farm_kill_gate as afk
 from sage_patch.patches import ai_flag_capture_gate as afc
 from sage_patch.patches import ai_hero_build_delay as ahbd
+from sage_patch.patches import ai_tunnel_routing as atr
 from sage_patch.patches import banner_modifier as bm
 from sage_patch.patches import better_hud_toggle as bht
 from sage_patch.patches import cah_factions as cf
+from sage_patch.patches import call_in_reinforcements as cir
 from sage_patch.patches import castle_unpack_buttons as cubtn
 from sage_patch.patches import commandset_button_upgrade as cbu
 from sage_patch.patches import crash_dump as cd
@@ -79,6 +81,7 @@ from sage_patch.patches import grant_science_upgrade as gsu
 from sage_patch.patches import healing_received as hr
 from sage_patch.patches import hero_bar_slots as hbs
 from sage_patch.patches import herobar as hb
+from sage_patch.patches import horde_self_experience as hsx
 from sage_patch.patches import infantry_lighting as il
 from sage_patch.patches import interpolation_alpha as ia
 from sage_patch.patches import kill_count_tooltip as kct
@@ -94,6 +97,7 @@ from sage_patch.patches import observer_command_range as ocr
 from sage_patch.patches import observer_switch as obs
 from sage_patch.patches import perf_scope_skip as pss
 from sage_patch.patches import perf_stage_readout as psr
+from sage_patch.patches import pickup_stuff_enter as pse
 from sage_patch.patches import player_upgrade_discount as pud
 from sage_patch.patches import production_condition as pc
 from sage_patch.patches import production_death_no_refund as pdnr
@@ -572,6 +576,18 @@ def wall_layer_promotion_image() -> bytearray:
     )
 
 
+def ai_tunnel_routing_image() -> bytearray:
+    """A stand-in carrying `aiDoCommand`'s dispatch, the vtable slots the routing takes over, and
+    every engine routine its cave calls.
+
+    Sparse: the dispatch is at `0x0066AA09`, the tunnel guard's helper 3 MB above it and the
+    vtables in `.rdata`. The six hooked bytes are planted against the switch they fall into, so a
+    hook one byte long or short overwrites an anchor and fails here.
+    """
+    slots = {va: struct.pack("<I", stock) for va, stock in atr.VTABLE_SLOTS.items()}
+    return _sparse_image({atr.HOOK_VA: atr.HOOK_ORIGINAL, **atr.ANCHORS, **slots})
+
+
 def gate_close_repath_image() -> bytearray:
     """A stand-in carrying the gate's re-add call and every site the repath cave depends on.
 
@@ -782,6 +798,16 @@ def ai_command_null_target_image() -> bytearray:
     return _sparse_image({acnt.HOOK_VA: acnt.HOOK_ORIGINAL, **acnt.ANCHORS})
 
 
+def pickup_stuff_enter_image() -> bytearray:
+    """A stand-in carrying `PickupStuffUpdate`'s move order and the entries of the two AI orders
+    the cave chooses between.
+
+    Sparse because the module sits at `0x00895700`, `aiMoveToObject` at `0x007549D7` and `aiEnter`
+    at `0x00770EDE`.
+    """
+    return _sparse_image({pse.HOOK_VA: pse.HOOK_ORIGINAL, **pse.ANCHORS})
+
+
 def castle_unpack_buttons_image() -> bytearray:
     """A stand-in carrying the control bar's `BASE_BUILD` test, the helpers the cave calls, and the
     `CastleBehavior` sites that fix what the state it reads means.
@@ -859,7 +885,7 @@ def multi_execute_cooldown_image() -> bytearray:
 
 def drain_life_fix_image() -> bytearray:
     """A stand-in carrying the routines the drain cave calls, the stock drain it makes
-    unreachable, and the seven windows the patch rewrites."""
+    unreachable, and the eight windows the patch rewrites."""
     return _sparse_image({**dlf.ANCHORS, **dlf.STOCK_WINDOWS})
 
 
@@ -868,6 +894,16 @@ def upgrade_complete_skip_unnamed_image() -> bytearray:
     string destructor the cave calls."""
     return _sparse_image(
         {**ucsu.ANCHORS, ad.UPGRADE_COMPLETE_MESSAGE: ad.UPGRADE_COMPLETE_MESSAGE_BYTES}
+    )
+
+
+def horde_self_experience_image() -> bytearray:
+    """A stand-in carrying the kill scorer's horde branch around the hooked experience call."""
+    return _sparse_image(
+        {
+            **hsx.ANCHORS,
+            ad.KILL_SCORE_HORDE_EXPERIENCE_CALL: ad.KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES,
+        }
     )
 
 
@@ -2242,3 +2278,9 @@ def shared_control_on_leave_image() -> bytearray:
     ownership predicate, the `VictoryConditions` vtable slots and the entry of everything the cave
     calls. Sparse because they span five megabytes."""
     return _sparse_image(dict(scl.ANCHORS))
+
+
+def call_in_reinforcements_image() -> bytearray:
+    """A stand-in carrying action 543's jump-table slot, still a stub, the epilogue it dispatches
+    to, and the entry of both routines the cave calls. Sparse because they span 1.6 MB."""
+    return _sparse_image({**cir.ANCHORS, cir.TABLE_SLOT_VA: cir.TABLE_SLOT_STOCK})

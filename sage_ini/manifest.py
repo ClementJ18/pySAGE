@@ -59,6 +59,8 @@ __all__ = [
     "manifest_matches_roots",
     "load_manifest_into",
     "game_from_manifest",
+    "base_include_files",
+    "manifest_include_files",
 ]
 
 FORMAT_VERSION = 1
@@ -244,7 +246,32 @@ def build_manifest(loaded: LoadedGame, roots) -> dict:
         "assets": sorted(game.assets),
         "map_files": sorted(_rel_path(path, resolved_roots) for path in game.map_files),
         "files": {key: files[key] for key in sorted(files)},
+        "include_files": base_include_files(root_list),
     }
+
+
+#: What an `#include` can name: another ini, or an `.inc` fragment.
+INCLUDE_SUFFIXES = frozenset({".ini", ".inc"})
+
+
+def base_include_files(roots) -> list[str]:
+    """Every file under `roots` an `#include` could name, as sorted `ini_root`-relative keys
+    (`object/includes/standardunitevaevents.inc`).
+
+    A manifest stands in for the base game's *symbols*; this is the one thing about its files a
+    linter also needs: whether an include target exists at all. With it, a mod that includes base
+    `.inc` fragments can tell those (present, just not on disk) from a path that names nothing,
+    instead of ignoring every `unresolved-include`."""
+    keys: set[str] = set()
+    for root in as_root_list(roots):
+        keys.update(rel for rel, _ in loadable_files(ini_root(Path(root)), INCLUDE_SUFFIXES))
+    return sorted(keys)
+
+
+def manifest_include_files(data: dict) -> frozenset[str]:
+    """The base files a manifest says exist, for include checks; empty for a manifest written
+    before the section existed (every include into the base then stays unresolved, as before)."""
+    return frozenset(data.get("include_files", ()))
 
 
 def write_manifest(data: dict, path: str | Path) -> Path:

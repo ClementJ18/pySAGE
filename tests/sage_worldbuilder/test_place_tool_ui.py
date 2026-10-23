@@ -129,6 +129,21 @@ def test_choosing_an_object_switches_to_place_and_a_click_places_it(window):
     assert placed(window) == []
 
 
+def test_arrow_keys_in_the_palette_change_the_ghost(window):
+    tree = window.palette_panel.objects.tree
+    civilian, gondor = tree.topLevelItem(0), tree.topLevelItem(1)
+    tool, view = window.place_tool, window.map_view
+    tool.hover(view, gesture(window, 100.0, 200.0))
+    tree.setCurrentItem(civilian.child(0).child(0))
+    assert window.map_view.tool is window.place_tool
+    assert [obj.type_name for obj in tool.ghosts()] == ["Tree"]
+    # A heading keeps the object chosen last.
+    tree.setCurrentItem(gondor)
+    assert window.palette_panel.template() == "Tree"
+    tree.setCurrentItem(gondor.child(0).child(0))
+    assert [obj.type_name for obj in tool.ghosts()] == ["GondorFighter"]
+
+
 def test_drag_orients_and_snap_applies(window):
     window.palette_panel.choose("GondorFighter")
     window.use_tool("place")

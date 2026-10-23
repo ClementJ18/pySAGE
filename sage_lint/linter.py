@@ -11,6 +11,7 @@ is strictly more complete. Last, inline `; sagelint: ignore[...]` comments drop 
 on their own line (see `sage_lint.suppressions`).
 """
 
+import posixpath
 import shutil
 import tempfile
 from collections.abc import Iterable
@@ -19,7 +20,7 @@ from pathlib import Path
 
 from sage_ini.engine import Engine, apply_engine
 from sage_ini.loader import LoadedGame, load_game, map_files
-from sage_ini.manifest import load_manifest_into, read_manifest
+from sage_ini.manifest import load_manifest_into, manifest_include_files, read_manifest
 from sage_ini.model.game import Game
 from sage_ini.model.xref import references_into
 from sage_ini.parser.blockparser import parse_file
@@ -92,14 +93,16 @@ def _manifest_vroot(manifest: str | Path) -> Path:
 
 def _load_with_manifest(
     root: str | Path, manifest: str | Path, engine: Engine | None = None
-) -> tuple[LoadedGame, Path]:
+) -> tuple[LoadedGame, Path, frozenset[str]]:
     """Seed a fresh `Game` from `manifest` (see `sage_ini.manifest`) and build the mod under
     `root` on top of it, so its references into base symbols resolve with no base tree on disk -
     the no-real-base counterpart to `_prepare_base`. The mod's own loadable files are computed as
     a `shadow` set the same way `_prepare_base` shadows a real base merge, so a mod file that
     happens to share a base file's path overrides the manifest's stand-ins from that file, not
     just the mod's own definitions. Returns the built game and the synthetic `virtual_root` the
-    caller must add to `exclude` to silence the stand-ins' diagnostics. Raises `ManifestError`
+    caller must add to `exclude` to silence the stand-ins' diagnostics, and the base files the
+    manifest lists (`manifest_include_files`), for telling a base include from a broken one.
+    Raises `ManifestError`
     (uncaught here) when the manifest is unreadable or the wrong format; the caller turns that
     into a clean CLI error rather than a traceback."""
     vroot = _manifest_vroot(manifest)
@@ -110,7 +113,24 @@ def _load_with_manifest(
     shadow = frozenset(rel for rel, _ in loadable_files(ini_root(Path(root)), LOAD_SUFFIXES))
     game = Game()
     load_manifest_into(game, data, vroot, shadow=shadow)
-    return load_game(root, game=game, engine=engine), vroot
+    return load_game(root, game=game, engine=engine), vroot, manifest_include_files(data)
+
+
+def _include_in_base(diagnostic: Diagnostic, mod_ini_root: Path, base_files: frozenset[str]) -> bool:
+    """Whether an `unresolved-include` names a file the base game has: the include's target,
+    taken relative to the including file's folder the way the engine resolves it, then made
+    `ini_root`-relative, is one of `base_files`. Such an include is fine - the file is in the
+    base archives, just not on disk - while any other unresolved include names nothing at all
+    and makes the game stop at load."""
+    if diagnostic.code != "unresolved-include" or not base_files:
+        return False
+    target = str(diagnostic.extra.get("target", "")).replace("\\", "/").lstrip("/")
+    try:
+        folder = Path(diagnostic.span.file).resolve().parent.relative_to(mod_ini_root.resolve())
+    except (OSError, ValueError):
+        return False
+    virtual = posixpath.normpath(posixpath.join(folder.as_posix(), target))
+    return virtual.lower() in base_files
 
 
 def _base_asset_names(bases: tuple[tuple[str, str], ...]) -> set[str]:
@@ -358,9 +378,13 @@ def build_cache(
     try:
         if base_layer is None:
             if manifest is not None:
-                loaded, vroot = _load_with_manifest(root, manifest, engine)
+                loaded, vroot, base_files = _load_with_manifest(root, manifest, engine)
                 loaded.game.asset_dat_names.update(asset_dat_names)
                 diagnostics = lint_game(loaded, rules, (*exclude, vroot))
+                mod_ini_root = ini_root(Path(root))
+                diagnostics.items = [
+                    d for d in diagnostics.items if not _include_in_base(d, mod_ini_root, base_files)
+                ]
             else:
                 loaded = load_game(root, engine=engine)
                 loaded.game.asset_dat_names.update(asset_dat_names)

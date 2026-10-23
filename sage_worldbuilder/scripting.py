@@ -65,6 +65,7 @@ __all__ = [
     "retarget",
     "script_matches",
     "sentence_parts",
+    "string_text",
     "unique_script_name",
 ]
 
@@ -431,6 +432,19 @@ def argument_choices(
     if spec.scope is Scope.STRINGS:
         return sorted(game.strings, key=str.casefold)
     return []
+
+
+def string_text(game: Game, label: str) -> str | None:
+    """The text a string label stands for, matched as written and then ignoring case; `None` when
+    the game has no such label."""
+    text = game.strings.get(label)
+    if text is not None:
+        return text
+    folded = label.casefold()
+    for name, value in game.strings.items():
+        if name.casefold() == folded:
+            return value
+    return None
 
 
 def _taken_names(map: Map) -> set[str]:

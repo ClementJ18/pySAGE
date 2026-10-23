@@ -2528,14 +2528,19 @@ DAMAGE_INFO_DAMAGE_TYPE = 0x10
 DAMAGE_INFO_DAMAGE_DEALT = 0x70
 DAMAGE_TYPE_HEALING = 7
 #: The input's Bool at input `+0x4C` (`DamageInfo+0x50`) is followed by three bytes of padding
-#: that the input constructor leaves unset and the memberwise copy constructor doesn't copy. Each
-#: of its two byte moves, widened to a dword move of the same length, makes them a field that is
-#: zeroed and copied: the constructor's `mov byte [eax+0x4c], cl` (`ecx` zero) and the copy's
-#: `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl`.
+#: that the input constructor leaves unset and the memberwise copy constructor and assignment
+#: don't copy. Each of their three byte moves, widened to a dword move of the same length, makes
+#: them a field that is zeroed and copied: the constructor's `mov byte [eax+0x4c], cl` (`ecx`
+#: zero), and the copy's and the assignment's `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl`. The
+#: assignment (`DamageInfoInput::operator=`, `0x00740B38`) is what the DOT manager stores an entry
+#: through: `add` (`0x00821073`) assigns on both its branches (`0x0082092E` -> `DamageInfo::
+#: operator=` `0x007441E0`), and never copy-constructs.
 DAMAGE_INFO_INPUT_CTOR_BYTE_STORE = 0x00663492
 DAMAGE_INFO_INPUT_CTOR_BYTE_STORE_BYTES = bytes.fromhex("88484c")
 DAMAGE_INFO_INPUT_COPY_BYTE_MOVE = 0x00662ADA
 DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES = bytes.fromhex("8a514c88504c")
+DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE = 0x00740BA9
+DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES = bytes.fromhex("8a514c88504c")
 DAMAGE_INFO_PAD_DWORD = 0x50
 #: `KINDOF_PROJECTILE` (bit 25): `ThingTemplate+0x10B` bit 1; the drain never heals one.
 KINDOF_PROJECTILE_BYTE = 0x10B
@@ -2543,6 +2548,8 @@ KINDOF_PROJECTILE_MASK = 0x02
 __all__ += [
     "DAMAGE_INFO_DAMAGE_DEALT",
     "DAMAGE_INFO_DAMAGE_TYPE",
+    "DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE",
+    "DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES",
     "DAMAGE_INFO_INPUT_COPY_BYTE_MOVE",
     "DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES",
     "DAMAGE_INFO_INPUT_CTOR_BYTE_STORE",
@@ -2611,4 +2618,48 @@ __all__ += [
     "HORDE_IFACE_REMOVE_MEMBER_SLOT",
     "HORDE_IFACE_VTABLE",
     "OBJECT_GET_HORDE_IFACE_ENTRY",
+]
+
+# Horde self experience (`docs/horde-self-experience.md`). The kill scorer `0x00695475` credits a
+# killer inside a horde through `HORDE_EXPERIENCE_ADD(killer, xp)` - the horde interface's slot
+# `+0xC0`, reached as `call [eax+0xC0]` with `ecx` the interface and `esi` the killer. When the
+# killer is the horde object itself (`BloodthirstyUpdate`'s sacrifice credits the eating horde),
+# the account it fills is keyed by the horde's own template, which no member has, so only the
+# horde object's tracker rises.
+KILL_SCORE_HORDE_EXPERIENCE_CALL = 0x0069554B
+KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES = bytes.fromhex("ff90c0000000")
+HORDE_IFACE_EXPERIENCE_ADD_SLOT = 0xC0
+#: The horde object, as a horde-interface offset: the module's owning object at module `+0x08`.
+HORDE_IFACE_OWNER = MODULE_OWNING_OBJECT - HORDE_CONTAIN_IFACE
+__all__ += [
+    "HORDE_IFACE_EXPERIENCE_ADD_SLOT",
+    "HORDE_IFACE_OWNER",
+    "KILL_SCORE_HORDE_EXPERIENCE_CALL",
+    "KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES",
+]
+
+# The tunnel network, for order-time routing; see docs/ai-tunnel-routing.md.
+#: `TunnelContain::update`, the update-module slot 0 at `0x00C5DE58` and reached through nothing
+#: else. `__thiscall` on the module's `+0x10` sub-object, no arguments, the sleep in `eax`: 1 (every
+#: frame) once the owner has a `TunnelTracker`, forever before that.
+TUNNEL_CONTAIN_UPDATE = 0x008812B0
+TUNNEL_CONTAIN_UPDATE_ENTRY = bytes.fromhex("5156578bf1e825b6ffff8b7ef885ff74")
+TUNNEL_CONTAIN_UPDATE_VTABLE_SLOT = 0x00C5DE58
+#: Horde-interface slot `+0x84`, `(Object *container, CommandSourceType)`, `ret 8`: give the horde's
+#: own `AIUpdate` command 0x3E against `container`. It is the exit-all loop's arm for a horde
+#: passenger, so it is what brings a whole battalion out of the tunnel it names.
+HORDE_IFACE_EXIT_SLOT = 0x84
+HORDE_IFACE_EXIT = 0x00875EFD
+HORDE_IFACE_EXIT_BYTES = bytes.fromhex("8b81ecfeffff8b806002000085c074088d4820e9e6fbefffc20800")
+#: The slot itself, in `HordeContain`'s horde-interface vtable (`0x00C5B1F8`).
+HORDE_IFACE_EXIT_VTABLE_SLOT = 0x00C5B27C
+
+__all__ += [
+    "HORDE_IFACE_EXIT",
+    "HORDE_IFACE_EXIT_BYTES",
+    "HORDE_IFACE_EXIT_SLOT",
+    "HORDE_IFACE_EXIT_VTABLE_SLOT",
+    "TUNNEL_CONTAIN_UPDATE",
+    "TUNNEL_CONTAIN_UPDATE_ENTRY",
+    "TUNNEL_CONTAIN_UPDATE_VTABLE_SLOT",
 ]

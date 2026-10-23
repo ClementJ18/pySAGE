@@ -10,9 +10,10 @@ Stock `DamageNugget::doDamage` calls `target->attemptDamage(info)` and then heal
   the DOT manager, which calls `attemptDamage` on its stored `DamageInfo` directly, with no drain.
 
 The patch moves the drain to where damage is actually dealt. The multiplier travels in the
-`DamageInfo` itself, in three padding bytes after the input's Bool at input `+0x4C`. Two
-same-length edits make those bytes a real field: the input constructor zeroes them and the copy
-constructor copies them, so the queued copy and the DOT manager's copy carry them. `doDamage`
+`DamageInfo` itself, in three padding bytes after the input's Bool at input `+0x4C`. Three
+same-length edits make those bytes a real field: the input constructor zeroes them, and the copy
+constructor and the assignment copy them, so the delayed list's queued copy and the DOT manager's
+stored entry (which it assigns, never copy-constructs) carry them. `doDamage`
 and `DOTNugget::doDamage` stamp the multiplier there when `DrainLife` is set. The two calls that
 apply a hit to a body (immediate, and a delay running out) go through `damage_now`, which applies
 the hit and then heals the source exactly as the stock drain did. The stock drain after
@@ -30,6 +31,8 @@ from __future__ import annotations
 import struct
 
 from ..addresses import (
+    DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE,
+    DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES,
     DAMAGE_INFO_DAMAGE_DEALT,
     DAMAGE_INFO_DAMAGE_TYPE,
     DAMAGE_INFO_INPUT_COPY_BYTE_MOVE,
@@ -206,6 +209,12 @@ def _edits(base_va: int) -> list[tuple[int, bytes, bytes, str]]:
             DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES,
             bytes.fromhex("8b514c89504c"),  # mov edx, [ecx+0x4c] / mov [eax+0x4c], edx
             "DamageInfoInput copy -> copy the padding after +0x4C too",
+        ),
+        (
+            DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE,
+            DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES,
+            bytes.fromhex("8b514c89504c"),  # mov edx, [ecx+0x4c] / mov [eax+0x4c], edx
+            "DamageInfoInput assignment -> copy the padding after +0x4C too (the DOT store)",
         ),
         (
             DAMAGE_NUGGET_ATTEMPT_CALL,

@@ -3,14 +3,17 @@
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR), read from the
 repo's `game.dat`.
 
-- **Cost:** 4 `rel32` repoints, one `je` to `jmp`, two byte moves widened to dword moves of the
+- **Cost:** 4 `rel32` repoints, one `je` to `jmp`, three byte moves widened to dword moves of the
   same length, and a `0xD0`-byte `.drain` cave. No INI keyword is added.
 - **Risk:** low. The drain keeps every stock rule. It now runs when each hit lands instead of
   straight after the nugget's `attemptDamage` call.
 - **Status:** static-verified and emulated over the real `game.dat`: the cave's three routines,
-  the patched constructor and copy, and both the stock immediate path and the delayed-damage list
-  reaching the drain (`tests/sage_patch/test_drain_life_fix_emulated.py`). Not yet seen in a
-  running game.
+  the patched constructor, copy and assignment, the DOT manager's store carrying the stamp, and
+  both the stock immediate path and the delayed-damage list reaching the drain
+  (`tests/sage_patch/test_drain_life_fix_emulated.py`). In a running game (Edain's
+  `tests/test_drain_life_ashra.py`, 2026-10-19), the first build drained a Venom Sting's hit but
+  none of its poison ticks: it had missed the assignment (see below). The fixed build drains every
+  tick, by exactly what it dealt.
 
 ```
 sage-patch apply drain-life-fix --in game.dat.backup --out game.dat
@@ -73,8 +76,10 @@ directly at `0x00697EEA`:
 `DOTNugget::doDamage` (`0x00911407`) builds a `DamageInfo` into a DOT entry (`DamageInfo`, then
 interval, duration and next frame at `+0x7C..+0x84`), registers it with the manager at
 `TheGameLogic+0x174` (`0x00821073`), then deals the first hit through `DamageNugget::doDamage`,
-which drains. The manager stores the entry through the `DamageInfo` copy constructor
-(`0x00820961`). Each later tick (`0x00820F86`) calls `Object::attemptDamage` on the stored info
+which drains. The manager stores the entry by **assigning** it over its own, on both branches of
+`add` (an existing target's entry, or one just inserted): `0x0082092E` → `DamageInfo::operator=`
+(`0x007441E0`) → `DamageInfoInput::operator=` (`0x00740B38`). The entry's copy constructor beside
+it (`0x00820961`, through the `DamageInfo` copy constructor) is not what `add` calls. Each later tick (`0x00820F86`) calls `Object::attemptDamage` on the stored info
 directly. That's the first tick only.
 
 ## The patch
@@ -82,19 +87,27 @@ directly. That's the first tick only.
 ### Carrying the multiplier in the `DamageInfo`
 
 `DamageInfo` is `0x7C` bytes: a vtable, the input at `+0x04`, the output at `+0x6C`. The drain
-needs the multiplier wherever the info goes, and only two routines ever build an input (they are
-the only writers of its vtable `0x00C0F3A8`): the constructor `0x0066341C` and the memberwise copy
-constructor `0x00662A5C`. Neither touches the three padding bytes after the Bool at input `+0x4C`
-(`DamageInfo+0x51..+0x53`):
+needs the multiplier wherever the info goes. Only two routines ever build an input (they are the
+only writers of its vtable `0x00C0F3A8`): the constructor `0x0066341C` and the memberwise copy
+constructor `0x00662A5C`. A third writes one over another without building it, so it never
+touches the vtable: the memberwise assignment `0x00740B38`. None of them touches the three
+padding bytes after the Bool at input `+0x4C` (`DamageInfo+0x51..+0x53`):
 
 | site | stock | patched |
 |---|---|---|
 | `0x00663492` ctor | `mov byte [eax+0x4c], cl` (`ecx` zero) | `mov dword [eax+0x4c], ecx` |
 | `0x00662ADA` copy | `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl` | `mov edx, [ecx+0x4c]` / `mov [eax+0x4c], edx` |
+| `0x00740BA9` assignment | `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl` | `mov edx, [ecx+0x4c]` / `mov [eax+0x4c], edx` |
 
-Both are the same length, and the Bool itself moves as before. Now every input starts with the
-padding zeroed, and every copy carries it: the delayed list's copy (`0x00692B7B` → `0x00664321`)
-and the DOT manager's copy.
+Each is the same length, and the Bool itself moves as before. Now every input starts with the
+padding zeroed, and every copy and assignment carries it: the delayed list's copy (`0x00692B7B` →
+`0x00664321`) and the DOT manager's assignment. That byte-move sequence (`8a514c88504c`) occurs
+exactly twice in the binary, the copy and the assignment, so no other memberwise copy of an input
+is left dropping it.
+
+The first build widened only the constructor and the copy. Under it a DOT drained on its first
+tick and never again, which is the stock complaint: the stamp reached the entry `stamp_dot` hands
+`add`, and `add`'s assignment dropped it.
 
 The multiplier is stored as the top 24 bits of its float, read back as the dword at
 `DamageInfo+0x50` with the low byte (the Bool) cleared. That's exact for 0.5, 1, 1.5, 2 and the
@@ -129,6 +142,8 @@ The stock drain after `doDamage`'s `attemptDamage` call is skipped (`je` at `0x0
 - **`DOTNugget`:** the source heals on every tick, by that tick's damage. If the source is dead
   by then, there's no heal, as for a direct hit from a dead source.
 - **Immediate hits:** unchanged, with one heal per hit.
+- **A killing hit or tick** heals for the whole of it, not just the health the target had left:
+  the engine reports the unclamped amount as dealt, as it does for the stock drain.
 - **Composition:** applies before or after every other registered patch that applies to this
   binary.
 
@@ -156,5 +171,7 @@ The stock drain after `doDamage`'s `attemptDamage` call is skipped (`je` at `0x0
 | `0x00697EEA` | its body-damage call when a delay runs out (hooked) |
 | `0x00697E50` | the body-damage step |
 | `0x00690532` | `Object::attemptHealing(amount, source)` |
-| `0x0066341C` / `0x00662A5C` | `DamageInfoInput` constructor / copy constructor |
-| `0x00663492` / `0x00662ADA` | their byte moves at input `+0x4C` (widened) |
+| `0x0066341C` / `0x00662A5C` / `0x00740B38` | `DamageInfoInput` constructor / copy constructor / assignment |
+| `0x00663492` / `0x00662ADA` / `0x00740BA9` | their byte moves at input `+0x4C` (widened) |
+| `0x0082092E` | the DOT manager's entry assignment, which `add` stores through |
+| `0x007441E0` | `DamageInfo::operator=` |

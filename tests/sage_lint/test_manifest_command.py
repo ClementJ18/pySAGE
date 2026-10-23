@@ -298,3 +298,38 @@ class TestSagelintBaseManifest:
 
         assert main(["lint", str(tmp_path), "--select", "duplicate-definition"]) == 0
         assert "duplicate-definition" not in capsys.readouterr().out
+
+
+class TestManifestIncludes:
+    """A manifest lists the base files an `#include` can name, so a mod's include into a base
+    `.inc` fragment (in the archives, not on disk) is not reported, while a path that names
+    nothing is - it stops the game at load ("Could not open include")."""
+
+    def test_the_manifest_lists_the_base_include_files(self, tmp_path):
+        base = tmp_path / "base"
+        _base_tree(base)
+        _write(base, "object/includes/standardunitevaevents.inc", "; eva events\n")
+        data = build_manifest(load_game(base), [base])
+        assert "object/includes/standardunitevaevents.inc" in data["include_files"]
+
+    def test_only_an_include_into_nothing_is_reported(self, tmp_path):
+        base = tmp_path / "base"
+        mod = tmp_path / "mod"
+        _base_tree(base)
+        _write(base, "object/includes/standardunitevaevents.inc", "; eva events\n")
+        _write(
+            mod,
+            "data/ini/object/evilfaction/units/wild/spider.ini",
+            "Object GoodSpider\n"
+            '    #include "..\..\..\includes\StandardUnitEvaEvents.inc"\n'
+            "End\n"
+            "Object BadSpider\n"
+            '    #include "..\includes\StandardUnitEvaEvents.inc"\n'
+            "End\n",
+        )
+        manifest_path = tmp_path / "base-manifest.json"
+        write_manifest(build_manifest(load_game(base), [base]), manifest_path)
+
+        unresolved = [d for d in lint_folder(mod, manifest=manifest_path).items if d.code == "unresolved-include"]
+
+        assert [d.span.line_start for d in unresolved] == [5]

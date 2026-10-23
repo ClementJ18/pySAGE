@@ -1,8 +1,9 @@
 """Raise the `CommandSet` button limit from 33 to any count in 34..127.
 
-Three parts: the `CommandSet` object grows (fourteen immediates move with it), a clamp keeps the
-control bar's visible range within its 33 widgets, and the AI's scan bound is widened so the AI sees
-buttons past slot 33. The ceiling is 127 because six sites encode the limit as a signed byte.
+Three parts: the `CommandSet` object grows (nineteen sites move with it, on both paths that build
+one: a definition and a map.ini override), a clamp keeps the control bar's visible range within its
+33 widgets, and the AI's scan bound is widened so the AI sees buttons past slot 33. The ceiling is
+127 because seven sites encode the limit as a signed byte.
 
 Derivation: `../docs/commandset-button-limit.md` and `../docs/push-visible-command-range.md`.
 """
@@ -71,7 +72,7 @@ _RANGE_LOOP_ANCHORS = {
 # field-parse table and the slot names as data and the clamp as code, so it needs both.
 _SECTION_CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000
 
-#: Largest limit this patch can install. Bounded by the signed-imm8 encoding of five object-growth
+#: Largest limit this patch can install. Bounded by the signed-imm8 encoding of six object-growth
 #: sites (see the module docstring), not by the object layout or the new section.
 MAX_COUNT = 127
 
@@ -165,7 +166,7 @@ class CommandSetLimitPatch(Patch):
     def __init__(self, count: int = 64):
         if not MIN_COUNT <= count <= MAX_COUNT:
             hint = (
-                " (128+ would need imm32 re-encoding of five sites, which does not fit in place)"
+                " (128+ would need imm32 re-encoding of seven sites, which does not fit in place)"
                 if count > MAX_COUNT
                 else ""
             )
@@ -249,7 +250,7 @@ class CommandSetLimitPatch(Patch):
         The default probe cannot: it would ask `verify` about N=64 and call every other limit
         absent. The allocator's `push <object size>` is an imm32 holding
         `0x14 + N*4 + 8`, so N reads straight back out of it, and `verify` then checks all
-        fourteen sites against that N."""
+        twenty sites against that N."""
         if find_section(data, _SECTION_NAME) is None:
             return None
         try:
@@ -367,14 +368,14 @@ class CommandSetLimitPatch(Patch):
         )
 
     def _object_edits(self, n: int) -> list[tuple[int, bytes, bytes, str]]:
-        """The 15 `(file_offset, original bytes, patched bytes, note)` edits that grow the
+        """The 20 `(file_offset, original bytes, patched bytes, note)` edits that grow the
         object for `n` slots and let the AI walk all of them. Shared by `apply` (writes
         `patched` if `original` matches) and `verify` (asserts `patched` is
         present)."""
         count_off = _ARRAY_OFF + n * 4  # trailing count field, just past the array
         flag_off = count_off + 4
         obj_size = count_off + 8
-        nb = _imm8(n)  # the five sites below encode the limit as a signed byte
+        nb = _imm8(n)  # every site below that pushes or compares the limit takes a signed byte
         old_count, new_count = u32(_ORIGINAL_COUNT_OFF), u32(count_off)
         old_flag, new_flag = u32(_ORIGINAL_FLAG_OFF), u32(flag_off)
 
@@ -420,4 +421,21 @@ class CommandSetLimitPatch(Patch):
             # eventually frees a shared heuristic singleton and purecalls the skirmish AI.
             (0x543DF9, b"\xff\xb0" + old_count, b"\xff\xb0" + new_count, "consumer count read"),
             (_AI_SCAN_BOUND, b"\x83\x7d\xf8\x21", b"\x83\x7d\xf8" + nb, "AI scan bound"),
+            # The second way a CommandSet is built: the override a map.ini makes when it redefines
+            # a set that already exists. `CommandSetStore::newOverride` (0x0071C958) allocates it
+            # and constructs it with the grown constructor, then copies the base in with
+            # `CommandSet::operator=` (0x0071C49A). Left stock, the allocation is 0xA0 bytes, the
+            # constructor's zero fill and count store run 0x7C bytes past it into the next heap
+            # chunk, and the copy drops every button past 33 and the InitialVisible.
+            (
+                0x31C96F,
+                b"\x68" + u32(_ORIGINAL_OBJ_SIZE),
+                b"\x68" + u32(obj_size),
+                "override alloc size",
+            ),
+            (0x31C4B7, b"\x6a\x21", b"\x6a" + nb, "override: copy loop count"),
+            (0x31C4CA, b"\x8b\x87" + old_count, b"\x8b\x87" + new_count, "override: src count"),
+            (0x31C4D0, b"\x89\x86" + old_count, b"\x89\x86" + new_count, "override: dst count"),
+            (0x31C4D6, b"\x8b\x87" + old_flag, b"\x8b\x87" + new_flag, "override: src flag"),
+            (0x31C4DC, b"\x89\x86" + old_flag, b"\x89\x86" + new_flag, "override: dst flag"),
         ]

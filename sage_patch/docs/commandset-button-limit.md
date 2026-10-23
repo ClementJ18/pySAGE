@@ -86,8 +86,34 @@ which aborts data loading.
 
 ## Object layout & allocation
 
-Allocated via `operator new(0xA0)` — `push 0xa0 ; call 0x0042f6e0` @ `0x00720298`
-(`FUN_0072028b`), then the constructor @ `0x0080c949`.
+Two paths build a `CommandSet`, and both call the constructor @ `0x0080c949`:
+
+| path | function | allocation | then |
+|------|----------|------------|------|
+| a definition (`parseCommandSetDefinition`, mode 0) | `0x0072028b` | `push 0xa0` @ `0x00720298` | the block is parsed into it |
+| an override: a map.ini redefining a set that exists (mode 2) | `CommandSetStore::newOverride` `0x0071c958` (called @ `0x00720622`) | `push 0xa0` @ `0x0071c96f` | `CommandSet::operator=` `0x0071c49a` copies the base in, then the block is parsed over it |
+
+`operator=` has the layout baked in as well:
+
+```
+0071c4b7  push 0x21 / pop edx              ; copy m_command[0..32]
+0071c4bf  mov ebx, [ecx+eax] / mov [eax], ebx / add eax, 4 / dec edx / jne
+0071c4ca  mov eax, [edi+0x98] / mov [esi+0x98], eax   ; count
+0071c4d6  mov eax, [edi+0x9c] / mov [esi+0x9c], eax   ; flag
+```
+
+So a grown object needs both allocations raised and all five of those operands moved.
+`commandset-limit` does both. With only the definition path grown, the override was still
+allocated at `0xA0` while the grown constructor zeroed N slots and stored the count and flag at
+`0x14 + N*4`, which writes `0x7C` bytes (N = 64) past the allocation into the next heap chunk.
+In a running game that read as a hang loading a War of the Ring battle whose map.ini redefines
+`AngmarDenCommandSet_Campaign`: the allocator later unlinked the zeroed chunk (`0x0043396f`,
+`mov [edx+0xc], ecx` with `edx = 0`), or an STLport tree insert found a zeroed node
+(`0x0042512a`). The victim, and whether anything was hit at all, depended on heap layout, so
+unrelated patches and INI edits seemed to cause it or cure it. A dump showed it directly: a
+`0xb0` chunk holding the override (vtable `0x00c4f688`), zeros from `+0x34` onward, and the
+constructor's count `0x40` at `+0x114`. The copy also dropped every button past 33 and the
+`InitialVisible` from the base set.
 
 Ghidra-decompiled constructor (`this` = `extraout_ECX`, dword-indexed):
 
@@ -266,7 +292,9 @@ merely "don't crash when a set defines >33," the movie likely needs **no** chang
    table to a code cave / new section, add entries `"34".."N"` (`{name, 0x0080c9e1, index,
    0x14}`), and repoint the **single** consumer `push 0xc4f3d8` @ `0x0072065c`. Fix the
    `InitialVisible` entry's `offset` from `0x98` to the new array end.
-2. **Allocation size** `push 0xa0` @ `0x00720298` → `0xa0 + (N-33)*4`.
+2. **Allocation size** `push 0xa0` @ `0x00720298` **and** @ `0x0071c96f` (the map.ini override)
+   → `0xa0 + (N-33)*4`, plus `CommandSet::operator=`'s copy count and its `+0x98/+0x9c`
+   operands (see "Object layout & allocation").
 3. **Constructor** `push 0x21` @ `0x0080c97e` → N (and the shifted `+0x98/+0x9c` offsets if
    grown in place).
 
@@ -305,6 +333,8 @@ more buttons at once rather than merely to stop the crash.
 | `parseCommandSetDefinition` | `0x007205b9` |
 | `initFromINI` call | `0x00720664` |
 | `operator new(0xA0)` site | `0x00720298` |
+| `CommandSetStore::newOverride` (map.ini redefinition) | `0x0071c958`, its `operator new(0xA0)` @ `0x0071c96f` |
+| `CommandSet::operator=` (copies the base into an override) | `0x0071c49a` |
 | Constructor | `0x0080c949` (count immediate `0x0080c97e`) |
 | `parseCommandButton` | `0x0080c9e1` |
 | `getCommandButton` | `0x0080c837` |

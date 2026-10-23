@@ -775,3 +775,89 @@ __all__ += [
     "PRODUCTION_INTERFACE_OFFSET",
     "PRODUCTION_INTERFACE_QUEUE_LENGTH",
 ]
+
+# `FoundationAIUpdate`: the plot module every building plot carries (`docs/ai-plot-autobuild.md`).
+# Instance `0x30` bytes: vtables at `+0x0`, `+0xC`, `+0x10` (the `UpdateModule` subobject `update`
+# is entered with), `+0x20` (the foundation interface, shared with `CastleBehavior`); `+0x28` is
+# the id of what stands on the plot (`foundation-rebind`'s `m_builtOnID`), `+0x2C` the one-shot
+# adopt-scan flag. `ModuleData` `0x10` bytes, two fields (`RepairHealthPercentPerSecond` `+0x8`,
+# `BuildVariation` `+0xC`).
+FOUNDATION_AI_VTABLE = 0x00C56E30
+FOUNDATION_AI_INSTANCE_SIZE = 0x30
+FOUNDATION_AI_MODULE_DATA_SIZE = 0x10
+#: `newModule`'s `push 0x30` / `call operator new`, and the `pop ecx` behind them.
+FOUNDATION_AI_ALLOC = 0x0064A71E
+FOUNDATION_AI_ALLOC_BYTES = bytes.fromhex("6a30e8bb4fdeff")
+FOUNDATION_AI_ALLOC_RESUME = 0x0064A725
+#: The constructor, and its vtable store - what tells a plain plot module from `CastleBehavior`,
+#: which derives from it, shares the foundation interface and has fields of its own past `+0x30`.
+FOUNDATION_AI_CTOR = 0x00858217
+FOUNDATION_AI_CTOR_CALL = 0x0064A73A
+FOUNDATION_AI_CTOR_CALL_BYTES = bytes.fromhex("e8d8da2000")
+FOUNDATION_AI_CTOR_VTABLE_STORE = 0x0085824B
+FOUNDATION_AI_CTOR_VTABLE_STORE_BYTES = bytes.fromhex("c706306ec500")
+#: `newModuleData`'s `push 0x10` / `call operator new`, and the `test eax, eax` behind them.
+FOUNDATION_AI_DATA_ALLOC = 0x0065320A
+FOUNDATION_AI_DATA_ALLOC_BYTES = bytes.fromhex("6a10e8cfc4ddff")
+FOUNDATION_AI_DATA_ALLOC_RESUME = 0x00653211
+#: The field table, and its one `push` in `buildFieldParse`. `CastleBehavior`'s parse names the same
+#: table at `0x0079D0E8`; that reference is left alone, so castles never see the new rows.
+FOUNDATION_AI_FIELD_TABLE = 0x00C06338
+FOUNDATION_AI_FIELD_TABLE_REF = 0x006531FE
+FOUNDATION_AI_FIELD_TABLE_REF_OPCODE = 0x68
+FOUNDATION_AI_STOCK_FIELDS = (("RepairHealthPercentPerSecond", 0x8), ("BuildVariation", 0xC))
+#: `update`, and the join every path through it reaches after the adopt scan: `mov edi, [esi-8]`
+#: / `test byte [edi+0x458], 1`, then the `je` to the occupancy poll. `foundation-rebind` pins the
+#: poll itself (`0x008585EC`..), which is why the hook sits one block earlier.
+FOUNDATION_AI_UPDATE = 0x008584DB
+FOUNDATION_AI_UPDATE_JOIN = 0x00858579
+FOUNDATION_AI_UPDATE_JOIN_BYTES = bytes.fromhex("8b7ef8f6875804000001")
+FOUNDATION_AI_UPDATE_JOIN_RESUME = 0x00858583
+FOUNDATION_AI_UPDATE_JOIN_RESUME_BYTES = bytes.fromhex("7467")
+#: Offsets from the `UpdateModule` subobject (`esi` in `update`): the module base, its
+#: `ModuleData`, its `Object`, and the built-on id.
+FOUNDATION_AI_UPDATE_THIS_DELTA = 0x10
+FOUNDATION_AI_UPDATE_BUILT_ON = 0x18
+#: `FoundationAIUpdate`'s build-here (foundation interface `+0x1C`, `0x00858701`): makes the
+#: building `UNDER_CONSTRUCTION` with the plot as producer and, when both carry
+#: `CastleMemberBehavior`, prices it (`0x0073C25F`) and withdraws it from the player
+#: (`0x00858B13`). `buildObjectNow` routes a `BASE_FOUNDATION` constructor here.
+FOUNDATION_AI_BUILD_HERE = 0x00858701
+#: `BuildAssistant`'s production gate (`CAN_MAKE_UNIT_PRODUCTION_GATE`, vtable `+0x64`):
+#: `(producer, template, reviveIndex)`, `ret 0xC`. 0 can build; 1 the producer's set offers no
+#: such button; 2 not affordable; 3 disabled; 6 at its maximum; 7 command points.
+CAN_MAKE_RESULT_OK = 0
+CAN_MAKE_RESULT_NO_MONEY = 2
+#: `Command = FOUNDATION_CONSTRUCT` on a `CommandButton` (`COMMAND_BUTTON_COMMAND`).
+COMMAND_FOUNDATION_CONSTRUCT = 1
+__all__ += [
+    "CAN_MAKE_RESULT_NO_MONEY",
+    "CAN_MAKE_RESULT_OK",
+    "COMMAND_FOUNDATION_CONSTRUCT",
+    "FOUNDATION_AI_ALLOC",
+    "FOUNDATION_AI_ALLOC_BYTES",
+    "FOUNDATION_AI_ALLOC_RESUME",
+    "FOUNDATION_AI_BUILD_HERE",
+    "FOUNDATION_AI_CTOR",
+    "FOUNDATION_AI_CTOR_CALL",
+    "FOUNDATION_AI_CTOR_CALL_BYTES",
+    "FOUNDATION_AI_CTOR_VTABLE_STORE",
+    "FOUNDATION_AI_CTOR_VTABLE_STORE_BYTES",
+    "FOUNDATION_AI_DATA_ALLOC",
+    "FOUNDATION_AI_DATA_ALLOC_BYTES",
+    "FOUNDATION_AI_DATA_ALLOC_RESUME",
+    "FOUNDATION_AI_FIELD_TABLE",
+    "FOUNDATION_AI_FIELD_TABLE_REF",
+    "FOUNDATION_AI_FIELD_TABLE_REF_OPCODE",
+    "FOUNDATION_AI_INSTANCE_SIZE",
+    "FOUNDATION_AI_MODULE_DATA_SIZE",
+    "FOUNDATION_AI_STOCK_FIELDS",
+    "FOUNDATION_AI_UPDATE",
+    "FOUNDATION_AI_UPDATE_BUILT_ON",
+    "FOUNDATION_AI_UPDATE_JOIN",
+    "FOUNDATION_AI_UPDATE_JOIN_BYTES",
+    "FOUNDATION_AI_UPDATE_JOIN_RESUME",
+    "FOUNDATION_AI_UPDATE_JOIN_RESUME_BYTES",
+    "FOUNDATION_AI_UPDATE_THIS_DELTA",
+    "FOUNDATION_AI_VTABLE",
+]

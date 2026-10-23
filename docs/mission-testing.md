@@ -9,11 +9,9 @@ somebody authored and asks *does the mission still play*. The difference is that
 behaviour lives in its **map scripts**, so the assertions are about scripts firing, not about
 objects changing — which is what [`sage_live`](../sage_live/README.md)'s script debugger reads.
 
-> **Status: designed, not yet run.** The pieces it composes are each proven — `run_user_map`
-> starts a shipped map, the trace hooks record every script a game fires — but nothing has yet
-> run them together against a mission, and §2 names one module that still has to be written.
-> Treat every numbered step as a claim to be confirmed on the first run, and record what it
-> actually did here.
+> **Status: first mission run 2026-10-23** (Edain's evil campaign mission 1, opening stage; see
+> the Log). §0 gained two facts from it. The rest is still a design: treat every numbered step as
+> a claim to be confirmed on the first run, and record what it actually did here.
 
 ## Contents
 
@@ -59,6 +57,25 @@ This is sharpest on a **scenario** map, which is what a mission usually is: its 
 (`PlyrDwarves`, `PlyrMordor`, `PlyrCivilian`) rather than `Player_1..8`, and it may carry no player
 start waypoints at all. A skirmish start has no slot to bind those names to. Check a map's sides
 before assuming a launch will work, and treat the first launch as the experiment that answers it.
+
+**A `-file` start runs the skirmish defeat check, and a War of the Ring battle does not.**
+`VictoryConditions::update` (`0x00808F53`) runs only when `TheRecorder->isMultiplayer()` and only
+after `GameData::SecondsBeforeBaseCheckActive` (5 s, frame 25 at 5 logic frames a second). Its
+census (`0x00809404`) answers "not defeated" for everyone while the living world is active
+(`0x00441E4A`), so a War of the Ring mission can leave the player owning nothing the skirmish
+census counts (`VictoryConditionStructureObjectFilter` / `…UnitObjectFilter` in `gamedata.ini`).
+Started with `-file`, the same mission latches the player defeated on frame 25: money zeroed,
+structures removed, the player's objects no longer counted by `PLAYER_HAS_OBJECT_COMPARISON`
+(so the map's own lose condition fires too), and the game exits a few seconds later. Raising
+`SecondsBeforeBaseCheckActive` in the running game before frame 25 (`TheWritableGlobalData`
+`0x00DE4364` `+0x110C`, a float) gives the battle's rule. Edain's harness does this
+(`tests/campaign/mission.py`, `hold_skirmish_defeat`).
+
+**A War of the Ring start gives the player different starting units.** A battle spawns the
+template's `StartingUnitTacticalWOTR` list (Edain's Mordor: Sauron, five porters and an
+`ObjectRingkriegStartScript`) and the region's army; a skirmish spawns `StartingUnit0..N`.
+Mission scripts written for the battle (naming and moving the army's heroes) find nothing to
+work on. Place what the battle would have spawned into the installed copy.
 
 **A fatal ini error does not exit the process.** The engine raises a message box and waits. That
 failure arrives as the launch timeout, not as an exit code, so a test that fails at 120 s with
@@ -372,4 +389,7 @@ Record what each first run actually did, so the next person does not re-derive i
 | 2026-09-22 | `sage-patch verify command-line-skirmish C:\RotWK\game.dat` | **fails** — `.clskir` section absent, so `run_map` / `run_user_map` cannot start anything off that install until the patch is in its `game.dat` |
 | 2026-09-22 | `sage-test install-map` on Edain's `MAP ANG Erebor`, `--extras _inis` | installed; `_inis/general` and `_inis/gondor` landed beside the map as siblings, so the `map.ini`'s `..\_inis\general\generic.ini` resolves |
 | 2026-09-22 | `sage-lint lint-maps` on that map, RotWK + `_mod` | 21 warnings, 0 errors; useful before a launch, and none of it is anything the engine would report |
+| 2026-10-23 | Edain `map kampa evil 01` through `user_map_runner` (`tests/campaign/evil_campaign`), seats Elves AI at start 0 and the human on FactionMordor at start 1 | reaches a match; the map's `Player_1`/`Player_2` scripts run for the right seats. Defeated on frame 25 by the skirmish base check (§0); with the check held, the opening matches the same mission loaded through the War of the Ring campaign script for script and gold for gold (`tests/campaign/record.py` recorded both) |
+| 2026-10-23 | mission 1 played by orders, objective by objective | the base stages pass: camp, cave, hordes, fissure, troll, each objective shown and ticked in the mission's order (`ScriptWatch` for the scripts, the objective tracker `0x00DE8C94` for the screen). The fighting has not finished a run: one reached the treehouses and the game process died in round 16 with no report. Orders that differ from `Session`'s defaults, and the accelerator's fixed logic rate that cancels fast-forward, are in pySAGE-edain `docs/live-testing.md` |
+| 2026-10-23 | the name-keyed watch of §2 | written in Edain's tests as `campaign.mission.ScriptWatch` over `sage_worldbuilder.live.LiveSession` (recording, `LiveIndex.at`); not yet moved into `sage_test` |
 | 2026-09-22 | reading the map's own player setup | it is a **scenario** map: named sides (`PlyrDwarves` human, `PlyrMordor`, `PlyrCivilian`, `PlyrNeutral`), no `Player_N_Start` waypoints. Whether a `-file` skirmish start honours named sides or strands the mission's scripts on a side with no player is **the open question** for §0's fourth fact, and the first thing a launch settles |

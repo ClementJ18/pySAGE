@@ -1212,3 +1212,70 @@ OVERRIDABLE_NEXT_OVERRIDE = 0x04
 OVERRIDABLE_IS_OVERRIDE = 0x08
 THING_FACTORY_RESET = 0x006D120A
 OVERRIDABLE_DELETE_OVERRIDES = 0x005E2E2E
+
+#: `ThePlayerAITypeSet` and the `map.ini` pass, derived in `docs/player-ai-type-reset.md`.
+#: The set is a plain vector of 16-byte records (`+0` name, `+4` the `LibraryMap`) at `+0xC`, not
+#: an `Overridable` store: the `PlayerAIType` block parser (`0x00615871`) parses into a temporary
+#: and swaps it over the entry of the same name, so a `map.ini` block edits the global record.
+#: Its `SubsystemInterface::reset` is the bare `ret` at `PLAYER_AI_TYPE_SET_RESET`, so nothing
+#: puts the global value back before the next map.
+THE_PLAYER_AI_TYPE_SET = 0x00DE3D5C
+PLAYER_AI_TYPE_SET_VTABLE = 0x00BFE8D0
+PLAYER_AI_TYPE_SET_RESET_SLOT = 0x24
+PLAYER_AI_TYPE_SET_RESET = 0x0063F3BF
+#: `GameLogic`'s map-INI loader - `__thiscall`, the map's path as an `AsciiString` by value. It
+#: loads `<mapdir>\map.ini` and `<mapdir>\solo.ini` with load type `INI_LOAD_CREATE_OVERRIDES`.
+#: Its one caller is `GAME_LOGIC_LOAD_MAP_INI_CALL`, inside `startNewGame`; nothing branches into
+#: its first five bytes (`mov eax, <SEH table>`), which is what makes them hookable.
+GAME_LOGIC_LOAD_MAP_INI = 0x0062710D
+GAME_LOGIC_LOAD_MAP_INI_ENTRY = bytes.fromhex("b8a33bb800")
+GAME_LOGIC_LOAD_MAP_INI_RESUME = 0x00627112
+GAME_LOGIC_LOAD_MAP_INI_RESUME_BYTES = bytes.fromhex("e8d95d4100")
+GAME_LOGIC_LOAD_MAP_INI_CALL = 0x0062FA07
+GAME_LOGIC_LOAD_MAP_INI_CALL_BYTES = bytes.fromhex("e80177ffff")
+#: The `INI` parser object the loader builds on its stack for each file: constructor and destructor
+#: are `__thiscall` with no arguments. The object is `0x87C` bytes (`[ebp-0xA98]` up to the path
+#: buffer at `[ebp-0x21C]`); `INI_OBJECT_SIZE` rounds it to a dword-aligned stack reservation.
+INI_CTOR = 0x0042CAB8
+INI_CTOR_ENTRY = bytes.fromhex("b8320cb700")
+INI_DTOR = 0x0042CB63
+INI_DTOR_ENTRY = bytes.fromhex("b8630cb700")
+INI_OBJECT_SIZE = 0x880
+INI_LOAD_ENTRY = bytes.fromhex("b86a0db700")
+INI_LOAD_CREATE_OVERRIDES = 2
+FILE_SYSTEM_DOES_FILE_EXIST_ENTRY = bytes.fromhex("558bec81ec")
+ASCII_STRING_CTOR_ENTRY = bytes.fromhex("8b54240485d2")
+__all__ += [
+    "ASCII_STRING_CTOR_ENTRY",
+    "FILE_SYSTEM_DOES_FILE_EXIST_ENTRY",
+    "GAME_LOGIC_LOAD_MAP_INI",
+    "GAME_LOGIC_LOAD_MAP_INI_CALL",
+    "GAME_LOGIC_LOAD_MAP_INI_CALL_BYTES",
+    "GAME_LOGIC_LOAD_MAP_INI_ENTRY",
+    "GAME_LOGIC_LOAD_MAP_INI_RESUME",
+    "GAME_LOGIC_LOAD_MAP_INI_RESUME_BYTES",
+    "INI_CTOR",
+    "INI_CTOR_ENTRY",
+    "INI_DTOR",
+    "INI_DTOR_ENTRY",
+    "INI_LOAD_CREATE_OVERRIDES",
+    "INI_LOAD_ENTRY",
+    "INI_OBJECT_SIZE",
+    "PLAYER_AI_TYPE_SET_RESET",
+    "PLAYER_AI_TYPE_SET_RESET_SLOT",
+    "PLAYER_AI_TYPE_SET_VTABLE",
+    "THE_PLAYER_AI_TYPE_SET",
+]
+
+#: `GameLogic::reset` - zeroes the frame counter (`0x0062D421`) among the rest, between matches and
+#: before a save loads. Reached only through slot 9 of `GameLogic`'s two vtables (`0x00BD8590`, and
+#: `0x00BFDB68` that its constructor at `0x0062CB42` stamps); no direct caller. `__thiscall`, `ret`.
+GAME_LOGIC_RESET = 0x0062D232
+GAME_LOGIC_RESET_ENTRY = bytes.fromhex("b83f41b800e8b4fc4000515153568bf1")
+GAME_LOGIC_RESET_VTABLE_SLOTS = (0x00BD85B4, 0x00BFDB8C)
+
+__all__ += [
+    "GAME_LOGIC_RESET",
+    "GAME_LOGIC_RESET_ENTRY",
+    "GAME_LOGIC_RESET_VTABLE_SLOTS",
+]

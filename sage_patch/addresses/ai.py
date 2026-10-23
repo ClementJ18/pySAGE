@@ -11,6 +11,7 @@ __all__ = [
     "AI_ATTACK_MACHINE_TARGET_BYTES",
     "AI_COMMAND_OBJECT_EBP",
     "AI_COMMAND_SOURCE_FROM_AI",
+    "AI_COMMAND_SOURCE_FROM_PLAYER",
     "AI_COMMAND_SOURCE_OFFSET",
     "AI_COMMAND_TRANSFER_ANSWER",
     "AI_COMMAND_TRANSFER_ANSWER_BYTES",
@@ -125,6 +126,12 @@ __all__ = [
     "AI_HERO_REQUEST_CALL",
     "AI_HERO_REQUEST_CALL_BYTES",
     "AI_HERO_REQUEST_ENTRY",
+    "AI_KILLER_BEHAVIOR_CTOR",
+    "AI_KILLER_BEHAVIOR_CTOR_BYTES",
+    "AI_KILLER_BEHAVIOR_SIZE",
+    "AI_KILLER_BEHAVIOR_VTABLE",
+    "AI_KILLER_BEHAVIOR_VTABLE_SLOTS",
+    "AI_KILLER_PICKER",
     "AI_MOVE_UPDATE_NO_PATH_RECOMPUTE",
     "AI_MOVE_UPDATE_NO_PATH_RECOMPUTE_BYTES",
     "AI_MOVE_UPDATE_STATE_TEST",
@@ -265,6 +272,10 @@ __all__ = [
     "CAN_MAKE_UNIT_TEMPLATE_BRANCH_BYTES",
     "CAN_MAKE_UNIT_UPGRADE_GATE",
     "CAN_MAKE_UNIT_VTABLE_SLOT",
+    "COMMAND_BUTTON_IS_VALID_TO_USE_ON",
+    "COMMAND_BUTTON_IS_VALID_TO_USE_ON_ENTRY",
+    "COMMAND_BUTTON_IS_VALID_TO_USE_ON_EXIT",
+    "COMMAND_BUTTON_IS_VALID_TO_USE_ON_EXIT_BYTES",
     "DEPLOY_STYLE_AI_BYPASS_PATH",
     "DEPLOY_STYLE_AI_BYPASS_PATH_BYTES",
     "DEPLOY_STYLE_AI_DO_COMMAND",
@@ -337,14 +348,32 @@ __all__ = [
     "PATH_NODE_POS_OFFSET",
     "PLAYER_GET_BUILDABLE_HERO",
     "PLAYER_GET_BUILDABLE_HERO_ENTRY",
+    "SKIRMISH_AI_ID_LIST_BEGIN",
     "SKIRMISH_AI_MANAGER_PLAYER_DATA",
+    "SKIRMISH_AI_PLAYER_RECORD",
+    "SKIRMISH_AI_PLAYER_RECORD_ENTRY",
+    "SKIRMISH_AI_RECORD_ECONOMY",
+    "SKIRMISH_AI_RECORD_STRUCTURES",
+    "SKIRMISH_AI_RECORD_UNITS",
     "SPELLBOOK_AI_REBUILD",
     "SPELLBOOK_AI_REBUILD_NAME",
     "SPELLBOOK_AI_TYPE_COUNT",
     "SPELLBOOK_AI_TYPE_FACTORY",
     "SPELLBOOK_AI_TYPE_FACTORY_ENTRY",
+    "SPELLBOOK_AI_TYPE_FACTORY_EXIT",
+    "SPELLBOOK_AI_TYPE_FACTORY_EXIT_BYTES",
+    "SPELLBOOK_AI_TYPE_FACTORY_RANGE_CHECK",
+    "SPELLBOOK_AI_TYPE_FACTORY_RANGE_CHECK_BYTES",
+    "SPELLBOOK_AI_TYPE_FACTORY_RETURN",
     "SPELLBOOK_AI_TYPE_JUMP_TABLE",
     "SPELLBOOK_AI_TYPE_NAMES",
+    "SPELLBOOK_AI_TYPE_PARSE_BOUND",
+    "SPELLBOOK_AI_TYPE_PARSE_BOUND_BYTES",
+    "SPELLBOOK_AI_TYPE_PARSE_TABLE_READ",
+    "SPELLBOOK_AI_TYPE_PARSE_TABLE_READ_BYTES",
+    "SPELLBOOK_SET_TARGET_OBJECT",
+    "SPELLBOOK_SET_TARGET_OBJECT_BYTES",
+    "SPELLBOOK_TARGET_ID_OFFSET",
     "THE_AI",
     "THE_SKIRMISH_AI_MANAGER",
 ]
@@ -830,6 +859,9 @@ AI_SET_GOAL_POSITION_BYTES = bytes.fromhex("538bd983bbdc010000")
 AI_COMMAND_TYPE_OFFSET = 0x00
 AI_COMMAND_SOURCE_OFFSET = 0x04
 AI_COMMAND_SOURCE_FROM_AI = 2
+# Source 0, `CMD_FROM_PLAYER`: a player's own order - and the skirmish AI's army orders, which it
+# gives as its player rather than as the engine's AI (an attack-move on each horde, read live).
+AI_COMMAND_SOURCE_FROM_PLAYER = 0
 #: `AICommandParms::m_obj`, the command's target: NULL when the object is gone, since `reconstitute`
 #: does not check. It is `[ebp+0x1c]` in the transfer check's frame.
 AI_COMMAND_OBJECT_EBP = 0x1C
@@ -941,6 +973,75 @@ AI_REBUILD_HEALTH_THRESHOLD = 0x00BD869C
 #: not hide a genuinely damaged building further down the list.
 AI_REBUILD_NEXT_CANDIDATE = 0x009E7793
 AI_REBUILD_NEXT_CANDIDATE_BYTES = bytes.fromhex("83c6043b770475d2")
+
+# `AISpecialPowerUpdate` type behaviours, for `ai-ally-targets` (`docs/ai-ally-targets.md`): the
+# parser and factory a new `SpecialPowerAIType` name has to pass through, the enemy-killer class
+# the new type is built on, and the helpers its picker calls.
+
+#: `push dword [esi*4 + SPELLBOOK_AI_TYPE_NAMES]` - the `SpecialPowerAIType` parser's read of the
+#: name table. Its disp32 (3 bytes in) is the table's only live reference: the other one, at
+#: 0x00992654, sits in a name-to-index helper nothing calls.
+SPELLBOOK_AI_TYPE_PARSE_TABLE_READ = 0x009926CA
+SPELLBOOK_AI_TYPE_PARSE_TABLE_READ_BYTES = bytes.fromhex("ff34b5f884db00")
+#: `cmp esi, 0x35` / `jl` - the parser's loop bound, `SPELLBOOK_AI_TYPE_COUNT`. A name the loop
+#: does not reach leaves the index at -1, which the factory turns into no behaviour at all.
+SPELLBOOK_AI_TYPE_PARSE_BOUND = 0x009926F7
+SPELLBOOK_AI_TYPE_PARSE_BOUND_BYTES = bytes.fromhex("83fe357cce")
+#: `ja SPELLBOOK_AI_TYPE_FACTORY_EXIT` - the factory's out-of-range branch, just past the bytes
+#: `SPELLBOOK_AI_TYPE_FACTORY_ENTRY` pins. Index 53 and above, and -1, take it.
+SPELLBOOK_AI_TYPE_FACTORY_RANGE_CHECK = 0x00992737
+SPELLBOOK_AI_TYPE_FACTORY_RANGE_CHECK_BYTES = bytes.fromhex("0f87b2070000")
+#: `xor eax, eax` then the shared epilogue: the factory's "no behaviour" exit, and the point every
+#: case jumps to with its new behaviour in `eax` (`SPELLBOOK_AI_TYPE_FACTORY_RETURN`). The
+#: epilogue pops the `esi` the factory pushed before its range check.
+SPELLBOOK_AI_TYPE_FACTORY_EXIT = 0x00992EEF
+SPELLBOOK_AI_TYPE_FACTORY_EXIT_BYTES = bytes.fromhex("33c08b4df45e")
+SPELLBOOK_AI_TYPE_FACTORY_RETURN = 0x00992EF1
+
+#: The enemy-killer behaviour (`AI_SPECIAL_POWER_ENEMY_TYPE_KILLER`, factory case 0x009927B3):
+#: `__thiscall`, no arguments, returns `this`. It runs the shared spellbook constructor, stamps
+#: `AI_KILLER_BEHAVIOR_VTABLE` and clears the KindOf mask at `+0x24`.
+AI_KILLER_BEHAVIOR_CTOR = 0x009EC042
+AI_KILLER_BEHAVIOR_CTOR_BYTES = bytes.fromhex(
+    "568bf1e8686701008d4e24c70634e7c800e84203c6ff8bc65ec3"
+)
+AI_KILLER_BEHAVIOR_SIZE = 0x40
+#: Its vtable. Slot 6 (`+0x18`) casts at the target object (0x00A02806), slot 7 (`+0x1C`) is the
+#: picker (0x009EC0A7), slots 8 and 9 are the picker's own KindOf and per-candidate hooks.
+AI_KILLER_BEHAVIOR_VTABLE = 0x00C8E734
+AI_KILLER_BEHAVIOR_VTABLE_SLOTS = 10
+#: The enemy picker in slot 7: the caster must be attacking, then the lowest-health enemy within
+#: `SpecialPowerRange` that passes slots 8 and 9.
+AI_KILLER_PICKER = 0x009EC0A7
+
+#: `__thiscall(Object *target)`, `ret 4`: store the target's id (0 for NULL) at
+#: `SPELLBOOK_TARGET_ID_OFFSET`, where the at-object cast reads it back. Writes `eax` only.
+SPELLBOOK_SET_TARGET_OBJECT = 0x00A027D5
+SPELLBOOK_SET_TARGET_OBJECT_BYTES = bytes.fromhex("8b44240485c074058b4074eb0233c0894120c20400")
+SPELLBOOK_TARGET_ID_OFFSET = 0x20
+
+#: `__thiscall` on `TheSkirmishAIManager`, `(Player *)`, `ret 4`: the player's record, or NULL for
+#: a player the manager does not run. The record's `+0` is the player's unit list, `+8` its
+#: structures and `+0xC` its economy buildings; a list's `+4` / `+8` are the begin and end of its
+#: `std::vector<ObjectID>` (`0x0072B229`, the accessor both building pickers call, is
+#: `lea eax, [ecx+4]`). `AI_SPELLBOOK_ASSIST_BATTLE_*` walks the unit list (0x00A02421),
+#: `AI_SPELLBOOK_REBUILD` the structures (`mov ecx, [eax+8]` at 0x009E775F) and
+#: `AI_SPELLBOOK_BUFFECONOMYBUILDING` the economy buildings (`mov ecx, [eax+0xC]` at 0x009E7691).
+SKIRMISH_AI_PLAYER_RECORD = 0x006A9999
+SKIRMISH_AI_PLAYER_RECORD_ENTRY = bytes.fromhex("558bec8b450885c0")
+SKIRMISH_AI_RECORD_UNITS = 0x00
+SKIRMISH_AI_RECORD_STRUCTURES = 0x08
+SKIRMISH_AI_RECORD_ECONOMY = 0x0C
+SKIRMISH_AI_ID_LIST_BEGIN = 0x04
+
+#: `CommandButton::isValidToUseOn(Object *caster, Object *target, Coord3D *pos, CommandSource)`,
+#: `__thiscall` on the button, `ret 0x10`, answer in `al`. With a target object and a button whose
+#: `Options` need one it asks `canDoSpecialPowerAtObject` (0x0082D925): the relationship, the
+#: power's `ObjectFilter`, `MaxCastRange`.
+COMMAND_BUTTON_IS_VALID_TO_USE_ON = 0x0075CF21
+COMMAND_BUTTON_IS_VALID_TO_USE_ON_ENTRY = bytes.fromhex("558bec53568bf133")
+COMMAND_BUTTON_IS_VALID_TO_USE_ON_EXIT = 0x0075D03E
+COMMAND_BUTTON_IS_VALID_TO_USE_ON_EXIT_BYTES = bytes.fromhex("5f5e5b5dc21000")
 
 # Gate closing and in-flight paths (`docs/gate-close-pathfinding.md` §8). A path planned while a
 # gate was open is never re-checked when it closes; these are the pieces the `gate-close-repath`
@@ -1220,4 +1321,163 @@ __all__ += [
     "SLAVED_IDLE_UPDATE_VTABLE",
     "SLAVED_IDLE_HOOKS",
     "SLAVED_IDLE_ANCHORS",
+]
+
+
+# `PickupStuffUpdate` and the two AI orders it can give; see docs/pickup-stuff-enter.md.
+#: `aiMoveToObject(Object *target, CommandSourceType)`, `__thiscall` on `AIUpdate+0x20`, `ret 8`.
+#: The only builder of command type 1 (`AICMD_MOVE_TO_OBJECT`, the `push 1` at `+0x16`).
+AI_MOVE_TO_OBJECT = 0x007549D7
+AI_MOVE_TO_OBJECT_ENTRY = bytes.fromhex("b87118b900e80f852e0081ecc0000000")
+#: `aiEnter(Object *target, CommandSourceType)`: the same signature and body as
+#: `AI_MOVE_TO_OBJECT`, building command type 0x42 (the `push 0x42` at `+0x16`) instead.
+AI_ENTER = 0x00770EDE
+AI_ENTER_ENTRY = bytes.fromhex("b8672bb900e808c02c0081ecc0000000")
+#: The `push <command type>` in each, which is what makes one a move and the other an enter.
+AI_MOVE_TO_OBJECT_TYPE_PUSH = 0x007549ED
+AI_MOVE_TO_OBJECT_TYPE_PUSH_BYTES = bytes.fromhex("6a01")
+AI_ENTER_TYPE_PUSH = 0x00770EF4
+AI_ENTER_TYPE_PUSH_BYTES = bytes.fromhex("6a42")
+#: `PickupStuffUpdate::moveTo(Object *target)`, `__thiscall` on the module, `ret 4`: pushes a
+#: temporary AI state machine (`0x006630A9`, which saves the current one at `AIUpdate+0x34`), then
+#: orders the move into it. Its one caller is the scan at `PICKUP_STUFF_SCAN_ISSUE`.
+PICKUP_STUFF_MOVE_TO = 0x00895715
+PICKUP_STUFF_MOVE_TO_BYTES = bytes.fromhex("56 8bf1 8b4608 8b8860020000 e883d9dcff")
+#: `push 2` (`CMD_FROM_AI`) / `push [esp+0xc]` (the target) / `add ecx, 0x20` / `call
+#: AI_MOVE_TO_OBJECT` - the order itself, and the patch's hook: the `call` is the last five bytes.
+PICKUP_STUFF_MOVE_ORDER = 0x0089572F
+PICKUP_STUFF_MOVE_ORDER_BYTES = bytes.fromhex("6a02 ff74240c 83c120")
+PICKUP_STUFF_MOVE_CALL = 0x00895738
+PICKUP_STUFF_MOVE_CALL_BYTES = bytes.fromhex("e89af2ebff")
+#: `call PICKUP_STUFF_MOVE_TO` in the scan, after the target search (`0x00895632`: an
+#: `ObjectFilter` partition filter built from `StuffToPickUp` and the owner's player, plus
+#: not-destroyed) answered non-NULL; then `mov byte [esi+0x20], 1`, the "on my way" flag.
+PICKUP_STUFF_SCAN_ISSUE = 0x008957A0
+PICKUP_STUFF_SCAN_ISSUE_BYTES = bytes.fromhex("e870ffffff c6462001")
+#: The scan only runs with no temporary machine pushed: `cmp dword [eax+0x34], 0` / `jne`, on the
+#: owner's `AIUpdate`.
+PICKUP_STUFF_SCAN_IDLE_TEST = 0x0089578C
+PICKUP_STUFF_SCAN_IDLE_TEST_BYTES = bytes.fromhex("83783400 7517")
+
+__all__ += [
+    "AI_MOVE_TO_OBJECT",
+    "AI_MOVE_TO_OBJECT_ENTRY",
+    "AI_ENTER",
+    "AI_ENTER_ENTRY",
+    "AI_MOVE_TO_OBJECT_TYPE_PUSH",
+    "AI_MOVE_TO_OBJECT_TYPE_PUSH_BYTES",
+    "AI_ENTER_TYPE_PUSH",
+    "AI_ENTER_TYPE_PUSH_BYTES",
+    "PICKUP_STUFF_MOVE_TO",
+    "PICKUP_STUFF_MOVE_TO_BYTES",
+    "PICKUP_STUFF_MOVE_ORDER",
+    "PICKUP_STUFF_MOVE_ORDER_BYTES",
+    "PICKUP_STUFF_MOVE_CALL",
+    "PICKUP_STUFF_MOVE_CALL_BYTES",
+    "PICKUP_STUFF_SCAN_ISSUE",
+    "PICKUP_STUFF_SCAN_ISSUE_BYTES",
+    "PICKUP_STUFF_SCAN_IDLE_TEST",
+    "PICKUP_STUFF_SCAN_IDLE_TEST_BYTES",
+]
+
+# Order-time tunnel routing; see docs/ai-tunnel-routing.md.
+#: `AIUpdateInterface::aiDoCommand(const AICommandParms *)`, `__thiscall` on `AIUpdate+0x20`,
+#: `ret 4`. Every override found (`DeployStyleAIUpdate`'s, `HordeAIUpdate`'s and five more) ends
+#: in a direct call to it.
+AI_DO_COMMAND = 0x0066A7EC
+AI_DO_COMMAND_ENTRY = bytes.fromhex("b8d872b800e8fa263d0081ecc8000000")
+#: The prologue's register setup that the dispatch below relies on: `mov esi, [ebp+8]` (the
+#: parms) / `mov ebx, [esi+4]` (the command source) ... `mov [ebp-0x10], ecx` (`this`, the
+#: `+0x20` interface) ... `mov edi, ecx` / `add edi, -0x20` (the `AIUpdate`).
+AI_DO_COMMAND_SETUP = 0x0066A7FE
+AI_DO_COMMAND_SETUP_BYTES = bytes.fromhex("8b75088b5e0483a18401000000803d4841de0000894df0")
+AI_DO_COMMAND_MODULE = 0x0066A81C
+AI_DO_COMMAND_MODULE_BYTES = bytes.fromhex("8bf983c7e0")
+#: `mov eax, [eax-0x18]` / `test byte [eax+0x1c9], 1` / `mov [ebp-0x14], eax`: the owning
+#: `Object` saved into the frame, ahead of every branch that reaches the switch.
+AI_DO_COMMAND_OWNER_STORE = 0x0066A85E
+AI_DO_COMMAND_OWNER_STORE_BYTES = bytes.fromhex("8b40e8f680c9010000018945ec")
+AI_DO_COMMAND_THIS_EBP = -0x10
+AI_DO_COMMAND_OWNER_EBP = -0x14
+#: `mov eax, [esi]` / `or dword [ebp+8], -1`: the six bytes in front of the command switch. Three
+#: short branches land on the first; none lands inside.
+AI_DO_COMMAND_DISPATCH = 0x0066AA09
+AI_DO_COMMAND_DISPATCH_BYTES = bytes.fromhex("8b06834d08ff")
+#: `cmp eax, 0x54` / `ja default` / `jmp [eax*4 + 0x0066B07C]` - the switch the dispatch feeds.
+AI_DO_COMMAND_SWITCH = 0x0066AA0F
+AI_DO_COMMAND_SWITCH_BYTES = bytes.fromhex("83f8540f8727060000ff24857cb06600")
+#: The tail most cases jump to: a status-0x46 test for non-AI orders, then the epilogue.
+AI_DO_COMMAND_TAIL = 0x0066B03F
+AI_DO_COMMAND_TAIL_BYTES = bytes.fromhex("8b4dec6a46e8a32ddeff84c0")
+#: `AICommandType` values. The enum is Generals' with one waypoint variant removed, so from 8 on
+#: a BFME value is one below its Generals counterpart.
+AI_CMD_MOVE_TO_POSITION = 0x00
+AI_CMD_IDLE = 0x05
+AI_CMD_ATTACK_MOVE_TO_POSITION = 0x0F
+#: `AICommandParms::m_pos` (a `Coord3D`) and `m_intValue` (an attack-move's max shots).
+AI_COMMAND_POSITION_OFFSET = 0x08
+AI_COMMAND_INT_VALUE_OFFSET = 0x34
+#: The order builders, each `__thiscall` on `AIUpdate+0x20`, each building an `AICommandParms` and
+#: sending it through the interface's slot 0. Each anchor ends on its `push <type>`.
+#: `aiMoveToPosition(const Coord3D *, CommandSourceType)`, `ret 8`.
+AI_MOVE_TO_POSITION = 0x0066C4CA
+AI_MOVE_TO_POSITION_ENTRY = bytes.fromhex("b81173b800e81c0a3d0081ecc0000000535657ff750c8bd96a00")
+#: `aiAttackMoveToPosition(const Coord3D *, Int maxShots, CommandSourceType)`, `ret 0xC`.
+AI_ATTACK_MOVE_TO_POSITION = 0x00696266
+AI_ATTACK_MOVE_TO_POSITION_ENTRY = bytes.fromhex(
+    "b8c28ab800e8806c3a0081ecc0000000535657ff75108bd96a0f"
+)
+#: `aiExit(Object *container, CommandSourceType)`, `ret 8`, command type 0x1A. The exit-all loop
+#: (`CONTAIN_EXIT_ALL_PASSENGERS`) gives every lone passenger this order with the container being
+#: evacuated, which is how a tunnel's Evacuate brings units out of *that* tunnel.
+AI_EXIT = 0x007716C1
+AI_EXIT_ENTRY = bytes.fromhex("b8672bb900e825b82c0081ecc000000056ff750c8bf16a1a")
+#: The main machine's idle state, as `AI_CURRENT_STATE_ID` reports it: the `AIIdleState` built at
+#: `0x0074D3C5` is defined with id `ebx`, zero there.
+AI_STATE_IDLE = 0
+#: `AITNGuardIdleState::update`'s exit at the tunnel nearest its target: `lea ebx, [nemesis+0x38]`
+#: / `call getControllingPlayer` / `call PLAYER_NEAREST_TUNNEL` / the result's contain. It pins
+#: the helper's register convention.
+TN_GUARD_NEAREST_TUNNEL_CALL = 0x0094CFBB
+TN_GUARD_NEAREST_TUNNEL_CALL_BYTES = bytes.fromhex("8d5838e8b5e6d3ffe887f8ffff8b885802000085c974")
+#: The player's tunnel nearest a point: `eax` the `Player *`, `ebx` a `Coord3D *`, the `Object *`
+#: back in `eax` - NULL for a NULL player or an empty network. 2D squared distance over the
+#: tracker's list, through `findObjectByID`. It does **not** test the tracker for NULL, so a
+#: player that never owned a tunnel crashes it. Saves `esi`/`edi`, clobbers `ecx`/`edx`/`xmm0-2`.
+PLAYER_NEAREST_TUNNEL = 0x0094C84F
+PLAYER_NEAREST_TUNNEL_ENTRY = bytes.fromhex("558bec515185c07502c9c38b80080300008365fc000f57c0")
+
+__all__ += [
+    "AI_ATTACK_MOVE_TO_POSITION",
+    "AI_ATTACK_MOVE_TO_POSITION_ENTRY",
+    "AI_CMD_ATTACK_MOVE_TO_POSITION",
+    "AI_CMD_IDLE",
+    "AI_CMD_MOVE_TO_POSITION",
+    "AI_COMMAND_INT_VALUE_OFFSET",
+    "AI_COMMAND_POSITION_OFFSET",
+    "AI_DO_COMMAND",
+    "AI_DO_COMMAND_DISPATCH",
+    "AI_DO_COMMAND_DISPATCH_BYTES",
+    "AI_DO_COMMAND_ENTRY",
+    "AI_DO_COMMAND_MODULE",
+    "AI_DO_COMMAND_MODULE_BYTES",
+    "AI_DO_COMMAND_OWNER_EBP",
+    "AI_DO_COMMAND_OWNER_STORE",
+    "AI_DO_COMMAND_OWNER_STORE_BYTES",
+    "AI_DO_COMMAND_SETUP",
+    "AI_DO_COMMAND_SETUP_BYTES",
+    "AI_DO_COMMAND_SWITCH",
+    "AI_DO_COMMAND_SWITCH_BYTES",
+    "AI_DO_COMMAND_TAIL",
+    "AI_DO_COMMAND_TAIL_BYTES",
+    "AI_DO_COMMAND_THIS_EBP",
+    "AI_EXIT",
+    "AI_EXIT_ENTRY",
+    "AI_MOVE_TO_POSITION",
+    "AI_MOVE_TO_POSITION_ENTRY",
+    "AI_STATE_IDLE",
+    "PLAYER_NEAREST_TUNNEL",
+    "PLAYER_NEAREST_TUNNEL_ENTRY",
+    "TN_GUARD_NEAREST_TUNNEL_CALL",
+    "TN_GUARD_NEAREST_TUNNEL_CALL_BYTES",
 ]

@@ -12,6 +12,10 @@ it, so a patch is added to `_REGISTERED` wherever its import goes and lands in t
 place in every list on its own."""
 
 from sage_patch.patcher import Patch
+from sage_patch.patches.ai_ally_targets import (
+    AiAllyTargetsPatch,
+    AiAllyTargetsWorldbuilderPatch,
+)
 from sage_patch.patches.ai_build_queue_skip import AiBuildQueueSkipPatch
 from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
 from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
@@ -20,9 +24,11 @@ from sage_patch.patches.ai_equivalent_build_gate import AiEquivalentBuildGatePat
 from sage_patch.patches.ai_farm_kill_gate import AiFarmKillGatePatch
 from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
 from sage_patch.patches.ai_hero_build_delay import AiHeroBuildDelayPatch
+from sage_patch.patches.ai_plot_autobuild import AiPlotAutobuildPatch
 from sage_patch.patches.ai_rebuild_gate import AiRebuildGatePatch
 from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.ai_team_size import AiTeamSizePatch
+from sage_patch.patches.ai_tunnel_routing import AiTunnelRoutingPatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
@@ -34,6 +40,7 @@ from sage_patch.patches.cah_factions import (
     CahFactionsPatch,
     CahFactionsWorldbuilderPatch,
 )
+from sage_patch.patches.call_in_reinforcements import CallInReinforcementsPatch
 from sage_patch.patches.campaign_army_verbs import CampaignArmyVerbsPatch
 from sage_patch.patches.castle_unpack_buttons import CastleUnpackButtonsPatch
 from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
@@ -47,6 +54,10 @@ from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgrade
 from sage_patch.patches.construction_initial_health import ConstructionInitialHealthPatch
 from sage_patch.patches.contained_horde_respawn import ContainedHordeRespawnPatch
 from sage_patch.patches.crash_dump import CrashDumpPatch
+from sage_patch.patches.damage_subtypes import (
+    DamageSubtypesPatch,
+    DamageSubtypesWorldbuilderPatch,
+)
 from sage_patch.patches.deploy_before_attack import DeployBeforeAttackPatch
 from sage_patch.patches.description_timers import DescriptionTimersPatch
 from sage_patch.patches.desert_weather import (
@@ -113,6 +124,7 @@ from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
 from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
 from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
+from sage_patch.patches.horde_self_experience import HordeSelfExperiencePatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
 from sage_patch.patches.interpolation_alpha import InterpolationAlphaPatch
@@ -147,7 +159,9 @@ from sage_patch.patches.os_name_fallback import OsNameFallbackPatch
 from sage_patch.patches.passive_aura_revive import PassiveAuraRevivePatch
 from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
 from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
+from sage_patch.patches.pickup_stuff_enter import PickupStuffEnterPatch
 from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
+from sage_patch.patches.player_ai_type_reset import PlayerAiTypeResetPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import (
@@ -205,6 +219,7 @@ from sage_patch.patches.upgrade_complete_skip_unnamed import UpgradeCompleteSkip
 from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
 from sage_patch.patches.upgrade_module_removal import UpgradeModuleRemovalPatch
+from sage_patch.patches.visible_hotkeys import VisibleHotkeysPatch
 from sage_patch.patches.wall_layer_promotion import WallLayerPromotionPatch
 from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
 from sage_patch.patches.worldbuilder_label_assert import WorldbuilderLabelAssertPatch
@@ -225,6 +240,8 @@ from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
 _REGISTERED: tuple[type[Patch], ...] = (
     SlavedUpdateIdlePatch,
     AccelModulePatch,
+    AiAllyTargetsPatch,
+    AiAllyTargetsWorldbuilderPatch,
     AiBuildQueueSkipPatch,
     AiCommandNullTargetPatch,
     AiConstructionGatePatch,
@@ -233,10 +250,12 @@ _REGISTERED: tuple[type[Patch], ...] = (
     AiFarmKillGatePatch,
     AiFlagCaptureGatePatch,
     AiHeroBuildDelayPatch,
+    AiPlotAutobuildPatch,
     AiPowerModelConditionPatch,
     AiRebuildGatePatch,
     AiReviveGatePatch,
     AiTeamSizePatch,
+    AiTunnelRoutingPatch,
     AssetLoadProfilePatch,
     AttackRequiresDamagePatch,
     AutoDepositInflationPatch,
@@ -247,6 +266,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     BinaryAttestPatch,
     CahFactionsPatch,
     CahFactionsWorldbuilderPatch,
+    CallInReinforcementsPatch,
     CampaignArmyVerbsPatch,
     CampaignSelectPatch,
     CaptureTheFlagPatch,
@@ -268,6 +288,8 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
     CrashDumpPatch,
+    DamageSubtypesPatch,
+    DamageSubtypesWorldbuilderPatch,
     DeployBeforeAttackPatch,
     DescriptionTimersPatch,
     DesertWeatherPatch,
@@ -299,6 +321,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     HeroManaPatch,
     HeroRecruitParallelPatch,
     HideModifierFxPatch,
+    HordeSelfExperiencePatch,
     HideSelectionDetailsPatch,
     HordeExitAbsorptionPatch,
     HordeMemberSpeedPatch,
@@ -337,7 +360,9 @@ _REGISTERED: tuple[type[Patch], ...] = (
     PassiveAuraRevivePatch,
     PerfScopeSkipPatch,
     PerfStageReadoutPatch,
+    PickupStuffEnterPatch,
     PillageModuleExtensionPatch,
+    PlayerAiTypeResetPatch,
     PlayerHealFilterPatch,
     PlayerUpgradeDiscountPatch,
     ProductionConditionPatch,
@@ -392,6 +417,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     UpgradeCompleteSkipUnnamedPatch,
     UpgradeAliasPatch,
     UpgradeGrantListsPatch,
+    VisibleHotkeysPatch,
     WallLayerPromotionPatch,
     WallMeshReleasePatch,
     WorldbuilderLabelAssertPatch,

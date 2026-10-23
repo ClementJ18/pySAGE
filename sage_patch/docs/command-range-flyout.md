@@ -460,7 +460,7 @@ auxiliary GUI setters still need caller-level validation before reuse.
 | `0x00C84240` | `STANCE_BATTLE_NAME` | string/data |
 | `0x0071D6EA` | `CONTROL_BAR_FIND_COMMAND_BUTTON` | function; supplied semantics provisional |
 | `0x0071D6B5` | `CONTROL_BAR_SEARCH_COMMAND_BUTTON` | function; supplied semantics provisional |
-| `0x00465AF4` | `GET_FINAL_OVERRIDE` | function; supplied semantics provisional |
+| `0x00465AF4` | `FINAL_OVERRIDE_CHAIN_WALK` | the override-chain walk `getFinalOverride` (`0x00688D3C`) tail-jumps into |
 | `0x0071CF3E` | `CONTROL_BAR_BIND_COMMAND_BUTTON_TO_SLOT` | function; supplied semantics provisional |
 | `0x0075D22E` | `COMMAND_BUTTON_UPDATE_FOR_CONTEXT` | function; supplied semantics provisional |
 | `0x0080C8FE` | `COMMAND_SET_CAPACITY_IMMEDIATE` | instruction/operand site, not entry point |

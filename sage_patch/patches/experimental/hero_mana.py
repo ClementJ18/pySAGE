@@ -177,7 +177,7 @@ _OBJECT_FINGERPRINT = {"BuildCost": 0x5EA, "RefundValue": 0x5EC, "CampnessValue"
 TOOLTIP_LABELS: tuple[str, ...] = ("TOOLTIP:ManaCost", "TOOLTIP:ManaPool")
 
 _DEFAULT_POOL = 100  # points
-_DEFAULT_REGEN = 30  # hundredths per frame == one point per second at 30fps
+_DEFAULT_REGEN = 30  # hundredths per logic frame == 1.5 points a second at the 5 Hz logic rate
 
 
 # Everything below is hand-encoded (the house style: only address arithmetic is automated, by
@@ -927,8 +927,8 @@ class HeroManaPatch(Patch):
     """Add `SpecialPower.ManaCost` plus `Object.ManaPool` / `Object.ManaRegen`, and enforce them.
 
     `pool` and `regen` are the fallbacks an object that declares neither gets: the maximum in
-    whole points, and the refill in hundredths of a point per logic frame (30 == one point per
-    second at 30fps).
+    whole points, and the refill in hundredths of a point per logic frame (30 == 1.5 points a
+    second, at the 5 Hz logic rate).
     """
 
     name = "hero-mana"
@@ -1342,7 +1342,7 @@ class HeroManaPatch(Patch):
             default=_DEFAULT_REGEN,
             metavar="N",
             help="default refill, in hundredths of a point per logic frame, for an Object that "
-            f"declares no ManaRegen (default {_DEFAULT_REGEN} == 1 point/second at 30fps)",
+            f"declares no ManaRegen (default {_DEFAULT_REGEN} == 1.5 points/second at the 5 Hz logic rate)",
         )
         parser.add_argument(
             "--trace",

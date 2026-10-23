@@ -19,6 +19,10 @@ from sage_patch.patches.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
 from sage_patch.patches.commandset import CommandSetLimitPatch
 from sage_patch.patches.construction_initial_health import ConstructionInitialHealthPatch
+from sage_patch.patches.damage_subtypes import (
+    DamageSubtypesPatch,
+    DamageSubtypesWorldbuilderPatch,
+)
 from sage_patch.patches.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
@@ -68,7 +72,9 @@ from sage_patch.patches.object_image_upgrade import (
 )
 from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
 from sage_patch.patches.os_name_fallback import OsNameFallbackPatch
+from sage_patch.patches.pickup_stuff_enter import PickupStuffEnterPatch
 from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
+from sage_patch.patches.player_ai_type_reset import PlayerAiTypeResetPatch
 from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
 from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.production_condition import ProductionConditionPatch
@@ -127,6 +133,8 @@ __all__ = [
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
     "ConstructionInitialHealthPatch",
+    "DamageSubtypesPatch",
+    "DamageSubtypesWorldbuilderPatch",
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
     "FactionVariantsPatch",
@@ -148,6 +156,7 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
+    "PickupStuffEnterPatch",
     "PillageModuleExtensionPatch",
     "LevelGrantSpecialPowerPatch",
     "LifetimeFieldsPatch",
@@ -165,6 +174,7 @@ __all__ = [
     "OsNameFallbackPatch",
     "ObjectImageUpgradePatch",
     "ObjectImageUpgradeWorldbuilderPatch",
+    "PlayerAiTypeResetPatch",
     "PlayerHealFilterPatch",
     "PlayerUpgradeDiscountPatch",
     "ProductionConditionPatch",

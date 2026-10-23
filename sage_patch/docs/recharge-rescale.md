@@ -249,13 +249,14 @@ function; the rescale form simply skips the frames on which the rate did not cha
 held for half a cooldown and then dropped produces the same finish frame either way, because the
 second rescale reverses exactly the fraction of work the first one did not consume.
 
-Worked, at 30 fps, `ReloadTime = 300` (10 s), no modifier at cast:
+Worked, at the 5 Hz logic rate, a 300-frame cooldown (`ReloadTime = 60000`, 60 s), no modifier
+at cast:
 
 | frame | event | duration | remaining | note |
 |---|---|---|---|---|
 | 0 | cast | 300 | 300 | `m = 1.0` |
-| 90 | aura arrives, `RECHARGE_TIME = 66%` | 198 | 138 | `210 * 198/300`; 7 s left becomes 4.6 s |
-| 190 | aura drops | 300 | 57 | `38 * 300/198`; 1.27 s left becomes 1.9 s |
+| 90 | aura arrives, `RECHARGE_TIME = 66%` | 198 | 138 | `210 * 198/300`; 42 s left becomes 27.6 s |
+| 190 | aura drops | 300 | 57 | `38 * 300/198`; 7.6 s left becomes 11.4 s |
 | 247 | ready | | | stock would have finished at 300 |
 
 The error is the two `ftol` truncations — **under one frame per change**, and not cumulative in the

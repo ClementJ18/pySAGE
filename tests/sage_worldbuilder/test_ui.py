@@ -385,10 +385,23 @@ def test_map_dialogs_follow_categories(window, folders, qapp):
     assert not save.save_button.isEnabled()  # no mod folder to write into
 
 
+def test_first_layout_shows_only_the_starter_panels_on_the_right(window):
+    right = Qt.DockWidgetArea.RightDockWidgetArea
+    shown = {
+        dock.objectName()
+        for dock in window._docks()
+        if window.dockWidgetArea(dock) == right and not dock.isHidden()
+    }
+    assert shown == {"objectPaletteDock", "objectPropertiesDock", "terrainMaterialDock"}
+    assert not window.players_dock.isHidden()
+
+
 def test_reset_layout_and_cursor_readout(window):
-    window.map_dock.hide()
+    window.palette_dock.hide()
+    window.map_dock.show()
     window.reset_layout()
-    assert not window.map_dock.isHidden()
+    assert not window.palette_dock.isHidden()
+    assert window.map_dock.isHidden()
 
     window.show_cursor((3, 4), 12.5)
     assert window.cell_label.text() == "Cell: 3, 4"
@@ -402,7 +415,7 @@ def test_scripts_open_as_a_window_over_the_editor(window):
     assert not window.scripts_dock.isHidden()
     assert window.scripts_dock.isFloating()
     placed = _scripts_geometry(QRect(100, 50, 1500, 1000))
-    assert placed.size() == QSize(1000, 700)
+    assert placed.size() == QSize(1000, 900)
     assert placed.center() == QRect(100, 50, 1500, 1000).center()
 
     window.reset_layout()

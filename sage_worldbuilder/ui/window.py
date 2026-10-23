@@ -1748,7 +1748,21 @@ class MainWindow(QMainWindow):
         self.camera_dock = self._dock("Cameras", "camerasDock", self.camera_panel)
         self.camera_dock.visibilityChanged.connect(self._camera_dock_shown)
         self.tabifyDockWidget(self.map_dock, self.camera_dock)
-        self.map_dock.raise_()
+        # A fresh layout opens with only the panels most edits start from on the right; the rest
+        # come up when their tool is picked or from the Window menu.
+        for dock in self._docks_hidden_at_start():
+            dock.hide()
+        self.palette_dock.raise_()
+
+    def _docks_hidden_at_start(self) -> tuple[QDockWidget, ...]:
+        shown = (self.palette_dock, self.object_dock, self.terrain_material_dock)
+        return tuple(
+            dock
+            for dock in self._docks()
+            if dock is not self.scripts_dock
+            and dock not in shown
+            and self.dockWidgetArea(dock) == Qt.DockWidgetArea.RightDockWidgetArea
+        )
 
     def _read_library_map(self, game_path: str) -> Map | None:
         """A library map the open map's players draw scripts from, read from the loaded game."""
@@ -2020,6 +2034,10 @@ class MainWindow(QMainWindow):
         the palette's object itself."""
         if self.map_view.tool is not self.array_tool:
             self.use_tool("place")
+        # The ghost at the cursor is the palette's object, drawn only when a view repaints.
+        self.map_view.update()
+        if self.map_view_3d is not None:
+            self.map_view_3d.update()
 
     def array_options(self) -> ArrayOptions:
         return self.settings.array
@@ -2843,7 +2861,20 @@ class MainWindow(QMainWindow):
         self.generic_ai_panel.refresh()
         self.map_view.update()
         self.object_panel.refresh()
+        if document is not None and any(
+            isinstance(item, Object) and not is_road_point(item) for item in document.selection
+        ):
+            self._bring_up_object_properties()
         self._refresh()
+
+    def _bring_up_object_properties(self) -> None:
+        """Selecting an object opens Object Properties, or brings it to the front of the panels
+        it shares a place with. Not when the pick was made in the Item List: it shares a place
+        with Object Properties at first, and the list would vanish under the click."""
+        focus = QApplication.focusWidget()
+        if focus is not None and self.item_list_panel.isAncestorOf(focus):
+            return
+        self._show_dock(self.object_dock)
 
     def _toggle_view(self, name: str) -> None:
         setattr(self.settings.view, name, self.view_actions[name].isChecked())
@@ -4066,9 +4097,13 @@ class MainWindow(QMainWindow):
     def reset_layout(self) -> None:
         self.restoreState(self._default_state)
         self.toolbar.show()
+        hidden = self._docks_hidden_at_start()
         for dock in self._docks():
-            if dock is not self.scripts_dock:
+            if dock is not self.scripts_dock and dock not in hidden:
                 dock.show()
+        for dock in hidden:
+            dock.hide()
+        self.palette_dock.raise_()
         self._scripts_placed = False
         self.status_bar_action.setChecked(True)
 
@@ -4446,9 +4481,9 @@ class MainWindow(QMainWindow):
 
 
 def _scripts_geometry(editor: QRect) -> QRect:
-    """Where the Scripts window first opens: two thirds of the editor wide, seven tenths tall,
+    """Where the Scripts window first opens: two thirds of the editor wide, nine tenths tall,
     over its middle."""
-    size = QSize(editor.width() * 2 // 3, editor.height() * 7 // 10).expandedTo(_FLOATING_MINIMUM)
+    size = QSize(editor.width() * 2 // 3, editor.height() * 9 // 10).expandedTo(_FLOATING_MINIMUM)
     placed = QRect(QPoint(0, 0), size)
     placed.moveCenter(editor.center())
     return placed

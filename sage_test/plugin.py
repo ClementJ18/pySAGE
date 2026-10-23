@@ -92,7 +92,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store",
         default=DEFAULT_TEMPLATE,
         metavar="NAME",
-        help=f"the shipped map scenarios are compiled onto (default: {DEFAULT_TEMPLATE})",
+        help="the shipped map scenarios are compiled onto, or a .map file on disk "
+        f"(default: {DEFAULT_TEMPLATE})",
     )
     group.addoption(
         "--mod",

@@ -2291,6 +2291,17 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         there."""
         return self.options.show_object_dots or self._marker_footprint(marker)
 
+    def _marker_unrendered(self, marker: Marker) -> bool:
+        """An object whose model came back with nothing to draw, shown only by its dot. One still
+        loading is not: its label would flash up and go."""
+        if marker.kind is not MarkerKind.OBJECT:
+            return False
+        name = self.model_key(marker.source)
+        if name not in self._models:
+            return False
+        model = self._models[name]
+        return model is None or not model.parts
+
     def _dot_size(self, kind: MarkerKind) -> float:
         """A dot follows the camera's distance, taken at the target rather than under the cursor
         so the dots hold still while it moves: the default camera draws them full-sized, and

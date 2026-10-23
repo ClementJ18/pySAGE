@@ -745,6 +745,42 @@ class TestApplyProducesVerifiablePatch:
         resume = CONTROL_BAR_RANGE_FETCH_RESUME - (0xED3000 + len(code))
         assert code.endswith(b"\xe9" + struct.pack("<i", resume))
 
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_a_map_ini_override_is_allocated_at_the_grown_size(self, count):
+        """`CommandSetStore::newOverride` builds the set a map.ini redefinition makes, with the
+        same grown constructor. Left at the stock 0xA0, that constructor's zero fill and count
+        store ran past the allocation and zeroed the next heap chunk - the War of the Ring
+        battle-load hang."""
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        definition = bytes(data[0x320298 : 0x320298 + 5])
+        assert bytes(data[0x31C96F : 0x31C96F + 5]) == definition
+        assert definition == b"\x68" + struct.pack("<I", cs._ARRAY_OFF + count * 4 + 8)
+
+    @pytest.mark.parametrize("count", [MIN_COUNT, 64, MAX_COUNT])
+    def test_the_override_copy_takes_every_slot_and_the_moved_fields(self, count):
+        """`CommandSet::operator=` copies the base set into the override. It must walk all N
+        slots and copy the count and flag from where the grown object keeps them; stock offsets
+        0x98/0x9C would be button slots 34 and 35."""
+        data = _synthetic_game_dat()
+        CommandSetLimitPatch(count=count).apply(data)
+        count_off = struct.pack("<I", cs._ARRAY_OFF + count * 4)
+        flag_off = struct.pack("<I", cs._ARRAY_OFF + count * 4 + 4)
+        assert bytes(data[0x31C4B7 : 0x31C4B9]) == b"\x6a" + bytes([count])
+        assert bytes(data[0x31C4CA : 0x31C4D0]) == b"\x8b\x87" + count_off
+        assert bytes(data[0x31C4D0 : 0x31C4D6]) == b"\x89\x86" + count_off
+        assert bytes(data[0x31C4D6 : 0x31C4DC]) == b"\x8b\x87" + flag_off
+        assert bytes(data[0x31C4DC : 0x31C4E2]) == b"\x89\x86" + flag_off
+
+    @pytest.mark.full
+    def test_every_site_holds_its_stock_bytes_in_the_real_binary(self):
+        game_dat = Path(__file__).resolve().parents[2] / "game.dat"
+        if not game_dat.exists():
+            pytest.skip("no game.dat beside the repo")
+        data = game_dat.read_bytes()
+        for off, old, _new, note in CommandSetLimitPatch(count=64)._object_edits(64):
+            assert data[off : off + len(old)] == old, note
+
     def test_apply_refuses_a_build_whose_range_loops_moved(self):
         """The clamp only means anything against the two uncapped loops it was derived from. A
         build where those bytes differ is not this build, and is refused rather than clamped."""

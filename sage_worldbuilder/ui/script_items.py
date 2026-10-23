@@ -8,10 +8,11 @@ map, as WorldBuilder's own tree offers them (`sage_worldbuilder.templates.offere
 from __future__ import annotations
 
 import copy
+import weakref
 from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QStringListModel, Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -22,6 +23,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QPushButton,
     QSpinBox,
     QSplitter,
@@ -32,7 +34,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sage_map.assets.player_scripts import ScriptArgument, ScriptDerived
-from sage_map.scripts import arg_spec
+from sage_map.scripts import Scope, arg_spec
 from sage_utils.widgets import make_completer
 from sage_worldbuilder.script_targets import ScriptTarget, navigable
 from sage_worldbuilder.scripting import (
@@ -40,6 +42,7 @@ from sage_worldbuilder.scripting import (
     item_template,
     new_item,
     retarget,
+    string_text,
 )
 from sage_worldbuilder.templates import (
     ScriptTemplate,
@@ -57,6 +60,19 @@ __all__ = ["FindTarget", "GoTo", "ScriptItemDialog"]
 _INT_MIN, _INT_MAX = -(2**31), 2**31 - 1
 _REAL_LIMIT = 1e9
 _GO_TO = "Go To"
+_MIN_CONTENTS = 24
+
+# The game's string labels as a model every dialog shares, built once per loaded game.
+_STRING_MODELS: weakref.WeakKeyDictionary[Game, QStringListModel] = weakref.WeakKeyDictionary()
+
+
+def _string_model(game: Game) -> QStringListModel:
+    model = _STRING_MODELS.get(game)
+    if model is None:
+        model = QStringListModel(sorted(game.strings, key=str.casefold))
+        _STRING_MODELS[game] = model
+    return model
+
 
 #: What an argument points at in the open map, or `None` when it points at nothing there.
 FindTarget = Callable[[ScriptArgument], ScriptTarget | None]
@@ -94,6 +110,8 @@ class ScriptItemDialog(QDialog):
         # The field editing each argument, and the Go To button beside the ones that have one.
         self._editors: list[QWidget] = []
         self._go_buttons: dict[int, QPushButton] = {}
+        # Each string argument with the function showing its text under its field.
+        self._string_views: list[tuple[ScriptArgument, Callable[[str], None]]] = []
         self.item: ScriptDerived | None = copy.deepcopy(item) if item is not None else None
         noun = "Condition" if kind is TemplateKind.CONDITION else "Action"
         self.setWindowTitle(f"Edit {noun}" if item is not None else f"New {noun}")
@@ -258,6 +276,7 @@ class ScriptItemDialog(QDialog):
             self.form.removeRow(0)
         self._editors.clear()
         self._go_buttons.clear()
+        self._string_views.clear()
         item = self.item
         has_item = item is not None
         for widget in (self.enabled_box, self.inverted_box):
@@ -278,6 +297,8 @@ class ScriptItemDialog(QDialog):
             editor = self._editor(argument)
             self._editors.append(editor)
             self.form.addRow(label or f"Parameter {index + 1}", self._with_go_to(index, editor))
+            if arg_spec(argument.type).scope is Scope.STRINGS:
+                self.form.addRow("", self._string_text(argument))
         self._update_preview()
 
     def _with_go_to(self, index: int, editor: QWidget) -> QWidget:
@@ -330,6 +351,8 @@ class ScriptItemDialog(QDialog):
         self.preview.setText(
             sentence_html(self.item, self.kind, sentence_link_color(self.palette()))
         )
+        for argument, show in self._string_views:
+            show(argument.string_value or "")
         self._refresh_go_buttons()
 
     def _setter(self, argument: ScriptArgument, field: str) -> Callable[[Any], None]:
@@ -362,13 +385,47 @@ class ScriptItemDialog(QDialog):
             return real
         box = QComboBox()
         box.setEditable(True)
-        choices = argument_choices(kind, self.symbols, self.game)
-        box.addItems(choices)
+        box.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        # Sized to its contents, a box measures every entry on first show: the game's tens of
+        # thousands of string labels took seconds to open a dialog.
+        box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        box.setMinimumContentsLength(_MIN_CONTENTS)
+        view = box.view()
+        if isinstance(view, QListView):
+            view.setUniformItemSizes(True)
+        if arg_spec(kind).scope is Scope.STRINGS and self.game is not None:
+            model = _string_model(self.game)
+            box.setModel(model)
+            box.setCompleter(make_completer(box, model=model))
+        else:
+            choices = argument_choices(kind, self.symbols, self.game)
+            box.addItems(choices)
+            if choices:
+                box.setCompleter(make_completer(box, names=choices))
         box.setCurrentText(argument.string_value or "")
-        if choices:
-            box.setCompleter(make_completer(box, names=choices))
         box.currentTextChanged.connect(self._setter(argument, "string_value"))
         return box
+
+    def _string_text(self, argument: ScriptArgument) -> QLabel:
+        """The text the string label in `argument` stands for, kept in step with its field."""
+        label = QLabel()
+        label.setWordWrap(True)
+        label.setTextFormat(Qt.TextFormat.PlainText)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        label.setStyleSheet("font-style: italic;")
+
+        def show(name: str) -> None:
+            text = string_text(self.game, name) if self.game is not None else None
+            if text is not None:
+                label.setText(text)
+            elif name:
+                label.setText("No string by that name." if self.game is not None else "")
+            else:
+                label.setText("")
+
+        show(argument.string_value or "")
+        self._string_views.append((argument, show))
+        return label
 
     def _value_box(self, argument: ScriptArgument, names: Sequence[str]) -> QComboBox:
         box = QComboBox()

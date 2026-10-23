@@ -123,8 +123,7 @@ JNS = 0x9
 #: Everything the cave calls, copies or relies on the layout of, by address and first bytes. A
 #: patch whose job is calling engine functions has no other way to notice one of them moved.
 ANCHORS: dict[int, bytes] = {
-    # Stock starts with a jump to the link test; follow +4 until the final override.
-    GET_FINAL_OVERRIDE: bytes.fromhex("8bc1eb028bc28b500485d275f7c3"),
+    GET_FINAL_OVERRIDE: bytes.fromhex("8bc18b500485d274"),
     UPGRADE_MASK_ANY: bytes.fromhex("33c0833c81007509"),
     UPGRADE_MASK_TEST_ANY: bytes.fromhex("8b44240433d22bc1"),
     INI_PARSE_UPGRADE_MASK: bytes.fromhex("b86375b800e8e3d83c00"),

@@ -1032,3 +1032,17 @@ VICTORY_CONDITIONS_HAS_BEEN_DEFEATED_ENTRY = bytes.fromhex("56578b7c240c")
 VICTORY_CONDITIONS_RESET = 0x00808A43
 VICTORY_CONDITIONS_RESET_ENTRY = bytes.fromhex("5333db33c0")
 VICTORY_CONDITIONS_RESET_SLOT = 0x24
+
+#: The other `PLAYER_TYPE` value: the skirmish AI.
+PLAYER_TYPE_COMPUTER = 1
+#: `Player::m_tunnelSystem`, the `TunnelTracker *` - NULL until the player owns a tunnel. Read by
+#: `TunnelContain::update` (`0x008812D3`) and the tunnel-guard machine (`0x0094C85A`).
+PLAYER_TUNNEL_TRACKER = 0x308
+#: `TunnelTracker::m_tunnelIDs`, an MSVC `std::list<ObjectID>` head; nodes are `{next, prev, id}`.
+TUNNEL_TRACKER_LIST = 0x08
+
+__all__ += [
+    "PLAYER_TUNNEL_TRACKER",
+    "PLAYER_TYPE_COMPUTER",
+    "TUNNEL_TRACKER_LIST",
+]

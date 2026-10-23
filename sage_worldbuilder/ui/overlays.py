@@ -298,6 +298,11 @@ class OverlayPainter:
         since a dot per object on a map of thousands hides the map under them."""
         return True
 
+    def _marker_unrendered(self, marker: Marker) -> bool:
+        """Whether a view that draws objects has nothing to draw for this one, so its label falls
+        back to its type name. A view that draws no objects says no: every object would be."""
+        return False
+
     def _dot_size(self, kind: MarkerKind) -> float:
         """How wide a marker's dot is in pixels: it grows and shrinks with the zoom, within
         limits."""
@@ -566,9 +571,13 @@ class OverlayPainter:
                 self._draw_footprint(painter, marker)
             if marker.source in selection:
                 selected.append((marker, point))
-            if marker.label:
+            label = marker.label
+            if not label and self._marker_unrendered(marker):
+                # Nothing else on screen says what it is.
+                label = marker.source.type_name
+            if label:
                 size = self._dot_size(marker.kind)
-                labels.append((point + QPointF(size, -size / 2), marker.label))
+                labels.append((point + QPointF(size, -size / 2), label))
         self._draw_influences(
             painter, [marker for marker in markers if marker.kind is MarkerKind.OBJECT]
         )

@@ -1,7 +1,7 @@
 """Tests for the drain-life-fix patch.
 
-Seven edits and one cave. What could be wrong without raising is the reading behind them, so the
-stock windows are disassembled: the two widened moves are the input's Bool at `+0x4C`, both hooked
+Eight edits and one cave. What could be wrong without raising is the reading behind them, so the
+stock windows are disassembled: the three widened moves are the input's Bool at `+0x4C`, both hooked
 damage calls go to the body-damage step, the stamp sites have the nugget in `esi`, and the `je`
 turned into `jmp` is the one that skips the stock drain. `..._emulated.py` runs the cave.
 """
@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 
 from sage_patch.addresses import (
+    DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE,
+    DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES,
     DAMAGE_INFO_INPUT_COPY_BYTE_MOVE,
     DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES,
     DAMAGE_INFO_INPUT_CTOR_BYTE_STORE,
@@ -80,14 +82,18 @@ def patched() -> bytearray:
 
 
 class TestTheStockWindows:
-    def test_the_two_moves_are_the_inputs_bool_at_0x4c(self):
+    def test_the_three_moves_are_the_inputs_bool_at_0x4c(self):
         assert ops(DAMAGE_INFO_INPUT_CTOR_BYTE_STORE_BYTES, DAMAGE_INFO_INPUT_CTOR_BYTE_STORE) == [
             ("mov", "byte ptr [eax + 0x4c], cl")
         ]
-        assert ops(DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES, DAMAGE_INFO_INPUT_COPY_BYTE_MOVE) == [
-            ("mov", "dl, byte ptr [ecx + 0x4c]"),
-            ("mov", "byte ptr [eax + 0x4c], dl"),
-        ]
+        for va, stock in (
+            (DAMAGE_INFO_INPUT_COPY_BYTE_MOVE, DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES),
+            (DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE, DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES),
+        ):
+            assert ops(stock, va) == [
+                ("mov", "dl, byte ptr [ecx + 0x4c]"),
+                ("mov", "byte ptr [eax + 0x4c], dl"),
+            ]
 
     @pytest.mark.parametrize(
         ("va", "stock"),
@@ -170,9 +176,11 @@ class TestApply:
         assert ops(
             _read(patched, DAMAGE_INFO_INPUT_CTOR_BYTE_STORE, 3), DAMAGE_INFO_INPUT_CTOR_BYTE_STORE
         ) == [("mov", "dword ptr [eax + 0x4c], ecx")]
-        assert ops(
-            _read(patched, DAMAGE_INFO_INPUT_COPY_BYTE_MOVE, 6), DAMAGE_INFO_INPUT_COPY_BYTE_MOVE
-        ) == [("mov", "edx, dword ptr [ecx + 0x4c]"), ("mov", "dword ptr [eax + 0x4c], edx")]
+        for va in (DAMAGE_INFO_INPUT_COPY_BYTE_MOVE, DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE):
+            assert ops(_read(patched, va, 6), va) == [
+                ("mov", "edx, dword ptr [ecx + 0x4c]"),
+                ("mov", "dword ptr [eax + 0x4c], edx"),
+            ]
 
     def test_the_stock_drain_is_jumped_over(self, patched: bytearray):
         assert _read(patched, DAMAGE_NUGGET_DRAIN_SKIP, 2) == b"\xeb\x3b"

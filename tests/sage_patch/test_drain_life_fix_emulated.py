@@ -6,7 +6,8 @@ The sibling file reads the cave back as text. This one runs it under Unicorn:
   synthetic stand-in otherwise. The body-damage step, `findObjectByID` and `attemptHealing` are
   answered in Python, so each case is a hit of known size and a source that is, or isn't, there.
 - **The engine around it**, over the real `game.dat` only (skipped without it): the patched input
-  constructor zeroes the padding and the patched copy constructor carries it. The stock
+  constructor zeroes the padding, and the patched copy constructor and assignment carry it, the
+  assignment all the way through the DOT manager's own store of an entry. The stock
   `Object::attemptDamage` (an immediate hit) and the delayed-damage list's update (a hit whose
   delay runs out) both reach the drain.
 """
@@ -54,10 +55,15 @@ from .synthetic import drain_life_fix_image  # noqa: E402
 REAL_GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 needs_game_dat = pytest.mark.skipif(not REAL_GAME_DAT.exists(), reason="needs the real game.dat")
 
-#: The input constructor and copy constructor whose byte moves the patch widens, the object's
-#: delayed-damage list update, and the list erase it calls.
+#: The input constructor, copy constructor and assignment whose byte moves the patch widens, the
+#: DOT manager's entry assignment (what its `add` stores through), the object's delayed-damage
+#: list update, and the list erase it calls.
 DAMAGE_INFO_INPUT_CTOR = 0x0066341C
 DAMAGE_INFO_INPUT_COPY = 0x00662A5C
+DAMAGE_INFO_INPUT_ASSIGN = 0x00740B38
+DOT_ENTRY_ASSIGN = 0x0082092E
+#: A DOT entry: its `DamageInfo`, then interval, duration and next frame.
+DOT_ENTRY_SIZE = 0x88
 OBJECT_DELAYED_DAMAGE_UPDATE = 0x00697EB6
 OBJECT_DELAYED_DAMAGE_LIST = 0x460
 DELAYED_LIST_ERASE = 0x00702055
@@ -241,6 +247,29 @@ class TestTheEngine:
         copy = m.alloc(0x80, b"\xcc" * 0x80)
         m.call(DAMAGE_INFO_INPUT_COPY, source, ecx=copy)
         assert m.read32(copy + 0x4C) == pack_multiplier(0.5) | 1
+
+    def test_the_assignment_carries_the_padding(self, image: bytes):
+        m = Machine(image)
+        source = m.alloc(0x80, bytes(0x80))
+        m.write32(source + 0x4C, pack_multiplier(0.5) | 1)
+        target = m.alloc(0x80, bytes(0x80))
+        m.call(DAMAGE_INFO_INPUT_ASSIGN, source, ecx=target)
+        assert m.read32(target + 0x4C) == pack_multiplier(0.5) | 1
+
+    def test_the_dot_managers_store_carries_the_stamp(self, image: bytes):
+        """What every later tick reads: the DOT manager's `add` assigns the stamped entry over its
+        own, on both branches. Stock, the stored entry's multiplier is lost here (seen in game,
+        2026-10-19: a Venom Sting's poison ticks never healed Ashra)."""
+        m = Machine(image)
+        stamped = m.alloc(DOT_ENTRY_SIZE, bytes(DOT_ENTRY_SIZE))
+        m.write32(stamped + DAMAGE_INFO_SOURCE_ID, SOURCE_ID)
+        m.write32(stamped + DAMAGE_INFO_PAD_DWORD, pack_multiplier(1.0) | 1)
+        m.write32(stamped + 0x7C, 5)  # the interval, which the entry copies itself
+        stored = m.alloc(DOT_ENTRY_SIZE, bytes(DOT_ENTRY_SIZE))
+        m.call(DOT_ENTRY_ASSIGN, stamped, ecx=stored)
+        assert m.read32(stored + DAMAGE_INFO_SOURCE_ID) == SOURCE_ID
+        assert m.read32(stored + 0x7C) == 5
+        assert m.read32(stored + DAMAGE_INFO_PAD_DWORD) == pack_multiplier(1.0) | 1
 
     def test_an_immediate_hit_through_attempt_damage_drains(self, image: bytes):
         battle = Battle(Machine(image))
