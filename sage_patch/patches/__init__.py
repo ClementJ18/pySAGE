@@ -87,6 +87,7 @@ from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
 from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
 from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.patches.spawn_union import SpawnUnionPatch
+from sage_patch.patches.special_power_object_cap import SpecialPowerObjectCapPatch
 from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
 from sage_patch.patches.special_power_refund_upgrade import (
     SpecialPowerRefundUpgradePatch,
@@ -132,6 +133,7 @@ __all__ = [
     "FactionVariantsPatch",
     "ExperienceLevelDownPatch",
     "UpgradeModuleRemovalPatch",
+    "SpecialPowerObjectCapPatch",
     "SpecialPowerPauseButtonPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",

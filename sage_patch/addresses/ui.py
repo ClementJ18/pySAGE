@@ -1954,3 +1954,63 @@ __all__ += [
     "VETERANCY_DRAW_CALL",
     "VETERANCY_DRAW_CALL_BYTES",
 ]
+
+# A summoning special power greyed at its object's cap (`docs/special-power-object-cap.md`).
+
+#: `ThingTemplate::m_maxSimultaneousOfType`, the `UnsignedShort` behind `MaxSimultaneousOfType`
+#: (parse fn `0x0042EC11`). 0 means no cap.
+THING_TEMPLATE_MAX_SIMULTANEOUS_OF_TYPE = 0x5F0
+#: `Player::countObjectsByThingTemplate(count, const ThingTemplate **, Bool ignoreDead,
+#: Int *counts, Bool ignoreUnderConstruction)` - `__thiscall` on the `Player`, `ret 0x14`, walks
+#: the player's teams. Keeps `ebx`, `esi`, `edi`; clobbers `eax`, `ecx`, `edx`.
+PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE = 0x006ABAF7
+PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE_ENTRY = bytes.fromhex("558bec538bd9")
+#: The OCL `CreateObject` nugget's cap test: with a controlling player and a non-zero
+#: `MaxSimultaneousOfType`, it counts the template (`1, &tmpl, 1, &count, 0`) and drops the
+#: spawn when `count >= max`. The check the patch reproduces, asserted so the two cannot drift.
+OCL_CREATE_OBJECT_CAP_TEST = 0x005F1250
+OCL_CREATE_OBJECT_CAP_TEST_BYTES = bytes.fromhex(
+    "6683b8f005000000745c6a008d458850568d45e85056e88ca80b008b45e80fb788f0050000394d88723c"
+)
+#: The availability evaluator's `SPECIAL_POWER` arm once the power's module reports ready
+#: (`jne` at `0x00943583`): `edi` the button, `ebx` the object, ahead of the model-condition gate.
+#: Five bytes, three whole instructions, branched to only at their start.
+CONTROL_BAR_SPECIAL_POWER_READY = 0x009435D7
+# mov ecx, [ebp-0x14] / push ebx / push edi
+CONTROL_BAR_SPECIAL_POWER_READY_BYTES = bytes.fromhex("8b4dec5357")
+CONTROL_BAR_SPECIAL_POWER_READY_RESUME = 0x009435DC
+CONTROL_BAR_SPECIAL_POWER_READY_TEST = 0x00943581
+CONTROL_BAR_SPECIAL_POWER_READY_TEST_BYTES = bytes.fromhex("84c07552")  # test al,al; jne
+#: `ControlBar::doCommand`'s dispatch of `SPECIAL_POWER` (`0x18`) to the `isReady` gate, with
+#: `esi` the button and `ebx` the context object (null in the mixed context). Nine bytes, two
+#: whole instructions, not branched into.
+CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_DISPATCH = 0x00940536
+CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_DISPATCH_BYTES = bytes.fromhex("83f8180f84d0010000")
+CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_DISPATCH_RESUME = 0x0094053F
+#: The `mov eax, [esi+0x14]` / `cmp eax, 0x17` just before it, which is what puts the command in
+#: `eax` at the dispatch.
+CONTROL_BAR_DO_COMMAND_COMMAND_LOAD = 0x0094052A
+CONTROL_BAR_DO_COMMAND_COMMAND_LOAD_BYTES = bytes.fromhex("8b461483f817")
+#: `doCommand`'s "nothing done" exit: `xor eax, eax` and the epilogue, reached from every depth
+#: the function's body runs at.
+CONTROL_BAR_DO_COMMAND_REFUSE = 0x00940485
+CONTROL_BAR_DO_COMMAND_REFUSE_BYTES = bytes.fromhex("33c08b4df45f5e")
+__all__ += [
+    "CONTROL_BAR_DO_COMMAND_COMMAND_LOAD",
+    "CONTROL_BAR_DO_COMMAND_COMMAND_LOAD_BYTES",
+    "CONTROL_BAR_DO_COMMAND_REFUSE",
+    "CONTROL_BAR_DO_COMMAND_REFUSE_BYTES",
+    "CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_DISPATCH",
+    "CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_DISPATCH_BYTES",
+    "CONTROL_BAR_DO_COMMAND_SPECIAL_POWER_DISPATCH_RESUME",
+    "CONTROL_BAR_SPECIAL_POWER_READY",
+    "CONTROL_BAR_SPECIAL_POWER_READY_BYTES",
+    "CONTROL_BAR_SPECIAL_POWER_READY_RESUME",
+    "CONTROL_BAR_SPECIAL_POWER_READY_TEST",
+    "CONTROL_BAR_SPECIAL_POWER_READY_TEST_BYTES",
+    "OCL_CREATE_OBJECT_CAP_TEST",
+    "OCL_CREATE_OBJECT_CAP_TEST_BYTES",
+    "PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE",
+    "PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE_ENTRY",
+    "THING_TEMPLATE_MAX_SIMULTANEOUS_OF_TYPE",
+]

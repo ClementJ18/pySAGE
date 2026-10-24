@@ -108,6 +108,7 @@ from sage_patch.patches import scenario_player_factions as spf
 from sage_patch.patches import score_keeper_dangling_keys as skdk
 from sage_patch.patches import script_debug_window as sdw
 from sage_patch.patches import skirmish_ai_fallback as saf
+from sage_patch.patches import special_power_object_cap as spoc
 from sage_patch.patches import special_power_refund_upgrade as spru
 from sage_patch.patches import spell_recharge_targets as srt
 from sage_patch.patches import spellbook_commandset_refresh as sbcsr
@@ -855,6 +856,12 @@ def multi_execute_cooldown_image() -> bytearray:
     return _sparse_image(
         {**mxc.ANCHORS, **mxc.AVAILABILITY_SITES, **mxc.READY_SITES, **mxc.USABLE_SITES}
     )
+
+
+def special_power_object_cap_image() -> bytearray:
+    """A stand-in carrying the two hook windows and every routine, exit and instruction the
+    `special-power-object-cap` cave relies on."""
+    return _sparse_image({**spoc.ANCHORS, **{va: stock for va, (stock, _r) in spoc.HOOKS.items()}})
 
 
 def drain_life_fix_image() -> bytearray:
