@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19",
+  "date": "2026-10-23",
   "sha256": "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26",
   "size": 11346944,
   "image_base": "0x400000",
@@ -93,7 +93,7 @@
       "raw_size": "0x8200"
     }
   ],
-  "evidence_note": "Byte samples are read from the reference binary; semantic names are static RE, not runtime proof. See German documentation for confidence.",
+  "evidence_note": "Byte samples are from the identified reference binary. Semantic names are static reverse-engineering interpretations, not runtime proof. See hero-horde-death.md and horde-herobar.md for evidence and scope. KindOf and Slots entries remain reference evidence, not health-hook selection rules.",
   "addresses": [
     {
       "name": "GameLogic::findObjectByID thiscall ret4",
@@ -127,7 +127,8 @@
       "rva": "0x001f2d41",
       "file_offset": "0x001f2d41",
       "sample16": "d94108c3f30f10442404f30f11411cc2",
-      "patch_anchor": false
+      "patch_anchor": true,
+      "evidence": "Reference disassembly: fld dword ptr [ecx+8]; ret. Native BodyInterface current-health getter."
     },
     {
       "name": "rank tree lookup; RET 4",
@@ -216,6 +217,15 @@
       "file_offset": "0x002a1ce2",
       "sample16": "d981e409000051d91c248d81e0090000",
       "patch_anchor": false
+    },
+    {
+      "name": "Native maximum-health getter; BodyInterface vtable slot +1C",
+      "va": "0x006aa274",
+      "rva": "0x002aa274",
+      "file_offset": "0x002aa274",
+      "sample16": "d94110c3f644240401568bf1c706983e",
+      "patch_anchor": true,
+      "evidence": "Reference disassembly: fld dword ptr [ecx+0x10]; ret. ImmortalBody and base BodyInterface vtable slot +0x1C both point here."
     },
     {
       "name": "ThingFactory new object",
@@ -312,8 +322,8 @@
       "rva": "0x0046c8ac",
       "file_offset": "0x0046c8ac",
       "sample16": "8b81e8feffff8b8098000000c38b41e8",
-      "patch_anchor": true,
-      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+      "patch_anchor": false,
+      "evidence": "Verified reference bytes; not used to select or calculate the horde health display."
     },
     {
       "name": "Native banner-ID comparison, Runtime+26C",
@@ -607,7 +617,7 @@
       "rva": "0x0052d5eb",
       "file_offset": "0x0052d5eb",
       "sample16": "8b01ff5014d80dd888bd00d8059c86bd",
-      "patch_anchor": true,
+      "patch_anchor": false,
       "evidence": "CE prototype verified by user; bytes rechecked on backup"
     },
     {
@@ -642,8 +652,8 @@
       "rva": "0x816028",
       "file_offset": "0x816028",
       "sample16": "4d454c45455f484f5244450047415252",
-      "patch_anchor": true,
-      "evidence": "read and checked against unchanged backup"
+      "patch_anchor": false,
+      "evidence": "Verified reference bytes; not used to select or calculate the horde health display."
     },
     {
       "name": "Horde_InterfaceVTable",
@@ -726,6 +736,24 @@
       "patch_anchor": false
     },
     {
+      "name": "ActiveBody BodyInterface current-health slot +10",
+      "va": "0x00c72100",
+      "rva": "0x00872100",
+      "file_offset": "0x00872100",
+      "sample16": "412d5f00751d8c00911d8c0074a26a00",
+      "patch_anchor": true,
+      "evidence": "Frozen reference vtable bytes used to validate the native getter slot."
+    },
+    {
+      "name": "ActiveBody BodyInterface maximum-health slot +1C",
+      "va": "0x00c7210c",
+      "rva": "0x0087210c",
+      "file_offset": "0x0087210c",
+      "sample16": "74a26a009c4449005d60a000f91b8c00",
+      "patch_anchor": true,
+      "evidence": "Frozen reference vtable bytes used to validate the native getter slot."
+    },
+    {
       "name": "base BodyInterface slot +58",
       "va": "0x00c72148",
       "rva": "0x00872148",
@@ -747,8 +775,8 @@
       "rva": "0x9a1044",
       "file_offset": "0x9a1044",
       "sample16": "2860c1001c60c1000460c100fc5fc100",
-      "patch_anchor": true,
-      "evidence": "read and checked against unchanged backup"
+      "patch_anchor": false,
+      "evidence": "Verified reference bytes; not used to select or calculate the horde health display."
     },
     {
       "name": "NameKeyGenerator global",

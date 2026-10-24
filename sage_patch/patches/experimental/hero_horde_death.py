@@ -1,7 +1,7 @@
-"""Register an empty immortal hero horde with native DeathPreparation before stock destruction.
+"""Register an empty immortal hero horde's death before the stock destroy request.
 
-Experimental first version. See docs/hero-horde-death.md (German); no runtime validation.
-The separate combo-horde-recruitment patch supplies mixed InitialPayload creation.
+Death handling only: this does not change recruitment, payload creation or producer exits.
+See docs/hero-horde-death.md for the native flow, guards and recruitment workaround.
 """
 
 from __future__ import annotations
@@ -9,6 +9,24 @@ from __future__ import annotations
 from sage_patch.asm import JE, JNE, Asm
 from sage_patch.patcher import Patch
 from sage_patch.utils import allocate_section, file_offset, find_section, jmp_rel32, read_bytes
+
+__all__ = [
+    "ANCHORS",
+    "DEATH_PREPARATION",
+    "FIND_MODULE",
+    "HOOK",
+    "IMMORTAL_BODY_VTABLE",
+    "NAME_GENERATOR",
+    "NAME_KEY",
+    "ORIGINAL",
+    "RESPAWN_NAME",
+    "RESPAWN_VTABLE",
+    "RESUME",
+    "RULE_LOOKUP",
+    "SECTION_NAME",
+    "HeroHordeDeathPatch",
+    "build_code",
+]
 
 HOOK = 0x0087386C
 RESUME = 0x00873872
@@ -115,7 +133,8 @@ class HeroHordeDeathPatch(Patch):
     experimental = True
     description = (
         "Register empty HERO/HORDE objects with ImmortalBody and a non-auto RespawnUpdate rule "
-        "through native DeathPreparation before the unchanged destroy request"
+        "through native DeathPreparation before the unchanged destroy request. "
+        "Death only; recruitment and producer exits are unchanged"
     )
 
     @staticmethod

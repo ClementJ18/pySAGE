@@ -80,6 +80,7 @@ def test_output_protection(tmp_path):
     assert out.read_bytes() == b"a"
 
 
+@pytest.mark.full
 def test_real_backup():
     path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
     if not path.exists():

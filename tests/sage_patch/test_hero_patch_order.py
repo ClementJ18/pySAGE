@@ -30,6 +30,7 @@ def test_hero_bar_death_and_health_compose_in_any_order(order):
         assert not patch.verify(data), patch.name
 
 
+@pytest.mark.full
 def test_local_applymypatches_order_without_installing():
     root = Path(__file__).resolve().parents[2]
     script = root / "applymypatches.py"

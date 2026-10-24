@@ -1,8 +1,9 @@
-; generated 2026-10-19 from hero-horde-all-melee/game.dat; no game runtime proof
-; hook VA=0x0087386c bytes=e9 8f f7 65 00 90
-; cave VA=0x00ed3000 file-offset=0xad2400 size=328
-00ed3000  9c                             pushfd   
-00ed3001  60                             pushal   
+; Generated from build_code at an illustrative cave address; not a game runtime trace.
+; The allocated cave address depends on the existing sections and selected patch order.
+; hook VA=0x0087386c, replacement=e9 8f f7 65 00 90
+; cave VA=0x00ed3000, size=328 bytes
+00ed3000  9c                             pushfd
+00ed3001  60                             pushal
 00ed3002  8b ec                          mov      ebp, esp
 00ed3004  81 ec 10 02 00 00              sub      esp, 0x210
 00ed300a  83 e4 f0                       and      esp, 0xfffffff0
@@ -74,7 +75,7 @@
 00ed3130  e8 0f 06 9e ff                 call     0x8b3744
 00ed3135  0f ae 0c 24                    fxrstor  [esp]
 00ed3139  8b e5                          mov      esp, ebp
-00ed313b  61                             popal    
-00ed313c  9d                             popfd    
+00ed313b  61                             popal
+00ed313c  9d                             popfd
 00ed313d  ff b6 ec fe ff ff              push     dword ptr [esi - 0x114]
 00ed3143  e9 2a 07 9a ff                 jmp      0x873872
