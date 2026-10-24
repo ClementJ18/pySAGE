@@ -1,168 +1,167 @@
-# Erfahrung, Level und Schicksalspunkte abziehen
+# Removing experience, levels, and power points
 
-Untersuchung vom 09.10.2026. Grundlage: lokale OpenBfme-/OpenBfme2-Quellen,
-deren gezielt gelesene Matching-Einträge und direkte Disassemblierung von
-`tools/BFME-FILES/game.dat.backup`. Kein Patch implementiert oder im Spiel getestet.
+Investigation dated 2026-10-09. Based on local OpenBfme/OpenBfme2 sources,
+targeted reads of their matching entries, and direct disassembly of
+`tools/BFME-FILES/game.dat.backup`. No patch has been implemented or tested in game.
 
-RotWK-Dateiversion: 2.01.2614.37001; ImageBase 0x00400000.
+RotWK file version: 2.01.2614.37001; ImageBase 0x00400000.
 SHA-256: `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`.
-Alle RotWK-Adressen unten sind virtuelle Adressen (VA), keine Dateioffsets.
-BFME2-Adressen im Quellcode sind überwiegend RVA; VA = RVA + ImageBase.
-Adressen und Bytefolgen sind vor einem Patch am tatsächlichen Ziel erneut zu prüfen.
+All RotWK addresses below are virtual addresses (VAs), not file offsets.
+BFME2 addresses in the source code are mostly RVAs; VA = RVA + ImageBase.
+Recheck addresses and byte sequences against the actual target before patching.
 
-## Ergebnis
+## Findings
 
-Vier Operationen müssen getrennt werden:
+Four operations must be distinguished:
 
-| Operation | Befund | Aufwand |
+| Operation | Finding | Effort |
 |---|---|---|
-| Verfügbare Schicksalspunkte abziehen | Vorhandener negativer Delta-Pfad mit Untergrenze null und UI-Meldung | niedrig |
-| Spieler-XP für Schicksalspunkte abziehen | Float-Akkumulator akzeptiert negative Werte; Cap kann Aufruf blockieren; keine automatische Rückstufung | niedrig bis mittel |
-| Einheiten-XP abziehen, Level behalten | Add-/Set-Pfad vorhanden; eigene Untergrenze erforderlich | niedrig bis mittel |
-| Einheiten-Level samt Wirkungen senken | Benannter Level-Anwendungspfad vorhanden; Rücknahme sämtlicher Wirkungen nicht nachgewiesen | mittel bis hoch |
+| Remove available power points | Existing negative-delta path with a zero floor and UI notification | Low |
+| Remove player XP used to earn power points | Float accumulator accepts negative values; cap can block the call; no automatic demotion | Low to medium |
+| Remove unit XP while retaining the level | Add/set path exists; requires an explicit lower bound | Low to medium |
+| Lower unit level and reverse its effects | Named-level application path exists; reversal of all effects is unproven | Medium to high |
 
-Ein gekaufter Zauber verbraucht SciencePurchasePoints. Er senkt weder den
-Spieler-Rang noch dessen SkillPoints. Die Spieler-Rangstufen stammen aus RankInfo;
-die Einheiten-Level aus ExperienceLevels. Gekaufte Sciences sind ein weiterer,
-separater Zustand.
+Purchasing a spell consumes SciencePurchasePoints. It lowers neither the player's
+rank nor their SkillPoints. Player ranks come from RankInfo; unit levels come from
+ExperienceLevels. Purchased Sciences are another, separate state.
 
-## OpenBfme und OpenBfme2
+## OpenBfme and OpenBfme2
 
-OpenBfme `game/GameEngine/Source/Common/RTS/Player_setRankLevel.cpp` enthält
-einen ausdrücklich vorhandenen Abstiegspfad: Bei kleinerem Zielrang wird
-`resetRank()` aufgerufen, danach wird bis zum Zielrang wieder aufgebaut.
-`PlayerRankAndScience.cpp` zeigt dabei die Rücksetzung von XP, Kaufpunkten und
-Sciences. Das ist kein reiner Abzug einer Rangstufe und kann gekaufte Zauber verlieren.
+OpenBfme's `game/GameEngine/Source/Common/RTS/Player_setRankLevel.cpp` contains
+an explicit demotion path: a lower target rank calls `resetRank()`, then rebuilds
+up to the target rank. `PlayerRankAndScience.cpp` shows the accompanying reset of
+XP, purchase points, and Sciences. This is more than subtracting one rank and can
+remove purchased spells.
 
-OpenBfme2 `PlayerRva002AD826.cpp` zeigt den Kaufpfad: Kosten ermitteln,
-virtuellen Slot 2 auf dem Mitglied bei Player+8 mit NEGATIVEN Kosten aufrufen,
-danach Science hinzufügen. Der Store liefert Definitionen und Kosten; die
-Punkteverwaltung liegt am Player-Mitglied.
+OpenBfme2's `PlayerRva002AD826.cpp` shows the purchase path: obtain the cost,
+call virtual slot 2 on the member at Player+8 with the NEGATIVE cost,
+then add the Science. The store provides definitions and costs; point accounting
+belongs to the Player member.
 
-Die BFME2-Erfahrungskaskade in `ExperienceTrackerXfer.cpp`, RVA 0x0039AC23,
-beginnt beim aktuellen Levelschlüssel und arbeitet vorwärts. Der Setter in
-`ExperienceTrackerSetExperience.cpp`, RVA 0x0039B3D1, setzt die XP und ruft
-genau diese Kaskade auf. Ein kleinerer XP-Wert führt somit nicht automatisch
-zu einem kleineren Level.
+The BFME2 experience cascade in `ExperienceTrackerXfer.cpp`, RVA 0x0039AC23,
+starts at the current level key and works forwards. The setter in
+`ExperienceTrackerSetExperience.cpp`, RVA 0x0039B3D1, sets XP and calls
+that same cascade. A lower XP value therefore does not automatically produce
+a lower level.
 
-`ExperienceTrackerRva0039B4EC.cpp` enthält zwei weitere wichtige Pfade:
-Die Levelgewinn-Schleife bei RVA 0x0039B4EC lehnt counts <= 0 ab. Negative
-Levelzahlen sind deshalb kein Abstieg. Die Routine bei RVA 0x0039B438 sucht
-dagegen einen Level per Name und führt ihn über RVA 0x0039B24F zu. Letztere
-ruft den virtuellen Level-Anwendungsslot auf und setzt XP auf RequiredExperience.
-Das ist ein brauchbarer Ansatzpunkt für gezielte Rückstufung, jedoch kein
-Nachweis für das Entfernen früherer Upgrades oder anderer Levelwirkungen.
+`ExperienceTrackerRva0039B4EC.cpp` contains two other important paths.
+The level-gain loop at RVA 0x0039B4EC rejects counts <= 0, so negative
+level counts do not cause demotion. The routine at RVA 0x0039B438 instead
+finds a level by name and applies it through RVA 0x0039B24F. The latter
+calls the virtual level-application slot and sets XP to RequiredExperience.
+This is a useful starting point for targeted demotion, but it does not prove
+that previous upgrades or other level effects are removed.
 
-Quellenkritik: `OpenBfme/.../ExperienceTracker.cpp` enthält auch
-`present-unmatched`-Generals-Code mit vier Veterancy-Stufen und einer vollständigen
-Neuberechnung ab Stufe null. Diesen Code NICHT als Beleg für BFME/RotWK-Abstieg
-verwenden. Die native BFME2-/RotWK-Kaskade arbeitet anders. Ebenso sind
-Kommentar-Namen und private Klassenansichten in diesen RE-Repositories nicht
-allein ein Beleg für die tatsächliche Bedeutung eines Feldes.
+Source caveat: `OpenBfme/.../ExperienceTracker.cpp` also contains
+`present-unmatched` Generals code with four veterancy levels and a complete
+recalculation from level zero. Do NOT use that code as evidence for BFME/RotWK
+demotion. The native BFME2/RotWK cascade works differently. Likewise, comment
+names and private class views in these RE repositories do not, by themselves,
+establish a field's actual meaning.
 
-## Direkt in RotWK überprüfte Ansatzpunkte
+## Entry points checked directly in RotWK
 
-| VA | Funktion / strukturelle Bedeutung | Relevanz |
+| VA | Function / structural meaning | Relevance |
 |---|---|---|
-| 0x006AA980 | Punkte-Delta-Wrapper auf Player+8; ret 4 | Negative Deltas, Statistik nur bei positiven Werten, UI-Refresh bei Änderung |
-| 0x00782764 | Kaufpunkte-Kern; ret 4 | add [this+0x1C], delta; negative Summe wird null |
-| 0x006AA9C2 | Rangwechsel-Wrapper auf Player+8; ret 4 | Benachrichtigungen/EVA um den Rangwechsel |
-| 0x00782865 | Rangwechsel-Kern; ret 4 | Kleineren Zielrang erkennt er und ruft virtuellen Reset-Slot +0x0C auf |
-| 0x006AEE11 | Player-Rangreset auf Player+8 | Ruft 0x00782774 und anschließend 0x006AED4B auf Player auf |
-| 0x00782774 | Basis-Rangreset | Setzt Rang auf 1, XP auf 0 und rekonstruiert Start-Kaufpunkte |
-| 0x006AED4B | Sciences neu aufbauen auf Player | Verarbeitet Player+0x310, Template- und Rang-Sciences; weiterer Aufruf 0x006AD142 zu untersuchen |
-| 0x00782AA4 | Spieler-SkillPoints addieren; ret 8 | Float-Delta, Multiplikatoren, Cap-Guard, nur Aufstieg |
-| 0x0079D833 | Einheiten-XP-Wrapper; ret 0x14 | ExperienceSink bei +0x38, Objekt-Tracker bei Object+0x26C, Multiplikatoren |
-| 0x0079D68D | Einheiten-XP-Kern; ret 0x18 | Trainable/Maxlevel prüfen, Float addieren, Kaskade aufrufen |
-| 0x0079D8EF | Absolute Einheiten-XP setzen; ret 8 | Float-Wert plus Feedback; sink-aware; nutzt dieselbe Aufstiegskaskade |
-| 0x0079D141 | Einheiten-Levelkaskade; ret 4 | XP truncieren, nächste Einträge prüfen, virtuellen Slot +0x10 aufrufen |
-| 0x0079D956 | Einheiten-Level per Name anwenden; ret 8 | Named-Level-Lookup, ruft 0x0079D76D auf |
-| 0x0079D76D | Leveldatensatz anwenden; ret 0x0C | Virtueller Slot +0x10; XP = RequiredExperience; Rang-/Hilfszustand aktualisieren |
-| 0x0068931C | ExperienceLevel-Liste des Trackers finden | Einheitenspezifische Levelkette |
-| 0x00689E3C | Levelkette anhand aktuellem Levelschlüssel abfragen | Pfad der Vorwärtskaskade |
-| 0x00DE4704 | TheExperienceLevelSystem, globaler Pointer | Einstieg in Store/Listensuche |
-| 0x00DE3B2C | RankInfoStore, globaler Pointer | Spieler-Rangschwellen |
-| 0x005FF99F / 0x005FFA44 | RankInfo-Abfrage / seitenspezifische SkillPoints-Schwelle | Spieler-Rang aus XP ermitteln |
+| 0x006AA980 | Point-delta wrapper on Player+8; ret 4 | Negative deltas, statistics only for positive values, UI refresh on change |
+| 0x00782764 | Purchase-point core; ret 4 | add [this+0x1C], delta; a negative result becomes zero |
+| 0x006AA9C2 | Rank-change wrapper on Player+8; ret 4 | Notifications/EVA around the rank change |
+| 0x00782865 | Rank-change core; ret 4 | Detects a lower target rank and calls virtual reset slot +0x0C |
+| 0x006AEE11 | Player rank reset on Player+8 | Calls 0x00782774 and then 0x006AED4B on Player |
+| 0x00782774 | Base rank reset | Sets rank to 1 and XP to 0; reconstructs starting purchase points |
+| 0x006AED4B | Rebuild Sciences on Player | Processes Player+0x310, template Sciences, and rank Sciences; further call 0x006AD142 needs investigation |
+| 0x00782AA4 | Add player SkillPoints; ret 8 | Float delta, multipliers, cap guard, promotion only |
+| 0x0079D833 | Unit XP wrapper; ret 0x14 | ExperienceSink at +0x38, object tracker at Object+0x26C, multipliers |
+| 0x0079D68D | Unit XP core; ret 0x18 | Checks Trainable/max level, adds float, calls cascade |
+| 0x0079D8EF | Set absolute unit XP; ret 8 | Float value plus feedback; sink-aware; uses the same promotion cascade |
+| 0x0079D141 | Unit level cascade; ret 4 | Truncates XP, checks subsequent entries, calls virtual slot +0x10 |
+| 0x0079D956 | Apply unit level by name; ret 8 | Named-level lookup; calls 0x0079D76D |
+| 0x0079D76D | Apply level record; ret 0x0C | Virtual slot +0x10; XP = RequiredExperience; updates rank/auxiliary state |
+| 0x0068931C | Find the tracker's ExperienceLevel list | Unit-specific level chain |
+| 0x00689E3C | Query level chain using the current level key | Forward-cascade path |
+| 0x00DE4704 | TheExperienceLevelSystem, global pointer | Entry point for store/list lookup |
+| 0x00DE3B2C | RankInfoStore, global pointer | Player rank thresholds |
+| 0x005FF99F / 0x005FFA44 | RankInfo lookup / side-specific SkillPoints threshold | Derive player rank from XP |
 
-Verifizierte relative Felder:
+Verified relative fields:
 
-- Einheiten-Tracker: +0x0C Levelschlüssel, +0x10 XP FLOAT,
-  +0x24 aktueller Rang, +0x28 Maximalrang, +0x2C Hilfsobjekt,
-  +0x38 ExperienceSink. +0x04 ist hier Template-bezogene Information,
-  nicht ohne Prüfung als Object-Pointer zu verwenden.
-- Player+8-Mitglied: +0x0C SkillPoints FLOAT, +0x14 Rang INT,
-  +0x1C Kaufpunkte INT, +0x20 nächste Aufstiegsschwelle INT.
-  Auf den Player selbst bezogen: XP +0x14, Rang +0x1C,
-  Kaufpunkte +0x24, nächste Schwelle +0x28.
-- ExperienceLevel: +0x18 RequiredExperience, +0xFC Rang.
-- RotWK RankInfo: +0x38 gewährte Kaufpunkte. BFME2 benutzt dort +0x34.
+- Unit tracker: +0x0C level key, +0x10 XP FLOAT,
+  +0x24 current rank, +0x28 maximum rank, +0x2C auxiliary object,
+  +0x38 ExperienceSink. Here +0x04 is template-related information;
+  do not use it as an Object pointer without checking.
+- Player+8 member: +0x0C SkillPoints FLOAT, +0x14 rank INT,
+  +0x1C purchase points INT, +0x20 next promotion threshold INT.
+  Relative to Player itself: XP +0x14, rank +0x1C,
+  purchase points +0x24, next threshold +0x28.
+- ExperienceLevel: +0x18 RequiredExperience, +0xFC rank.
+- RotWK RankInfo: +0x38 granted purchase points. BFME2 uses +0x34 instead.
 
-Die direkt gelesenen Spieler-XP bei Player+0x14 widersprechen der bislang
-provisorischen Ableitung Player+0x20 in `docs/live-object-model.md` und
-`sage_live/backends/memory.py`. Keine dieser bestehenden Dateien wurde geändert.
-Für einen Patch den nativen Float-Zugriff als Ausgangspunkt nehmen und den
-Offset zusätzlich im Spiel validieren.
+The directly observed player XP at Player+0x14 contradicts the provisional
+Player+0x20 derivation in [`live-object-model.md`](live-object-model.md) and
+[`sage_live/backends/memory.py`](../../sage_live/backends/memory.py). Neither existing file was changed.
+Use the native float access as the starting point for a patch and additionally
+validate the offset in game.
 
-## Empfohlener Patch
+## Recommended patch
 
-Zunächst explizite Operationen anbieten, beispielsweise (Entwurfsnamen):
+Initially provide explicit operations, for example (draft names):
 `RemoveSciencePurchasePoints`, `RemoveExperiencePoints`, `RemoveExperienceLevels`.
-Bestehende negative INI-Werte global freizuschalten würde mehrere voneinander
-abweichende Filter, Skalierungen und Cap-Prüfungen berühren.
+Globally enabling existing negative INI values would affect several different
+filters, scaling rules, and cap checks.
 
-1. **Kaufpunkte:** vorhandenen Wrapper bei 0x006AA980 auf Player+8 mit -N
-   benutzen. Für eine Kostenbedingung vorher auf ausreichendes Guthaben prüfen;
-   für einen Drain ist die vorhandene Begrenzung auf null passend.
-   Kein zusätzlicher Rangwechsel und keine Science-Neuvergabe.
-2. **XP ohne Levelverlust:** XP-neu = max(0, XP-alt - Betrag). Bei Einheiten
-   vorhandenen absoluten Setter nutzen, nachdem der tatsächliche Sink-Empfänger
-   feststeht. Bei Spieler-XP einen eigenen setter/drain vorsehen, damit Cap und
-   Multiplikatoren den Abzug nicht unerwartet unterbinden oder verändern.
-   Das bisherige Level bleibt dabei bestehen. Bei späteren Gewinnen müssen
-   die verlorenen XP bis zur nächsten Aufstiegsschwelle aufgeholt werden.
-3. **Einheiten-Levelverlust:** Ziellevel aus der tatsächlich gültigen Levelkette
-   ermitteln, statt pauschal eine XP-Konstante abzuziehen. Für einen exakten
-   Levelabzug muss festgelegt werden, ob Fortschritt innerhalb des alten Levels
-   verworfen oder relativ übertragen wird. Für XP-basierten Abstieg das höchste
-   gültige Level mit RequiredExperience <= XP-neu wählen.
-4. **Levelwechsel anwenden:** zuerst den konkreten virtuellen Handler
-   `[tracker-vtable+0x10]` verfolgen. 0x0079D76D ist der vorhandene
-   Anwendungspfad, überschreibt aber XP mit der Zielschwelle. Bei XP-basiertem
-   Abstieg daher danach den gewünschten XP-Wert wiederherstellen.
-   Das ist nur brauchbar, wenn der Handler auch niedrigere Levels konsistent
-   unterstützt; andernfalls eigene reversible Levelwechselroutine erforderlich.
-5. **Spieler-Rangverlust:** den vorhandenen Reset-und-Wiederaufbau-Pfad nicht
-   als reinen Rangabzug benutzen. Er setzt XP/Kaufpunkte zurück und führt den
-   Science-Rebuild aus. Ein gezielter Patch braucht eine Regel, ob bereits
-   ausgegebene Punkte und gekaufte Sciences erhalten bleiben, verloren gehen
-   oder als Schuld gegen spätere Gewinne verrechnet werden.
+1. **Purchase points:** use the existing wrapper at 0x006AA980 on Player+8 with -N.
+   For a cost condition, first check that the balance is sufficient;
+   for a drain, the existing zero floor is appropriate.
+   No additional rank change or Science redistribution.
+2. **XP without level loss:** new XP = max(0, old XP - amount). For units,
+   use the existing absolute setter after identifying the actual sink recipient.
+   For player XP, provide a dedicated setter/drain so the cap and multipliers
+   cannot unexpectedly block or alter the subtraction.
+   The current level is retained. Later gains must recover the lost XP before
+   reaching the next promotion threshold.
+3. **Unit level loss:** determine the target level from the actual applicable
+   level chain instead of subtracting a fixed XP constant. An exact level drain
+   needs a rule for whether progress within the old level is discarded or
+   transferred proportionally. For XP-based demotion, select the highest valid
+   level whose RequiredExperience <= new XP.
+4. **Apply the level change:** first trace the actual virtual handler
+   `[tracker-vtable+0x10]`. 0x0079D76D is the existing application path,
+   but overwrites XP with the target threshold. For XP-based demotion,
+   restore the desired XP value afterwards.
+   This is useful only if the handler consistently supports lower levels;
+   otherwise a separate reversible level-change routine is required.
+5. **Player rank loss:** do not use the existing reset-and-rebuild path
+   as a simple rank subtraction. It resets XP/purchase points and performs
+   the Science rebuild. A targeted patch needs a rule for whether spent points
+   and purchased Sciences are retained, lost, or treated as debt against
+   later gains.
 
-Die einfachste erste Version kombiniert Kaufpunkte-Drain mit XP-Drain bei
-beibehaltenem Level. Eine echte Einheiten-Rückstufung wäre die zweite Phase.
+The simplest first version combines a purchase-point drain with an XP drain
+that retains the level. Actual unit demotion would be a second phase.
 
-## Noch konkret in game.dat zu untersuchen
+## Further investigation required in game.dat
 
-- **Virtueller Einheiten-Levelhandler +0x10:** neue/alte Levelnamen und
-  Rangwerte, AttributeModifier, Upgrades/RemoveUpgrade, ModelConditionState,
-  SubObjects, Gesundheit und maximale Gesundheit, Waffen und Level-FX.
-  Ein neuer Leveldatensatz allein garantiert keine Rücknahme dauerhaft
-  gewährter Upgrades, freigeschalteter Kräfte oder bereits erzeugter Objekte.
-- **Named-Level-Setter 0x0079D956 und seine Caller:** Scriptaktionen für
-  UNIT/TEAM_SET_EXPERIENCE_POINTS und TEAM_GIVE_EXPERIENCE_LEVEL identifizieren;
-  Aktionseinträge anhand der Namen statt übertragener BFME1-Enumwerte suchen.
-- **Cap-Guards 0x0079D6A8 und 0x00782AC3:** bei einem Delta-Ansatz für negative
-  Werte umgehen, positive Vergabe weiterhin begrenzen. Der absolute
-  Einheiten-Setter enthält diesen Maxlevel-Guard nicht.
-- **Punkte-Kaufcaller:** vom Spellstore-Kauf zum virtuellen Slot +8 des
-  Player+8-Mitglieds folgen; negative Kosten und 0x006AA980 bestätigen.
-- **Science-Rebuild 0x006AED4B / 0x006AD142:** genaue Löschwirkung,
-  Sonderkräfte/Spellbook-Refresh und Folgen für erworbene Sciences bestimmen.
-- **Sink, Horden und Revival:** entscheiden, ob Erfahrung auf Horde, Mitglied
-  oder Sponsor liegt; nach Tod/Wiederbelebung auf erhaltene XP und Levels prüfen.
+- **Virtual unit level handler +0x10:** new/old level names and
+  rank values, AttributeModifier, Upgrades/RemoveUpgrade, ModelConditionState,
+  SubObjects, current and maximum health, weapons, and level FX.
+  A new level record alone does not guarantee reversal of permanently granted
+  upgrades, unlocked powers, or objects that have already been created.
+- **Named-level setter 0x0079D956 and its callers:** identify script actions for
+  UNIT/TEAM_SET_EXPERIENCE_POINTS and TEAM_GIVE_EXPERIENCE_LEVEL;
+  find action entries by name rather than borrowing BFME1 enum values.
+- **Cap guards 0x0079D6A8 and 0x00782AC3:** when using a delta-based approach,
+  bypass them for negative values while continuing to limit positive gains.
+  The absolute unit setter does not contain this max-level guard.
+- **Point-purchase callers:** trace the Spellstore purchase to virtual slot +8
+  of the Player+8 member; confirm negative costs and 0x006AA980.
+- **Science rebuild 0x006AED4B / 0x006AD142:** determine its exact removal effects,
+  special-power/Spellbook refresh, and consequences for acquired Sciences.
+- **Sink, hordes, and revival:** decide whether experience belongs to the horde,
+  a member, or a sponsor; check retained XP and levels after death/revival.
 
-Minimaler Spieltest: Abzug innerhalb einer Stufe; Abzug über eine und mehrere
-Schwellen; exakt an der Schwelle; mehr Abzug als Guthaben; Einheit/Spieler am
-Cap; Horde mit Mitgliedern; Held mit Level-Upgrades; Tod/Revival; Save/Load;
-erneuter Levelgewinn. Einen späteren Multiplayer-Patch auf der synchronisierten
-Simulationsseite ausführen; Spellstore-UI allein ist kein geeigneter Ort für
-die eigentliche Zustandsänderung.
+Minimum game test: subtraction within a level; across one and several
+thresholds; exactly at a threshold; more subtraction than the balance;
+unit/player at the cap; horde with members; hero with level upgrades;
+death/revival; save/load; subsequent level gain. Run any later multiplayer
+patch on the synchronized simulation side; the Spellstore UI alone is not
+a suitable place for the actual state change.

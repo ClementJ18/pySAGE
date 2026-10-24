@@ -48,6 +48,7 @@ from sage_patch.addresses import (  # noqa: E402
     OBJECT_GET_CONTROLLING_PLAYER,
     OBJECT_GET_DRAWABLE,
     OBJECT_GET_EXIT_INTERFACE,
+    OBJECT_GET_HORDE_IFACE,
     OBJECT_GET_PRODUCTION_UPDATE_INTERFACE,
     OBJECT_GIVE_UPGRADE,
     OBJECT_ID,
@@ -153,6 +154,9 @@ class World:
         self._exits()
         self._client()
         self._producers()
+        # These fixtures are ordinary objects. With HORDE included in FLAGS, the all-flags
+        # test also asks for their horde interface; the native getter would return NULL.
+        m.stub(OBJECT_GET_HORDE_IFACE, lambda mm: mm.ret(0, 0))
 
     def _object(self, xp: float) -> int:
         m = self.m

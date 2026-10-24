@@ -25,6 +25,7 @@ from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
 from sage_patch.patches.ai_team_size import AiTeamSizePatch
 from sage_patch.patches.asset_load_profile import AssetLoadProfilePatch
 from sage_patch.patches.attack_requires_damage import AttackRequiresDamagePatch
+from sage_patch.patches.attribute_modifier_aura_conflicts import AttributeModifierAuraConflictsPatch
 from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.banner_filter import BannerFilterPatch
 from sage_patch.patches.banner_modifier import BannerModifierPatch
@@ -75,10 +76,16 @@ from sage_patch.patches.experimental.castle_prefab import (
     CastlePrefabPatch,
     CastlePrefabWorldbuilderPatch,
 )
+from sage_patch.patches.experimental.cloudy_hardware_fog import CloudyHardwareFogPatch
 from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
 from sage_patch.patches.experimental.command_range_flyout import CommandRangeFlyoutPatch
 from sage_patch.patches.experimental.cooldown_through_death import CooldownThroughDeathPatch
+from sage_patch.patches.experimental.foggy_weather import (
+    FoggyWeatherPatch,
+    FoggyWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.experimental.hero_army_carryover import HeroArmyCarryoverPatch
+from sage_patch.patches.experimental.hero_horde_death import HeroHordeDeathPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.hide_selection_details import HideSelectionDetailsPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
@@ -112,6 +119,7 @@ from sage_patch.patches.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.herobar import HeroBarPatch, HeroBarWorldbuilderPatch
 from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
 from sage_patch.patches.horde_exit_absorption import HordeExitAbsorptionPatch
+from sage_patch.patches.horde_herobar import HordeHerobarPatch
 from sage_patch.patches.horde_member_speed import HordeMemberSpeedPatch
 from sage_patch.patches.infantry_lighting import InfantryLightingPatch
 from sage_patch.patches.inflation_readout import InflationReadoutPatch
@@ -238,6 +246,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     AiReviveGatePatch,
     AiTeamSizePatch,
     AssetLoadProfilePatch,
+    AttributeModifierAuraConflictsPatch,
     AttackRequiresDamagePatch,
     AutoDepositInflationPatch,
     BannerFilterPatch,
@@ -255,6 +264,9 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CastlePrefabWorldbuilderPatch,
     CastleUnpackButtonsPatch,
     CastleUnpackClearancePatch,
+    CloudyHardwareFogPatch,
+    FoggyWeatherPatch,
+    FoggyWeatherWorldbuilderPatch,
     ComboHordeRecruitmentPatch,
     CommandLineSkirmishPatch,
     CommandPointCostPatch,
@@ -296,6 +308,8 @@ _REGISTERED: tuple[type[Patch], ...] = (
     HeroBarPatch,
     HeroBarSlotsPatch,
     HeroBarWorldbuilderPatch,
+    HeroHordeDeathPatch,
+    HordeHerobarPatch,
     HeroManaPatch,
     HeroRecruitParallelPatch,
     HideModifierFxPatch,

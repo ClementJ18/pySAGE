@@ -1,0 +1,798 @@
+{
+  "date": "2026-10-23",
+  "sha256": "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26",
+  "size": 11346944,
+  "image_base": "0x400000",
+  "sections": [
+    {
+      "name": ".text",
+      "va": "0x401000",
+      "rva": "0x1000",
+      "raw_offset": "0x1000",
+      "virtual_size": "0x7cf000",
+      "raw_size": "0x7cf000"
+    },
+    {
+      "name": ".rdata",
+      "va": "0xbd0000",
+      "rva": "0x7d0000",
+      "raw_offset": "0x7d0000",
+      "virtual_size": "0x1b9000",
+      "raw_size": "0x1b9000"
+    },
+    {
+      "name": ".data",
+      "va": "0xd89000",
+      "rva": "0x989000",
+      "raw_offset": "0x989000",
+      "virtual_size": "0x81000",
+      "raw_size": "0x81000"
+    },
+    {
+      "name": "STLPORT_",
+      "va": "0xe0a000",
+      "rva": "0xa0a000",
+      "raw_offset": "0xa0a000",
+      "virtual_size": "0x1000",
+      "raw_size": "0x1000"
+    },
+    {
+      "name": "rts.ver",
+      "va": "0xe0b000",
+      "rva": "0xa0b000",
+      "raw_offset": "0xa0b000",
+      "virtual_size": "0x1000",
+      "raw_size": "0x1000"
+    },
+    {
+      "name": ".rsrc",
+      "va": "0xe0c000",
+      "rva": "0xa0c000",
+      "raw_offset": "0xa0c000",
+      "virtual_size": "0x7000",
+      "raw_size": "0x7000"
+    },
+    {
+      "name": "        ",
+      "va": "0xe13000",
+      "rva": "0xa13000",
+      "raw_offset": "0xa13000",
+      "virtual_size": "0xac000",
+      "raw_size": "0xac000"
+    },
+    {
+      "name": "stxt774",
+      "va": "0xebf000",
+      "rva": "0xabf000",
+      "raw_offset": "0xabf000",
+      "virtual_size": "0x3000",
+      "raw_size": "0x3000"
+    },
+    {
+      "name": "stxt371",
+      "va": "0xec2000",
+      "rva": "0xac2000",
+      "raw_offset": "0xac2000",
+      "virtual_size": "0x4000",
+      "raw_size": "0x4000"
+    },
+    {
+      "name": ".mackt\u0000M",
+      "va": "0xec6000",
+      "rva": "0xac6000",
+      "raw_offset": "0xac6000",
+      "virtual_size": "0x4000",
+      "raw_size": "0x4000"
+    },
+    {
+      "name": ".danetta",
+      "va": "0xeca000",
+      "rva": "0xaca000",
+      "raw_offset": "0xaca000",
+      "virtual_size": "0x8192",
+      "raw_size": "0x8200"
+    }
+  ],
+  "evidence_note": "Byte samples are from the identified reference binary. Semantic names are static reverse-engineering interpretations, not runtime proof. See hero-horde-death.md and horde-herobar.md for evidence and scope. KindOf and Slots entries remain reference evidence, not health-hook selection rules.",
+  "addresses": [
+    {
+      "name": "GameLogic::findObjectByID thiscall ret4",
+      "va": "0x449681",
+      "rva": "0x49681",
+      "file_offset": "0x49681",
+      "sample16": "837c24040074148d4424045081c1b400",
+      "patch_anchor": true,
+      "evidence": "native backup disassembly; banner bookkeeping cross-checked against pySAGE reference"
+    },
+    {
+      "name": "independent HERO test; avoids HeroBar classifier conflict",
+      "va": "0x44a573",
+      "rva": "0x4a573",
+      "file_offset": "0x4a573",
+      "sample16": "f68013010000047405ff45c0eb03ff45",
+      "patch_anchor": true,
+      "evidence": "read and checked against unchanged backup"
+    },
+    {
+      "name": "NameKeyGenerator from C string",
+      "va": "0x005487ec",
+      "rva": "0x001487ec",
+      "file_offset": "0x001487ec",
+      "sample16": "b847a8b700e8fa464f0083ec1c535657",
+      "patch_anchor": true
+    },
+    {
+      "name": "current health getter",
+      "va": "0x005f2d41",
+      "rva": "0x001f2d41",
+      "file_offset": "0x001f2d41",
+      "sample16": "d94108c3f30f10442404f30f11411cc2",
+      "patch_anchor": true,
+      "evidence": "Reference disassembly: fld dword ptr [ecx+8]; ret. Native BodyInterface current-health getter."
+    },
+    {
+      "name": "rank tree lookup; RET 4",
+      "va": "0x00603af6",
+      "rva": "0x00203af6",
+      "file_offset": "0x00203af6",
+      "sample16": "8b118b4a0485c9578b7c24088bc27417",
+      "patch_anchor": true
+    },
+    {
+      "name": "GameLogic destroy request",
+      "va": "0x0062bbab",
+      "rva": "0x0022bbab",
+      "file_offset": "0x0022bbab",
+      "sample16": "53578b7c240c85ff8bd9746cf6879400",
+      "patch_anchor": false
+    },
+    {
+      "name": "ImmortalBody data factory",
+      "va": "0x00651186",
+      "rva": "0x00251186",
+      "file_offset": "0x00251186",
+      "sample16": "b8705fb800e860bd3e0051566a64e847",
+      "patch_anchor": false
+    },
+    {
+      "name": "ImmortalBody runtime factory",
+      "va": "0x00651212",
+      "rva": "0x00251212",
+      "file_offset": "0x00251212",
+      "sample16": "b8705fb800e8d4bc3e00516800010000",
+      "patch_anchor": false
+    },
+    {
+      "name": "ImmortalBody registry",
+      "va": "0x0065b165",
+      "rva": "0x0025b165",
+      "file_offset": "0x0025b165",
+      "sample16": "6814aac0008d4df0e8acafdaff6a2050",
+      "patch_anchor": false
+    },
+    {
+      "name": "get controlling player",
+      "va": "0x0068b678",
+      "rva": "0x0028b678",
+      "file_offset": "0x0028b678",
+      "sample16": "8b891c03000085c97405e9e846110033",
+      "patch_anchor": false
+    },
+    {
+      "name": "Object findModule",
+      "va": "0x0068bda5",
+      "rva": "0x0028bda5",
+      "file_offset": "0x0028bda5",
+      "sample16": "568bb14c0200005733ffeb0e8b01ff50",
+      "patch_anchor": true
+    },
+    {
+      "name": "setEffectivelyDead",
+      "va": "0x0068d950",
+      "rva": "0x0028d950",
+      "file_offset": "0x0028d950",
+      "sample16": "b8f487b800e896f53a0053568bf133db",
+      "patch_anchor": false
+    },
+    {
+      "name": "OnDie - NOT called by patch",
+      "va": "0x00698f06",
+      "rva": "0x00298f06",
+      "file_offset": "0x00298f06",
+      "sample16": "b8c18bb800e8e03f3a0081ec9c000000",
+      "patch_anchor": false
+    },
+    {
+      "name": "UI function - NOT HeroDeath; NOT called by patch",
+      "va": "0x006a01d3",
+      "rva": "0x002a01d3",
+      "file_offset": "0x002a01d3",
+      "sample16": "558bec568b750885f6743a8b450c85c0",
+      "patch_anchor": false
+    },
+    {
+      "name": "HeroDeath",
+      "va": "0x006a1ce2",
+      "rva": "0x002a1ce2",
+      "file_offset": "0x002a1ce2",
+      "sample16": "d981e409000051d91c248d81e0090000",
+      "patch_anchor": false
+    },
+    {
+      "name": "Native maximum-health getter; BodyInterface vtable slot +1C",
+      "va": "0x006aa274",
+      "rva": "0x002aa274",
+      "file_offset": "0x002aa274",
+      "sample16": "d94110c3f644240401568bf1c706983e",
+      "patch_anchor": true,
+      "evidence": "Reference disassembly: fld dword ptr [ecx+0x10]; ret. ImmortalBody and base BodyInterface vtable slot +0x1C both point here."
+    },
+    {
+      "name": "ThingFactory new object",
+      "va": "0x006d165e",
+      "rva": "0x002d165e",
+      "file_offset": "0x002d165e",
+      "sample16": "558bec5356578b7d0833db3bfb8bf175",
+      "patch_anchor": false
+    },
+    {
+      "name": "HeroRecord constructor",
+      "va": "0x00780dd4",
+      "rva": "0x00380dd4",
+      "file_offset": "0x00380dd4",
+      "sample16": "b8f835b900e812c12b00515153568bf1",
+      "patch_anchor": false
+    },
+    {
+      "name": "record+B4 writer",
+      "va": "0x007812f7",
+      "rva": "0x003812f7",
+      "file_offset": "0x003812f7",
+      "sample16": "89b0b40000008b74241485f68911740c",
+      "patch_anchor": false
+    },
+    {
+      "name": "remove record",
+      "va": "0x007813ff",
+      "rva": "0x003813ff",
+      "file_offset": "0x003813ff",
+      "sample16": "8d51048b028b49083bc17421568bb0b4",
+      "patch_anchor": false
+    },
+    {
+      "name": "HeroManager reviveRecord",
+      "va": "0x0078142f",
+      "rva": "0x0038142f",
+      "file_offset": "0x0038142f",
+      "sample16": "b86e36b900e8b7ba2b0081ecfc000000",
+      "patch_anchor": false
+    },
+    {
+      "name": "new object factory CALL",
+      "va": "0x007814c2",
+      "rva": "0x003814c2",
+      "file_offset": "0x003814c2",
+      "sample16": "e89701f5ff53ff750c8bf08bcee88f59",
+      "patch_anchor": false
+    },
+    {
+      "name": "remove record CALL",
+      "va": "0x00781722",
+      "rva": "0x00381722",
+      "file_offset": "0x00381722",
+      "sample16": "e8d8fcffff834dfcff8d8df8feffffe8",
+      "patch_anchor": false
+    },
+    {
+      "name": "HeroManager addEntry",
+      "va": "0x00781792",
+      "rva": "0x00381792",
+      "file_offset": "0x00381792",
+      "sample16": "b89836b900e854b72b0081ece8000000",
+      "patch_anchor": false
+    },
+    {
+      "name": "scheduler",
+      "va": "0x00850c32",
+      "rva": "0x00450c32",
+      "file_offset": "0x00450c32",
+      "sample16": "a12c41de008b5040035424085251ff74",
+      "patch_anchor": false
+    },
+    {
+      "name": "Contain list walk",
+      "va": "0x0086620e",
+      "rva": "0x0046620e",
+      "file_offset": "0x0046620e",
+      "sample16": "538bd98b4334568b303bf07449578b7e",
+      "patch_anchor": true,
+      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+    },
+    {
+      "name": "createPayload",
+      "va": "0x0086a1fa",
+      "rva": "0x0046a1fa",
+      "file_offset": "0x0046a1fa",
+      "sample16": "558bec83ec1456578bf98b47048945ec",
+      "patch_anchor": false
+    },
+    {
+      "name": "Horde Slots getter",
+      "va": "0x0086c8ac",
+      "rva": "0x0046c8ac",
+      "file_offset": "0x0046c8ac",
+      "sample16": "8b81e8feffff8b8098000000c38b41e8",
+      "patch_anchor": false,
+      "evidence": "Verified reference bytes; not used to select or calculate the horde health display."
+    },
+    {
+      "name": "Native banner-ID comparison, Runtime+26C",
+      "va": "0x87193c",
+      "rva": "0x47193c",
+      "file_offset": "0x47193c",
+      "sample16": "39866c0200000f858d000000578b7e04",
+      "patch_anchor": true,
+      "evidence": "native backup disassembly; banner bookkeeping cross-checked against pySAGE reference"
+    },
+    {
+      "name": "BannerCarrierDestroyHordeOnDeath, ModuleData+224",
+      "va": "0x871950",
+      "rva": "0x471950",
+      "file_offset": "0x471950",
+      "sample16": "80bf2402000000745c8d4508508d8e1c",
+      "patch_anchor": true,
+      "evidence": "native backup disassembly; banner bookkeeping cross-checked against pySAGE reference"
+    },
+    {
+      "name": "Horde onObjectCreated",
+      "va": "0x00871b9b",
+      "rva": "0x00471b9b",
+      "file_offset": "0x00471b9b",
+      "sample16": "b8dff7b900e84bb31c0083ec18568bf1",
+      "patch_anchor": false
+    },
+    {
+      "name": "separate combo payload hook",
+      "va": "0x00871bab",
+      "rva": "0x00471bab",
+      "file_offset": "0x00471bab",
+      "sample16": "8b46088b407885c00f857b0100005357",
+      "patch_anchor": false
+    },
+    {
+      "name": "produced gate JNE",
+      "va": "0x00871bb3",
+      "rva": "0x00471bb3",
+      "file_offset": "0x00471bb3",
+      "sample16": "0f857b0100005357e83a86ffff8d9e1c",
+      "patch_anchor": false
+    },
+    {
+      "name": "createPayload CALL",
+      "va": "0x00871bbb",
+      "rva": "0x00471bbb",
+      "file_offset": "0x00471bbb",
+      "sample16": "e83a86ffff8d9e1c0100008b036a008b",
+      "patch_anchor": false
+    },
+    {
+      "name": "Contain getHordeInterface adjustor",
+      "va": "0x00872a6f",
+      "rva": "0x00472a6f",
+      "file_offset": "0x00472a6f",
+      "sample16": "8d41e081c1fc000000f7d81bc023c1c3",
+      "patch_anchor": true,
+      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+    },
+    {
+      "name": "Horde Member-Removal",
+      "va": "0x0087370b",
+      "rva": "0x0047370b",
+      "file_offset": "0x0047370b",
+      "sample16": "b892f7b900e8db971c0083ec548365f0",
+      "patch_anchor": true
+    },
+    {
+      "name": "overwrites EBP+8",
+      "va": "0x00873784",
+      "rva": "0x00473784",
+      "file_offset": "0x00473784",
+      "sample16": "894508744f536a696a676a008d4da0e8",
+      "patch_anchor": false
+    },
+    {
+      "name": "EBX = Contain runtime",
+      "va": "0x00873821",
+      "rva": "0x00473821",
+      "file_offset": "0x00473821",
+      "sample16": "8d9ee4feffff8b038bcbff9094000000",
+      "patch_anchor": true
+    },
+    {
+      "name": "empty-check argument setup",
+      "va": "0x00873835",
+      "rva": "0x00473835",
+      "file_offset": "0x00473835",
+      "sample16": "8d45ec508bcbe8581dffff8b40048b00",
+      "patch_anchor": true
+    },
+    {
+      "name": "call get-list 865598",
+      "va": "0x0087383b",
+      "rva": "0x0047383b",
+      "file_offset": "0x0047383b",
+      "sample16": "e8581dffff8b40048b0039007534837e",
+      "patch_anchor": false
+    },
+    {
+      "name": "sentinel compare",
+      "va": "0x00873845",
+      "rva": "0x00473845",
+      "file_offset": "0x00473845",
+      "sample16": "39007534837e5800752e8b86e8feffff",
+      "patch_anchor": false
+    },
+    {
+      "name": "nonempty branch",
+      "va": "0x00873847",
+      "rva": "0x00473847",
+      "file_offset": "0x00473847",
+      "sample16": "7534837e5800752e8b86e8feffff6a00",
+      "patch_anchor": false
+    },
+    {
+      "name": "pending count compare",
+      "va": "0x00873849",
+      "rva": "0x00473849",
+      "file_offset": "0x00473849",
+      "sample16": "837e5800752e8b86e8feffff6a008d4f",
+      "patch_anchor": false
+    },
+    {
+      "name": "pending branch",
+      "va": "0x0087384d",
+      "rva": "0x0047384d",
+      "file_offset": "0x0047384d",
+      "sample16": "752e8b86e8feffff6a008d4f3851ffb0",
+      "patch_anchor": false
+    },
+    {
+      "name": "existing side effect call 5DD9EE",
+      "va": "0x00873867",
+      "rva": "0x00473867",
+      "file_offset": "0x00473867",
+      "sample16": "e882a1d6ffffb6ecfeffff8b0d2c41de",
+      "patch_anchor": false
+    },
+    {
+      "name": "HOOK original PUSH",
+      "va": "0x0087386c",
+      "rva": "0x0047386c",
+      "file_offset": "0x0047386c",
+      "sample16": "ffb6ecfeffff8b0d2c41de00e82e83db",
+      "patch_anchor": false
+    },
+    {
+      "name": "RESUME load TheGameLogic",
+      "va": "0x00873872",
+      "rva": "0x00473872",
+      "file_offset": "0x00473872",
+      "sample16": "8b0d2c41de00e82e83dbffa12c41de00",
+      "patch_anchor": true
+    },
+    {
+      "name": "stock destroy CALL",
+      "va": "0x00873878",
+      "rva": "0x00473878",
+      "file_offset": "0x00473878",
+      "sample16": "e82e83dbffa12c41de008b404089867c",
+      "patch_anchor": false
+    },
+    {
+      "name": "Native banner-ID write address",
+      "va": "0x876427",
+      "rva": "0x476427",
+      "file_offset": "0x476427",
+      "sample16": "8d866c02000050578bcee85effffffff",
+      "patch_anchor": true,
+      "evidence": "native backup disassembly; banner bookkeeping cross-checked against pySAGE reference"
+    },
+    {
+      "name": "ProductionUpdate",
+      "va": "0x008a1b9f",
+      "rva": "0x004a1b9f",
+      "file_offset": "0x004a1b9f",
+      "sample16": "b88820ba00e847b3190081ec08030000",
+      "patch_anchor": false
+    },
+    {
+      "name": "production -> reviveRecord",
+      "va": "0x008a250a",
+      "rva": "0x004a250a",
+      "file_offset": "0x004a250a",
+      "sample16": "e820efedff8bf885ff0f84dd0900008b",
+      "patch_anchor": false
+    },
+    {
+      "name": "new RespawnUpdate activation CALL",
+      "va": "0x008a2c07",
+      "rva": "0x004a2c07",
+      "file_offset": "0x004a2c07",
+      "sample16": "e8960c01008b876c02000085c074068b",
+      "patch_anchor": false
+    },
+    {
+      "name": "Respawn vtable ctor stores",
+      "va": "0x008b3286",
+      "rva": "0x004b3286",
+      "file_offset": "0x004b3286",
+      "sample16": "c70660c3c600c7460c0073c600c74610",
+      "patch_anchor": true
+    },
+    {
+      "name": "DeathPreparation thiscall; RET",
+      "va": "0x008b3744",
+      "rva": "0x004b3744",
+      "file_offset": "0x004b3744",
+      "sample16": "558bec83ec1c53568bf18b4e2c85c98b",
+      "patch_anchor": true
+    },
+    {
+      "name": "RespawnUpdate activation",
+      "va": "0x008b38a2",
+      "rva": "0x004b38a2",
+      "file_offset": "0x004b38a2",
+      "sample16": "558bec83ec245356578bf98b4d08f30f",
+      "patch_anchor": false
+    },
+    {
+      "name": "Native current/max health ratio; no member forwarding",
+      "va": "0x8c1d75",
+      "rva": "0x4c1d75",
+      "file_offset": "0x4c1d75",
+      "sample16": "f30f1041100f2f0594b5c1007607d941",
+      "patch_anchor": true,
+      "evidence": "native backup disassembly; banner bookkeeping cross-checked against pySAGE reference"
+    },
+    {
+      "name": "base health change",
+      "va": "0x008c31a5",
+      "rva": "0x004c31a5",
+      "file_offset": "0x004c31a5",
+      "sample16": "558bec51f30f104d08568bf18b4608f3",
+      "patch_anchor": false
+    },
+    {
+      "name": "base body ctor",
+      "va": "0x008c3841",
+      "rva": "0x004c3841",
+      "file_offset": "0x004c3841",
+      "sample16": "b84841ba00e8a596170051535657ff75",
+      "patch_anchor": false
+    },
+    {
+      "name": "rule health setter",
+      "va": "0x008c47de",
+      "rva": "0x004c47de",
+      "file_offset": "0x004c47de",
+      "sample16": "558bec83ec18f30f1045080f2f05d888",
+      "patch_anchor": false
+    },
+    {
+      "name": "Immortal ctor",
+      "va": "0x008c4a0a",
+      "rva": "0x004c4a0a",
+      "file_offset": "0x004c4a0a",
+      "sample16": "56ff74240c8bf1ff74240ce827eeffff",
+      "patch_anchor": false
+    },
+    {
+      "name": "Immortal health clamp",
+      "va": "0x008c4ab4",
+      "rva": "0x004c4ab4",
+      "file_offset": "0x004c4ab4",
+      "sample16": "558bec51568bf18b06ff5010d82d0819",
+      "patch_anchor": false
+    },
+    {
+      "name": "native DeathPreparation call",
+      "va": "0x008c565d",
+      "rva": "0x004c565d",
+      "file_offset": "0x004c565d",
+      "sample16": "e8e2e0feffff750c8bcfe89a38ddffeb",
+      "patch_anchor": false
+    },
+    {
+      "name": "HeroBar displayed Object/Body fetch",
+      "va": "0x0092d5d7",
+      "rva": "0x0052d5d7",
+      "file_offset": "0x0052d5d7",
+      "sample16": "8b45e08b885c02000085c9c745bc0100",
+      "patch_anchor": true,
+      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+    },
+    {
+      "name": "HordeHerobarPatch health getter HOOK",
+      "va": "0x0092d5eb",
+      "rva": "0x0052d5eb",
+      "file_offset": "0x0052d5eb",
+      "sample16": "8b01ff5014d80dd888bd00d8059c86bd",
+      "patch_anchor": false,
+      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+    },
+    {
+      "name": "HeroBar health percentage RESUME",
+      "va": "0x0092d5f0",
+      "rva": "0x0052d5f0",
+      "file_offset": "0x0052d5f0",
+      "sample16": "d80dd888bd00d8059c86bd00e8a3f910",
+      "patch_anchor": true,
+      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+    },
+    {
+      "name": "HeroBar minimum display 1 percent",
+      "va": "0x0092d611",
+      "rva": "0x0052d611",
+      "file_offset": "0x0052d611",
+      "sample16": "8945cc83f8018d45bc7c038d45cc8b18",
+      "patch_anchor": true,
+      "evidence": "CE prototype verified by user; bytes rechecked on backup"
+    },
+    {
+      "name": "RespawnUpdate string",
+      "va": "0x00c0b098",
+      "rva": "0x0080b098",
+      "file_offset": "0x0080b098",
+      "sample16": "5265737061776e557064617465000000",
+      "patch_anchor": true
+    },
+    {
+      "name": "MELEE_HORDE string",
+      "va": "0xc16028",
+      "rva": "0x816028",
+      "file_offset": "0x816028",
+      "sample16": "4d454c45455f484f5244450047415252",
+      "patch_anchor": false,
+      "evidence": "Verified reference bytes; not used to select or calculate the horde health display."
+    },
+    {
+      "name": "Horde_InterfaceVTable",
+      "va": "0x00c5b1f8",
+      "rva": "0x0085b1f8",
+      "file_offset": "0x0085b1f8",
+      "sample16": "50558700215287005c54870036158700",
+      "patch_anchor": false
+    },
+    {
+      "name": "Member-Removal slot +34",
+      "va": "0x00c5b22c",
+      "rva": "0x0085b22c",
+      "file_offset": "0x0085b22c",
+      "sample16": "0b3787003e398700bff36300127e8700",
+      "patch_anchor": true
+    },
+    {
+      "name": "Member-Removal slot (2)",
+      "va": "0x00c5becc",
+      "rva": "0x0085becc",
+      "file_offset": "0x0085becc",
+      "sample16": "0b3787003e398700ad998700127e8700",
+      "patch_anchor": true
+    },
+    {
+      "name": "Member-Removal slot (3)",
+      "va": "0x00c5cfdc",
+      "rva": "0x0085cfdc",
+      "file_offset": "0x0085cfdc",
+      "sample16": "0b3787003e398700bff36300127e8700",
+      "patch_anchor": true
+    },
+    {
+      "name": "RespawnUpdate runtime vtable",
+      "va": "0x00c6c360",
+      "rva": "0x0086c360",
+      "file_offset": "0x0086c360",
+      "sample16": "2d338b00b0888b0009338b009d318b00",
+      "patch_anchor": false
+    },
+    {
+      "name": "Immortal BodyInterface vtable",
+      "va": "0x00c71fe0",
+      "rva": "0x00871fe0",
+      "file_offset": "0x00871fe0",
+      "sample16": "a33f8c00c12f8c00511c8c00751c8c00",
+      "patch_anchor": false
+    },
+    {
+      "name": "Immortal BodyInterface slot +58",
+      "va": "0x00c72038",
+      "rva": "0x00872038",
+      "file_offset": "0x00872038",
+      "sample16": "de478c00d51c8c00871c8c005a3a8c00",
+      "patch_anchor": true
+    },
+    {
+      "name": "Immortal BodyInterface slot +84",
+      "va": "0x00c72064",
+      "rva": "0x00872064",
+      "file_offset": "0x00872064",
+      "sample16": "b44a8c0026338c00743a8c00ad1d8c00",
+      "patch_anchor": true
+    },
+    {
+      "name": "Immortal primary vtable",
+      "va": "0x00c72090",
+      "rva": "0x00872090",
+      "file_offset": "0x00872090",
+      "sample16": "984a8c00bf608c00344a8c0024558c00",
+      "patch_anchor": false
+    },
+    {
+      "name": "base BodyInterface vtable",
+      "va": "0x00c720f0",
+      "rva": "0x008720f0",
+      "file_offset": "0x008720f0",
+      "sample16": "a33f8c00c12f8c00511c8c00751c8c00",
+      "patch_anchor": false
+    },
+    {
+      "name": "ActiveBody BodyInterface current-health slot +10",
+      "va": "0x00c72100",
+      "rva": "0x00872100",
+      "file_offset": "0x00872100",
+      "sample16": "412d5f00751d8c00911d8c0074a26a00",
+      "patch_anchor": true,
+      "evidence": "Frozen reference vtable bytes used to validate the native getter slot."
+    },
+    {
+      "name": "ActiveBody BodyInterface maximum-health slot +1C",
+      "va": "0x00c7210c",
+      "rva": "0x0087210c",
+      "file_offset": "0x0087210c",
+      "sample16": "74a26a009c4449005d60a000f91b8c00",
+      "patch_anchor": true,
+      "evidence": "Frozen reference vtable bytes used to validate the native getter slot."
+    },
+    {
+      "name": "base BodyInterface slot +58",
+      "va": "0x00c72148",
+      "rva": "0x00872148",
+      "file_offset": "0x00872148",
+      "sample16": "de478c00d51c8c00871c8c005a3a8c00",
+      "patch_anchor": false
+    },
+    {
+      "name": "base BodyInterface slot +84",
+      "va": "0x00c72174",
+      "rva": "0x00872174",
+      "file_offset": "0x00872174",
+      "sample16": "a5318c0026338c00743a8c00ad1d8c00",
+      "patch_anchor": false
+    },
+    {
+      "name": "KindOf table[119] -> MELEE_HORDE",
+      "va": "0xda1044",
+      "rva": "0x9a1044",
+      "file_offset": "0x9a1044",
+      "sample16": "2860c1001c60c1000460c100fc5fc100",
+      "patch_anchor": false,
+      "evidence": "Verified reference bytes; not used to select or calculate the horde health display."
+    },
+    {
+      "name": "NameKeyGenerator global",
+      "va": "0x00dd90e4",
+      "rva": "0x009d90e4",
+      "file_offset": "0x009d90e4",
+      "sample16": "00000000000000000000000000000000",
+      "patch_anchor": false
+    },
+    {
+      "name": "TheGameLogic global",
+      "va": "0x00de412c",
+      "rva": "0x009e412c",
+      "file_offset": "0x009e412c",
+      "sample16": "00000000000000000000000000000000",
+      "patch_anchor": false
+    }
+  ]
+}

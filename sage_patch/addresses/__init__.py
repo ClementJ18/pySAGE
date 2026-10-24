@@ -23,6 +23,7 @@ from sage_patch.addresses import (
     runtime,
     scripts,
     ui,
+    weather,
     worldbuilder,
 )
 from sage_patch.addresses.ai import *  # noqa: F403
@@ -35,6 +36,7 @@ from sage_patch.addresses.render import *  # noqa: F403
 from sage_patch.addresses.runtime import *  # noqa: F403
 from sage_patch.addresses.scripts import *  # noqa: F403
 from sage_patch.addresses.ui import *  # noqa: F403
+from sage_patch.addresses.weather import *  # noqa: F403
 from sage_patch.addresses.worldbuilder import *  # noqa: F403
 
 __all__: list[str] = []
@@ -49,3 +51,4 @@ __all__ += player.__all__
 __all__ += objects.__all__
 __all__ += logic.__all__
 __all__ += runtime.__all__
+__all__ += weather.__all__
