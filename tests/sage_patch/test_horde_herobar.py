@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import os
 import struct
 from pathlib import Path
 from typing import Literal
@@ -83,9 +84,10 @@ def test_death_payload_and_ui_compose(order):
 
 @pytest.mark.full
 def test_real_backup():
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
-    if not path.exists():
-        pytest.skip("local game binary is not distributed")
+    configured = os.environ.get("PYSAGE_ROTWK_GAME_DAT")
+    if not configured:
+        pytest.skip("set PYSAGE_ROTWK_GAME_DAT to test a supplied original executable")
+    path = Path(configured)
     original = path.read_bytes()
     data = bytearray(original)
     patch = HordeHerobarPatch()

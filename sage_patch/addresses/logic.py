@@ -354,6 +354,9 @@ __all__ = [
     "XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW",
     "XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW_BYTES",
     "XFER_SAVE_VTABLE",
+    "GAME_LOGIC_PAUSED",
+    "GAME_LOGIC_SCHEDULE_UPDATE",
+    "GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE",
 ]
 
 BUILD = "RotWK 2.01.2614.37001"
@@ -719,7 +722,6 @@ GAME_LOGIC_UPDATE_ENTRY = bytes.fromhex("b8da41b800")  # mov eax, 0xB841DA - exa
 GAME_LOGIC_FRAME = 0x40
 # Native RotWK accessor 0x0090F92C and GameEngine caller 0x006329D4.
 GAME_LOGIC_PAUSED = 0x124
-__all__ += ["GAME_LOGIC_PAUSED"]
 GAME_TEXT_FORMAT_SLOT = 0x44
 # `MSG_CLEAR_GAME_DATA`, which ends a recording. It has thirteen emitters, so hook its consumer (the
 # recorder), not an emitter.
@@ -1120,7 +1122,6 @@ AIGROUP_REMOVE_NOT_OWNED_BY_SENDER_ESP = 0x10
 # RotWK 2.01 simulation-time evidence; see docs/slaved-update-idle.md.
 GAME_LOGIC_SCHEDULE_UPDATE = 0x00850C32
 GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE = 0x0062B921
-__all__ += ["GAME_LOGIC_SCHEDULE_UPDATE", "GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE"]
 
 #: Writing a save, derived in `docs/living-campaign/wotr-save-failure.md`.
 #: `GameState::saveGame(UnicodeString file, UnicodeString desc, int list, bool showMessage,

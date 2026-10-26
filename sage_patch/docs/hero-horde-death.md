@@ -40,7 +40,7 @@ Neither changes the scope of this death hook.
 
 ## Reference binary and address interpretation
 
-Reference input: `tools/BFME-FILES/game.dat.backup`. Preserve it unchanged.
+Use the identified RotWK reference executable below and preserve it unchanged.
 
 | Property | Verified value |
 |---|---|
@@ -66,10 +66,8 @@ sections below; newly appended sections need not have that property.
 | `.rdata` | `0x7D0000` | `0x7D0000` | `0x1B9000` |
 | `.data` | `0x989000` | `0x989000` | `0x81000` |
 
-[`hero-horde-addresses.json`](hero-horde-addresses.json) contains the complete reference section
-layout, address samples, and evidence notes. Exact bytes verify addresses and instruction
-boundaries; semantic function names come from static reverse engineering and are not themselves
-runtime proof.
+Exact bytes verify addresses and instruction boundaries; semantic function names come
+from static reverse engineering and are not themselves runtime proof.
 
 ## Reverse-engineering path and hook layout
 
@@ -135,7 +133,6 @@ Related analyses: [`cooldown-through-death.md`](cooldown-through-death.md),
 
 The patch appends a readable/executable **`.hhrdead`** section. `build_code(base_va)` generates
 relative calls and branches for its allocated address; there is no fixed cave VA.
-[`hero-horde-cave.asm`](hero-horde-cave.asm) is a generated example of the unchanged handler.
 
 ```text
 PUSHFD / PUSHAD
@@ -204,44 +201,47 @@ its anchors. No unverified jump into another patch's cave is accepted as a signa
 
 The death hook (`0x0087386C`), health display hook (`0x0092D5EB`), HeroBar classifier, and
 payload hook (`0x00871BAB`) do not overlap. Tests cover the relevant application permutations
-and the local `applymypatches.py` sequence, including other hero-related patches. Static
+with other hero-related patches. Static
 coexistence establishes that the patches install and verify together; game behavior still
 needs the relevant combined test.
 
 ## Safe build, verification, and removal
 
-Run in the repository with Python 3.12 or newer:
+Run with Python 3.12 or newer, using a separate output:
 
 ```sh
-# Death hook only.
-python tools/build_hero_horde_patch.py --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/hero-horde-death-clean/game.dat
-
-# Death hook plus independent mixed-payload creation.
-python tools/build_hero_horde_patch.py --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/hero-horde-payload-clean/game.dat --payload
-
-python -m sage_patch verify hero-horde-death tools/BFME-FILES/hero-horde-death-clean/game.dat
-python -m sage_patch verify hero-horde-death tools/BFME-FILES/hero-horde-payload-clean/game.dat
-python -m sage_patch verify combo-horde-recruitment tools/BFME-FILES/hero-horde-payload-clean/game.dat
-
-# Create a separate, verified original copy.
-python tools/build_hero_horde_patch.py --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/hero-horde-original/game.dat --restore
+python -m sage_patch apply hero-horde-death --in original.dat --out hero-horde.dat
+python -m sage_patch verify hero-horde-death hero-horde.dat
 ```
 
-The helper requires the exact reference SHA-256, a separate output, and an output name that
-does not end in `.backup`. It refuses to replace different existing content; an identical
-repeat is a no-op. It does not generate `game.dat.json` sidecars. To remove a patch from a
-combination, rebuild from the unchanged backup with the desired selection, or use a verified
-original copy. `--herobar` adds the independent display patch.
+To combine death registration, mixed payload creation and health display:
 
-The generic CLI can overwrite its input when `--out` is omitted, so use a separate output
-when invoking it directly. `HeroHordeDeathPatch.apply` stages changes on a copy and accepts
+```python
+from sage_patch import apply_patches
+from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
+from sage_patch.patches.experimental.hero_horde_death import HeroHordeDeathPatch
+from sage_patch.patches.horde_herobar import HordeHerobarPatch
+
+apply_patches(
+    "original.dat",
+    [HeroHordeDeathPatch(), ComboHordeRecruitmentPatch(), HordeHerobarPatch()],
+    output="hero-horde.dat",
+)
+```
+
+Keep the source unchanged. To remove a patch from a combination, rebuild from that
+original input with the desired selection. The CLI can overwrite its input without
+`--out`; always choose a separate output.
+
+`HeroHordeDeathPatch.apply` stages changes on a copy and accepts
 an existing installation only when hook and cave bytes exactly match. Modified anchors,
 foreign hooks, and damaged caves are rejected. Updating an older cave requires a rebuild from
 the reference input.
 
 ## Validation and game test plan
 
-Automated tests use synthetic PE data, optional local reference-binary checks, and Unicorn
+Automated tests use synthetic PE data, optional reference-binary checks via
+`PYSAGE_ROTWK_GAME_DAT` with `--full`, and Unicorn
 x86 emulation. Native calls are **ABI-conforming stubs**, not a running engine. Tests cover
 guards, rank-1 fallback, AutoSpawn exclusion, replayed PUSH semantics, stack balance,
 register/flag preservation, x87/SSE state, repeated death calls, idempotency, corrupted bytes,

@@ -56,7 +56,7 @@ The hook keeps the original EBP: `[ebp+8]` is GameWindow, `[ebp+0x10]` the scanc
 registers and flags; 80 private stack bytes hold operation state and resolved API pointers.
 EDI points to that storage and remains preserved by the engine and Win32 callees.
 
-Binary evidence from `tools/BFME-FILES/game.dat.backup` (SHA-256
+Binary evidence from the RotWK reference executable (SHA-256
 `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`):
 
 - `0x0072264E`: virtual `getText` at slot +8 receives a hidden result pointer on the
@@ -134,7 +134,7 @@ application and composition. The broader patch/public-surface/layering run passe
 with 413 skipped and 80 deselected. Ruff passes for the changed Python files and this document;
 mypy passes across 686 source files. CLI application and verification passed. A byte comparison
 of the real output found changes only in the eight hook bytes and PE headers, plus appended
-section content. The test output is `_local/game-text-entry-clipboard.dat`; no installed game
+section content. The test output is `game-text-entry-clipboard.dat`; no installed game
 binary was replaced.
 
 The repository-wide core run passed 14,903 tests, with 576 skipped and 750 deselected,

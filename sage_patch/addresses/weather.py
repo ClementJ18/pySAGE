@@ -1,7 +1,7 @@
 """Global weather and the inlined RTS3DScene fog submission in RotWK 2.01.2614.37001.
 
 The NONE/CLOUDY/RAINY/CLOUDYRAINY/SUNNY system is separate from GlobalData's
-NORMAL/SNOWY/DESERT weather. These fingerprints come from game.dat.backup, not BFME2 VAs.
+NORMAL/SNOWY/DESERT weather. Fingerprints identify the RotWK executable, not BFME2 VAs.
 """
 
 __all__ = [
@@ -335,7 +335,7 @@ FOGGY_NATIVE_ANCHORS.update(
     }
 )
 
-# RotWK Worldbuilder.exe.backup, SHA256 005971be...05ec65d; its own ChangeWeather parser.
+# RotWK Worldbuilder, SHA256 005971be...05ec65d; its own ChangeWeather parser.
 FOGGY_WB_TABLE = 0x0223A2AC
 FOGGY_WB_TABLE_HOOK = 0x011FA12C
 FOGGY_WB_LIMIT_HOOK = 0x011FA154

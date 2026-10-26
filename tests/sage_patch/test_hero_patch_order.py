@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import itertools
-import runpy
-from pathlib import Path
 
 import pytest
 
@@ -28,21 +26,3 @@ def test_hero_bar_death_and_health_compose_in_any_order(order):
         patches[index].apply(data)
     for patch in patches:
         assert not patch.verify(data), patch.name
-
-
-@pytest.mark.full
-def test_local_applymypatches_order_without_installing():
-    root = Path(__file__).resolve().parents[2]
-    script = root / "applymypatches.py"
-    backup = root / "tools/BFME-FILES/game.dat.backup"
-    if not script.exists() or not backup.exists():
-        pytest.skip("local patch selection / game binary are not distributed")
-    # run_path does not execute the script's guarded __main__: no mod-starter output is touched.
-    patches = runpy.run_path(str(script), run_name="patch_order_test")["patches"]
-    original = backup.read_bytes()
-    data = bytearray(original)
-    for patch in patches:
-        patch.apply(data)
-    for patch in patches:
-        assert not patch.verify(data), patch.name
-    assert backup.read_bytes() == original

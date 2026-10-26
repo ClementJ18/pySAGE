@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import struct
-import sys
-from types import SimpleNamespace
 
 import pytest
 
-import tools.build_foggy_weather_patch as foggy_builder
 from sage_ini.engine import Engine, dump_engine, parse_engine
 from sage_ini.model.enums import WeatherFlag
 from sage_patch.__main__ import build_parser, main
@@ -27,10 +24,6 @@ from sage_patch.addresses.weather import (
     WEATHER_FOG_OBJECT_HOOK_BYTES,
 )
 from sage_patch.patches import FoggyWeatherPatch as PublicFoggyWeatherPatch
-from sage_patch.patches.experimental.cloudy_hardware_fog import (
-    CloudyHardwareFogPatch,
-    build_code,
-)
 from sage_patch.patches.experimental.foggy_weather import (
     BLEND_IN_MS,
     BLEND_OUT_MS,
@@ -39,15 +32,19 @@ from sage_patch.patches.experimental.foggy_weather import (
     FOG_START,
     NAMES_OFFSET,
     NATIVE_SECTION_NAME,
+    SECTION_NAME,
     FoggyWeatherPatch,
     FoggyWeatherWorldbuilderPatch,
+    build_code,
+    build_hooks,
     build_native_code,
 )
+from sage_patch.registry import PATCHES
 from sage_patch.sagepatch import manifest, rebuild
 from sage_patch.utils import allocate_section, file_offset, find_section, read_bytes
 
 from .synthetic import _sparse_image
-from .test_cloudy_hardware_fog import FogHarness
+from .test_foggy_renderer import FogHarness
 
 
 def test_worldbuilder_separate_null_terminated_table_and_detection():
@@ -159,7 +156,6 @@ def test_apply_verify_detect_and_original_weather_table():
     assert patch.verify(data) == []
     detected = patch.detect(data)
     assert detected is not None and detected.options() == patch.options()
-    assert CloudyHardwareFogPatch.detect(data) is None
     assert read_bytes(data, 0xDB0074, 36) == original_names
     section = find_section(data, NATIVE_SECTION_NAME)
     assert section is not None
@@ -178,19 +174,6 @@ def test_unknown_native_bytes_fail_without_mutation(va):
     original = bytes(data)
     with pytest.raises(ValueError):
         FoggyWeatherPatch().apply(data)
-    assert data == original
-
-
-@pytest.mark.parametrize("foggy_first", [False, True])
-def test_legacy_cloudy_fog_cannot_be_layered_in_either_order(foggy_first):
-    data = original_image()
-    a, b = (FoggyWeatherPatch(), CloudyHardwareFogPatch())
-    if not foggy_first:
-        a, b = b, a
-    a.apply(data)
-    original = bytes(data)
-    with pytest.raises(ValueError, match="clean backup"):
-        b.apply(data)
     assert data == original
 
 
@@ -215,16 +198,6 @@ def test_native_hook_damage_is_detected_and_never_reapplied(va):
     assert data == original
 
 
-def test_renderer_changes_exactly_one_weather_comparison_byte():
-    cloudy = build_code(0x1500000, patch=CloudyHardwareFogPatch())
-    foggy = build_code(0x1500000, patch=FoggyWeatherPatch()._renderer())
-    differences = [i for i, (a, b) in enumerate(zip(cloudy, foggy, strict=True)) if a != b]
-    assert len(differences) == 1
-    at = differences[0]
-    assert cloudy[at - 3 : at + 1] == b"\x83\x7e\x10\x01"
-    assert foggy[at] == 6
-
-
 def test_schema_token_is_scoped_and_reversible():
     assert "FOGGY" not in WeatherFlag.__members__
     with FoggyWeatherPatch().ini_surface().activate() as problems:
@@ -233,7 +206,7 @@ def test_schema_token_is_scoped_and_reversible():
 
 
 def test_cloudy_stays_clear_and_foggy_blends_out_without_changing_the_weather_id():
-    h = FogHarness(patch=FoggyWeatherPatch(3000, 3000)._renderer())
+    h = FogHarness(patch=FoggyWeatherPatch(3000, 3000))
     assert h.draw(0, weather=1)["phase"] == 0
     assert h.draw(3000, weather=1)["enable"] == 0
     assert h.draw(3000, weather=6)["phase"] == 0
@@ -702,9 +675,6 @@ def test_public_api_resolves_to_the_experimental_implementations():
     assert PublicFoggyWeatherPatch is FoggyWeatherPatch
     assert FoggyWeatherPatch.experimental
     assert FoggyWeatherPatch.__module__ == "sage_patch.patches.experimental.foggy_weather"
-    assert (
-        CloudyHardwareFogPatch.__module__ == "sage_patch.patches.experimental.cloudy_hardware_fog"
-    )
     assert FoggyWeatherPatch.runtime_verified == "yes"
     assert FoggyWeatherWorldbuilderPatch.experimental
     assert not FoggyWeatherWorldbuilderPatch.runtime_verified  # Editor runtime is not confirmed.
@@ -802,46 +772,26 @@ def test_invalid_cli_profile_fails_before_writing(tmp_path, option):
     assert not output.exists() and source.read_bytes() == original_image()
 
 
-def test_helper_overrides_one_option_and_keeps_the_configured_profile(tmp_path, monkeypatch):
-    configured = FoggyWeatherPatch(1250, 4500, 800, 2400, (0.5, 0.6, 0.7))
-    selected = SimpleNamespace(patches=[configured])
-    (tmp_path / "applymypatches.py").touch()
-    monkeypatch.setattr(foggy_builder, "REPO", tmp_path)
-    original_import = foggy_builder.importlib.import_module
-    monkeypatch.setattr(
-        foggy_builder.importlib,
-        "import_module",
-        lambda name: selected if name == "applymypatches" else original_import(name),
-    )
-    built = []
+def test_legacy_cloudy_renderer_is_rejected_without_modifying_input():
+    data = original_image()
 
-    def build(source, output, mode, patch):
-        built.append(patch)
-        return {"output": str(output), "output_sha256": "test", "verified_patches": [patch.name]}
+    def legacy_payload(va):
+        code = build_code(va)
+        assert code.count(b"\x83\x7e\x10\x06") == 1
+        return code.replace(b"\x83\x7e\x10\x06", b"\x83\x7e\x10\x01")
 
-    monkeypatch.setattr(foggy_builder, "build", build)
-    monkeypatch.setattr(
-        sys, "argv", ["builder", "--out", str(tmp_path / "out.dat"), "--blend-in-ms", "2000"]
-    )
-    foggy_builder.main()
-    assert built[0].options() == {**configured.options(), "blend_in_ms": 2000}
-    assert not (tmp_path / "out.dat").exists()
+    cave = allocate_section(data, SECTION_NAME, legacy_payload, 0xE0000060)
+    for hook, replacement in build_hooks(cave).items():
+        off = file_offset(data, hook)
+        data[off : off + len(replacement)] = replacement
+    original = bytes(data)
+    patch = FoggyWeatherPatch()
+    assert patch.detect(data) is None
+    with pytest.raises(ValueError, match="clean backup"):
+        patch.apply(data)
+    assert data == original
 
 
-def test_editor_helper_rejects_game_profile_options(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "builder",
-            "--target",
-            "worldbuilder",
-            "--out",
-            str(tmp_path / "out.exe"),
-            "--fog-end",
-            "3000",
-        ],
-    )
-    with pytest.raises(SystemExit) as exc:
-        foggy_builder.main()
-    assert exc.value.code == 2 and not (tmp_path / "out.exe").exists()
+def test_registry_has_only_the_native_foggy_patches():
+    assert "foggy-weather" in PATCHES and "foggy-weather-wb" in PATCHES
+    assert "cloudy-hardware-fog" not in PATCHES

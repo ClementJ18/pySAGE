@@ -17,9 +17,9 @@ from sage_patch.addresses.weather import (
     WEATHER_FOG_SCENE_EXIT_HOOK,
     WEATHER_FOG_SCENE_RGB_HOOK,
 )
-from sage_patch.patches.experimental.cloudy_hardware_fog import STATE_OFFSET, build_hooks
+from sage_patch.patches.experimental.foggy_weather import STATE_OFFSET, build_hooks
 
-from .test_cloudy_hardware_fog import FogHarness
+from .test_foggy_renderer import FogHarness
 
 
 def renderer():
@@ -252,7 +252,7 @@ def test_native_scene_to_renderinfo_mesh_and_fx_color_agree(ms, hook):
         assert outputs[0] == outputs[1]
 
 
-def test_cloudy_mesh_gate_does_not_touch_registers_flags_or_floating_point_state():
+def test_foggy_mesh_gate_does_not_touch_registers_flags_or_floating_point_state():
     h = renderer()
     h.draw(0)
     h.draw(1500)

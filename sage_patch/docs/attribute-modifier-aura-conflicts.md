@@ -85,6 +85,5 @@ wrong-build rejection, corruption and unchanged neighboring slots/global evaluat
 They cover inactive activation, later conflicts from OBJECT, PLAYER and related-object
 masks, all-of partial/full conflicts, unrelated active module types, and modules without
 an UpgradeInterface. Ownership lookup, mask copying and activation scheduling are modeled.
-The local original binary is also suitable for apply/verify without launching or
-replacing the installed game. Registration exposes the patch to the CLI; no
-`applymypatches` list or automatic activation is changed.
+An original executable can be used for apply/verify without launching or replacing
+the installed game. Registration exposes the patch to the CLI; applying it remains explicit.

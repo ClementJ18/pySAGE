@@ -39,16 +39,17 @@ from sage_patch.addresses.ui import *  # noqa: F403
 from sage_patch.addresses.weather import *  # noqa: F403
 from sage_patch.addresses.worldbuilder import *  # noqa: F403
 
-__all__: list[str] = []
-__all__ += worldbuilder.__all__
-__all__ += living_world.__all__
-__all__ += scripts.__all__
-__all__ += ai.__all__
-__all__ += ui.__all__
-__all__ += render.__all__
-__all__ += production.__all__
-__all__ += player.__all__
-__all__ += objects.__all__
-__all__ += logic.__all__
-__all__ += runtime.__all__
-__all__ += weather.__all__
+__all__ = [
+    *worldbuilder.__all__,
+    *living_world.__all__,
+    *scripts.__all__,
+    *ai.__all__,
+    *ui.__all__,
+    *render.__all__,
+    *production.__all__,
+    *player.__all__,
+    *objects.__all__,
+    *logic.__all__,
+    *runtime.__all__,
+    *weather.__all__,
+]

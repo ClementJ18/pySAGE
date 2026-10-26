@@ -1,8 +1,8 @@
 # Removing experience, levels, and power points
 
-Investigation dated 2026-10-09. Based on local OpenBfme/OpenBfme2 sources,
-targeted reads of their matching entries, and direct disassembly of
-`tools/BFME-FILES/game.dat.backup`. No patch has been implemented or tested in game.
+Investigation dated 2026-10-09, based on OpenBfme/OpenBfme2 source comparison
+and direct disassembly of the RotWK reference executable identified below.
+No patch has been implemented or tested in game.
 
 RotWK file version: 2.01.2614.37001; ImageBase 0x00400000.
 SHA-256: `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`.

@@ -5,6 +5,8 @@ Engine side effects and a live revive are deliberately not simulated as proof of
 
 from __future__ import annotations
 
+import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -34,7 +36,6 @@ from sage_patch.patches.experimental.hero_horde_death import (
     build_code,
 )
 from sage_patch.utils import file_offset, find_section
-from tools.build_hero_horde_patch import SOURCE_SHA256, digest, write_once
 
 from .synthetic import _sparse_image
 
@@ -71,22 +72,16 @@ def test_wrong_build_is_rejected_without_mutation(va):
     assert data == before
 
 
-def test_output_protection(tmp_path):
-    out = tmp_path / "copy.dat"
-    write_once(out, b"a")
-    write_once(out, b"a")
-    with pytest.raises(ValueError):
-        write_once(out, b"b")
-    assert out.read_bytes() == b"a"
-
-
 @pytest.mark.full
 def test_real_backup():
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
-    if not path.exists():
-        pytest.skip("local game binary is not distributed")
+    configured = os.environ.get("PYSAGE_ROTWK_GAME_DAT")
+    if not configured:
+        pytest.skip("set PYSAGE_ROTWK_GAME_DAT to test a supplied original executable")
+    path = Path(configured)
     original = path.read_bytes()
-    assert digest(original) == SOURCE_SHA256
+    assert hashlib.sha256(original).hexdigest() == (
+        "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26"
+    )
     data = bytearray(original)
     patch = HeroHordeDeathPatch()
     patch.apply(data)

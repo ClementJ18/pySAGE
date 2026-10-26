@@ -61,13 +61,12 @@ still displays at least 1% while drawing an entry, even when the hook returns ze
 
 ## Reference binary and verified addresses
 
-The reference file is `tools/BFME-FILES/game.dat.backup`:
+The verified RotWK reference executable has:
 
 - SHA-256: `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`.
 - Size: 11,346,944 bytes; PE32/i386; preferred ImageBase `0x00400000`.
 
-See [`hero-horde-death.md`](hero-horde-death.md) and
-[`hero-horde-addresses.json`](hero-horde-addresses.json) for binary metadata and section layout.
+See [`hero-horde-death.md`](hero-horde-death.md) for binary metadata and section layout.
 A VA is an address in the preferred image; RVA = VA - ImageBase. A file offset is calculated
 through the PE section table. The matching offsets below are a property of this reference's
 original sections, not a general PE rule.
@@ -112,8 +111,8 @@ Their offsets must not be interchanged.
 ## Hook, ABI, and fallback behavior
 
 The five original bytes become `E9 rel32`. A new executable/readable `.hrdhbar` section holds
-the handler; its address depends on existing sections and patch order. See
-[`horde-herobar-cave.asm`](horde-herobar-cave.asm) for an illustrative generated disassembly.
+the handler; its address depends on existing sections and patch order. The patch
+builds its instruction stream directly in Python.
 
 The handler preserves general-purpose registers and EFLAGS around its calculation. Local
 stack storage holds the current-HP sum, maximum-HP sum, a temporary member maximum, and a
@@ -145,38 +144,21 @@ versions; an older cave is not silently overwritten.
 
 ## Build, verify, and remove
 
-Run from the repository with Python 3.12 or newer. Keep the source backup unchanged and use
-a separate, new output path:
+Run with Python 3.12 or newer and keep the original executable unchanged:
 
 ```sh
-# Health display only.
-python tools/build_hero_horde_patch.py --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/horde-herobar-clean/game.dat --only-herobar
-
-# Death registration, mixed payload creation, and health display.
-python tools/build_hero_horde_patch.py --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/hero-horde-clean/game.dat --payload --herobar
-
-python -m sage_patch verify horde-herobar tools/BFME-FILES/horde-herobar-clean/game.dat
-python -m sage_patch verify horde-herobar tools/BFME-FILES/hero-horde-clean/game.dat
-python -m sage_patch verify hero-horde-death tools/BFME-FILES/hero-horde-clean/game.dat
-python -m sage_patch verify combo-horde-recruitment tools/BFME-FILES/hero-horde-clean/game.dat
+python -m sage_patch apply horde-herobar --in original.dat --out horde-health.dat
+python -m sage_patch verify horde-herobar horde-health.dat
 ```
 
-The helper requires the reference SHA-256, refuses to write to its input or a `.backup` output,
-and refuses to replace different existing content. It does not create `game.dat.json` sidecars.
-An identical repeated build is a no-op. To remove this patch from a combination, rebuild from
-the backup with only the desired patches. For a separate verified original copy:
+For a combination, pass the selected patches to `sage_patch.apply_patches` with an
+explicit separate output. Rebuild from the original input to remove a patch. The CLI
+can overwrite its input when `--out` is omitted, so always supply a separate output.
 
-```sh
-python tools/build_hero_horde_patch.py --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/hero-horde-original/game.dat --restore
-```
-
-The generic `sage_patch apply` command can overwrite its input if `--out` is omitted; always
-supply a separate output path when using it directly.
-
-The health hook, death hook, `HeroBarPatch`, hero-bar slot patch, and mixed-payload hook target
-different instructions. Compatibility tests exercise patch permutations and the local
-`applymypatches.py` order. Shared signature anchors also have to remain independent: the death
-patch's HERO-bit anchor deliberately avoids the classifier rewritten by `HeroBarPatch`.
+The health hook, death hook, `HeroBarPatch`, hero-bar slot patch, and mixed-payload hook
+target different instructions. Compatibility tests exercise patch permutations. Shared
+signature anchors also remain independent: the death patch's HERO-bit anchor avoids
+the classifier rewritten by `HeroBarPatch`.
 
 ## Validation
 
@@ -186,7 +168,8 @@ maximum HP, missing members/bodies, empty and zero-total-maximum lists, 128/129 
 lists, fallback results, and KindOf-independent behavior. It also checks stack balance,
 register/flag preservation, a pre-existing x87 value, unchanged object data, idempotency,
 signature rejection, and coexistence with other hero patches. Optional reference-binary tests
-check frozen anchors against the local backup.
+check frozen anchors against an original executable supplied through
+`PYSAGE_ROTWK_GAME_DAT` when running with `--full`.
 
 In-game validation should compare the revised display for an ordinary hero, a banner-driven
 horde, and weighted hordes with and without `MELEE_HORDE` or `COMBO_HORDE`. Damage members with

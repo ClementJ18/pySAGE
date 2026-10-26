@@ -41,7 +41,7 @@ NAME_GENERATOR = 0x00DD90E4
 RESPAWN_VTABLE = 0x00C6C360
 IMMORTAL_BODY_VTABLE = 0x00C71FE0
 
-# Frozen evidence from game.dat.backup, not signatures harvested from the input being patched.
+# Frozen reference-executable evidence, never harvested from the input being patched.
 ANCHORS = {
     0x0087370B: bytes.fromhex("b892f7b900e8db971c0083ec548365f00056578b7d0885ff8bf1"),
     0x00873821: bytes.fromhex("8d9ee4feffff8b038bcbff909400000084c075ec"),

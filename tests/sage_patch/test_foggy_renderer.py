@@ -6,7 +6,6 @@ import struct
 
 import pytest
 
-import tools.build_cloudy_fog_patch as test_builder
 from sage_patch.addresses.logic import (
     GAME_ENGINE,
     GAME_ENGINE_ALPHA,
@@ -16,6 +15,8 @@ from sage_patch.addresses.logic import (
     THE_GAME_LOGIC,
 )
 from sage_patch.addresses.weather import (
+    FOGGY_NATIVE_ANCHORS,
+    FOGGY_NATIVE_HOOK_BYTES,
     THE_GLOBAL_WEATHER_SYSTEM,
     WEATHER_FOG_ANCHORS,
     WEATHER_FOG_ENABLE,
@@ -24,7 +25,7 @@ from sage_patch.addresses.weather import (
     WEATHER_FOG_OBJECT_HOOK_BYTES,
     WEATHER_FOG_RESUME,
 )
-from sage_patch.patches.experimental.cloudy_hardware_fog import (
+from sage_patch.patches.experimental.foggy_weather import (
     CONFIG_OFFSET,
     FOG_END,
     FOG_RGB,
@@ -32,12 +33,11 @@ from sage_patch.patches.experimental.cloudy_hardware_fog import (
     RGB_OFFSET,
     SECTION_NAME,
     STATE_OFFSET,
-    CloudyHardwareFogPatch,
+    FoggyWeatherPatch,
     build_code,
 )
 from sage_patch.pe import SHARED_SECTION_NAME
 from sage_patch.utils import allocate_section, file_offset, find_section, jmp_rel32
-from tools.build_cloudy_fog_patch import build
 
 from .synthetic import _sparse_image
 
@@ -48,18 +48,20 @@ def image():
             **WEATHER_FOG_ANCHORS,
             WEATHER_FOG_HOOK: WEATHER_FOG_HOOK_BYTES,
             **WEATHER_FOG_OBJECT_HOOK_BYTES,
+            **FOGGY_NATIVE_ANCHORS,
+            **FOGGY_NATIVE_HOOK_BYTES,
         }
     )
 
 
 def test_apply_verify_detect_and_repeat():
     data = image()
-    patch = CloudyHardwareFogPatch()
-    assert patch.author == "Ostkannit" and patch.experimental and not patch.runtime_verified
+    patch = FoggyWeatherPatch()
+    assert patch.author == "Ostkannit" and patch.experimental and patch.runtime_verified == "yes"
     assert patch.verify(data)
     patch.apply(data)
     assert patch.verify(data) == []
-    assert isinstance(patch.detect(data), CloudyHardwareFogPatch)
+    assert isinstance(patch.detect(data), FoggyWeatherPatch)
     once = bytes(data)
     patch.apply(data)
     assert data == once
@@ -73,14 +75,14 @@ def test_unknown_original_bytes_fail_without_mutation(va):
     data[file_offset(data, va)] ^= 1
     original = bytes(data)
     with pytest.raises(ValueError):
-        CloudyHardwareFogPatch().apply(data)
+        FoggyWeatherPatch().apply(data)
     assert data == original
 
 
 @pytest.mark.parametrize("target", ["code", "rgb", "hook", "context"])
 def test_damaged_patch_is_never_reapplied(target):
     data = image()
-    patch = CloudyHardwareFogPatch()
+    patch = FoggyWeatherPatch()
     patch.apply(data)
     _, off, _ = find_section(data, SECTION_NAME)
     at = {
@@ -104,7 +106,7 @@ def test_foreign_cave_name_is_rejected():
     allocate_section(data, SECTION_NAME, lambda _: b"foreign", 0x60000020)
     original = bytes(data)
     with pytest.raises(ValueError):
-        CloudyHardwareFogPatch().apply(data)
+        FoggyWeatherPatch().apply(data)
     assert data == original
 
 
@@ -115,7 +117,7 @@ def test_dynamic_allocation_and_shared_caves():
         first_va = allocate_section(
             data, first, lambda _, shared=shared: b"" if shared else b"other patch", 0x60000020
         )
-        patch = CloudyHardwareFogPatch()
+        patch = FoggyWeatherPatch()
         patch.apply(data)
         va, _, _ = find_section(data, SECTION_NAME)
         assert va > first_va
@@ -123,46 +125,10 @@ def test_dynamic_allocation_and_shared_caves():
         assert patch.verify(data) == []
 
 
-def test_no_test_builder_output_can_replace_its_input(tmp_path):
-    source = tmp_path / "input.dat"
-    source.write_bytes(b"not a PE")
-    with pytest.raises(ValueError, match="separate test file"):
-        build(source, source, "overlay")
-    assert source.read_bytes() == b"not a PE"
-
-
-def test_builder_preserves_input_and_refuses_conflicting_outputs(tmp_path, monkeypatch):
-    original = bytes(image())
-    source, output = tmp_path / "original.dat", tmp_path / "copy.dat"
-    source.write_bytes(original)
-    monkeypatch.setattr(test_builder, "REPO", tmp_path)
-    monkeypatch.setattr(test_builder, "SOURCE_SHA256", test_builder.digest(original))
-    result = build(source, output, "standalone")
-    assert result["author"] == "Ostkannit" and not result["runtime_verified"]
-    assert source.read_bytes() == original
-    assert CloudyHardwareFogPatch().verify(output.read_bytes()) == []
-    mtime = output.stat().st_mtime_ns
-    assert build(source, output, "standalone") == result
-    assert output.stat().st_mtime_ns == mtime
-    output.write_bytes(b"foreign")
-    with pytest.raises(ValueError, match="already exists"):
-        build(source, output, "standalone")
-    assert output.read_bytes() == b"foreign" and source.read_bytes() == original
-
-
-def test_builder_checks_source_hash_before_writing(tmp_path, monkeypatch):
-    source, output = tmp_path / "original.dat", tmp_path / "copy.dat"
-    source.write_bytes(bytes(image()))
-    monkeypatch.setattr(test_builder, "REPO", tmp_path)
-    with pytest.raises(ValueError, match="SHA256"):
-        build(source, output, "standalone")
-    assert not output.exists() and not output.with_suffix(".dat.json").exists()
-
-
 def emulator(weather, fog_enabled=0, alignment=0, hooked=True, patch=None, prime=True):
     # Keep the historical three-second fixture explicit; public defaults are tested separately.
     if patch is None:
-        patch = CloudyHardwareFogPatch(blend_in_ms=3000, blend_out_ms=3000)
+        patch = FoggyWeatherPatch(blend_in_ms=3000, blend_out_ms=3000)
     unicorn = pytest.importorskip("unicorn")
     r = pytest.importorskip("unicorn.x86_const")
 
@@ -242,39 +208,39 @@ def emulator(weather, fog_enabled=0, alignment=0, hooked=True, patch=None, prime
         r.UC_X86_REG_ST0,
         r.UC_X86_REG_ST1,
     ]
-    if prime and weather == 1 and hooked:
+    if prime and weather == 6 and hooked:
         mu.emu_start(WEATHER_FOG_HOOK, WEATHER_FOG_RESUME, count=1000)
         frames = (patch.blend_in_ms * 5 + 999) // 1000
         mu.mem_write(obj + 0x1000 + GAME_LOGIC_FRAME, struct.pack("<I", frames))
     return mu, r, state, ebp, cave, color
 
 
-@pytest.mark.parametrize("weather", [None, 0, 1, 2, 3, 4, 0x101, 0xFFFFFFFF])
+@pytest.mark.parametrize("weather", [None, 0, 1, 2, 3, 4, 5, 6, 0x101, 0xFFFFFFFF])
 @pytest.mark.parametrize("fog_enabled", [0, 1, 0x7F])
 @pytest.mark.parametrize("alignment", [0, 1, 7, 15])
-def test_hook_preserves_machine_state_and_only_changes_cloudy_fog(weather, fog_enabled, alignment):
+def test_hook_preserves_machine_state_and_only_changes_foggy_fog(weather, fog_enabled, alignment):
     mu, r, registers, ebp, cave, color = emulator(weather, fog_enabled, alignment)
     before = {reg: mu.reg_read(reg) for reg in registers}
     locals_before = bytes(mu.mem_read(ebp - 0x40, 0x40))
     mu.emu_start(WEATHER_FOG_HOOK, WEATHER_FOG_RESUME, count=1000)
     assert mu.reg_read(r.UC_X86_REG_EIP) == WEATHER_FOG_RESUME
-    cloudy = weather == 1
+    foggy = weather == 6
     expected = dict(before)
-    if cloudy:
+    if foggy:
         expected[r.UC_X86_REG_EAX] = (before[r.UC_X86_REG_EAX] & ~0xFF) | 1
         for reg, value in ((r.UC_X86_REG_XMM0, FOG_END), (r.UC_X86_REG_XMM1, FOG_START)):
             low = struct.unpack("<I", struct.pack("<f", value))[0]
             expected[reg] = (before[reg] & ~0xFFFFFFFF) | low
     assert {reg: mu.reg_read(reg) for reg in registers} == expected
-    assert mu.mem_read(WEATHER_FOG_ENABLE, 1) == bytes([1 if cloudy else fog_enabled])
+    assert mu.mem_read(WEATHER_FOG_ENABLE, 1) == bytes([1 if foggy else fog_enabled])
     locals_expected = bytearray(locals_before)
-    if cloudy:
+    if foggy:
         struct.pack_into("<ffI", locals_expected, 0x28, FOG_END, FOG_START, cave + RGB_OFFSET)
     assert mu.mem_read(ebp - 0x40, 0x40) == locals_expected
     assert mu.mem_read(color, 12) == struct.pack("<3f", 0.2, 0.4, 0.6)
 
 
-@pytest.mark.parametrize("weather", [None, 0, 1, 2, 3, 4])
+@pytest.mark.parametrize("weather", [None, 0, 1, 2, 3, 4, 5, 6])
 def test_native_continuation_receives_consistent_color_and_ranges(weather):
     outputs = []
     for hooked in (False, True):
@@ -295,7 +261,7 @@ def test_native_continuation_receives_consistent_color_and_ranges(weather):
         assert mu.reg_read(r.UC_X86_REG_ESP) == esp_before - 16  # native caller cleans next
         assert mu.mem_read(ebp - 0x1C, 4) == b"\xa5" * 4
         outputs.append((bytes(mu.mem_read(WEATHER_FOG_ENABLE, 15)), calls))
-    if weather != 1:
+    if weather != 6:
         assert outputs[0] == outputs[1]
     else:
         globals_after, calls = outputs[1]
@@ -321,7 +287,7 @@ class FogHarness:
         self.weather_ptr, self.logic_ptr, self.engine_ptr = 0x02500000, 0x02501000, 0x02502000
         self.mu.mem_write(LOGIC_FRAMES_PER_SECOND, struct.pack("<I", rate))
 
-    def draw(self, ms, weather=1, paused=False, fraction=None):
+    def draw(self, ms, weather=6, paused=False, fraction=None):
         frame = ms * self.rate / 1000
         return self.draw_frame(
             int(frame) & 0xFFFFFFFF,
@@ -330,10 +296,11 @@ class FogHarness:
             paused,
         )
 
-    def draw_frame(self, frame, fraction=0.0, weather=1, paused=False):
+    def draw_frame(self, frame, fraction=0.0, weather=6, paused=False):
         mu, r = self.mu, self.r
         mu.mem_write(
-            THE_GLOBAL_WEATHER_SYSTEM, struct.pack("<I", 0 if weather is None else self.weather_ptr)
+            THE_GLOBAL_WEATHER_SYSTEM,
+            struct.pack("<I", 0 if weather is None else self.weather_ptr),
         )
         if weather is not None:
             mu.mem_write(self.weather_ptr + 0x10, struct.pack("<I", weather))
@@ -365,7 +332,7 @@ class FogHarness:
 def test_smoothstep_in_and_out_recover_the_original_scene(enabled):
     h = FogHarness(enabled)
     initial = h.draw(0, 0)
-    assert h.draw(0, 1) == initial
+    assert h.draw(0, 6) == initial
     quarter, half, full = h.draw(750), h.draw(1500), h.draw(3000)
     assert quarter["weight"] == pytest.approx(0.15625)
     assert half["weight"] == pytest.approx(0.5)
@@ -412,9 +379,9 @@ def test_reversing_a_partial_fade_has_no_jump_in_either_direction():
     assert h.draw(1000, 0) == incoming
     outgoing = h.draw(1300, 0)
     assert outgoing["phase"] < incoming["phase"]
-    assert h.draw(1300, 1) == outgoing
-    assert h.draw(1600, 1)["phase"] > outgoing["phase"]
-    assert h.draw(5000, 1)["phase"] == 1
+    assert h.draw(1300, 6) == outgoing
+    assert h.draw(1600, 6)["phase"] > outgoing["phase"]
+    assert h.draw(5000, 6)["phase"] == 1
 
 
 @pytest.mark.parametrize("fps", [15, 30, 60, 144, 635])
@@ -495,7 +462,7 @@ def test_native_projection_and_lod_gates_are_kept(projection, lod):
 
 
 def test_custom_durations_profile_and_manifest_detection():
-    patch = CloudyHardwareFogPatch(1000, 5000, 800, 2400, (0.5, 0.6, 0.7))
+    patch = FoggyWeatherPatch(1000, 5000, 800, 2400, (0.5, 0.6, 0.7))
     h = FogHarness(patch=patch)
     h.draw(0)
     assert h.draw(500)["weight"] == pytest.approx(0.5)
@@ -508,7 +475,7 @@ def test_custom_durations_profile_and_manifest_detection():
     detected = patch.detect(data)
     assert detected is not None and detected.options() == patch.options()
     with pytest.raises(ValueError):
-        CloudyHardwareFogPatch().apply(data)
+        FoggyWeatherPatch().apply(data)
 
 
 @pytest.mark.parametrize(
@@ -525,7 +492,7 @@ def test_custom_durations_profile_and_manifest_detection():
 )
 def test_invalid_configuration_is_rejected(kwargs):
     with pytest.raises(ValueError):
-        CloudyHardwareFogPatch(**kwargs)
+        FoggyWeatherPatch(**kwargs)
 
 
 def test_the_cave_contains_no_calls_or_os_timers():
@@ -538,7 +505,7 @@ def test_the_cave_contains_no_calls_or_os_timers():
 
 def test_mutable_runtime_output_is_not_misidentified_as_code_damage():
     data = image()
-    patch = CloudyHardwareFogPatch()
+    patch = FoggyWeatherPatch()
     patch.apply(data)
     _, off, _ = find_section(data, SECTION_NAME)
     data[off + RGB_OFFSET] ^= 1
@@ -591,7 +558,7 @@ def test_partial_native_submission_uses_the_same_ranges_as_the_cache():
 
 
 def test_long_custom_fade_does_not_accumulate_render_rate_error():
-    h = FogHarness(patch=CloudyHardwareFogPatch(600000, 600000))
+    h = FogHarness(patch=FoggyWeatherPatch(600000, 600000))
     h.draw(0)
     for tick in range(1, 3001):
         sample = h.draw(tick * 1000 / 635)
@@ -605,14 +572,14 @@ def test_foreign_v1_cave_is_rejected_without_a_second_hook():
     data[off : off + 5] = jmp_rel32(WEATHER_FOG_HOOK, va)
     original = bytes(data)
     with pytest.raises(ValueError, match="clean backup"):
-        CloudyHardwareFogPatch().apply(data)
+        FoggyWeatherPatch().apply(data)
     assert data == original
 
 
 @pytest.mark.parametrize("hook", WEATHER_FOG_OBJECT_HOOK_BYTES)
 def test_damaged_object_hook_is_rejected_atomically(hook):
     data = image()
-    patch = CloudyHardwareFogPatch()
+    patch = FoggyWeatherPatch()
     patch.apply(data)
     data[file_offset(data, hook)] ^= 1
     original = bytes(data)
@@ -631,7 +598,7 @@ def test_v2_cave_requires_a_clean_rebuild():
     off = file_offset(data, WEATHER_FOG_HOOK)
     data[off : off + 5] = jmp_rel32(WEATHER_FOG_HOOK, va)
     original = bytes(data)
-    patch = CloudyHardwareFogPatch()
+    patch = FoggyWeatherPatch()
     assert patch.detect(data) is None
     with pytest.raises(ValueError, match="clean backup"):
         patch.apply(data)
