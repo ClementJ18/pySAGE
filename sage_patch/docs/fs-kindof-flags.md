@@ -585,8 +585,7 @@ so anything that walks the castle's member vectors will still consider those plo
 
 ## 7. What was checked in the Edain tree
 
-For reproducibility, the data-side claims above come from
-`C:\Users\Clement\Documents\Edain\Edain-Mod\_mod` (the dev tree, per `tests/corpus_roots.txt`):
+The data-side findings above were checked against an Edain development corpus:
 
 - `bases/*.bse` — 480 files, including directional camp variants.
 - `data/ini/default/skirmishaidata.ini` — 115 `AIBase` blocks, all main-base WotR layouts, no camp.

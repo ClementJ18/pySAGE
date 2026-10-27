@@ -15,7 +15,7 @@ evidence for cache invalidation. The subsequent automatic-patch test confirmed t
 
 All addresses here belong to **game.dat**, version 2.01.2614.37001 (the resource displays
 2.1.2614.37001), preferred ImageBase `0x00400000`. The clean local backup was rechecked at
-`tools/BFME-FILES/game.dat.backup`: 11,346,944 bytes, SHA-256
+the RotWK reference executable: 11,346,944 bytes, SHA-256
 `948bac5ed89e33c605ac8b7e5c901e4b2554d953bc35b4ca3be4d7ff7c46cbd8`.
 WorldBuilder's `0x0124...` Apply and `0x022...` globals must not be used in these game patches.
 This game.dat has no relocation directory and does not request DYNAMIC_BASE. The patch uses the

@@ -81,8 +81,8 @@ CommandRange actions. Test this prototype by clicking the Palantir flyout.
 Apply to a copy, keeping the stock image:
 
 ```text
-python -m sage_patch apply command-range-flyout --in tools/BFME-FILES/game.dat.backup --out _local/command-range/game.dat
-python -m sage_patch verify command-range-flyout _local/command-range/game.dat
+python -m sage_patch apply command-range-flyout --in original.dat --out command-range.dat
+python -m sage_patch verify command-range-flyout command-range.dat
 ```
 
 ## Hook and calling contracts
@@ -222,7 +222,7 @@ integer append and global store are reused, rather than adding duplicate constan
 
 ## Evidence and validation
 
-Binary inspected: `tools/BFME-FILES/game.dat.backup`, 11,346,944 bytes, SHA-256
+Binary inspected: the RotWK reference executable, 11,346,944 bytes, SHA-256
 `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`.
 The original two CALLs, surrounding instructions, stack cleanup, native availability
 calls, name-table STOP/TOGGLE_STANCE entries, parser rows, effective-set resolution,
@@ -255,7 +255,7 @@ Generated binaries are output copies; no installed game was modified.
   review Git index. The real staging index was not changed. The first core attempt also
   exposed an unwritable sandbox temporary directory; rerunning with workspace TEMP/TMP
   resolved that setup problem. Existing pytest fixture deprecation warnings remain.
-- CLI apply and CLI verify: passed for `_local/command-range/game.dat`; original image
+- CLI apply and CLI verify: passed for `command-range.dat`; original image
   retained. Version resource and SHA-256 were checked directly.
 - `git diff --check`: passed. No game was launched.
 
@@ -271,8 +271,8 @@ and `tests/sage_patch/test_command_range_flyout.py`.
   order, padding initialization and override copy, and original-image patch composition.
 - All 24 application orders with QueueIgnoreCP, CommandPointCost and MultiSelectGroup
   passed application and verification for every patch.
-- All 55 game patches from `applymypatches.py` applied and verified together. The combined
-  output is `_local/command-range/full-patch-list-game.dat`; installation is unchanged.
+- A selected combination of 55 game patches applied and verified together; installation
+  was unchanged.
 - Repository-wide Ruff lint/format and mypy passed (684 source files).
 - Core run: 14,633 passed, 576 skipped, 729 deselected. Eight localhost server tests
   passed outside the sandbox on rerun. The README table and Git-tracking documentation
@@ -288,8 +288,7 @@ and `tests/sage_patch/test_command_range_flyout.py`.
   existing-target-mode cancellation, and exact immediate message payloads for STOP,
   FIRE_WEAPON, both special-power types, weapon-set toggle and repair commands. External
   engine services are mocked; this does not constitute an in-game targeting test.
-- The current `applymypatches.py` comments out this patch. The combined test build explicitly
-  adds it to the 54 active patches; the user's script configuration is unchanged.
+- The combined test build added this patch to a selection of 54 other patches.
 - All 55 patches in that combined build applied and verified. Standalone CLI verification
   of the combined image also passed. Both test binaries were rebuilt; no installed game or
   mod configuration was changed.

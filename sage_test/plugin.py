@@ -164,7 +164,7 @@ def _scope(item: pytest.Item) -> str:
     node = item.getparent(pytest.Class) or item.getparent(pytest.Module)
     key = node.nodeid if node is not None else item.nodeid
     callspec = getattr(item, "callspec", None)
-    if callspec is None:
+    if callspec is None or not isinstance(item, pytest.Function):
         return key
     definitions = item._fixtureinfo.name2fixturedefs  # noqa: SLF001 - pytest's own record of scopes
     shared = sorted(

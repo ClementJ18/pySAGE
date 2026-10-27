@@ -1,9 +1,9 @@
 """Tests for the os-name-fallback patch.
 
 The edit is the displacement of one `jne`, so what matters is that it is the right branch: the one
-taken when the NT major version is not 5, proved by decoding the stock bytes rather than trusting the
-module's reading of them, that its stock target is the bare return that leaves the name unset, and
-that the new target writes a name and returns through the same epilogue.
+taken when the NT major version is not 5, proved by decoding the stock bytes rather than trusting
+the module's reading of them, that its stock target is the bare return that leaves the name unset,
+and that the new target writes a name and returns through the same epilogue.
 """
 
 from __future__ import annotations
