@@ -1,8 +1,7 @@
-"""Fingerprint, scope and executed ABI coverage for aura conflict handling."""
+"""Fingerprint, generic-interface scope and executed conflict-removal coverage."""
 
 from __future__ import annotations
 
-import struct
 from pathlib import Path
 
 import pytest
@@ -11,10 +10,11 @@ from sage_patch import addresses as ad
 from sage_patch.patches.combat.attribute_modifier_aura_conflicts import (
     SECTION_NAME,
     AttributeModifierAuraConflictsPatch,
-    build_code,
+    _assemble,
 )
+from sage_patch.patches.upgrades.upgrade_module_removal import UpgradeModuleRemovalPatch
 from sage_patch.registry import PATCHES
-from sage_patch.utils import allocate_section, file_offset, find_section
+from sage_patch.utils import file_offset, find_section
 
 from .synthetic import _sparse_image
 
@@ -22,55 +22,66 @@ from .synthetic import _sparse_image
 def image() -> bytearray:
     return _sparse_image(
         {
-            **ad.ATTRIBUTE_MODIFIER_AURA_CONFLICT_ANCHORS,
+            **ad.UPGRADE_MODULE_CONFLICT_ANCHORS,
             ad.OBJECT_DISPATCH_UPGRADES: ad.OBJECT_DISPATCH_UPGRADES_BYTES,
         }
     )
 
 
-def test_registration_and_scope() -> None:
-    assert AttributeModifierAuraConflictsPatch.name in PATCHES
+def composition_image() -> bytearray:
+    return _sparse_image(
+        {
+            **ad.UPGRADE_MODULE_REMOVAL_ANCHORS,
+            **ad.UPGRADE_MODULE_CONFLICT_ANCHORS,
+            ad.OBJECT_DISPATCH_UPGRADES: ad.OBJECT_DISPATCH_UPGRADES_BYTES,
+        }
+    )
+
+
+def test_registration_apply_verify_and_scope() -> None:
+    assert PATCHES[AttributeModifierAuraConflictsPatch.name] is AttributeModifierAuraConflictsPatch
     data = image()
     before = bytes(data)
     patch = AttributeModifierAuraConflictsPatch()
-    assert patch.verify(data)
     patch.apply(data)
     assert patch.verify(data) == []
-    for va, expected in ad.ATTRIBUTE_MODIFIER_AURA_CONFLICT_ANCHORS.items():
+    located = find_section(data, SECTION_NAME)
+    assert located is not None
+
+    changed = {
+        ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE,
+        ad.OBJECT_DISPATCH_UPGRADES_CALLBACK,
+    }
+    for va, size in (
+        (
+            ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE,
+            len(ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES),
+        ),
+        (ad.OBJECT_DISPATCH_UPGRADES_CALLBACK, len(ad.OBJECT_DISPATCH_UPGRADES_CALLBACK_BYTES)),
+    ):
         off = file_offset(data, va)
-        if va == ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE:
-            assert data[off : off + 4] == before[off : off + 4]
-            assert data[off + 8 : off + len(expected)] == before[off + 8 : off + len(expected)]
-        else:
-            assert data[off : off + len(expected)] == expected
-    start = ad.OBJECT_DISPATCH_UPGRADES
-    gate = ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE
-    off = file_offset(data, start)
-    prefix = gate - start
-    end = prefix + len(ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES)
-    assert data[off : off + prefix] == ad.OBJECT_DISPATCH_UPGRADES_BYTES[:prefix]
-    assert (
-        data[off + end : off + len(ad.OBJECT_DISPATCH_UPGRADES_BYTES)]
-        == (ad.OBJECT_DISPATCH_UPGRADES_BYTES[end:])
-    )
+        assert bytes(data[off : off + size]) != before[off : off + size]
+    for va, expected in ad.UPGRADE_MODULE_CONFLICT_ANCHORS.items():
+        assert va not in changed
+        off = file_offset(data, va)
+        assert bytes(data[off : off + len(expected)]) == expected
+
     with pytest.raises(ValueError, match="already carries"):
         patch.apply(data)
 
 
-@pytest.mark.parametrize(
-    "va", [*ad.ATTRIBUTE_MODIFIER_AURA_CONFLICT_ANCHORS, ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE]
-)
+@pytest.mark.parametrize("va", [*ad.UPGRADE_MODULE_CONFLICT_ANCHORS, ad.OBJECT_DISPATCH_UPGRADES])
 def test_wrong_build_is_rejected_before_mutation(va: int) -> None:
     data = image()
     off = file_offset(data, va)
-    data[off + (4 if va == ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE else 0)] ^= 1
+    data[off] ^= 1
     before = bytes(data)
     with pytest.raises(ValueError, match="unexpected build"):
         AttributeModifierAuraConflictsPatch().apply(data)
     assert data == before
 
 
-@pytest.mark.parametrize("damage", ["pointer", "code", "global_evaluator", "dispatcher"])
+@pytest.mark.parametrize("damage", ["code", "gate", "callback", "anchor"])
 def test_verify_detects_corruption(damage: str) -> None:
     data = image()
     patch = AttributeModifierAuraConflictsPatch()
@@ -78,75 +89,162 @@ def test_verify_detects_corruption(damage: str) -> None:
     located = find_section(data, SECTION_NAME)
     assert located is not None
     off = {
-        "pointer": file_offset(data, ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE + 4),
         "code": located[1],
-        "global_evaluator": file_offset(data, ad.UPGRADE_MODULE_EVALUATE),
-        "dispatcher": file_offset(data, ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE),
+        "gate": file_offset(data, ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE),
+        "callback": file_offset(data, ad.OBJECT_DISPATCH_UPGRADES_CALLBACK),
+        "anchor": file_offset(data, ad.UPGRADE_MODULE_ON_ADDED),
     }[damage]
     data[off] ^= 1
     assert patch.verify(data)
 
 
-@pytest.mark.parametrize("active", [0, 1, 2])
 @pytest.mark.parametrize("all_conflicts", [False, True])
-@pytest.mark.parametrize("held,conflicts", [(0, 0), (1, 0), (0, 3), (1, 3), (3, 3), (7, 3)])
+@pytest.mark.parametrize(
+    "held,conflicts,removed",
+    [(0, 0, False), (7, 0, False), (0, 3, False), (1, 3, True), (3, 3, True)],
+)
 @pytest.mark.parametrize("word", [0, 35])
-def test_executed_wrapper(
-    active: int, all_conflicts: bool, held: int, conflicts: int, word: int
+def test_active_helper_uses_virtual_triggeredby_removal(
+    all_conflicts: bool, held: int, conflicts: int, removed: bool, word: int
 ) -> None:
-    x86 = pytest.importorskip("unicorn.x86_const")
+    pytest.importorskip("unicorn.x86_const")
     pytest.importorskip("pefile")
-    # Optional emulator dependencies are absent on a minimal installation.
-    from .save_machine import STACK, STACK_SIZE, Machine  # noqa: PLC0415
+    from .save_machine import Machine  # noqa: PLC0415
 
     data = image()
-    AttributeModifierAuraConflictsPatch().apply(data)
+    patch = AttributeModifierAuraConflictsPatch()
+    patch.apply(data)
+    located = find_section(data, SECTION_NAME)
+    assert located is not None
+    base = located[0]  # the active helper is the cave's first routine
     m = Machine(bytes(data))
-    obj = m.alloc(0x40) + 0x20
-    module_data = m.alloc(0x160)
-    m.write32(obj - 0x1C, module_data)
-    m.write32(obj, ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE)
-    m.uc.mem_write(obj + 4, bytes([active]))
-    # TriggeredBy is deliberately empty: the active arm must not evaluate it.
-    m.write32(module_data + 0xB8 + word * 4, conflicts)
-    m.uc.mem_write(module_data + 0x155, bytes([all_conflicts]))
-    mask = m.alloc(0x90)
+    iface = m.alloc(0x20)
+    vtable = m.alloc(0x40)
+    m.write32(iface, vtable)
+    m.uc.mem_write(iface + 4, b"\x01")
+    mask = m.alloc(0x90, bytes(0x90))
     m.write32(mask + word * 4, held)
-    initialized: list[int] = []
-    delegated: list[int] = []
+    trigger = 1 << 7
+    removal_calls: list[tuple[int, int]] = []
+    effect_calls: list[int] = []
 
     def init(machine: Machine) -> None:
-        initialized.append(machine.reg("ecx"))
         machine.uc.mem_write(machine.reg("ecx"), bytes(0x90))
         machine.ret(value=machine.reg("ecx"))
 
-    def stock(machine: Machine) -> None:
-        assert machine.reg("ecx") == obj
-        delegated.append(machine.arg(0))
-        machine.ret(4, 0xA5)
+    def build(machine: Machine) -> None:
+        machine.write32(machine.arg(0) + word * 4, trigger)
+        machine.write32(machine.arg(1) + word * 4, conflicts)
+        machine.ret(8)
+
+    def requires_all(machine: Machine) -> None:
+        machine.ret(value=int(all_conflicts))
+
+    def on_removed(machine: Machine) -> None:
+        removal_calls.append((machine.reg("ecx"), machine.read32(machine.arg(0) + word * 4)))
+        machine.uc.mem_write(machine.reg("ecx") + 4, b"\x00")
+        machine.ret(4, 1)
+
+    def remove_effects(machine: Machine) -> None:
+        target = machine.arg(0)
+        effect_calls.append(target)
+        assert bytes(machine.uc.mem_read(target + 4, 1)) == b"\x01"
+        machine.ret()
 
     m.stub(ad.UPGRADE_MASK_INIT, init)
-    m.stub(ad.UPGRADE_MODULE_ON_ADDED, stock)
-    entry = m.read32(ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE + 4)
-    saved = dict(esi=0x1234, edi=0x2345, ebx=0x3456, ebp=0x4567)
-    result = m.call(entry, mask, ecx=obj, **saved)
-    assert m.uc.reg_read(x86.UC_X86_REG_ESP) == STACK + STACK_SIZE - 0x1000
-    assert {r: m.reg(r) for r in saved} == saved
+    m.stub(ad.UPGRADE_MODULE_REMOVE_EFFECTS, remove_effects)
+    m.write32(vtable + 0x0C, m.stub(None, on_removed))
+    m.write32(vtable + 0x2C, m.stub(None, build))
+    m.write32(vtable + 0x38, m.stub(None, requires_all))
+
+    expected = removed and (not all_conflicts or held & conflicts == conflicts)
+    m.call(base, mask, ecx=iface, ebx=0x1234, esi=0x2345, edi=0x3456)
     assert not m.faults
-    if active == 0:
-        assert delegated == [mask]
-        assert initialized == []
-        assert result == 0xA5
-        expected = 0
-    else:
-        assert delegated == []
-        assert len(initialized) == 2
-        assert result == 0
-        conflict = bool(conflicts) and (
-            held & conflicts == conflicts if all_conflicts else bool(held & conflicts)
-        )
-        expected = 0 if conflict else active
-    assert bytes(m.uc.mem_read(obj + 4, 1)) == bytes([expected])
+    assert removal_calls == ([(iface, trigger)] if expected else [])
+    assert effect_calls == ([iface] if expected else [])
+    assert bytes(m.uc.mem_read(iface + 4, 1)) == (b"\x00" if expected else b"\x01")
+
+
+@pytest.mark.parametrize(
+    "active,specialised,expected",
+    [(False, False, "build"), (True, False, "build"), (True, True, "post")],
+)
+def test_dispatch_gate_only_admits_the_standard_contract(
+    active: bool, specialised: bool, expected: str
+) -> None:
+    pytest.importorskip("unicorn.x86_const")
+    pytest.importorskip("pefile")
+    from .save_machine import Machine  # noqa: PLC0415
+
+    data = image()
+    AttributeModifierAuraConflictsPatch().apply(data)
+    base = find_section(data, SECTION_NAME)
+    assert base is not None
+    gate = _assemble(base[0]).label_va("gate")
+    m = Machine(bytes(data))
+    iface = m.alloc(0x20)
+    vtable = m.alloc(0x40)
+    m.write32(iface, vtable)
+    m.uc.mem_write(iface + 4, bytes([active]))
+    m.write32(vtable + 0x00, ad.UPGRADE_INTERFACE_GET_FLAG)
+    m.write32(vtable + 0x04, 0x11111111 if specialised else ad.UPGRADE_MODULE_ON_ADDED)
+    m.write32(vtable + 0x0C, ad.UPGRADE_MODULE_REMOVAL)
+    m.write32(vtable + 0x24, ad.UPGRADE_MODULE_SET_FLAG)
+    m.write32(vtable + 0x2C, 0x11111111)
+    m.write32(vtable + 0x38, 0x11111111)
+    reached: list[str] = []
+    m.stub(
+        ad.OBJECT_DISPATCH_UPGRADES_BUILD_MASK,
+        lambda machine: (reached.append("build"), machine.ret()),
+    )
+    m.stub(
+        ad.OBJECT_DISPATCH_UPGRADES_POST_CALLBACK,
+        lambda machine: (reached.append("post"), machine.ret()),
+    )
+    m.call(gate, ebx=iface)
+    assert not m.faults
+    assert reached == [expected]
+
+
+def test_callback_preserves_the_stock_inactive_virtual_call() -> None:
+    pytest.importorskip("unicorn.x86_const")
+    pytest.importorskip("pefile")
+    from .save_machine import Machine  # noqa: PLC0415
+
+    data = image()
+    AttributeModifierAuraConflictsPatch().apply(data)
+    section = find_section(data, SECTION_NAME)
+    assert section is not None
+    callback = _assemble(section[0]).label_va("callback")
+    m = Machine(bytes(data))
+    iface = m.alloc(0x20, bytes(0x20))
+    vtable = m.alloc(0x40, bytes(0x40))
+    frame = m.frame()
+    held = frame - 0x98
+    m.write32(iface, vtable)
+    delegated: list[tuple[int, int]] = []
+
+    def on_added(machine: Machine) -> None:
+        delegated.append((machine.reg("ecx"), machine.arg(0)))
+        machine.ret(4, 1)
+
+    m.write32(vtable + 4, m.stub(None, on_added))
+    m.stub(ad.OBJECT_DISPATCH_UPGRADES_POST_CALLBACK, lambda machine: machine.ret())
+    m.call(callback, ebx=iface, ebp=frame)
+    assert not m.faults
+    assert delegated == [(iface, held)]
+
+
+@pytest.mark.parametrize("order", ["removal-first", "conflicts-first"])
+def test_composes_with_upgrade_module_removal_in_both_orders(order: str) -> None:
+    data = composition_image()
+    removal = UpgradeModuleRemovalPatch()
+    conflicts = AttributeModifierAuraConflictsPatch()
+    patches = [removal, conflicts] if order == "removal-first" else [conflicts, removal]
+    for patch in patches:
+        patch.apply(data)
+    assert removal.verify(data) == []
+    assert conflicts.verify(data) == []
 
 
 @pytest.mark.full
@@ -158,128 +256,3 @@ def test_real_binary() -> None:
     patch = AttributeModifierAuraConflictsPatch()
     patch.apply(data)
     assert patch.verify(data) == []
-
-
-@pytest.mark.parametrize("dispatcher_fix", [False, True])
-@pytest.mark.parametrize("module_kind", ["aura", "other", "no_upgrade_interface"])
-@pytest.mark.parametrize("conflict_source", ["object", "player", "related_object"])
-@pytest.mark.parametrize("all_conflicts", [False, True])
-def test_native_dispatcher_lifecycle(
-    dispatcher_fix: bool, module_kind: str, conflict_source: str, all_conflicts: bool
-) -> None:
-    """A grant activates; a later B grant reaches only the corrected aura dispatcher.
-
-    Restoring the stock dispatcher reproduces the slot-only patch's blind spot.
-    Execute its native mask merging and the native evaluator/bool comparisons;
-    model ownership, memory copying, scheduling and the virtual interface query.
-    """
-    x86 = pytest.importorskip("unicorn.x86_const")
-    pytest.importorskip("pefile")
-    from .save_machine import STACK, STACK_SIZE, Machine  # noqa: PLC0415
-
-    data = image()
-    AttributeModifierAuraConflictsPatch().apply(data)
-    if not dispatcher_fix:
-        off = file_offset(data, ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE)
-        data[off : off + 10] = ad.OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES
-    m = Machine(bytes(data))
-    obj = m.alloc(0x500)
-    player = m.alloc(0x200)
-    related = m.alloc(0x500)
-    relation = m.alloc(0x20)
-    m.write32(relation + 0x14, 123)
-    m.ensure(ad.THE_GAME_LOGIC)
-    m.write32(ad.THE_GAME_LOGIC, m.alloc(0x50))
-    module = m.alloc(0x40)
-    iface = module + 0x20
-    module_data = m.alloc(0x160)
-    m.write32(iface - 0x1C, module_data)
-    vtable = ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE
-    if module_kind == "other":
-        # An unrelated type may share the stock callback but must retain its active skip.
-        vtable = m.alloc(0x40, bytes(m.uc.mem_read(vtable, 0x40)))
-        m.write32(vtable + 4, ad.UPGRADE_MODULE_ON_ADDED)
-    m.write32(iface, vtable)
-    m.write32(obj + 0x24C, m.alloc(8))
-    m.write32(m.read32(obj + 0x24C), module)
-    query_table = m.alloc(0x30)
-    m.write32(module + 0xC, query_table)
-    queried = 0 if module_kind == "no_upgrade_interface" else iface
-    m.write32(query_table + 0x28, m.stub(None, lambda machine: machine.ret(value=queried)))
-    m.stub(ad.OBJECT_GET_CONTROLLING_PLAYER, lambda machine: machine.ret(value=player))
-    m.stub(0x00797BEF, lambda machine: machine.ret(value=relation))
-    m.stub(0x00449681, lambda machine: machine.ret(4, related))
-
-    # Copy constructor is a CRT memcpy wrapper; the union loop itself executes natively.
-    def copy_mask(machine: Machine) -> None:
-        machine.uc.mem_write(machine.reg("ecx"), bytes(machine.uc.mem_read(machine.arg(0), 0x90)))
-        machine.ret(4)
-
-    def init_mask(machine: Machine) -> None:
-        machine.uc.mem_write(machine.reg("ecx"), bytes(0x90))
-        machine.ret()
-
-    m.stub(0x00444DB3, copy_mask)
-    m.stub(ad.UPGRADE_MASK_INIT, init_mask)
-    m.ensure(ad.OBJECT_APPLY_UPGRADE_LIST)
-    # Use the exact stock union loop (edx counts words).
-    m.uc.mem_write(
-        ad.OBJECT_APPLY_UPGRADE_LIST,
-        bytes.fromhex("8b4424046a245a2bc1568b3408093183c1044a75f55ec20400"),
-    )
-    notifications: list[int] = []
-
-    def post_callback(machine: Machine) -> None:
-        notifications.append(machine.reg("ecx"))
-        machine.ret()
-
-    m.stub(0x0063F3BF, post_callback)
-    activations: list[int] = []
-
-    def activate(machine: Machine) -> None:
-        activations.append(machine.reg("ecx"))
-        machine.uc.mem_write(machine.reg("ecx") + 4, b"\x01")
-        machine.ret()
-
-    m.stub(0x00855388, activate)
-    # A=TriggeredBy, B/C=ConflictsWith. RequiresAllTriggers is false as in the Beorn INI.
-    m.write32(module_data + 0x28, 1)
-    m.write32(module_data + 0xB8, 6 if all_conflicts else 2)
-    m.uc.mem_write(module_data + 0x155, bytes([all_conflicts]))
-    saved = dict(esi=0x1234, edi=0x2345, ebx=0x3456, ebp=0x4567)
-
-    def dispatch() -> int:
-        m.call(ad.OBJECT_DISPATCH_UPGRADES, ecx=obj, **saved)
-        assert m.uc.reg_read(x86.UC_X86_REG_ESP) == STACK + STACK_SIZE - 0x1000
-        assert {r: m.reg(r) for r in saved} == saved
-        assert not m.faults
-        return bytes(m.uc.mem_read(iface + 4, 1))[0]
-
-    m.write32(obj + 0x28C, 1)
-    expected_active = int(module_kind != "no_upgrade_interface")
-    assert dispatch() == expected_active
-    conflict_mask = {
-        "object": obj + 0x28C,
-        "player": player + 0x14C,
-        "related_object": related + 0x28C,
-    }[conflict_source]
-    m.write32(conflict_mask, m.read32(conflict_mask) | 2)
-    if all_conflicts:
-        assert dispatch() == expected_active  # B alone is insufficient
-        m.write32(conflict_mask, m.read32(conflict_mask) | 4)
-    disabled = dispatcher_fix and module_kind == "aura"
-    assert dispatch() == (0 if disabled else expected_active)
-    assert activations == ([iface] if expected_active else [])
-    assert len(notifications) == ((3 if all_conflicts else 2) if expected_active else 0)
-
-
-def test_legacy_slot_only_patch_is_not_reported_as_fixed() -> None:
-    data = image()
-    # The shipped slot-only cave is 148 bytes; it is the unchanged conflict wrapper prefix.
-    base = allocate_section(data, SECTION_NAME, lambda va: build_code(va)[:148], 0x60000020)
-    struct.pack_into(
-        "<I", data, file_offset(data, ad.ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE + 4), base
-    )
-    problems = AttributeModifierAuraConflictsPatch().verify(data)
-    assert any("legacy slot-only" in problem for problem in problems)
-    assert any("0x006936fe" in problem for problem in problems)

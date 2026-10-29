@@ -86,6 +86,7 @@ from sage_patch.patches.economy.combo_horde_recruitment import ComboHordeRecruit
 from sage_patch.patches.economy.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.economy.command_point_override import CommandPointOverridePatch
 from sage_patch.patches.economy.command_point_upkeep import CommandPointUpkeepPatch
+from sage_patch.patches.economy.cost_modifier_upgrade_groups import CostModifierUpgradeGroupsPatch
 from sage_patch.patches.economy.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.economy.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.economy.maintenance_cost import MaintenanceCostPatch
@@ -320,6 +321,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandRangeFlyoutPatch,
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
+    CostModifierUpgradeGroupsPatch,
     CrashDumpPatch,
     DamageSubtypesPatch,
     DamageSubtypesWorldbuilderPatch,
