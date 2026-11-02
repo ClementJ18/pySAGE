@@ -31,6 +31,10 @@ from sage_patch.patches.experience_award import ExperienceAwardPatch
 from sage_patch.patches.experience_level_down import (
     ExperienceLevelDownPatch,
 )
+from sage_patch.patches.experimental.foggy_weather import (
+    FoggyWeatherPatch,
+    FoggyWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
 from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
@@ -143,6 +147,8 @@ __all__ = [
     "SpecialPowerPauseButtonPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
+    "FoggyWeatherPatch",
+    "FoggyWeatherWorldbuilderPatch",
     "GiveUpgradeAllPatch",
     "GrantScienceUpgradePatch",
     "GrantScienceUpgradeWorldbuilderPatch",

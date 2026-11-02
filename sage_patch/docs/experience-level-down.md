@@ -10,7 +10,7 @@ also apply [level-grant-special-power](level-grant-special-power.md).
 That patch remains a separate one-byte change; it is not duplicated here.
 
 ```sh
-python -m sage_patch apply level-grant-special-power --in tools/BFME-FILES/game.dat.backup --out game.dat
+python -m sage_patch apply level-grant-special-power --in original.dat --out game.dat
 python -m sage_patch apply experience-level-down --in game.dat --out game.dat
 python -m sage_patch verify experience-level-down game.dat
 python -m sage_patch verify level-grant-special-power game.dat
@@ -53,7 +53,7 @@ the existing removal/pause hooks unchanged.
 
 ## Binary evidence and hooks
 
-The supplied `tools/BFME-FILES/game.dat.backup` is 11,346,944 bytes, ImageBase `0x00400000`.
+The supplied the RotWK reference executable is 11,346,944 bytes, ImageBase `0x00400000`.
 Every address is a VA mapped with `file_offset`, never assumed to be a file offset.
 The patch fingerprints all edited instruction windows, the stock upward cascade, collection
 lookup/resolution/mode helpers, native effect-removal functions, queue processing/enqueueing,

@@ -106,12 +106,12 @@ Other tracker subclasses retain their existing behavior.
 Run from the repository using Python 3.13. The source backup is never overwritten:
 
 ```powershell
-.venv\Scripts\python.exe -m sage_patch apply level-grant-special-power --in tools/BFME-FILES/game.dat.backup --out tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch apply experience-level-down --xp-cap --in tools/BFME-FILES/experience-follow-up/game.dat --out tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch apply upgrade-module-removal --in tools/BFME-FILES/experience-follow-up/game.dat --out tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch verify level-grant-special-power tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch verify experience-level-down --xp-cap tools/BFME-FILES/experience-follow-up/game.dat
-.venv\Scripts\python.exe -m sage_patch verify upgrade-module-removal tools/BFME-FILES/experience-follow-up/game.dat
+python -m sage_patch apply level-grant-special-power --in original.dat --out experience-grant.dat
+python -m sage_patch apply experience-level-down --xp-cap --in experience-grant.dat --out experience-down.dat
+python -m sage_patch apply upgrade-module-removal --in experience-down.dat --out experience-final.dat
+python -m sage_patch verify level-grant-special-power experience-final.dat
+python -m sage_patch verify experience-level-down --xp-cap experience-final.dat
+python -m sage_patch verify upgrade-module-removal experience-final.dat
 ```
 
 Create the output directory first if needed. Python callers select

@@ -287,7 +287,13 @@ def _append_sub_cave(
     struct.pack_into("<I", data, hdr_off + 16, new_raw_size)
     struct.pack_into("<I", data, hdr_off + 36, old_characteristics | characteristics)
     struct.pack_into("<I", data, opt + _OPT_SIZE_OF_IMAGE, align_up(rva + new_vsize, sec_align))
-    log.info("  new sub-cave %-8s in %s va=0x%x vsize=0x%x", name, SHARED_SECTION_NAME, base_va, len(content))
+    log.info(
+        "  new sub-cave %-8s in %s va=0x%x vsize=0x%x",
+        name,
+        SHARED_SECTION_NAME,
+        base_va,
+        len(content),
+    )
     return base_va
 
 

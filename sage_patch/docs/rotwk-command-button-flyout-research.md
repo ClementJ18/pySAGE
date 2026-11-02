@@ -24,7 +24,7 @@ OpenBfme2 was inspected at commit `842bf8da5e2b26546f5d2389507c30e8db26b5f3`. It
 
 **OpenBfme2 addresses below are RVAs from its ledger. RotWK addresses below are VAs**, with image base `0x00400000`. Do not paste BFME2 RVAs into RotWK or assume a constant inter-game delta.
 
-Direct RotWK inspection used `tools/BFME-FILES/game.dat.backup`:
+Direct RotWK inspection used the RotWK reference executable:
 
 - SHA-256: `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`
 - PE image base: `0x00400000`.

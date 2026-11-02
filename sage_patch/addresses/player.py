@@ -302,6 +302,7 @@ __all__ = [
     "UPGRADE_FIRST_SET",
     "UPGRADE_FIRST_SET_ENTRY",
     "UPGRADE_MASK_ANY",
+    "UPGRADE_MASK_INIT",
     "UPGRADE_MASK_TEST_ANY",
     "UPGRADE_MASK_TEST_ALL",
     "UPGRADE_TEMPLATE_INDEX",
@@ -317,6 +318,9 @@ __all__ = [
     "VICTORY_CONDITIONS_RESET_ENTRY",
     "VICTORY_CONDITIONS_RESET_SLOT",
     "VICTORY_CONDITIONS_VTABLE",
+    "PLAYER_TUNNEL_TRACKER",
+    "PLAYER_TYPE_COMPUTER",
+    "TUNNEL_TRACKER_LIST",
 ]
 
 THE_PLAYER_LIST = 0x00DE4928
@@ -1040,9 +1044,5 @@ PLAYER_TYPE_COMPUTER = 1
 PLAYER_TUNNEL_TRACKER = 0x308
 #: `TunnelTracker::m_tunnelIDs`, an MSVC `std::list<ObjectID>` head; nodes are `{next, prev, id}`.
 TUNNEL_TRACKER_LIST = 0x08
-
-__all__ += [
-    "PLAYER_TUNNEL_TRACKER",
-    "PLAYER_TYPE_COMPUTER",
-    "TUNNEL_TRACKER_LIST",
-]
+#: Zero-initialize a 0x90-byte UpgradeMaskType; thiscall, no arguments, returns this.
+UPGRADE_MASK_INIT = 0x005EA666

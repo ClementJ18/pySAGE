@@ -127,7 +127,7 @@ victim balance 5, successive counters are 1, 2, 0, 1 with no money transfer.
 ## Evidence and address map
 
 All addresses below are VAs, ImageBase `0x00400000`, in the supplied original
-`tools/BFME-FILES/game.dat.backup` (11,346,944 bytes). Its SHA-256 is
+the RotWK reference executable (11,346,944 bytes). Its SHA-256 is
 `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`.
 PE section mapping is used rather than assuming VA minus ImageBase is a file offset.
 
@@ -434,8 +434,8 @@ Validation on October 14, 2026, with Python 3.13.15:
 - CLI apply, verify, manifest generation and manifest consistency check passed
   against a separate copy. The original binary was retained.
 
-Generated local outputs are `_local/pillage-module-game.dat` and
-`_local/pillage-module.sagepatch`. The patched binary is 11,347,968 bytes; the
+Generated local outputs are `pillage-module-game.dat` and
+`pillage-module.sagepatch`. The patched binary is 11,347,968 bytes; the
 unmodified source is 11,346,944 bytes. Its only installed patch is
 `pillage-module-extension`.
 

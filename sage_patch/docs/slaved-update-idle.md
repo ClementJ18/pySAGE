@@ -40,7 +40,7 @@ an earlier version, rather than applying over an already installed hook.
 
 ## RotWK derivation
 
-Inspected `tools/BFME-FILES/game.dat.backup`, 11,346,944 bytes, image base 0x00400000.
+Inspected the RotWK reference executable, 11,346,944 bytes, image base 0x00400000.
 SHA-256: `5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26`.
 All constants and original-byte contracts live in `sage_patch/addresses/ai.py`,
 re-exported by the existing `sage_patch.addresses` package (there is no single

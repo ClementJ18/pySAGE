@@ -22,6 +22,7 @@ from sage_patch.patcher import EXPERIMENTAL_WARNING
 from sage_patch.patches import cah_factions as cf
 from sage_patch.patches import commandset as cs
 from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
+from sage_patch.pe import find, image_sections, mapped_sections
 from sage_patch.readme import sync
 from sage_patch.registry import PATCHES
 from sage_patch.utils import (
@@ -189,8 +190,6 @@ class TestUtils:
         assert size_of_image == align_up(shared_va - 0x400000 + shared_size, 0x1000)
 
     def test_sub_caves_are_found_in_a_mapped_image_too(self):
-        from sage_patch.pe import find, image_sections, mapped_sections
-
         data = _tiny_pe()
         free = (0x400 - (0x80 + 24 + 0xE0 + 40)) // 40
         for i in range(free + 2):

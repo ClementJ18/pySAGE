@@ -87,7 +87,6 @@ __all__ = [
     "FLOAT_TEN",
     "FLOAT_TWO_PERCENT",
     "FTOL",
-    "GET_MODULE_HANDLE_A_IAT",
     "GET_PROC_ADDRESS_IAT",
     "GLOBAL_DATA",
     "GLOBAL_DATA_ACTIVE_MAP",
