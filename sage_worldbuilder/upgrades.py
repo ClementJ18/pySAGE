@@ -15,6 +15,8 @@ triggers out of the typed model - every `TriggeredBy`, and `UpgradeRequired` wit
 Reading the key back, WorldBuilder ticks each name it finds in the list and silently drops the
 rest. Dropping would lose what the map stores the moment anything else is ticked, so a stored name
 the template no longer offers is listed here as well, ticked, and is kept until it is unticked.
+That same rule keeps an upgrade granted from the whole game's table (`all_upgrades`, which a search
+of the list falls back to) listed once it is stored.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ if TYPE_CHECKING:
 __all__ = [
     "UPGRADES_KEY",
     "UPGRADES_SPEC",
+    "all_upgrades",
     "available_upgrades",
     "format_upgrades",
     "parse_upgrades",
@@ -79,6 +82,14 @@ def _template(game: Game, type_name: str) -> object | None:
         (value for name, value in objects.items() if name.casefold() == folded),
         None,
     )
+
+
+def all_upgrades(game: Game | None) -> list[str]:
+    """Every upgrade the game defines, sorted ignoring case: what a search of the check list falls
+    back to when none of the object's own upgrades matches. Empty without game data."""
+    if game is None:
+        return []
+    return sorted(getattr(game, "upgrades", None) or {}, key=str.casefold)
 
 
 def available_upgrades(game: Game | None, type_names: Iterable[str]) -> list[str]:

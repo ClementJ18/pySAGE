@@ -41,7 +41,7 @@ from sage_patch.addresses import (  # noqa: E402
     OBJECT_THING_TEMPLATE,
     THE_GAME_LOGIC,
 )
-from sage_patch.patches.drain_life_fix import (  # noqa: E402
+from sage_patch.patches.combat.drain_life_fix import (  # noqa: E402
     SECTION_NAME,
     DrainLifeFixPatch,
     layout,

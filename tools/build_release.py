@@ -4,7 +4,8 @@ Discovers the `*.spec` files that live next to each package (sage_ini/sage-ini.s
 runs PyInstaller on each into a clean staging dir - not the repo's `dist/`, which holds stale
 artifacts from ad-hoc builds - and zips whatever the specs emitted into `pySAGE.zip` at the
 repo root. It also assembles the self-contained SageLint Sublime package (the loose folder
-Sublime installs, carrying the freshly built sage_lint CLI in its bin/) into the same zip.
+Sublime installs, carrying the freshly built sage_lint CLI in its bin/) and the map editor's
+Claude Desktop extension (SageWorldBuilder.mcpb, around the frozen MCP server) into the same zip.
 
     python tools/build_release.py            # every spec in the repo, write pySAGE.zip
     python tools/build_release.py sage_ini   # only specs whose path contains "sage_ini"
@@ -23,6 +24,8 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
+
+import build_mcpb  # beside this script
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # Staged apart from the repo's dist/ so stale hand-built exes never leak into the zip.
@@ -100,6 +103,18 @@ def stage_sublime_package() -> bool:
     return True
 
 
+def stage_mcpb() -> bool:
+    """Pack the Claude Desktop extension around the MCP server binary sage-worldbuilder-mcp.spec
+    emitted. Windows only, like the extension; returns False when there is nothing to pack."""
+    binary = STAGE_DIR / build_mcpb.EXE_NAME
+    if not binary.is_file():
+        print(f"==> skipping {build_mcpb.BUNDLE_NAME}: no {build_mcpb.EXE_NAME} in stage")
+        return False
+    build_mcpb.pack(binary, STAGE_DIR / build_mcpb.BUNDLE_NAME)
+    print(f"==> packed Claude Desktop extension  {build_mcpb.BUNDLE_NAME}")
+    return True
+
+
 def make_zip() -> list[Path]:
     artifacts = sorted(p for p in STAGE_DIR.rglob("*") if p.is_file())
     if not artifacts:
@@ -134,6 +149,7 @@ def main() -> None:
         build(spec)
 
     stage_sublime_package()
+    stage_mcpb()
 
     artifacts = make_zip()
     total = sum(p.stat().st_size for p in artifacts)

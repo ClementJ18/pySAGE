@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     TRANSPORT_CONTAIN_CREATE_PAYLOAD,
     TRANSPORT_CONTAIN_INITIAL_PAYLOAD,
 )
-from sage_patch.patches.combo_horde_recruitment import (
+from sage_patch.patches.economy.combo_horde_recruitment import (
     ANCHORS,
     SECTION_NAME,
     ComboHordeRecruitmentPatch,

@@ -110,7 +110,7 @@ lives in the same table and is parsed at the same moment, so it has the same bli
 ## 5. The fix
 
 Built as `mod-load-order`, in
-[`patches/mod_load_order.py`](../patches/mod_load_order.py).
+[`patches/platform/mod_load_order.py`](../patches/platform/mod_load_order.py).
 
 The mod has to be mounted before the first `INI::load`. The startup switches cannot simply be
 parsed earlier as they stand: the `-mod` handler (`0x007BADB9`) writes into `GlobalData+0xD38` /

@@ -58,6 +58,7 @@ from sage_patch.patches import (
     SkirmishReplayPatch,
     SpawnUnionPatch,
     SpecialPowerMusicPatch,
+    SpecialPowerObjectCapPatch,
     SpecialPowerPauseButtonPatch,
     SpellStoreUpgradePatch,
     TerrainResourceExpPatch,
@@ -71,8 +72,8 @@ from sage_patch.patches import (
     WotrBattleObserversPatch,
     WotrLobbySlotsPatch,
 )
-from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
-from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
+from sage_patch.patches.ui.text_entry_clipboard import TextEntryClipboardPatch
+from sage_patch.patches.units.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.sagepatch import generate
 
 __all__ = [
@@ -89,6 +90,7 @@ __all__ = [
     "FireAtAttackerPatch",
     "ExperienceLevelDownPatch",
     "UpgradeModuleRemovalPatch",
+    "SpecialPowerObjectCapPatch",
     "SpecialPowerPauseButtonPatch",
     "FoundationRebindPatch",
     "HeadlessPatch",

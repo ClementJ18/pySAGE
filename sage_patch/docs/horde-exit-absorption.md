@@ -17,7 +17,7 @@ anything else finishing inside it is bound to the battalion.
 - **Cost:** one repointed `call` (5 bytes) and a 183-byte cave.
 - **Risk:** low. The gate reuses the horde's own membership rule, and a rejected object takes a
   code path the stock engine already has.
-- **Status:** **built** - see [`patches/horde_exit_absorption.py`](../patches/horde_exit_absorption.py).
+- **Status:** **built** - see [`patches/economy/horde_exit_absorption.py`](../patches/economy/horde_exit_absorption.py).
   **Statically verified, not runtime-verified.**
 
 ```

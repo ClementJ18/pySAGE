@@ -24,7 +24,7 @@ the remainder when it does.
 - **Risk:** low-medium. The failure mode is a wrong cooldown length, not a crash; the one
   crash-shaped risk is the sweep itself walking a module list every frame.
 - **Status: implemented as `recharge-rescale`**
-  ([`../patches/recharge_rescale.py`](../patches/recharge_rescale.py)) and **runtime-verified in
+  ([`../patches/special_powers/recharge_rescale.py`](../patches/special_powers/recharge_rescale.py)) and **runtime-verified in
   game**: an aura landing mid-cooldown rescales it, leaving the aura restores it, and the clock
   never jumps (§9). It composes in either order with `live-bridge`, `production-split`,
   `spawn-union` and `spell-recharge-targets`, whose targeted discount it follows too (§8).
@@ -344,7 +344,7 @@ is live and initialised on every path that reaches this instruction (`0x0062E550
 both under the `edi == 1` arm that leads here).
 
 `0x0062E577` itself is 3 bytes and is a fall-through target, which is why `live-bridge` does not
-take it either; see [`live-bridge`](../patches/experimental/live_bridge.py)'s docstring for the same finding.
+take it either; see [`live-bridge`](../patches/diagnostics/live_bridge.py)'s docstring for the same finding.
 
 **Alternative: `0x0062E6A4`** (`e8 60 21 e1 ff`, `call 0x440809`) — five bytes further down the
 unconditional main path, not a branch target, and simpler because it needs no flag reading. It sits

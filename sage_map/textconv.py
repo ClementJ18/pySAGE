@@ -26,7 +26,7 @@ since a failing textconv breaks `git diff` for the whole repository.
 
 import hashlib
 import io
-from collections.abc import Iterator
+from collections.abc import Iterator, Set
 from dataclasses import fields, is_dataclass
 from enum import Enum
 from typing import Any
@@ -82,7 +82,7 @@ def _quote(name: object) -> str:
     return f'"{name}"'
 
 
-def _prop_lines(props: dict[str, object], pad: str, skip: set[str] = frozenset()) -> list[str]:
+def _prop_lines(props: dict[str, object], pad: str, skip: Set[str] = frozenset()) -> list[str]:
     return [
         f"{pad}{key} = {_fmt(value)}" for key, value in sorted(props.items()) if key not in skip
     ]
@@ -303,7 +303,7 @@ def _section_terrain(m: Map) -> list[str]:
         if grids:
             width, height = _grid_size(grids[0])
             out.extend(_block_hashes(width, height, grids))
-        rest = {
+        rest: dict[str, list[Any]] = {
             "blend_descriptions": blend.blend_descriptions,
             "cliff_texture_mappings": blend.cliff_texture_mappings,
         }

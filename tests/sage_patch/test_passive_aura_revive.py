@@ -37,6 +37,9 @@ from sage_patch.addresses import (
     ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET,
     ATTRIBUTE_MODIFIER_AURA_UPDATE,
     ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE,
+    BODY_GET_HEALTH_SLOT,
+    BODY_GET_MAX_HEALTH_SLOT,
+    OBJECT_BODY_MODULE,
     OBJECT_GET_GETTING_BUILT_BEHAVIOR,
     OBJECT_TEST_STATUS,
     PASSIVE_AREA_EFFECT_ANCHORS,
@@ -49,7 +52,7 @@ from sage_patch.addresses import (
     PASSIVE_AREA_EFFECT_UPDATE,
     PASSIVE_AREA_EFFECT_UPDATE_VTABLE,
 )
-from sage_patch.patches.passive_aura_revive import (
+from sage_patch.patches.combat.passive_aura_revive import (
     GATE_JUMP_PADDING,
     PATCHED_BYTES,
     SECTION_NAME,
@@ -277,13 +280,45 @@ class TestTheAuraCave:
         """The answer to the construction gate routes to the same place the dead arm does, so an
         aura resumes when the rebuild finishes rather than when it starts."""
         insns = disassemble(build_code(CAVE_BASE), CAVE_BASE)
-        answer = next(i for i in insns if i.mnemonic == "test" and i.op_str == "al, al")
+        # The last `test al, al` is the shared answer; the first is the fallback's own early-out.
+        answer = [i for i in insns if i.mnemonic == "test" and i.op_str == "al, al"][-1]
         branch = next(i for i in insns if i.address > answer.address and i.mnemonic == "jne")
         landing = next(i for i in insns if i.address == int(branch.op_str, 16))
         assert (landing.mnemonic, int(landing.op_str, 16)) == (
             "jmp",
             ATTRIBUTE_MODIFIER_AURA_NORMAL_SLEEP,
         )
+
+    def test_the_status_fallback_also_asks_the_body(self):
+        """Without a GettingBuiltBehavior, `UNDER_CONSTRUCTION` counts only while health is below
+        maximum: an `ObjectCreationUpgrade` STRUCTURE is born flagged at full health and keeps the
+        flag forever (Angmar's Favor of the Witch-king pings, 2026-11-01)."""
+        insns = disassemble(build_code(CAVE_BASE), CAVE_BASE)
+        test_status = next(
+            i for i in insns if i.mnemonic == "call" and i.op_str == hex(OBJECT_TEST_STATUS)
+        )
+        after = [(i.mnemonic, i.op_str) for i in insns if i.address > test_status.address]
+        body = f"ecx, dword ptr [esi + {hex(OBJECT_BODY_MODULE)}]"
+        assert after[:2][0] == ("test", "al, al")
+        assert after.count(("mov", body)) == 2
+        assert ("call", f"dword ptr [eax + {hex(BODY_GET_HEALTH_SLOT)}]") in after
+        assert ("call", f"dword ptr [eax + {hex(BODY_GET_MAX_HEALTH_SLOT)}]") in after
+        assert ("setb", "al") in after
+
+    def test_the_fallback_arms_all_reach_the_shared_answer(self):
+        """Not flagged, no body, and the health compare all land on the one `test al, al` the GBB
+        arm reaches, with the stack the way it was found."""
+        insns = disassemble(build_code(CAVE_BASE), CAVE_BASE)
+        answer = [i for i in insns if i.mnemonic == "test" and i.op_str == "al, al"][-1]
+        early_outs = [
+            i for i in insns if i.mnemonic == "je" and int(i.op_str, 16) == answer.address
+        ]
+        assert len(early_outs) == 2
+        subs = [i for i in insns if i.mnemonic == "sub" and i.op_str == "esp, 8"]
+        adds = [i for i in insns if i.mnemonic == "add" and i.op_str == "esp, 8"]
+        assert len(subs) == len(adds) == 1
+        nxt = next(i for i in insns if i.address > adds[0].address)
+        assert nxt.address == answer.address
 
     def test_run_while_dead_yes_goes_to_the_stock_scan(self):
         """The arm the patch must not change: an aura with `RunWhileDead = Yes` keeps being applied
@@ -338,9 +373,8 @@ class TestTheAuraCave:
         """The sleep exit reloads `ecx` itself on the way into the epilogue, so a second reload in
         front of it would be dead weight a later reader would have to explain away."""
         insns = disassemble(build_code(CAVE_BASE), CAVE_BASE)
-        reloads = [
-            i for i in insns if i.mnemonic == "mov" and i.op_str.startswith("ecx, dword ptr")
-        ]
+        this_slot = f"ecx, dword ptr [ebp - {hex(-ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET)}]"
+        reloads = [i for i in insns if i.mnemonic == "mov" and i.op_str == this_slot]
         assert len(reloads) == 1
 
     def test_run_while_dead_no_goes_to_the_ordinary_sleep(self):

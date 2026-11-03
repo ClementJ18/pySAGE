@@ -1,11 +1,13 @@
 # Two buttons sharing a slot in a mixed selection — reverse-engineering notes
 
-The RE behind [`patches/multi_select_group.py`](../patches/multi_select_group.py). ROTWK
+The RE behind [`patches/commandbar/multi_select_group.py`](../patches/commandbar/multi_select_group.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, no ASLR, recovered statically 2026-08-30.
 
 **Status: built** as `multi-select-group`, applying and verifying against the real binary and
 against a synthetic stand-in, and composing with `command-point-cost` and `queue-ignore-cp` in
-any order. **Static-verified only — not yet runtime-verified in game.**
+any order. **Mostly static-verified.** The one part run in game is the member refusal (§9): Edain's
+`tests/test_multi_select_banner_carrier.py`, 2026-10-31, fails on the build before it and passes
+on the build with it.
 
 Four behaviours, four hooks: a slot two sets disagree on survives when they are grouped (§1, §6); a
 slot only one set fills is filled from that one (§6); the button shown is one something can actually
@@ -367,10 +369,16 @@ re-derive the message's own upgrade on the next pass. Six bytes, three whole ins
 The resolver answers *what should this member be offered*:
 
 1. if the member's own effective command set already has a button buying the message's upgrade, it
-   is at the right stage — return it unchanged, which is also every ungrouped case;
+   is at the right stage — return it unchanged, which is also every single-unit click;
 2. otherwise find the message upgrade's group, by walking the **selection** for whichever member
    *does* name it — the click came from one of them;
-3. return the upgrade of the member's own button in that group, or the message's if it has none.
+3. return the upgrade of the member's own button in that group — or **none**, when the member has
+   no button there (or one that buys nothing), and the hook sends it straight to the loop's step at
+   `0x0076FC75`, where every stock refusal lands at the same stack depth as the loop's top;
+4. if somebody names the message's upgrade only on an ungrouped button, a member without it is
+   refused the same way (§9 is why);
+5. if nobody in the selection names it, the click's origin is unknown and the message's upgrade is
+   returned unchanged, as stock.
 
 The walk is the object → command set → button chain `multi-execute-gate` uses —
 `Object::getCommandSetString` (`0x0069156B`, the *effective* set, so a `CommandSetUpgrade` swap is
@@ -383,7 +391,11 @@ slot starts stage one on the battalions at stage zero and stage two on the batta
 each paying its own price, with **no change to the message and nothing extra emitted**.
 
 It also closes §3's hazard structurally: a member is only ever offered a button from its own set, so
-no display choice can produce a stage skip.
+no display choice can produce a stage skip, and no button the union half shows can buy an upgrade
+for a unit whose set lacks it.
+
+`tests/sage_patch/test_multi_select_group.py` runs the member hook in unicorn over a made-up
+selection, with the three engine calls stubbed, and checks each outcome above.
 
 **This is the one part that is not client-side.** It changes which upgrade a logic-side order
 delivers to which object, so every peer must run the same patched binary and replays do not cross —
@@ -413,21 +425,28 @@ re-zeroes `eax` after asking `avail`, since the install arm at `0x00944704` hand
 
 ### What a click on an adopted button does
 
-Nothing new: `MSG(0x415)` already reaches the whole selection, and the per-member gate already
-decides who takes it. The relevant half is `Object::canAcceptUpgrade` (`0x00694914`), which walks
-the object's module list (`[Object+0x24C]`, vtable `+0x28` then `+0x8` per module) and reaches
-`mov al, 1` at `0x00694A41` **only** if some module consumes the upgrade — otherwise `xor al, al`.
+`MSG(0x415)` reaches the whole selection, and stock's per-member gate is
+`Object::canAcceptUpgrade` (`0x00694914`), which walks the object's module list (`[Object+0x24C]`,
+vtable `+0x28` then `+0x8` per module) and reaches `mov al, 1` at `0x00694A41` **only** if some
+module consumes the upgrade — otherwise `xor al, al`. It asks nothing about buttons.
 
-A unit with no button for an upgrade almost never has a module for it either, and the reported case
-is exactly that: the tunnel orcs consume `Upgrade_WildForgedBladesOrc` and `Upgrade_WildHeavyArmorOrc`
-where the lancers' buttons grant `Upgrade_WildForgedBlades`. They are skipped, and nothing is
-charged.
+That is not enough on its own. A unit can carry a module for an upgrade it was deliberately given no
+button for, and Edain has one: `DwarvenKhazadVeteranenHorde` has a `LevelUpUpgrade` on
+`Upgrade_DwarvenBasicTraining` (the banner carrier) and no banner button in any of its three
+command sets. Selected with other dwarves, the adopt arm put the banner button on the bar, and a
+click levelled the Veterans to 2.
 
-**The residual.** A unit that carries a module for the upgrade but was deliberately denied the
-button can now be bought that upgrade from a mixed selection. Closing it means gating on "the
-member's own set offers this upgrade", which `resolve` is one line from — but that gate would sit on
-the path *every* object-upgrade click in the game takes, and would newly refuse orders there. Left
-open deliberately, and named here rather than in a commit message.
+So §8's resolver refuses a member whose own set has neither the clicked button nor one in its
+group, whenever somebody else in the selection *does* name the upgrade. That gate sits on the path
+every object-upgrade click takes, but it refuses nothing stock could send. Only two sites emit
+`0x415` — `0x00940E5A` and `0x00940F90`, both in the click executor. `doObjectUpgrade` has one
+caller, the `0x415` case at `0x0077A727`. And an unpatched multi-select only drew a button every
+member shared at that slot. The one stock-reachable case it changes is a member whose command set
+changed between the click and the order landing, which now loses that click.
+
+Units that have neither button nor module, like the tunnel orcs against the lancers'
+`Upgrade_WildForgedBlades`, were already skipped by `canAcceptUpgrade`. They are now skipped one
+check earlier, and still nothing is charged.
 
 ## What is still unknown
 
@@ -443,8 +462,10 @@ open deliberately, and named here rather than in a commit message.
 - **What a repopulate costs now.** The merge asks `getCommandAvailability` up to twice per
   mismatched grouped slot, and the resolver walks the selection once per member per click. Both are
   event-driven rather than per-frame, and neither has been measured.
-- **Runtime confirmation.** Everything above is static. The rules are a reading of the machine code
-  and the tests are written from the same reading, so a wrong reading passes both; the honest claim
-  today is static-verified, not runtime-verified. The two things a live test would settle first are
+- **Runtime confirmation.** Everything above except the §9 refusal is static. The rules are a reading
+  of the machine code and the tests are written from the same reading, so a wrong reading passes
+  both. The refusal is the exception: Edain's engine test sends the click's own `0x415` with object
+  id 0 over a selection of axes and Veterans, and only the axes train. The two things a live test
+  would settle next are
   whether re-entering `INSTALL` really refreshes the button's image rather than leaving a stale
   icon, and whether the per-member rewrite charges each unit its own upgrade's price.

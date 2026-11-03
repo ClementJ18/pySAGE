@@ -17,7 +17,7 @@ import struct
 import pytest
 
 from sage_patch import BannerFilterPatch, apply_patches
-from sage_patch.patches.banner_filter import (
+from sage_patch.patches.units.banner_filter import (
     FIELD_ENTRY_SIZE,
     FIELD_TABLE_REF_VA,
     FIELD_TABLE_VA,

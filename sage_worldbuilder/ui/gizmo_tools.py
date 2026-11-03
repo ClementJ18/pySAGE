@@ -13,10 +13,11 @@ does, so nothing is lost by working in one of them.
   turns the selection by the Group Edit Method, and Lock Angle holds the turned object to the
   eight 45-degree headings.
 
-Both are drawn on a level plane through the ground at the gizmo's centre, never draped over the
-terrain: an arrow that followed the ground would bend over every ridge it crossed, and the ring
-would buckle, which says nothing about a move or a turn - the ground has no say in either. The
-plane is what a click picks against too, so a handle is grabbed exactly where it is drawn.
+Both are drawn on a level plane at the selection's height over the ground at the gizmo's centre,
+never draped over the terrain: an arrow that followed the ground would bend over every ridge it
+crossed, and the ring would buckle, which says nothing about a move or a turn - the ground has no
+say in either. The plane is what a click picks against too, so a handle is grabbed exactly where
+it is drawn, and it rises with the selection as the Z arrow lifts it.
 
 Each drag is one undo entry, and the status bar reads out how far it has gone.
 """
@@ -109,10 +110,17 @@ def _ring(view: ToolView, center: tuple[float, float], scale: float) -> list[tup
     ]
 
 
+def _lift(document: MapDocument | None) -> float:
+    """How far the selection stands above the ground: the selected objects' mean height, which
+    the map stores over the terrain. Areas lie on the ground."""
+    objects = selected_objects(document) if document is not None else []
+    return sum(obj.position[2] for obj in objects) / len(objects) if objects else 0.0
+
+
 def _plane(view: ToolView, center: tuple[float, float]) -> float:
-    """The height a gizmo is drawn at: the ground under its centre, held level across the whole
-    gizmo."""
-    return view.transform.ground(*center)
+    """The height a gizmo is drawn at: the ground under its centre raised to the selection,
+    held level across the whole gizmo, so a raised object keeps its gizmo on it."""
+    return view.transform.ground(*center) + _lift(view.document)
 
 
 class _GizmoTool(Tool):

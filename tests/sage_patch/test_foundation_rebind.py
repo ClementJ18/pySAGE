@@ -25,7 +25,7 @@ import struct
 import pytest
 
 from sage_patch import FoundationRebindPatch, apply_patches
-from sage_patch.patches.foundation_rebind import (
+from sage_patch.patches.structures.foundation_rebind import (
     ANCHORS,
     CASTLE_BEHAVIOR_VTABLE,
     CASTLE_KEEP_OFFSET,

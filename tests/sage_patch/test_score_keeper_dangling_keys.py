@@ -27,7 +27,7 @@ from sage_patch.addresses import (
     XFER_OBJECT_COUNT_MAP_UNKNOWN_THROW,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.score_keeper_dangling_keys import (
+from sage_patch.patches.platform.score_keeper_dangling_keys import (
     ANCHORS,
     HOOKS,
     SECTION_NAME,

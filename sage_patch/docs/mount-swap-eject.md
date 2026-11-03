@@ -19,7 +19,7 @@ contain the way death would.
   `EjectPassengersOnDeath` on the contain is the opt-in.
 - **Risk:** low. The cave only makes the two calls stock death makes, on the modules stock death
   would make them on, and skips any module that isn't an `OpenContain`.
-- **Status:** built ([`patches/mount_swap_eject.py`](../patches/mount_swap_eject.py)), statically
+- **Status:** built ([`patches/units/mount_swap_eject.py`](../patches/units/mount_swap_eject.py)), statically
   verified against the Edain install's `game.dat` and the stock one, and emulated.
   **Not runtime-verified.**
 

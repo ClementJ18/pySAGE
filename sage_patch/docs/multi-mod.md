@@ -151,7 +151,7 @@ built base-first is not a mod override at load time: within one file, first-wins
 
 ## 5. The fix
 
-Built as `multi-mod`, in [`patches/multi_mod.py`](../patches/multi_mod.py).
+Built as `multi-mod`, in [`patches/platform/multi_mod.py`](../patches/platform/multi_mod.py).
 
 A `.modmul` section carries a sixteen-entry table of `{kind, path[260]}` plus a count, and six
 sites are rewritten.

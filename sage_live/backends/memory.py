@@ -46,6 +46,8 @@ from sage_live.backends.identity import ROTWK_201_TIMESTAMP, BuildIdentity, read
 from sage_live.backends.protocol import Diagnostic, DiagnosticLog, Handshake
 from sage_live.backends.shroud import ShroudGrid, read_shroud
 from sage_patch.addresses import (
+    AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON,
+    AUTO_ABILITY_BEHAVIOR_VTABLE,
     BUILD,
     COMMAND_BUTTON_SPECIAL_POWER,
     DICT_SET_ASCII_STRING_BYTES,
@@ -56,6 +58,7 @@ from sage_patch.addresses import (
     KINDOF_HERO_BIT,
     KINDOF_HERO_BYTE,
     OBJECT_CONSTRUCTION_PERCENT,
+    OBJECT_KILLS,
     OBJECT_MODULE_LIST,
     OBJECT_PRODUCER_ID,
     OBJECT_STATUS,
@@ -63,6 +66,9 @@ from sage_patch.addresses import (
     OBJECT_STATUS_DWORDS,
     OBJECT_STATUS_NAMES,
     PRODUCTION_UPDATE_VTABLE,
+    RECORDER_MODE,
+    RECORDER_MODE_PLAYBACK,
+    RECORDER_PLAYBACK_PATH,
     SHROUD_CELL_SIZE,
     SHROUD_CELL_STRIDE,
     SHROUD_CELLS,
@@ -82,6 +88,7 @@ from sage_patch.addresses import (
     THE_IN_GAME_UI,
     THE_MESSAGE_STREAM,
     THE_PLAYER_LIST,
+    THE_RECORDER,
     THE_SCIENCE_STORE,
     THE_SHROUD_MANAGER,
     THE_SIDES_LIST,
@@ -204,6 +211,11 @@ class EngineLayout:
     player_structures_created: int = 0x4A4
     player_structures_lost: int = 0x4A8
 
+    # `TheRecorder`: whether it is playing a replay back, and which file.
+    the_recorder: int = THE_RECORDER
+    recorder_mode: int = RECORDER_MODE
+    recorder_playback_path: int = RECORDER_PLAYBACK_PATH
+
     # Alliances: each seat's side dict in `TheSidesList` lists its allies' `playerName`s under
     # `playerAllies`. Read statically; a list that does not decode yields no allies.
     the_sides_list: int = THE_SIDES_LIST
@@ -318,6 +330,11 @@ class EngineLayout:
     module_data_template: int = 0x08
     # A module list longer than this is a bad read; the spellbook carries about 140.
     max_modules: int = 1 << 10
+    # AutoAbilityBehavior: the power it casts (`SpecialAbility`, an AsciiString on its module
+    # data) and the button name it holds while auto-cast is on.
+    auto_ability_vtable: int = AUTO_ABILITY_BEHAVIOR_VTABLE
+    auto_ability_power: int = 0x18
+    auto_ability_button: int = AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON
 
     # Object
     obj_template: int = 0x04
@@ -358,6 +375,9 @@ class EngineLayout:
     # `obj_contained_by` is null and treats what it names as this object's horde, so a unit that
     # has left its battalion still points at it here - which is the whole reason it is read.
     obj_producer_id: int = OBJECT_PRODUCER_ID
+    # Enemies of another player this object has killed (`OBJECT_KILLS`). Past `obj_span`, so it
+    # is read on request by `kill_count` rather than with every object.
+    obj_kills: int = OBJECT_KILLS
     # A float, 0-100 while the structure is being built and -1 otherwise. Written to 0 where a
     # builder drops a foundation (`0x008AD86F`), advanced per frame and re-derived from the
     # body's health ratio by `GettingBuiltBehavior` (`0x00856809`) - see
@@ -1470,6 +1490,57 @@ class MemoryBackend:
                     SpecialPowerState(name, ready, self._required_sciences(template), duration)
                 )
         return tuple(found)
+
+    def kill_count(self, object_id: int) -> int | None:
+        """How many enemies one object has killed, by the engine's own count, or None when the id
+        is unknown or the read fails.
+
+        A battalion's count is the sum of its members', and the engine credits a kill to the
+        killer's producer first where the killer passes its experience on, so a summon whose
+        template does that scores for its summoner (`OBJECT_SCORE_KILL_COUNT`).
+        """
+        address = self._object_at.get(object_id)
+        if address is None:
+            return None
+        kills = self._i32(address + self.layout.obj_kills)
+        return kills if kills is not None and kills >= 0 else None
+
+    def replay_playback_path(self) -> str | None:
+        """The replay file the game is playing back, as the full path the recorder opened, or
+        None when it is not playing one back (a live match, the menus) or the read fails."""
+        lay = self.layout
+        recorder = self._pointer(lay.the_recorder)
+        if recorder is None or self._u32(recorder + lay.recorder_mode) != RECORDER_MODE_PLAYBACK:
+            return None
+        # MAX_PATH wide characters.
+        return self._utf16(recorder + lay.recorder_playback_path, limit=520) or None
+
+    def auto_cast_powers(self, object_id: int) -> frozenset[str]:
+        """The powers on one object that the engine is casting by itself right now: those of its
+        `AutoAbilityBehavior` modules whose auto-cast is switched on.
+
+        Switched on means the module holds a button name - `StartsActive = Yes`, or the player
+        toggling the button's auto-cast. Empty when there are none or the walk fails.
+        """
+        lay = self.layout
+        address = self._object_at.get(object_id)
+        modules = None if address is None else self._pointer(address + lay.obj_modules)
+        if modules is None:
+            return frozenset()
+        found: set[str] = set()
+        for index in range(lay.max_modules):
+            module = self._pointer(modules + index * 4)
+            if module is None:
+                break
+            if self._u32(module) != lay.auto_ability_vtable:
+                continue
+            if not self._ascii(module + lay.auto_ability_button):
+                continue
+            data = self._pointer(module + lay.module_data)
+            power = "" if data is None else self._ascii(data + lay.auto_ability_power)
+            if power:
+                found.add(power)
+        return frozenset(found)
 
     def _required_sciences(self, template: int) -> frozenset[int]:
         lay = self.layout

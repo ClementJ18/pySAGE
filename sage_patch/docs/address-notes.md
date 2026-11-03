@@ -794,7 +794,7 @@ the vtable slot below, and `BUILD_ASSISTANT_VTABLE` is the class's vtable (from 
 `TheBuildAssistant` is registered with), so a patch can assert the slot still names it.
 
 It walks the producer's `CommandSet` and branches on whether a revive index was passed. The
-labels below are the four points inside it that `patches/ai_revive_gate.py` needs; they are
+labels below are the four points inside it that `patches/ai/ai_revive_gate.py` needs; they are
 derived in `docs/ai-revive-gate.md`.
 
 ## `CAN_MAKE_UNIT_PRODUCTION_GATE`
@@ -806,7 +806,7 @@ through a *virtual self-call* on its own `this`, which is why a scan for a
 `TheBuildAssistant` global load followed by `call [reg+0x68]` cannot see it.
 
 So it is the edge that puts `canMakeUnit` on the player's path, and the return address it
-leaves on the stack is how `patches/ai_revive_gate.py` tells the AI's own queries apart from
+leaves on the stack is how `patches/ai/ai_revive_gate.py` tells the AI's own queries apart from
 everyone else's. Anchoring the call rather than naming the return address means a build whose
 layout moved fails loudly instead of comparing against a stale constant.
 
@@ -1500,7 +1500,8 @@ everything the exception record is missing.
 
 `..._MESSAGE_EBP` is the formatted crash text: allocated at `0x0043A91E` and filled with the
 current error record's expression, file and line followed by `..._TAG_EBP`'s literal. It is a
-heap pointer, so it is readable offline only in a dump that carries the heap.
+heap pointer; it is on `Debug::crash`'s stack frame, so a dump with
+`WithIndirectlyReferencedMemory` captures it without carrying the whole heap.
 `..._TAG_EBP` is one of two `.rdata` literals chosen at `DEBUG_CRASH_TAG_STORE` by `mode`, and
 `..._MODE_EBP` is `mode` itself - 1 for an assertion, anything else for an error.
 
@@ -1793,7 +1794,7 @@ reads the active map name, so without this the engine reloads whatever is alread
 
 `LifetimeUpdate`, the `ToggleMountedSpecialAbilityUpdate` whose swap and retire it borrows,
 and the `UpdateModule` contract both sit on. Derived in `docs/lifetime-extend-upgrade.md` and
-`docs/lifetime-transform.md`; read by `patches/lifetime_fields.py`, which imports them under
+`docs/lifetime-transform.md`; read by `patches/upgrades/lifetime_fields.py`, which imports them under
 shorter local names.
 `LifetimeUpdate::newModuleData`'s `push esi` / `push 0x18` / `call operator new`, and the
 `pop ecx` that cleans the argument, which is where the cave rejoins. Eight bytes for a
@@ -1803,7 +1804,7 @@ shorter local names.
 
 The `MapCache` INI block, the `MapMetaData` it parses into, and the lobby map list that
 turns that entry into a row. Derived in `docs/map-list-symbols.md`; read by
-`patches/map_list_symbols.py`, which imports them under shorter local names.
+`patches/multiplayer/map_list_symbols.py`, which imports them under shorter local names.
 The `MapCache` field-parse table: 24 rows of `{name, parseFn, userData, offset}` and a NULL
 terminator. `offset` is into the parse-time temporary, not into the `MapMetaData` the entry
 ends up as - `parseMapCacheDefinition` copies the one into the other field by field.

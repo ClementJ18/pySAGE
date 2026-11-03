@@ -21,7 +21,7 @@ the ability plumbing that can refuse to fire.
   `ModuleData` is not a `ToggleMountedSpecialAbilityUpdate`'s, so the patch asserts a layout rather
   than a type, and one call happens a step earlier than it does in stock (§7).
 - **Status:** **built** as `lifetime-fields`'s third keyword
-  ([`patches/lifetime_fields.py`](../patches/lifetime_fields.py)), applying and verifying against a
+  ([`patches/upgrades/lifetime_fields.py`](../patches/upgrades/lifetime_fields.py)), applying and verifying against a
   clean `game.dat`, with every site and anchor below asserted against it by
   [`tests/sage_patch/test_lifetime_fields.py`](../../tests/sage_patch/test_lifetime_fields.py).
   **Not runtime-verified.**
@@ -244,7 +244,7 @@ same eight bytes and rebuilds the same field table behind the same `push`. There
 this that is a separate patch and still obeys the repo's second and third composition rules — two
 patches adding keywords to one INI block compete for one table pointer, and `apply_byte_patch`
 raises on whichever runs second. So `LifetimeUpdate`'s `ModuleData` and field table have **one
-owner**, [`patches/lifetime_fields.py`](../patches/lifetime_fields.py), and each keyword is armed
+owner**, [`patches/upgrades/lifetime_fields.py`](../patches/upgrades/lifetime_fields.py), and each keyword is armed
 by its own declaration:
 
 | keyword | arms | costs when absent |

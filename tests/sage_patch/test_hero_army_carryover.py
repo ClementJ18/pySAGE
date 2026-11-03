@@ -18,8 +18,8 @@ import pytest
 from sage_ini.model.objects import REGISTRY
 from sage_ini.parser import parse
 from sage_patch import addresses as ad
-from sage_patch.patches.experimental import hero_army_carryover as hac
-from sage_patch.patches.experimental.hero_army_carryover import (
+from sage_patch.patches.campaign import hero_army_carryover as hac
+from sage_patch.patches.campaign.hero_army_carryover import (
     HELD_CAPACITY,
     KEYWORD,
     NAME_CAPACITY,
@@ -477,9 +477,9 @@ class TestTheFortressStillOffersHim:
 
 
 class TestRegistration:
-    def test_it_is_registered_and_experimental(self) -> None:
+    def test_it_is_registered_and_not_experimental(self) -> None:
         assert PATCHES["hero-army-carryover"] is HeroArmyCarryoverPatch
-        assert HeroArmyCarryoverPatch().experimental is True
+        assert HeroArmyCarryoverPatch().experimental is False
 
     def test_the_description_names_the_keyword_and_the_state_it_keeps(self) -> None:
         description = HeroArmyCarryoverPatch.description

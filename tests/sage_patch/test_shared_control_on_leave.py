@@ -54,6 +54,7 @@ from sage_patch.patches.experimental.shared_control_on_leave import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import shared_control_on_leave_image
 
 _RESET_SLOT = VICTORY_CONDITIONS_VTABLE + VICTORY_CONDITIONS_RESET_SLOT
@@ -579,7 +580,7 @@ class TestReset:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

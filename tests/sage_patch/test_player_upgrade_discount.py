@@ -22,7 +22,7 @@ from sage_patch.addresses import (
     UPGRADE_DISCOUNT_TYPE_BRANCH,
     UPGRADE_DISCOUNT_TYPE_BRANCH_BYTES,
 )
-from sage_patch.patches.player_upgrade_discount import (
+from sage_patch.patches.economy.player_upgrade_discount import (
     ENTRY_SIZE,
     SECTION_NAME,
     UPGRADE_TYPE_OBJECT,

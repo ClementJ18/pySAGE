@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -28,6 +29,7 @@ from sage_utils.textures import (
 )
 from sage_utils.widgets import (
     SourceLoader,
+    ThemeToggle,
     Worker,
     add_help_menu,
     card,
@@ -117,9 +119,13 @@ class WikiUpdater(
         root.setContentsMargins(20, 20, 20, 20)
         root.setSpacing(14)
 
+        header = QHBoxLayout()
         title = QLabel(f"{APP_TITLE}  v{__version__}")
         title.setFont(QFont("Segoe UI", 16, QFont.Weight.DemiBold))
-        root.addWidget(title)
+        header.addWidget(title)
+        header.addStretch(1)
+        header.addWidget(ThemeToggle())
+        root.addLayout(header)
 
         # Built before the cards (the sources card's loader reports to it); added to the
         # layout at the bottom, below the columns.

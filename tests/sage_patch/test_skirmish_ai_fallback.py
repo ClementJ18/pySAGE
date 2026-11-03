@@ -41,7 +41,7 @@ from sage_patch.addresses import (
     STATIC_NAME_KEY_KEY,
     THE_SIDES_LIST,
 )
-from sage_patch.patches.skirmish_ai_fallback import (
+from sage_patch.patches.ai.skirmish_ai_fallback import (
     ANCHORS,
     SECTION_NAME,
     SYNTHESISED,

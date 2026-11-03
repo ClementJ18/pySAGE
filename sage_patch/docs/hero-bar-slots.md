@@ -141,7 +141,7 @@ Fields `+0x1C8`, `+0x1CC`, `+0x1D0`, `+0x1D4`, `+0x1D8`, `+0x1D9`, `+0x1DA`, `+0
 `0x18`-byte block whose internal layout is unchanged; the whole block slides up by
 `(N-16)*0x18` (`0x78` at N=21, landing at `+0x240`…`+0x254`).
 
-The sites are listed in [`../patches/hero_bar_slots.py`](../patches/hero_bar_slots.py) as whole
+The sites are listed in [`../patches/ui/hero_bar_slots.py`](../patches/ui/hero_bar_slots.py) as whole
 stock instruction bytes rather than as "four bytes at a VA", so the assertion covers the opcode
 and ModRM too: a build where one of these is not what it was here is one whose class layout this
 patch must not assume.

@@ -24,7 +24,7 @@ from sage_patch.addresses import (
     UPGRADE_CENTER_FIND_UPGRADE_BY_KEY,
     UPGRADE_CENTER_FIND_UPGRADE_RESUME,
 )
-from sage_patch.patches.upgrade_alias import (
+from sage_patch.patches.upgrades.upgrade_alias import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

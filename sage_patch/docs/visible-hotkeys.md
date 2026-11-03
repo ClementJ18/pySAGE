@@ -1,6 +1,6 @@
 # Command-button shortcuts and hidden slots
 
-The RE behind [`patches/visible_hotkeys.py`](../patches/visible_hotkeys.py). ROTWK `game.dat`
+The RE behind [`patches/commandbar/visible_hotkeys.py`](../patches/commandbar/visible_hotkeys.py). ROTWK `game.dat`
 `2.01.2614.37001`, ImageBase `0x400000`. Read statically; the cave is executed under Unicorn in
 [`tests/sage_patch/test_visible_hotkeys.py`](../../tests/sage_patch/test_visible_hotkeys.py)
 against the engine's own getter and method bytes.

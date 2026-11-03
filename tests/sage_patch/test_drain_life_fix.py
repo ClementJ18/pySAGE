@@ -33,7 +33,7 @@ from sage_patch.addresses import (
     OBJECT_DELAYED_DAMAGE_NOW_CALL,
     OBJECT_DELAYED_DAMAGE_NOW_CALL_BYTES,
 )
-from sage_patch.patches.drain_life_fix import (
+from sage_patch.patches.combat.drain_life_fix import (
     ANCHORS,
     SECTION_NAME,
     STOCK_WINDOWS,

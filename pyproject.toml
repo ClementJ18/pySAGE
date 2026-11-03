@@ -49,6 +49,7 @@ sage-cah = "sage_cah.__main__:main"
 sage-patch = "sage_patch.__main__:main"
 sage-test = "sage_test.__main__:main"
 sage-verify = "sage_verify.__main__:main"
+sage-worldbuilder-mcp = "sage_worldbuilder.mcp_server.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / asset-ui / cah-ui).
 [project.gui-scripts]
@@ -118,6 +119,12 @@ worldbuilder = [
     "pillow>=10",  # terrain texture decoding
 ]
 
+# The map editor's MCP server (sage-worldbuilder-mcp); headless, so no Qt.
+worldbuilder-mcp = [
+    "mcp>=2.3",
+    "numpy>=2",
+]
+
 # Every extra above, by self-reference; tests/test_packaging.py checks none is missing.
 all = [
     "pysage-tools[ui]",
@@ -129,6 +136,7 @@ all = [
     "pysage-tools[w3d-view]",
     "pysage-tools[patch]",
     "pysage-tools[worldbuilder]",
+    "pysage-tools[worldbuilder-mcp]",
 ]
 
 [dependency-groups]

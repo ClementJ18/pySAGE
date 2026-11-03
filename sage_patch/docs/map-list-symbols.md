@@ -215,7 +215,7 @@ the same iteration.
 
 ## 5. The patch
 
-`map-list-symbols`, in [`../patches/map_list_symbols.py`](../patches/map_list_symbols.py). One
+`map-list-symbols`, in [`../patches/multiplayer/map_list_symbols.py`](../patches/multiplayer/map_list_symbols.py). One
 `.mapsym` cave, eight rewritten sites - nine with either sort option - no `.wnd` and no `.apt`
 change.
 

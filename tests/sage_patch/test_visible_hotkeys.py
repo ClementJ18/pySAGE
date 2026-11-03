@@ -18,7 +18,7 @@ from sage_patch.addresses import (
     GAME_WINDOW_GET_DATA,
     THE_COMMAND_SET_STORE,
 )
-from sage_patch.patches.visible_hotkeys import (
+from sage_patch.patches.commandbar.visible_hotkeys import (
     ANCHORS,
     CTOR_VTABLE_IMM_VA,
     HANDLER_VTABLE,

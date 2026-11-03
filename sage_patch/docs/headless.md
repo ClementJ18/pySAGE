@@ -8,9 +8,9 @@ statically — capstone over the image — and confirmed in game.
 - **Risk:** low. The draw interval starts at 1, so an applied patch that is passed none of its
   options behaves as stock (§3b). What is still unproven is the suppressed path itself — questions
   3 and 4 in [Open](#open).
-- **Status:** §3a–c **built** — see [`patches/headless.py`](../patches/headless.py) — and
+- **Status:** §3a–c **built** — see [`patches/platform/headless.py`](../patches/platform/headless.py) — and
   **runtime-verified in game**. §3d is not part of this patch: it shipped separately as
-  [`command-line-skirmish`](../patches/experimental/command_line_skirmish.py), derived in
+  [`command-line-skirmish`](../patches/platform/command_line_skirmish.py), derived in
   [`game-info.md`](game-info.md), which also answers question 2 in [Open](#open). §3e is
   **scoped only**.
 
@@ -274,7 +274,7 @@ present as literals). A cave can post GUI messages to a named control, which bec
 `-click MapSelectMenu.wnd:ButtonOK`. This is the only route that reaches multi-client LAN tests,
 and it is how EA drove it. It carries one hard precondition — see [Open](#open).
 
-**3 — Inject at the message stream.** Already solved: [`live_bridge`](../patches/experimental/live_bridge.py)
+**3 — Inject at the message stream.** Already solved: [`live_bridge`](../patches/diagnostics/live_bridge.py)
 hooks `GameLogic::update` and appends orders through the engine's own `appendMessage`, camera
 control included. Note the boundary — shell and APT buttons are not message-stream orders, so this
 covers the match and never the menus.

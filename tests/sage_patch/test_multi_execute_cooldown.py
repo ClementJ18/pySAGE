@@ -24,7 +24,7 @@ from sage_patch.addresses import (
     THE_IN_GAME_UI,
     WINDOW_CLEAR_STATUS,
 )
-from sage_patch.patches.multi_execute_cooldown import (
+from sage_patch.patches.special_powers.multi_execute_cooldown import (
     ANCHORS,
     AVAILABILITY_SITES,
     READY_SITES,

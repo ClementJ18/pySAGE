@@ -13,7 +13,11 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.os_name_fallback import ANCHORS, FALLBACK_BRANCH, OsNameFallbackPatch
+from sage_patch.patches.platform.os_name_fallback import (
+    ANCHORS,
+    FALLBACK_BRANCH,
+    OsNameFallbackPatch,
+)
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import _sparse_image

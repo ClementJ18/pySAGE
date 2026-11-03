@@ -32,7 +32,7 @@ import pytest
 
 from sage_ini.model.behaviors import AODHordeContain, HordeContain, HorseHordeContain
 from sage_patch import apply_patches
-from sage_patch.patches.banner_modifier import (
+from sage_patch.patches.units.banner_modifier import (
     APPLY_TO_MEMBERS,
     ASCII_STRING_DTOR,
     ASCII_STRING_PARSE_VA,

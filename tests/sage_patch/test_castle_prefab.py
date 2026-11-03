@@ -7,13 +7,13 @@ import struct
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches import castle_unpack_buttons as cb
-from sage_patch.patches import castle_unpack_clearance as cc
-from sage_patch.patches.castle_unpack_buttons import CastleUnpackButtonsPatch
-from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.patches.experimental import castle_prefab as cp
 from sage_patch.patches.experimental import map_transition as mt
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
+from sage_patch.patches.structures import castle_unpack_buttons as cb
+from sage_patch.patches.structures import castle_unpack_clearance as cc
+from sage_patch.patches.structures.castle_unpack_buttons import CastleUnpackButtonsPatch
+from sage_patch.patches.structures.castle_unpack_clearance import CastleUnpackClearancePatch
 from sage_patch.utils import file_offset, u32
 
 from .synthetic import _sparse_image

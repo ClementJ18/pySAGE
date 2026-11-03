@@ -79,7 +79,7 @@ from sage_patch.addresses import (  # noqa: E402
     UPGRADE_TEMPLATE_INDEX,
     UPGRADE_TEMPLATE_NEXT,
 )
-from sage_patch.patches.replacement_transfer import (  # noqa: E402
+from sage_patch.patches.upgrades.replacement_transfer import (  # noqa: E402
     FLAG_EXPERIENCE,
     FLAG_HEALTH,
     FLAG_PRODUCTION,

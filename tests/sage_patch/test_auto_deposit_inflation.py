@@ -38,7 +38,7 @@ from sage_patch.addresses import (
     PLAYER_FOR_EACH_TEAM_OBJECT,
     RESOURCE_MODIFIER_COUNT_CALLBACK,
 )
-from sage_patch.patches import auto_deposit_inflation as adi
+from sage_patch.patches.economy import auto_deposit_inflation as adi
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch import test_maintenance_cost as mc_test
 

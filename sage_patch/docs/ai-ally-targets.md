@@ -1,6 +1,6 @@
 # `AI_SPECIAL_POWER_ALLY_OBJECT` and `AI_SPECIAL_POWER_ALLY_STRUCTURE`: AI hooks that cast at own objects
 
-The reverse engineering behind [`patches/ai_ally_targets.py`](../patches/ai_ally_targets.py).
+The reverse engineering behind [`patches/ai/ai_ally_targets.py`](../patches/ai/ai_ally_targets.py).
 ROTWK `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, and the RotWK `Worldbuilder.exe`.
 Read statically on 2026-10-21 (the unit type) and 2026-10-22 (the structure type).
 

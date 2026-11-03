@@ -112,7 +112,7 @@ selection - which the stock beep already handles.
 ## 4. The patch
 
 Implemented in
-[`../patches/worldbuilder_object_typeahead.py`](../patches/worldbuilder_object_typeahead.py) as
+[`../patches/worldbuilder/worldbuilder_object_typeahead.py`](../patches/worldbuilder/worldbuilder_object_typeahead.py) as
 `worldbuilder-object-typeahead`.
 
 ### 4.1 The control - an in-place resource edit
@@ -235,7 +235,7 @@ identifiers.
 
 | piece | where |
 |---|---|
-| the patch | [`../patches/worldbuilder_object_typeahead.py`](../patches/worldbuilder_object_typeahead.py) |
+| the patch | [`../patches/worldbuilder/worldbuilder_object_typeahead.py`](../patches/worldbuilder/worldbuilder_object_typeahead.py) |
 | registry entry | `worldbuilder-object-typeahead`, author `officialNecro`, non-experimental |
 | tests | `tests/sage_patch/test_worldbuilder_object_typeahead.py`, against `worldbuilder_object_typeahead_image()` - the first synthetic stand-in that plants a resource |
 

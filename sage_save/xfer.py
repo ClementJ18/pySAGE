@@ -3,9 +3,10 @@
 `XferReader` is the byte-level layer the typed chunk decoders in `sage_save.chunks` are
 built on: a cursor over a chunk payload exposing the primitives from the GPL Generals
 `Xfer` base class (`Core/GameEngine/Source/Common/System/Xfer.cpp`) - versioned reads,
-little-endian scalars, and the two string encodings (uint8-length ASCII, uint8-count
-UTF-16LE). Only the primitives the current decoders need are implemented; the format is
-procedural, so a reader only ever needs the primitives a given chunk actually calls.
+little-endian scalars, and the two string encodings (ASCII and UTF-16LE, each with a
+uint8 length that escapes to a uint32 for long strings). Only the primitives the current
+decoders need are implemented; the format is procedural, so a reader only ever needs the
+primitives a given chunk actually calls.
 
 BFME nests composite blocks as `"KOLB" marker + uint32 absolute-end-offset`; `nested_block`
 reads that framing and returns the payload-relative end, so an object body can be sliced or
@@ -17,6 +18,35 @@ import io
 
 from sage_save.save import BLOCK_MARKER
 from sage_utils.stream import BinaryStream
+
+#: A string length below this rides as one byte; from it up the engine writes this byte and then
+#: the length as a uint32 (`XferSave::xferAsciiString` `0x00A1FD80`, `xferUnicodeString`
+#: `0x00A1FC7E`).
+LONG_STRING_ESCAPE = 0xFF
+
+
+def _write_string_length(stream: BinaryStream, length: int) -> None:
+    if length < LONG_STRING_ESCAPE:
+        stream.write_uchar(length)
+    else:
+        stream.write_uchar(LONG_STRING_ESCAPE)
+        stream.write_uint32(length)
+
+
+def write_ascii_string(stream: BinaryStream, text: str) -> None:
+    """Write `text` the way `xferAsciiString` saves it - the inverse of
+    `XferReader.ascii_string`."""
+    data = text.encode(stream.encoding)
+    _write_string_length(stream, len(data))
+    stream.write_bytes(data)
+
+
+def write_unicode_string(stream: BinaryStream, text: str) -> None:
+    """Write `text` the way `xferUnicodeString` saves it - the inverse of
+    `XferReader.unicode_string`."""
+    data = text.encode("utf-16-le")
+    _write_string_length(stream, len(data) // 2)
+    stream.write_bytes(data)
 
 
 class XferReader:
@@ -77,14 +107,19 @@ class XferReader:
     def real(self) -> float:
         return self._stream.read_float()
 
+    def _string_length(self) -> int:
+        length = self._stream.read_uchar()
+        return self._stream.read_uint32() if length == LONG_STRING_ESCAPE else length
+
     def ascii_string(self) -> str:
-        """`xferAsciiString`: uint8 length then that many bytes, no NUL."""
-        return self._stream.read_string()
+        """`xferAsciiString`: a string length (see `LONG_STRING_ESCAPE`) then that many bytes,
+        no NUL."""
+        return self._stream.read_bytes(self._string_length()).decode(self._stream.encoding)
 
     def unicode_string(self) -> str:
-        """`xferUnicodeString`: uint8 *character* count then that many UTF-16LE units."""
-        count = self._stream.read_uchar()
-        return self._stream.read_bytes(count * 2).decode("utf-16-le")
+        """`xferUnicodeString`: a *character* count (see `LONG_STRING_ESCAPE`) then that many
+        UTF-16LE units."""
+        return self._stream.read_bytes(self._string_length() * 2).decode("utf-16-le")
 
     def nested_block(self) -> int:
         """Read a BFME `"KOLB"` block header (marker + absolute end-offset) and return the

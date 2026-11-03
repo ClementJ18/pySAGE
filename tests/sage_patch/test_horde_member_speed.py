@@ -39,7 +39,7 @@ from sage_patch.addresses import (
     OBJECT_STATUS_HORDE_MEMBER,
     OBJECT_THING_TEMPLATE,
 )
-from sage_patch.patches.horde_member_speed import (
+from sage_patch.patches.units.horde_member_speed import (
     AGGREGATES,
     ANCHORS,
     DEFAULT_AGGREGATE,

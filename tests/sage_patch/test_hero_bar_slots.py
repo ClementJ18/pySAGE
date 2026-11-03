@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.hero_bar_slots import (
+from sage_patch.patches.ui.hero_bar_slots import (
     CLASS_SIZE_SITE,
     COUNT_SITES,
     FIELD_SITES,

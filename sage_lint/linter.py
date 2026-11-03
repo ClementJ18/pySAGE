@@ -116,7 +116,9 @@ def _load_with_manifest(
     return load_game(root, game=game, engine=engine), vroot, manifest_include_files(data)
 
 
-def _include_in_base(diagnostic: Diagnostic, mod_ini_root: Path, base_files: frozenset[str]) -> bool:
+def _include_in_base(
+    diagnostic: Diagnostic, mod_ini_root: Path, base_files: frozenset[str]
+) -> bool:
     """Whether an `unresolved-include` names a file the base game has: the include's target,
     taken relative to the including file's folder the way the engine resolves it, then made
     `ini_root`-relative, is one of `base_files`. Such an include is fine - the file is in the
@@ -383,7 +385,9 @@ def build_cache(
                 diagnostics = lint_game(loaded, rules, (*exclude, vroot))
                 mod_ini_root = ini_root(Path(root))
                 diagnostics.items = [
-                    d for d in diagnostics.items if not _include_in_base(d, mod_ini_root, base_files)
+                    d
+                    for d in diagnostics.items
+                    if not _include_in_base(d, mod_ini_root, base_files)
                 ]
             else:
                 loaded = load_game(root, engine=engine)

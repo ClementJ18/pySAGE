@@ -21,6 +21,12 @@ class TestLaunchArguments:
         assert arguments[0].endswith("game.dat")
         assert arguments[1:3] == ["-file", "maps\\x.map"]
 
+    def test_no_file_starts_at_the_main_menu(self):
+        """Loading a save goes through the menu, so a launch for it names no map."""
+        arguments = launch_arguments(None, "C:/RotWK/game.dat", windowed=False)
+        assert "-file" not in arguments
+        assert arguments[0].endswith("game.dat")
+
     def test_no_mod_argument_unless_asked_for(self):
         assert "-mod" not in launch_arguments("m.map", "C:/RotWK/game.dat")
 

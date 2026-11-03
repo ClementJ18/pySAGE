@@ -30,16 +30,17 @@ from sage_patch.addresses import (
     W3D_MODEL_DRAW_SET_MODEL_STATE,
     W3D_MODEL_DRAW_SET_MODEL_STATE_HOOK,
 )
-from sage_patch.patches.model_condition_images import (
+from sage_patch.patches.ui.model_condition_images import (
     ANCHORS,
     HOOKS,
     SECTION_NAME,
     ModelConditionImagesPatch,
     build_code,
 )
-from sage_patch.patches.object_image_upgrade import ObjectImageUpgradePatch
+from sage_patch.patches.ui.object_image_upgrade import ObjectImageUpgradePatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, jmp_rel32, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import model_condition_images_image
 
 
@@ -412,7 +413,7 @@ class TestStateChange:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

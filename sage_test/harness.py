@@ -72,14 +72,14 @@ def bind_handles(
             for obj in observation.objects
             if obj.object_id not in claimed
             and obj.template_name.lower() == placement.template.lower()
-            and _distance_2d(obj.position, placement.at) <= tolerance
+            and _distance_2d(obj.position, placement.live_at) <= tolerance
         ]
         if not candidates:
             raise BindingError(
-                f"placement {index} ({placement.template} at {placement.at}) matched no live "
+                f"placement {index} ({placement.template} at {placement.live_at}) matched no live "
                 f"object within {tolerance} - it may have died, or never been created"
             )
-        nearest = min(candidates, key=lambda obj: _distance_2d(obj.position, placement.at))
+        nearest = min(candidates, key=lambda obj: _distance_2d(obj.position, placement.live_at))
         claimed.add(nearest.object_id)
         bindings[index] = nearest.object_id
     return bindings

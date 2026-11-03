@@ -1,6 +1,6 @@
 # Hero recruitment blocks the queue behind it — reverse-engineering notes
 
-The RE behind [`patches/hero_recruit_parallel.py`](../patches/hero_recruit_parallel.py). ROTWK
+The RE behind [`patches/economy/hero_recruit_parallel.py`](../patches/economy/hero_recruit_parallel.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-22.
 
 ## The report

@@ -116,10 +116,13 @@ def test_select_moves_reshapes_renames_and_deletes_areas(window):
 
     drag(window, [(500.0, 500.0)])
     assert not selection
+    # The inside is left free, so stacked areas can each be picked: only the outline selects.
     drag(window, [(250.0, 150.0)])
+    assert not selection
+    drag(window, [(250.0, 100.0)])
     assert selection.items == (area,)
 
-    drag(window, [(250.0, 150.0), (260.0, 150.0), (270.0, 160.0)])
+    drag(window, [(250.0, 100.0), (260.0, 100.0), (270.0, 110.0)])
     assert area.points == [(120.0, 110.0), (320.0, 110.0), (320.0, 310.0)]
 
     drag(window, [(320.0, 310.0), (330.0, 330.0), (350.0, 350.0)])
@@ -148,19 +151,19 @@ def test_areas_and_waypoints_the_view_hides_cannot_be_picked(window):
         drag(window, [point])
     (area,) = map.trigger_areas.trigger_areas
     window.waypoint_tool_action.trigger()
-    drag(window, [(250.0, 150.0)])
+    drag(window, [(250.0, 100.0)])
     (waypoint,) = map.objects_list.object_list
     window.select_tool_action.trigger()
     selection = window.document.selection
     options = window.map_view.options
 
     options.show_waypoints = False
-    drag(window, [(250.0, 150.0)])
+    drag(window, [(250.0, 100.0)])
     assert selection.items == (area,)
 
     options.show_areas = False
     selection.clear()
-    drag(window, [(260.0, 150.0)])
+    drag(window, [(260.0, 100.0)])
     assert not selection
     drag(window, [(300.0, 300.0), (350.0, 350.0)])
     assert area.points[2] == (300.0, 300.0)
@@ -168,10 +171,10 @@ def test_areas_and_waypoints_the_view_hides_cannot_be_picked(window):
     assert not selection
 
     options.show_waypoints = True
-    drag(window, [(250.0, 150.0)])
+    drag(window, [(250.0, 100.0)])
     assert selection.items == (waypoint,)
 
     options.show_waypoints = False
     window.waypoint_tool_action.trigger()
-    drag(window, [(250.0, 150.0)])
+    drag(window, [(250.0, 100.0)])
     assert len(map.objects_list.object_list) == 2

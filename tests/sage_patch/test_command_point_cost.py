@@ -40,7 +40,7 @@ from sage_patch.addresses import (
     INI_PARSE_BOOL,
     INI_PARSE_UNSIGNED_SHORT,
 )
-from sage_patch.patches.command_point_cost import (
+from sage_patch.patches.economy.command_point_cost import (
     ANCHORS,
     AVAILABILITY_BUTTON_EBP,
     AVAILABILITY_HOOK_STOCK,
@@ -62,7 +62,7 @@ from sage_patch.patches.command_point_cost import (
     build_table,
     entry_points,
 )
-from sage_patch.patches.multi_execute_gate import (
+from sage_patch.patches.special_powers.multi_execute_gate import (
     GATE_A_CALL_VA,
     GATE_A_WINDOW,
     GATE_B_CALL_VA,

@@ -4,7 +4,7 @@ A War of the Ring battle often has more armies in it than fight from the start. 
 **reinforcements**, each behind a banner the player clicks to bring it in. Nothing a map script
 could do reached that mechanism: the one action that names it, `CALL_IN_REINFORCEMENTS_WITHOUT_MOVIE`
 (543), is a stub (see [`dead-script-actions.md`](dead-script-actions.md)). This page traces the
-mechanism end to end, and [`call-in-reinforcements`](../../patches/call_in_reinforcements.py)
+mechanism end to end, and [`call-in-reinforcements`](../../patches/campaign/call_in_reinforcements.py)
 gives action 543 a body built on it.
 
 ## The roster state

@@ -45,6 +45,7 @@ from sage_save.chunks import (
     ScriptCounter,
     ScriptEngineState,
     ScriptFlag,
+    SequentialScript,
     SmallChunk,
     TacticalView,
     TeamFactory,
@@ -81,6 +82,7 @@ from sage_save.chunks import (
     living_world_object_templates,
     object_modules,
     object_veterancy_level,
+    object_weapon_set_flags,
     set_object_position,
 )
 from sage_save.coverage import (
@@ -176,6 +178,7 @@ __all__ = [
     "ScriptCounter",
     "ScriptEngineState",
     "ScriptFlag",
+    "SequentialScript",
     "SmallChunk",
     "TacticalView",
     "TeamFactory",
@@ -237,6 +240,7 @@ __all__ = [
     "nested_block_tree",
     "object_modules",
     "object_veterancy_level",
+    "object_weapon_set_flags",
     "iter_objects",
     "parse_save",
     "parse_save_from_path",

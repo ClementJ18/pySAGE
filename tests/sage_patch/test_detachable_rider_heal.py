@@ -28,7 +28,7 @@ import pytest
 
 from sage_patch import TerrainResourceExpPatch, apply_patches
 from sage_patch.addresses import FIELD_PARSE_STRIDE, INI_PARSE_REAL
-from sage_patch.patches.detachable_rider_heal import (
+from sage_patch.patches.units.detachable_rider_heal import (
     ANCHORS,
     BASE_ATTEMPT_DAMAGE,
     DEFAULT_KEYWORD,
@@ -57,6 +57,7 @@ from sage_patch.patches.detachable_rider_heal import (
     validate_keyword,
 )
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.test_terrain_resource_exp import (
     plant_sites as plant_terrain_resource_sites,
 )
@@ -421,13 +422,12 @@ def test_it_composes_with_the_other_field_adder(tmp_path: Path) -> None:
             assert patch.verify(result) == []
 
 
-#: Both copies a checkout can hold. The repo-root `game.dat` carries eleven modifications and is
-#: **not** stock, so a site is only safe to describe as stock when it agrees with the clean
-#: `sage_patch/engine/game.dat.backup` - and none of this patch's does anything else. Neither
-#: binary is committed (both are gitignored), so each check skips when its file is absent.
+#: Both copies a checkout can hold: the repo root's `game.dat`, and the unpatched one
+#: `tests.binaries` names (the same file unless `PYSAGE_ROTWK_GAME_DAT` gives another). Neither
+#: is committed, so each check skips when its file is absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

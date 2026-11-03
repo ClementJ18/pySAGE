@@ -169,7 +169,7 @@ exactly as it is today — which is precisely the "same template, two provenance
 227 are.
 
 Both are defensible; they differ in policy, not in engineering. **`summon-carryover`
-([`../../patches/summon_carryover.py`](../../patches/summon_carryover.py))
+([`../../patches/campaign/summon_carryover.py`](../../patches/campaign/summon_carryover.py))
 implements the unconditional rule**: `ARMY_SUMMARY` means comes home, the flag a mod already
 sets is the whole opt-in, and no slot rename or Worldbuilder twin is needed. Adding the gate
 later is a two-instruction change to the same cave, so nothing about that choice is closed off.

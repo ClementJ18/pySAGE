@@ -117,6 +117,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "headless patch on game.dat",
     )
     group.addoption(
+        "--script-debug",
+        action="store_true",
+        help="launch every game with -scriptDebug2, so what the Lua scripts print shows in the "
+        "script debug window",
+    )
+    group.addoption(
         "--shard",
         action="store",
         default=None,
@@ -208,7 +214,10 @@ def _worker_id(config: pytest.Config) -> str:
 
 def _engine_args(config: pytest.Config) -> tuple[str, ...]:
     """What every launch adds to the command line for the options this run was given."""
-    return ("-renderEvery", "0") if config.getoption("--headless") else ()
+    arguments: tuple[str, ...] = ("-renderEvery", "0") if config.getoption("--headless") else ()
+    if config.getoption("--script-debug"):
+        arguments += ("-scriptDebug2",)
+    return arguments
 
 
 @pytest.fixture(scope="session")

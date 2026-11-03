@@ -40,7 +40,7 @@ from sage_patch.addresses import (
     THE_COMMAND_SET_STORE,
     THE_GAME_LOGIC,
 )
-from sage_patch.patches.ai_plot_autobuild import (
+from sage_patch.patches.ai.ai_plot_autobuild import (
     AUTO_BUILD_OFFSET,
     INITIAL_DELAY_OFFSET,
     INSTANCE_SIZE,

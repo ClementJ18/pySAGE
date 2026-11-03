@@ -128,6 +128,13 @@ build-independent: the render thread, `TextureThreads`, `TextureCache`, `FileRea
 `render-rate` still has to provide the higher frame rate. The two must not both be active if that
 ever changes, because each moves the client rate.
 
+**That changed with the fork's `edain-compat` build (2026-10-24):** each engine part now checks
+the bytes at its own sites (`[Engine] PatchedBuild`), and `FpsLimit = 60` with `LogicHz = 30` runs
+on Edain. Its render-only frames draw without advancing the client frame, and what that breaks
+(rocking vehicles, scripted camera rotation) is fixed by `render-only-frames`
+([`render-only-frames.md`](render-only-frames.md)). The spellbook race is fixed by
+`spell-store-deferral`. Do not build `render-rate` into the same binary.
+
 ### 4.2 `d3d9.dll` rewrites the device's vtable on every `BeginStateBlock`
 
 The device's vtable is a heap copy beside the device (`device 3D0FFF40`, `vtable 3D102E9C`), and

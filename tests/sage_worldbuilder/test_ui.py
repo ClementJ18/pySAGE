@@ -16,7 +16,7 @@ pytestmark = pytest.mark.full
 
 pytest.importorskip("PyQt6", reason="the [worldbuilder] extra (PyQt6) is not installed")
 
-from PyQt6.QtCore import QRect, QSize  # noqa: E402
+from PyQt6.QtCore import QRect, QSize, Qt  # noqa: E402
 from PyQt6.QtGui import QKeySequence  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QDialog, QMenu  # noqa: E402
 
@@ -334,7 +334,6 @@ def test_the_view_menu_is_grouped_into_submenus(window):
     for name, action in window.view_actions.items():
         assert placed.count(action) == 1, name
     panels = _menu_named(menu, "&Panels")
-    assert window.status_bar_action in panels.actions()
     for dock in window._docks():
         assert dock.toggleViewAction() in panels.actions(), dock.windowTitle()
 
@@ -425,18 +424,18 @@ def test_scripts_open_as_a_window_over_the_editor(window):
 
 def test_named_layouts_save_load_and_delete(window):
     assert not window.load_layout_menu.isEnabled()
-    window.map_dock.hide()
-    window.store_named_layout("No map & more")
+    window.palette_dock.hide()
+    window.store_named_layout("No palette & more")
     window.reset_layout()
-    assert not window.map_dock.isHidden()
+    assert not window.palette_dock.isHidden()
 
     [action] = window.load_layout_menu.actions()
-    assert action.text() == "No map && more"
+    assert action.text() == "No palette && more"
     action.trigger()
-    assert window.map_dock.isHidden()
-    assert Settings.load().layouts.keys() == {"No map & more"}
+    assert window.palette_dock.isHidden()
+    assert Settings.load().layouts.keys() == {"No palette & more"}
 
-    window.delete_named_layout("No map & more")
+    window.delete_named_layout("No palette & more")
     assert not window.load_layout_menu.isEnabled()
     assert not window.delete_layout_menu.actions()
     assert not Settings.load().layouts

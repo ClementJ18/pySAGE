@@ -24,7 +24,7 @@ import pytest
 
 from sage_patch import MultiExecuteGatePatch, apply_patches
 from sage_patch.addresses import GET_FINAL_OVERRIDE, GUI_COMMAND_SPECIAL_POWER
-from sage_patch.patches.multi_execute_gate import (
+from sage_patch.patches.special_powers.multi_execute_gate import (
     COMMAND_BUTTON_SPECIAL_POWER_OFFSET,
     DISABLED,
     FIND_COMMAND_SET_VA,

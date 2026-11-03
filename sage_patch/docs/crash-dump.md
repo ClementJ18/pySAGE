@@ -6,8 +6,9 @@ the engine writes today, what six real dumps actually contain, and the five stag
 split into — is in [`crash-dump-quality.md`](crash-dump-quality.md). This document is what the
 patch does.
 
-**Verdict:** two windows and one cave. The dump gains the whole SAGE heap and loses the video
-driver's 20 MB, and the engine's own assert text arrives in the exception record. Nothing else
+**Verdict:** two windows and one cave. The dump gains thread names, the memory map and the memory
+around every stack pointer, loses the video driver's 20 MB, and the engine's own assert text
+arrives in the exception record. The whole SAGE heap is one `debug.fulldump +` away. Nothing else
 about the game changes: both hooked sites are reached only from code that runs after a crash.
 
 ## 1. The two defects, restated
@@ -68,21 +69,29 @@ code used `eax`/`ecx`/`edx`.
 | `0x0020` | `WithUnloadedModules` | a return address into a DLL that already went away resolves |
 | `0x0040` | `WithIndirectlyReferencedMemory` | a window around every pointer-shaped stack value |
 | `0x0100` | `WithProcessThreadData` | process create time and uptime in `MiscInfo` |
-| `0x0200` | `WithPrivateReadWriteMemory` | **the heap** — committed private RW pages, no images |
 | `0x0800` | `WithFullMemoryInfo` | the VA map, so a freed pointer is distinguishable from a live one |
 | `0x1000` | `WithThreadInfo` | thread start addresses, so the logic thread is identifiable |
 
-`0x1B65` in total, and `0x1B67` — the same plus `WithFullMemory` — when `fulldump` is on.
+`0x1965` in total, and `0x1967` — the same plus `WithFullMemory` — when `fulldump` is on.
 
-`0x0200` is in the normal profile, not only the deep one, because it is what the acceptance test
-for this patch asks for: following a singleton to the object it names has
-to work on an ordinary crash, not only on one somebody predicted. `WithIndirectlyReferencedMemory`
-does not get there on its own — it walks the *stack*, and the six observed dumps carry 33 KB of
-stack in total across 33 threads.
+**The heap is not in the normal profile.** It was, as `0x0200` (`WithPrivateReadWriteMemory`,
+default `0x1B65`), so that a singleton could be followed to the object it names on any crash. The
+first mid-game crash with it wrote a **1.46 GB** dump (2026-11-01): 1,128 MB of ordinary private
+pages in a handful of 30–170 MB blocks (memory pools, D3D9's system-memory copies of managed
+textures and buffers), 120 MB of write-combined GPU-mapped buffers, and about 2 MB of what a
+debugger reads — stacks, `game.dat` globals, the streams above. Dumps land in the install root and
+nothing removes them, so that cost lands on every player on every crash. The 2003 `dbghelp` has no
+`RemoveMemoryCallback` to trim it from inside the dump either.
 
-Both values are patch parameters (`--dump-type`, `--deep-dump-type`), and the constructor refuses
-any profile carrying neither `0x0002` nor `0x0200`, because such a profile installs the patch and
-fixes nothing.
+So the heap moved to the deep profile, which a `game.dbgcmd` line (`debug.fulldump +`) selects on
+a machine that is reproducing a crash on purpose. What the normal profile still reaches without
+it is what `WithIndirectlyReferencedMemory` captures: a window around every pointer-shaped value
+on every stack, which includes the crash text pointer in `Debug::crash`'s frame (section 4).
+
+Both values are patch parameters (`--dump-type`, `--deep-dump-type`). The constructor refuses a
+normal profile equal to the stock `0x0001` (the patch would install and change nothing), and a
+deep profile carrying neither `0x0002` nor `0x0200` (a fulldump that still holds no heap).
+`--dump-type 0x1b65` brings the heap back to every dump for a build that wants it.
 
 ### The `dbghelp.dll` question
 
@@ -113,8 +122,8 @@ mov  eax, 1 ; ret 12
 high half. Both halves are tested, so a module loaded above 4 GB cannot pass by accident.
 
 `ModuleWriteModule` (`0x01`) is left set, so a filtered module still appears in the module list
-with its name, version and load address — only its globals are dropped. That is the 20 MB, and it
-is what pays for `0x0200`: the dump gets **more useful and smaller** at the same time.
+with its name, version and load address — only its globals are dropped. That is the 20 MB, which
+leaves a normal dump at a few MB against the stock 21–27 MB.
 
 Every other callback type gets `TRUE` with the flags untouched, which is what "no opinion" looks
 like. Both pointers are null-tested, there is no loop, no call and no backward branch: the routine
@@ -153,9 +162,12 @@ and line included. `0x0043AC2A` reads it five instructions earlier on the same p
 says it is live rather than uninitialised; the only two branches that reach the raise
 (`0x0043AB48` and `0x0043AC1F`) both come from past the point where both slots are assigned.
 
-Because the message is a heap pointer, this half is only readable in a dump that carries the heap.
-**The two halves of this patch need each other**, which is why they ship as one. The `.rdata`
-literal in slot 1 is readable either way, and already separates an assertion from an error.
+The message is a heap pointer, and the normal profile carries no heap. It is still reachable:
+`[ebp-4]` sits in `Debug::crash`'s frame on the crashing thread's stack, and
+`WithIndirectlyReferencedMemory` captures a window around every pointer-shaped stack value. A very
+long message can run past that window and come back cut short; a fulldump carries all of it. The
+`.rdata` literal in slot 1 is readable either way, and already separates an assertion from an
+error. (Not yet confirmed on a real crash with the `0x1965` profile.)
 
 A minidump stores `ExceptionInformation[]` in full — fifteen slots — so nothing here is truncated,
 and `sage_patch/engine/dump.py` can print all three without symbols.
@@ -196,14 +208,17 @@ doing beside this patch:
 
 - **A `CommentStreamA` user stream** (stage 3 of the scoping notes). `UserStreamParam` stays
   `NULL`. Collecting the frame number, map name and seat list means a chain of defensive
-  dereferences through logic state that is by construction already broken, and with the heap in
-  the dump most of it is recoverable offline anyway.
+  dereferences through logic state that is by construction already broken, and a fulldump makes
+  most of it recoverable offline anyway.
 - **The file's name and location** (stage 5). Dumps still land in the process working directory
   under `Program Files (x86)` with a name carrying no exception code, and `MiniDumpWriteDump`'s
   return value is still discarded, so a truncated dump still looks like a real one.
-- **An arena walk.** With `WithPrivateReadWriteMemory` the whole heap is captured, so the
-  `MemoryCallback` the notes describe — and the `TheMemoryPoolFactory` reverse engineering it
-  needs — buys nothing this patch does not already have.
+- **Targeted heap ranges.** The `MemoryCallback` the notes describe could add a fixed window
+  around each known singleton object (`TheGameLogic`, `ThePlayerList`, ...) to a normal dump for a
+  few hundred KB, keeping most of the "follow the pointer" value without the gigabyte. Not built:
+  it is more code running inside a crashed process, and a fulldump covers the reproducible case.
+- **Pruning old dumps.** Nothing deletes earlier dumps from the install root. At a few MB each
+  that is tolerable; a keep-the-newest-N step would be more file handling at crash time.
 
 ## 8. Blast radius
 
@@ -232,6 +247,6 @@ counts the pushes on each hook against the window it replaced, and — against t
 `game.dat` — checks every stock byte and that nothing branches into either window's interior.
 
 ```sh
-sage-patch apply crash-dump --in game.dat.backup --out game.dat   # defaults 0x1b65 / 0x1b67
+sage-patch apply crash-dump --in game.dat.backup --out game.dat   # defaults 0x1965 / 0x1967
 sage-patch verify crash-dump game.dat
 ```

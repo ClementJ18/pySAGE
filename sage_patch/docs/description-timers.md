@@ -27,7 +27,7 @@ function, and it is not part of this patch.
   INI keyword, no `.sagepatch` entry, no `.apt`, no `.csf` the engine requires.
 - **Risk:** low. Client-local tooltip text, the same blast radius as `upgrade-description`.
 - **Status: implemented as `description-timers`**
-  ([`../patches/description_timers.py`](../patches/description_timers.py)), applying, verifying and
+  ([`../patches/ui/description_timers.py`](../patches/ui/description_timers.py)), applying, verifying and
   detecting against the real `game.dat` and composing in either order with `upgrade-description`.
   **Seen in a running game** (Edain Unchained, Rohan, 2026-09-11) on upgrade buttons, which is what
   found the object-scope defect §3.3 now records; the rest of §10 is still what a live test has to
@@ -341,7 +341,7 @@ patch**: it is the one part of this design whose failure mode is a UI artefact n
 from the disassembly, and it does not have to ship for the rest to be useful. Build it after §10's
 item 4 has been seen once.
 
-## 3. The three timers
+## 3. The four timers
 
 The cave dispatches on `CommandButton+0x14`, the same value the builder's own chain reads.
 
@@ -600,25 +600,44 @@ The object to ask is the builder's own object slot, `ebp-0x1c` — the same one 
 `Object::hasUpgrade` at `0x00808197`. With nothing selected the arm keeps the line: an unanswerable
 question is not an answer of "researched".
 
-### 3.4 Heroes — named, not covered
+### 3.4 A hero's recruit or revive time
 
-A `REVIVE` button's ThingTemplate would answer `0x0073C39E` happily, and the answer would be wrong.
-A hero's time comes from the player's hero ledger at `Player+0x758`: `0x008A04DA`'s kind-3 arm calls
-`0x00780B72`, which reaches `0x00780687`, which starts from `calcTimeToBuild` at `0x007806DF` and
-then applies the `ProductionModifier`'s **hero** time multiplier (vtable slot `+0x74`, selected by
-the ledger entry's revive-versus-purchase bool at `+0xB0`). Reaching the ledger entry from a button
-means resolving the hero id first, which is a different lookup than any of the three above.
+A hero is recruited by a `REVIVE` button, and its time comes from the player's hero ledger at
+`Player+0x758`, not from a template's `BuildTime`. The production queue's kind-3 arm
+(`0x008A0501`) calls `ReviveMgr::calcTimeToBuild(index, producer)` (`0x00780B72`, `ret 8`), which
+reaches `0x00780687`:
 
-Out of scope, and cheap to keep out — **using the engine's own test rather than a GUI-command
-list**. `0x0080774E`, the routine the builder calls to decide whether this button describes a hero
-at all, opens with `test byte [template+0x11f], 0x40` and answers no when it is clear. The unit arm
-asks the same question of the same byte and declines. That is better than enumerating revive
-commands for two reasons: it is the question actually being asked, and if the bit turns out to mean
-something narrower than "hero", the failure is a **missing** line rather than a wrong number.
+```
+007806d2  push [esi+0xac]          ; the entry's own time override
+007806da  push 0                   ; no Object
+007806dc  push [ebp+8]             ; the Player
+007806df  call 0x0073c39e          ; ThingTemplate::calcTimeToBuild of the hero's template
+007806e8  mulss xmm0, [ebp-4]      ; x the ProductionModifier hero multiplier (slot +0x74,
+                                   ;   picked by the entry's revive-versus-purchase bool at +0xB0)
+```
 
-It is the obvious second patch, and
-[`construction-speed-modifiers.md`](construction-speed-modifiers.md) §2.2 is the standing warning
-about assuming the hero path works like the other two.
+`0x00780B72` also applies the skirmish AI's handicap when the player is an AI. It returns 0 for an
+index with no entry. It passes `producer` straight to `Object::getControllingPlayer`, so a null
+producer would crash.
+
+The button names its entry itself. `CommandButton+0xC0` is the ledger index the ControlBar's revive
+populate attached to it, and it is the one the builder's own REVIVE case reads at `0x008083FE`. So
+the arm is:
+
+1. dispatch on `[button+0x14] == REVIVE` **before** the special-power, upgrade and unit arms;
+2. skip when `+0xC0` is negative (no hero behind the button) or there is no object (`ebp-0x1c`);
+3. `eax = (Player+0x758)->calcTimeToBuild(+0xC0, object)`, and emit `TOOLTIP:BuildTime` unless it
+   is `<= 0`.
+
+The REVIVE test has to come first because of `revive-object-binding`. A bound REVIVE button sets
+`Object` to its hero, so it carries a `ThingTemplate`, and the unit arm would print that template's
+`BuildTime`, without the hero multiplier or the entry's override.
+
+The unit arm still declines a template with `KindOf CREATE_A_HERO` (`test byte [template+0x11f],
+0x40`, byte `+0x17` of the mask at `+0x108`, the bit `0x0080774E` dispatches the rank line on). That
+bit is `CREATE_A_HERO`, not `HERO` (`explore.py enum KindOf`). A unit-build button for an ordinary
+hero template is timed by the unit arm, and that is correct, because the queue times a kind-1 entry
+with `0x0073C39E` too.
 
 ## 4. Remaining, for a thing in a queue
 
@@ -729,7 +748,6 @@ this design otherwise cannot produce.
 
 ## 8. Out of scope, named
 
-- **Hero revive and recruit timings** (§3.4).
 - **`SharedSyncedTimer = Yes` powers** (three templates in the shipped INI, none of them a
   spellbook spell): their cooldown is a `Player`-side list node, and the remaining readout falls
   back to the full duration for them rather than reading a module field they never wrote (§3.1.2).
@@ -802,7 +820,9 @@ If any of those moved, the transcription is not this build's.
    `DozerAIUpdate` state machine then runs.
 8. **A spellbook button with nothing selected, and again with an unrelated unit selected**, which
    is the §3.1.2 walk: both must print the same number, and it must count down after a cast.
-9. **A hero revive button prints no line**, which is §3.4 being kept out rather than being wrong.
+9. **A hero's REVIVE button prints the time the queue then takes** (§3.4), for a first recruit
+   and again after the hero has died. Check both a positional button and one bound by
+   `revive-object-binding`.
 10. **A `WeaponModeSpecialPowerUpdate` ability counts down** — Pippin's *Neugier des Narren* is the
     case that produced §3.1.1 — and a **passive ability prints no line at all**, which is §3.1.3.
     Those two are the fixes this document's second pass exists for, so they are the two a live run

@@ -10,7 +10,7 @@ import pytest
 
 from sage_patch import AutoDepositInflationPatch, MaintenanceCostPatch, ShareExperienceAllPatch
 from sage_patch.addresses import SHARE_EXPERIENCE_DISPATCH, SHARE_EXPERIENCE_DISPATCH_BYTES
-from sage_patch.patches import share_experience_all as share
+from sage_patch.patches.combat import share_experience_all as share
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.test_maintenance_cost import synthetic_image

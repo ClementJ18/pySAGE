@@ -3,7 +3,7 @@
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read from
 `sage_patch/engine/game.dat.backup` — the clean reference, not the repo-root
 `game.dat`. This is the writeup for the **`auto-deposit-inflation`** patch,
-[`patches/auto_deposit_inflation.py`](../patches/auto_deposit_inflation.py), with the tests in
+[`patches/economy/auto_deposit_inflation.py`](../patches/economy/auto_deposit_inflation.py), with the tests in
 [`tests/sage_patch/test_auto_deposit_inflation.py`](../../tests/sage_patch/test_auto_deposit_inflation.py).
 
 **What it does.** `AutoDepositUpdate`'s deposit is scaled by the faction's

@@ -3,7 +3,7 @@
 RotWK 2.01 `game.dat`, ImageBase `0x400000`. Static recovery only — **nothing here has been
 confirmed against a running game yet**; §7 is the test that would. Read against
 `engine/game.dat.backup`. Shipped as
-[`../patches/wall_mesh_release.py`](../patches/wall_mesh_release.py), which implements §7b.
+[`../patches/structures/wall_mesh_release.py`](../patches/structures/wall_mesh_release.py), which implements §7b.
 
 **The finding in one sentence.** A wall registers three separate things with the pathfinder and
 gives back **none** of them when it dies: the walkable surface leaks because nothing removes it at
@@ -136,11 +136,17 @@ the slot's `+0x38` is the head. Sharing is by height — the scan at `0x00936012
 already in use whose stored height matches this wall's, and appends to it (`0x00936080`) rather
 than taking a new one, so one slot can carry many walls. What it carries is not the drawable's live
 mesh: `0x004BA693` calls `Get_Sub_Object_By_Name`, passes the result through the virtual at
-`+0x14`, and **releases the queried sub-object** (`dec [esi+4]`, destroy at zero) before returning
-that derived object — which the pathfinder then destroys itself in `0x00768AA7`
+`+0x14` (releasing the queried sub-object only when that answers NULL), and hands it to
+`0x004B8149`, which builds a **new** `0x64`-byte surface (`operator new`, constructor
+`0x006E5275`, vtable `0x00C1B114`) — which the pathfinder then destroys itself in `0x00768AA7`
 (`(*vt[0])(0); operator delete`). Two consequences, both load-bearing for §7b: a pointer cached at
-add time **stays valid**, because the pathfinder owns the referent; and the release frees **only
-the head**, so a slot shared by several walls leaks its tail even when the slot is reset.
+add time **stays valid**, because the pathfinder owns the referent; and destroying the head frees
+**the whole list**, because the surface destructor `0x006E5406` walks its own `+0x3C` and deletes
+every surface behind it (`0x006E543E`–`0x006E5465`). The link is an *owning* pointer: a surface
+taken out of a list must have its `+0x3C` cleared before it is destroyed, or it frees the walls
+behind it while their slot still names them, and `Pathfinder::reset` then destroys freed memory
+(the 2026-10-29 crash on loading a save, `eip=0` at `0x00768AC5`). The constructor zeroes `+0x3C`,
+so a claimed head ends the list.
 
 ## 4. The failure, stated exactly
 
@@ -259,7 +265,8 @@ consumed on the remove path:
 
 **Leg 1 — the walkable surface, which today has no removal at all.** Unlink the recorded render
 object from the recorded slot's list (the link is `renderObj+0x3C`, the head is `slot+0x38`),
-destroy it the way the engine does (`(*vt[0])(0)` then `operator delete`, as `0x00768AA7` does to
+**clear its own `+0x3C`** (§3: the destructor deletes the chain behind it), destroy it the way the
+engine does (`(*vt[0])(0)` then `operator delete`, as `0x00768AA7` does to
 the head), and when the list comes out empty call **`0x00768AA7`** on the slot to give it back.
 That routine is the inverse the old plan recorded as unlocated: it clears `+0x34`, calls
 `0x0076848F` to drop the cell data, destroys the head render object, and resets `+0x18`..`+0x2C`,
@@ -273,10 +280,19 @@ block at `record+0xB4`, and a pointer answers the same question exactly.
 
 **Leg 3 — the bounds cells.** This one needs no new loop. Restore the four rectangle dwords into
 their own frame slots and jump to **`0x0093682F`**, the head of the stock unmark loop, with `eax`
-holding the object's id — which is the whole of that loop's input. It reads `[ebp-0x30]`,
-`[ebp-0x34]`, `[ebp-0x38]` and `[ebp-0x3C]` and writes everything else it touches before reading
-it, and unlike the *mark* branch it never dereferences the bounds render object, so there is no
-pointer to reconstruct.
+holding the object's id. The loop reads `[ebp-0x30]`, `[ebp-0x34]`, `[ebp-0x38]` and `[ebp-0x3C]`,
+writes everything else it touches before reading it, and never dereferences the bounds object.
+**The function's epilogue does.** Every way out of the unmark loop reaches `0x00936B5C`, which
+destroys `[ebp-0x48]` (`vt[0](0)`, then `operator delete`). That slot holds the object the bounds
+query returned, stored at `0x009362AA`, and the divert skips that store. So the removal has to
+fill the slot itself. Left alone, the epilogue destroys whatever an earlier call left on the
+stack there: on 2026-11-01 (good 08, assaulting Dol Guldur) that was the dying
+`DoGoldurWallCatapultSmall`'s own draw module. It was freed while the drawable still listed it,
+and the next hit on the rubble called through it (`eip` in the heap, from `0x00672A8D`). The patch
+now stores a stand-in object there whose `vt[0]` is `xor eax,eax; ret 4`, so the epilogue frees
+nothing. It was found with a hardware write watchpoint on the module's vtable
+(pySAGE-edain `tools/live/draw_module_write_trap.py`), which caught its destructor being called
+from `0x00936B63`. Reproduced by Edain-Mod `tests/test_wall_catapult_rubble_crash.py`.
 
 **Where the hooks go.** Three on the add path, to fill the ledger, and one on the remove path — at
 `0x009362A3`'s `test eax,eax`, the bounds query's early-out, which is the point where a removal
@@ -329,6 +345,7 @@ between matches (§4).
 | `0x0093629C` | where the add and remove arms rejoin for the bounds query |
 | `0x009365F9` | the second read of `adding`: mark (`0x00936606`) vs unmark (`0x0093682F`) |
 | `0x0093682F` | the stock cell-unmark loop — leg 3's entry point |
+| `0x00936B5C` | the epilogue's destroy of `[ebp-0x48]`, the bounds object — leg 3 must fill it |
 | `0x00935051` | marks or unmarks one cell; last argument is `adding` |
 | `0x00692313` | destroy teardown: hide drawable, drop from radar, pathfinder remove |
 | `0x008BAD8B` | `GeometryUpgrade::upgradeImplementation` — the only writer of the overrides |

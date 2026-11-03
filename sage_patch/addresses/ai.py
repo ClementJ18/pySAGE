@@ -56,6 +56,8 @@ __all__ = [
     "AI_ENTER_AND_ATTACK_UPDATE_ADD_LOAD_BYTES",
     "AI_ENTER_ON_ENTER_CONTAIN_LOAD",
     "AI_ENTER_ON_ENTER_CONTAIN_LOAD_BYTES",
+    "AI_ENTER_ON_ENTER_FAILURE",
+    "AI_ENTER_ON_ENTER_FAILURE_BYTES",
     "AI_ENTER_ON_EXIT_RELEASE",
     "AI_ENTER_ON_EXIT_RELEASE_BYTES",
     "AI_ENTER_STATE_ON_ENTER",
@@ -105,6 +107,7 @@ __all__ = [
     "AI_GROUP_UPGRADE_MEMBER",
     "AI_GROUP_UPGRADE_MEMBER_BYTES",
     "AI_GROUP_UPGRADE_MEMBER_RESUME",
+    "AI_GROUP_UPGRADE_MEMBER_SKIP",
     "AI_GROUP_UPGRADE_SELF_EBP",
     "AI_HERO_ARMY_DEFINITION_LIST",
     "AI_HERO_ARMY_DEFINITION_LIST_BYTES",
@@ -132,6 +135,23 @@ __all__ = [
     "AI_KILLER_BEHAVIOR_VTABLE",
     "AI_KILLER_BEHAVIOR_VTABLE_SLOTS",
     "AI_KILLER_PICKER",
+    "AI_MOVE_AND_ENTER_CONTAIN_LOAD",
+    "AI_MOVE_AND_ENTER_CONTAIN_LOAD_BYTES",
+    "AI_MOVE_AND_ENTER_EDI_POP",
+    "AI_MOVE_AND_ENTER_EDI_POP_BYTES",
+    "AI_MOVE_AND_ENTER_EDI_PUSH",
+    "AI_MOVE_AND_ENTER_EDI_PUSH_BYTES",
+    "AI_MOVE_AND_ENTER_GOAL_CALL",
+    "AI_MOVE_AND_ENTER_GOAL_CALL_BYTES",
+    "AI_MOVE_AND_ENTER_ON_ENTER",
+    "AI_MOVE_AND_ENTER_ON_ENTER_ENTRY",
+    "AI_MOVE_AND_ENTER_ON_ENTER_SLOT",
+    "AI_MOVE_AND_ENTER_ON_ENTER_SLOT_BYTES",
+    "AI_MOVE_AND_ENTER_RESUME",
+    "AI_MOVE_AND_ENTER_RESUME_BYTES",
+    "AI_MOVE_AND_ENTER_STATE_VTABLE",
+    "AI_MOVE_AND_ENTER_TAIL",
+    "AI_MOVE_AND_ENTER_TAIL_BYTES",
     "AI_MOVE_UPDATE_NO_PATH_RECOMPUTE",
     "AI_MOVE_UPDATE_NO_PATH_RECOMPUTE_BYTES",
     "AI_MOVE_UPDATE_STATE_TEST",
@@ -198,6 +218,7 @@ __all__ = [
     "AI_SET_GOAL_OBJECT_BYTES",
     "AI_SET_GOAL_POSITION",
     "AI_SET_GOAL_POSITION_BYTES",
+    "AI_STATE_FAILURE",
     "AI_STATE_NO_PATH_UNSAFE",
     "AI_STATE_ON_ENTER_SLOT",
     "AI_STATE_ON_EXIT_SLOT",
@@ -337,6 +358,8 @@ __all__ = [
     "HERO_LEDGER_GET_ENTRY_ENTRY",
     "HERO_LEDGER_GET_TEMPLATE",
     "HERO_LEDGER_GET_TEMPLATE_ENTRY",
+    "HERO_LEDGER_REVIVE_TIME",
+    "HERO_LEDGER_REVIVE_TIME_ENTRY",
     "PATHFINDER_ADD_OBJECT",
     "PATHFINDER_ADD_OBJECT_BYTES",
     "PATH_APPEND_NODE_LINK",
@@ -451,6 +474,9 @@ AI_GROUP_UPGRADE_SELF_EBP = -0x04
 AI_GROUP_UPGRADE_MEMBER = 0x0076FC15
 AI_GROUP_UPGRADE_MEMBER_BYTES = bytes.fromhex("8b7e086a0057")
 AI_GROUP_UPGRADE_MEMBER_RESUME = 0x0076FC1B
+# The loop's step, where every stock refusal (legality, `hasUpgrade`, `canAcceptUpgrade`) lands. The
+# stack is as deep there as at the loop top, so a hook at the top may jump straight to it.
+AI_GROUP_UPGRADE_MEMBER_SKIP = 0x0076FC75
 # The member list, as the loop walks it: `[AIGroup+4]` is the sentinel node, `[node]` the next and
 # `[node+8]` the member `Object`. Iteration ends when the walk comes back round to the sentinel.
 AI_GROUP_MEMBER_SENTINEL = 0x04
@@ -526,6 +552,12 @@ HERO_LEDGER_FIND_ENTRY_ENTRY = bytes.fromhex("558bec5151")
 # `ReviveMgr::getEntry(index)` - `__thiscall`, `ret 4`, the entry or null.
 HERO_LEDGER_GET_ENTRY = 0x00781298
 HERO_LEDGER_GET_ENTRY_ENTRY = bytes.fromhex("ff742404e8")  # push dword [esp+4] / call
+# `ReviveMgr::calcTimeToBuild(index, Object *producer)` on `Player+0x758` - `__thiscall`, `ret 8`,
+# frames, 0 when there is no entry `index`. The production queue's own revive arm (kind 3 of
+# `getTotalBuildTimeFrames`, `0x008A0501`) calls it. `producer` must not be null: it is passed
+# straight to `Object::getControllingPlayer`.
+HERO_LEDGER_REVIVE_TIME = 0x00780B72
+HERO_LEDGER_REVIVE_TIME_ENTRY = bytes.fromhex("558bec5356ff7508")
 # The `SkirmishAI` producer picker, which lacks the under-construction check the legacy
 # `AIPlayer::findFactory` makes. See `docs/ai-construction-gate.md`.
 
@@ -931,7 +963,7 @@ AI_COMMAND_OBJECT_EBP = 0x1C
 # replacement object inherit this pending order" test. `__thiscall` on the AIUpdate with the
 # parms by value (`ret 0xc0`), answering in `al`: **non-zero means do not transfer**. Switches on
 # the command type and, for the arms that name an object, measures the distance from the owner to
-# the target against the locomotor's `+0x3c`. Derived in `docs/ai-command-null-target.md`.
+# the target against the locomotor's `+0x3c`. Derived in `docs/null-guards.md`.
 AI_COMMAND_TRANSFER_CHECK = 0x0066C2BF
 AI_COMMAND_TRANSFER_CHECK_ENTRY = bytes.fromhex("b8fc72b800e8270c")
 # `xor ebx, ebx` + `inc ebx` - where the answer is seeded to 1 ("not worth transferring"). Every
@@ -975,6 +1007,42 @@ AI_COMMAND_TRANSFER_DISMOUNT_CALL_BYTES = bytes.fromhex("e8f79ddbff")
 AI_UPDATE_LOCOMOTOR_SET_SPEED = 0x1F8
 AI_UPDATE_SET_LOCOMOTOR_SET = 0x006680B2
 AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE = 0x006680FB
+# `AIMoveToPositionAndEnterState`, the state `aiEnter` (command 0x42) runs. Slot 0 of its vtable
+# returns `"AIMoveToPositionAndEnterState"` at 0x00C29D48; `+8` is `onEnter`. Asserting the slot's
+# four bytes proves the function the guard edits is that state's `onEnter`.
+AI_MOVE_AND_ENTER_STATE_VTABLE = 0x00C29D08
+AI_MOVE_AND_ENTER_ON_ENTER_SLOT = 0x00C29D10
+AI_MOVE_AND_ENTER_ON_ENTER_SLOT_BYTES = bytes.fromhex("8a1a7500")
+# `onEnter` itself: `push ebp` / `mov ebp, esp` / `sub esp, 0xc` - a plain frame, no SEH, so an
+# early exit owes nothing but the pushes. Derived in `docs/null-guards.md`.
+AI_MOVE_AND_ENTER_ON_ENTER = 0x00751A8A
+AI_MOVE_AND_ENTER_ON_ENTER_ENTRY = bytes.fromhex("558bec83ec0c")
+# `push edi` - the last push before the hook, so at the hook `[esp]` is the saved `edi`.
+AI_MOVE_AND_ENTER_EDI_PUSH = 0x00751AC6
+AI_MOVE_AND_ENTER_EDI_PUSH_BYTES = bytes.fromhex("57")
+# `call 0x008DBACE` - the state's goal object into `eax`, NULL when the target is gone.
+AI_MOVE_AND_ENTER_GOAL_CALL = 0x00751ACA
+AI_MOVE_AND_ENTER_GOAL_CALL_BYTES = bytes.fromhex("e8ff9f1800")
+# `mov ecx, [eax+0x258]` / `mov [ebp-0xc], eax` - the goal's contain, with no test of the goal or
+# of the contain. **The hook window**: nine bytes, a `jmp rel32` and four `nop`s.
+AI_MOVE_AND_ENTER_CONTAIN_LOAD = 0x00751ACF
+AI_MOVE_AND_ENTER_CONTAIN_LOAD_BYTES = bytes.fromhex("8b88580200008945f4")
+# `mov eax, [ecx]` / `call [eax+0x15c]` - **the faulting instruction** on a target with no
+# contain (the contain's entry position), and where a live contain resumes.
+AI_MOVE_AND_ENTER_RESUME = 0x00751AD8
+AI_MOVE_AND_ENTER_RESUME_BYTES = bytes.fromhex("8b01ff905c010000")
+# `pop edi` - the stock path drops `edi` here, before the tail, so the guard pops it itself.
+AI_MOVE_AND_ENTER_EDI_POP = 0x00751AF7
+AI_MOVE_AND_ENTER_EDI_POP_BYTES = bytes.fromhex("5f")
+# `mov eax, esi` / `pop esi` / `pop ebx` / `leave` / `ret` - the tail, answering whatever `esi`
+# holds. The guard jumps here with `esi` set to `AI_STATE_FAILURE`.
+AI_MOVE_AND_ENTER_TAIL = 0x00751B4A
+AI_MOVE_AND_ENTER_TAIL_BYTES = bytes.fromhex("8bc65e5bc9c3")
+# `StateReturnType`'s failure value in this build, read from `AIEnterState::onEnter`'s own refusal
+# (`push -2` / `pop eax` at 0x0075170C), which is the bail-out the guard copies.
+AI_STATE_FAILURE = -2
+AI_ENTER_ON_ENTER_FAILURE = 0x0075170C
+AI_ENTER_ON_ENTER_FAILURE_BYTES = bytes.fromhex("6afe58")
 # The skirmish AI's spellbook target pickers (`docs/ai-rebuild-gate.md`): name -> index -> factory
 # case -> vtable slot 7, each link asserted as bytes.
 

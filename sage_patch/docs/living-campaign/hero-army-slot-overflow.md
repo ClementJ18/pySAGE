@@ -178,7 +178,7 @@ fixes the reported crash (§3).
 ## 5. Settle the cause before building
 
 The cheapest test that discriminates, all on `C:\RotWK` with the
-[`crash-dump`](../../patches/crash_dump.py) patch applied:
+[`crash-dump`](../../patches/diagnostics/crash_dump.py) patch applied:
 
 | | experiment | tells you |
 |---|---|---|

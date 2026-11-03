@@ -36,7 +36,7 @@ from sage_utils.extras import package_version
 
 from .addresses import BUILD
 from .patcher import Patch
-from .patches import desert_weather
+from .patches.render import desert_weather
 from .patches.utils import locomotor_sets, model_conditions, modifier_types, weapon_set_flags
 from .patches.utils.name_tables import read_cstring, read_terminated, resolve_base
 from .registry import PATCHES

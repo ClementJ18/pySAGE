@@ -57,7 +57,7 @@ from sage_patch.addresses import (
     VETERANCY_DRAW_CALL,
     VETERANCY_DRAW_CALL_BYTES,
 )
-from sage_patch.patches.better_hud_toggle import (
+from sage_patch.patches.multiplayer.better_hud_toggle import (
     ANCHORS,
     HOOKS,
     SECTION_NAME,
@@ -68,13 +68,12 @@ from sage_patch.patches.better_hud_toggle import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import better_hud_toggle_image
 
 REPO = Path(__file__).resolve().parents[2]
-REAL_GAME_DATS = [
-    REPO / "game.dat",
-    REPO / "sage_mods" / "edain" / "patching" / "engine" / "game.dat.backup",
-]
+# The repo root's copy and the unpatched one, once each when they are the same file.
+REAL_GAME_DATS = list(dict.fromkeys([REPO / "game.dat", STOCK_GAME_DAT]))
 BASE = 0x00F00000
 
 SHIFT = 0x10

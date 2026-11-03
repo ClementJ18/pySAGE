@@ -1,6 +1,6 @@
 # A resource spot that pays without levelling its building — reverse-engineering notes
 
-The RE behind [`patches/terrain_resource_exp.py`](../patches/terrain_resource_exp.py). ROTWK
+The RE behind [`patches/economy/terrain_resource_exp.py`](../patches/economy/terrain_resource_exp.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-02.
 
 ## The gap
@@ -419,7 +419,7 @@ Where the pieces live:
 
 | piece | where |
 |---|---|
-| `TerrainResourceExpPatch` | [`patches/terrain_resource_exp.py`](../patches/terrain_resource_exp.py) |
+| `TerrainResourceExpPatch` | [`patches/economy/terrain_resource_exp.py`](../patches/economy/terrain_resource_exp.py) |
 | the `terrain-resource-exp` CLI name | [`registry.py`](../registry.py) |
 | the three sites, the table and its stock bytes | [`sage_patch.addresses`](../addresses/__init__.py) |
 | tests | [`tests/sage_patch/test_terrain_resource_exp.py`](../../tests/sage_patch/test_terrain_resource_exp.py) |

@@ -19,7 +19,7 @@ import struct
 import pytest
 
 from sage_patch import SciencePrereqPatch, apply_patches
-from sage_patch.patches.science_prereqs import (
+from sage_patch.patches.upgrades.science_prereqs import (
     EXCEPTION_CODE,
     EXCEPTION_FORMAT,
     FIELD_ENTRY_SIZE,

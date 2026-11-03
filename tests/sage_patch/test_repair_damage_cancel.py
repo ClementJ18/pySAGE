@@ -29,7 +29,7 @@ from sage_patch.addresses import (
     OBJECT_STATUS_WORKER_REPAIRING,
     OBJECT_TEST_STATUS,
 )
-from sage_patch.patches.repair_damage_cancel import (
+from sage_patch.patches.structures.repair_damage_cancel import (
     ANCHORS,
     GATE_REPLACEMENT,
     HOOK_WIDTH,

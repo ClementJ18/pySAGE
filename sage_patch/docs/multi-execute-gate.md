@@ -7,7 +7,7 @@ stock `game.dat` (11,346,944 bytes).
   moves, no INI keyword is added.
 - **Risk:** low, and bounded by construction — a member is only ever *skipped*, and only when its
   own command button carries a model condition that disables it.
-- **Status:** **built** — see [`patches/multi_execute_gate.py`](../patches/multi_execute_gate.py).
+- **Status:** **built** — see [`patches/special_powers/multi_execute_gate.py`](../patches/special_powers/multi_execute_gate.py).
   **Runtime-verified in game.**
 
 ```

@@ -1,6 +1,6 @@
 # Switching players in a replay — reverse-engineering notes
 
-The RE behind [`patches/observer_switch.py`](../patches/observer_switch.py). ROTWK `game.dat`
+The RE behind [`patches/multiplayer/observer_switch.py`](../patches/multiplayer/observer_switch.py). ROTWK `game.dat`
 build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-07.
 
 ## The gap

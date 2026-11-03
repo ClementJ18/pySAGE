@@ -14,7 +14,7 @@ matching an INI filter, then order a move to it. The patch turns that move into 
 target has a slaughter contain. That is one `call` replaced like for like, and a 60-byte cave
 (`.pkpent`).
 
-- **Status:** built ([`patches/pickup_stuff_enter.py`](../patches/pickup_stuff_enter.py)),
+- **Status:** built ([`patches/units/pickup_stuff_enter.py`](../patches/units/pickup_stuff_enter.py)),
   statically verified, and emulated. `tests/sage_patch/test_pickup_stuff_enter.py` runs the cave
   against every target shape, and runs `PickupStuffUpdate`'s own move routine from the real
   `game.dat` with the engine's real contain vtables. **Not runtime-verified.**

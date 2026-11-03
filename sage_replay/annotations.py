@@ -5,7 +5,8 @@ state, so no stock chunk carries them - which is why this package can say what a
 and never what it cost them.
 
 **Unless the recording client carried the `replay-annotations` patch**
-(`sage_patch.patches.replay_annotations`), which writes, at the frame the recording ends:
+(`sage_patch.patches.multiplayer.replay_annotations`), which writes, at the frame the
+recording ends:
 
 - one `0x7D1` **manifest** naming the schema version and which record kinds that build writes;
 - one `0x7D3` **score record** per player, carrying the engine's own `ScoreKeeper` counters -

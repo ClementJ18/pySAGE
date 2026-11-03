@@ -6,15 +6,13 @@ Engine side effects and a live revive are deliberately not simulated as proof of
 from __future__ import annotations
 
 import hashlib
-import os
-from pathlib import Path
 
 import pytest
 
-from sage_patch.patches.combo_horde_recruitment import (
+from sage_patch.patches.economy.combo_horde_recruitment import (
     ANCHORS as payload_anchors,
 )
-from sage_patch.patches.combo_horde_recruitment import (
+from sage_patch.patches.economy.combo_horde_recruitment import (
     HORDE_CONTAIN_PRODUCED_GATE,
     HORDE_CONTAIN_PRODUCED_GATE_BYTES,
     ComboHordeRecruitmentPatch,
@@ -36,6 +34,7 @@ from sage_patch.patches.experimental.hero_horde_death import (
     build_code,
 )
 from sage_patch.utils import file_offset, find_section
+from tests.binaries import STOCK_GAME_DAT, STOCK_GAME_DAT_SHA256
 
 from .synthetic import _sparse_image
 
@@ -74,14 +73,11 @@ def test_wrong_build_is_rejected_without_mutation(va):
 
 @pytest.mark.full
 def test_real_backup():
-    configured = os.environ.get("PYSAGE_ROTWK_GAME_DAT")
-    if not configured:
-        pytest.skip("set PYSAGE_ROTWK_GAME_DAT to test a supplied original executable")
-    path = Path(configured)
+    path = STOCK_GAME_DAT
+    if not path.is_file():
+        pytest.skip("needs the unpatched game.dat (or set PYSAGE_ROTWK_GAME_DAT)")
     original = path.read_bytes()
-    assert hashlib.sha256(original).hexdigest() == (
-        "5481de75b63e22483660ea8097478faef594f90b9ade7de893e092256ba68a26"
-    )
+    assert hashlib.sha256(original).hexdigest() == STOCK_GAME_DAT_SHA256
     data = bytearray(original)
     patch = HeroHordeDeathPatch()
     patch.apply(data)

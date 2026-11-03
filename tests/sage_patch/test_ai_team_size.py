@@ -23,9 +23,9 @@ from sage_patch.addresses import (
     OBJECT_STATUS,
     OBJECT_STATUS_HORDE_MEMBER,
 )
-from sage_patch.patches import ai_construction_gate as construction
-from sage_patch.patches import ai_revive_gate as revive
-from sage_patch.patches.ai_team_size import (
+from sage_patch.patches.ai import ai_construction_gate as construction
+from sage_patch.patches.ai import ai_revive_gate as revive
+from sage_patch.patches.ai.ai_team_size import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

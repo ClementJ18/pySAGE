@@ -228,6 +228,12 @@ __all__ = [
     "MSG_CALL_IN_REINFORCEMENTS",
     "MSG_SUMMON_REINFORCEMENTS",
     "PLAYER_MERGE_BATTLE_SCORE",
+    "PLAYER_WOTR_HERO_POOL_SEED",
+    "PLAYER_WOTR_HERO_POOL_SEED_BYTES",
+    "PLAYER_WOTR_HERO_POOL_SEED_RESUME",
+    "PLAYER_WOTR_HERO_POOL_SEED_RESUME_BYTES",
+    "PLAYER_WOTR_HERO_POOL_SEED_SKIP",
+    "PLAYER_WOTR_HERO_POOL_SEED_SKIP_BYTES",
     "REGION_DEFENDS_AGAINST",
     "REGION_ENABLED",
     "REGION_IS_DEFENDED",
@@ -244,6 +250,7 @@ __all__ = [
     "ROSTER_STATE_WAITING",
     "SCENARIO_ALLOC",
     "SCENARIO_ALLOC_BYTES",
+    "SCENARIO_BATTLE_HERO_POOL_OFFSET",
     "SCENARIO_CTOR_HISTORICAL",
     "SCENARIO_CTOR_HISTORICAL_BYTES",
     "SCENARIO_CTOR_USE_MP_RULES",
@@ -827,6 +834,21 @@ SCENARIO_CTOR_HISTORICAL = 0x00901E6A
 SCENARIO_CTOR_HISTORICAL_BYTES = bytes.fromhex("889ec0000000")
 SCENARIO_CTOR_USE_MP_RULES = 0x00901E70
 SCENARIO_CTOR_USE_MP_RULES_BYTES = bytes.fromhex("c686c100000001")
+#: The last padding byte of `Scenario`, after `hide-selection-details`' `+0xC2`: where
+#: `wotr-battle-hero-pool` keeps its flag. The widened `HistoricalScenario` store zeroes it.
+SCENARIO_BATTLE_HERO_POOL_OFFSET = 0xC3
+#: The player's hero seeding (`0x006B16EC`, called from `0x006B1971`). Outside a campaign mode 3 it
+#: loads the player's world-map player id (`mov eax, [ebx+0x3CC]`), finds that world-map player,
+#: collects its off-map hero pool (`+0x1D4`, through `0x006E42DA`, which takes the entries out of
+#: the pool) and inserts every entry into the battle ledger at `Player+0x758` (`0x006B1777`).
+#: `SKIP` is the stock exit taken when there is no world-map player; the stack there is the
+#: one at the load. Docs: `docs/living-campaign/wotr-battle-hero-pool.md`.
+PLAYER_WOTR_HERO_POOL_SEED = 0x006B1711
+PLAYER_WOTR_HERO_POOL_SEED_BYTES = bytes.fromhex("8b83cc030000")
+PLAYER_WOTR_HERO_POOL_SEED_RESUME = 0x006B1717
+PLAYER_WOTR_HERO_POOL_SEED_RESUME_BYTES = bytes.fromhex("83f8ff")  # cmp eax, -1
+PLAYER_WOTR_HERO_POOL_SEED_SKIP = 0x006B17F7
+PLAYER_WOTR_HERO_POOL_SEED_SKIP_BYTES = bytes.fromhex("8b4df45f5e5b")
 #: The campaign manager's current campaign: an index at `+0x10` into the pointer vector at
 #: `+0x14..+0x18`. Read that way, bounds check included, by the manager method at this address and
 #: by `advanceAct` just above it.

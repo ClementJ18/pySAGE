@@ -1,7 +1,7 @@
 # Damage does not stop a worker's repair, and the cancel that exists is gated on auto-heal
 
 RotWK `game.dat` 2.01.2614.37001, ImageBase `0x400000`. The write-up behind
-`repair-damage-cancel`, in [`patches/repair_damage_cancel.py`](../patches/repair_damage_cancel.py).
+`repair-damage-cancel`, in [`patches/structures/repair_damage_cancel.py`](../patches/structures/repair_damage_cancel.py).
 
 `GettingBuiltBehavior::update` has a damage cancel: a structure hit in the last four seconds has
 its repair stopped. It misses two cases:

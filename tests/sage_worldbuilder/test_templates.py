@@ -16,6 +16,7 @@ from sage_worldbuilder.templates import (
     template,
     template_named,
 )
+from tests.binaries import WORLDBUILDER
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAPS = REPO_ROOT / "tests" / "sage_map" / "fixtures" / "maps"
@@ -136,9 +137,9 @@ def test_every_fixture_script_resolves(map_path):
 
 @pytest.mark.full
 def test_catalogue_matches_the_exe():
-    exe = REPO_ROOT / "worldbuilder.exe"
+    exe = WORLDBUILDER
     if not exe.is_file():
-        pytest.skip("worldbuilder.exe is not in the checkout")
+        pytest.skip("no worldbuilder.exe (set PYSAGE_WORLDBUILDER_EXE)")
     tool = pytest.importorskip("tools.extract_script_templates")
 
     shipped = (REPO_ROOT / "sage_worldbuilder" / "script_templates.json").read_text(

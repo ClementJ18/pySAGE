@@ -2,7 +2,7 @@
 
 Engine build `2.01.2614.37001`, ImageBase `0x400000`. Static analysis 2026-10-08. **Partly
 confirmed live the same day**: five humans seated in one War of the Ring session (read with
-`sage_live`). Rows 7-8 have not been looked at. The fix is built as [`wotr-lobby-slots`](../../patches/wotr_lobby_slots.py).
+`sage_live`). Rows 7-8 have not been looked at. The fix is built as [`wotr-lobby-slots`](../../patches/campaign/wotr_lobby_slots.py).
 
 ## The symptom
 
@@ -124,7 +124,7 @@ told "Game has already started". The two halves are separate code paths:
   when handed no game (`0x0084CB68`, `0x0084CCB9`). The usual source is a **host's denial**:
   the join handler answers reason 8 whenever it is not hosting, and with several instances on one
   machine every one of them answers - see [`multi-instance.md`](../multi-instance.md), fixed by
-  [`lan-join-bystanders`](../../patches/lan_join_bystanders.py).
+  [`lan-join-bystanders`](../../patches/multiplayer/lan_join_bystanders.py).
 - **Being dropped is the client's own decision.** Every host broadcast goes through
   `0x0084BF0D` (parse, then `LAN_GAME_INFO_PARSE`), after which the client looks for its own
   address in slots 1-7 (`0x00648FDB`-`0x00649007`, stride `0x1DC`, compare `0x0064897C`). A
@@ -154,7 +154,7 @@ machine), or a faction index of 14 or more on stock binaries pushing the colour 
    declares `Player_1`-`Player_4`, and a region holds four hero armies
    ([`hero-army-slot-overflow.md`](hero-army-slot-overflow.md)).
 4. **Battles without every human in them** auto-resolve stock; play with
-   [`wotr-battle-observers`](../../patches/wotr_battle_observers.py).
+   [`wotr-battle-observers`](../../patches/campaign/wotr_battle_observers.py).
 
 ## Addresses
 

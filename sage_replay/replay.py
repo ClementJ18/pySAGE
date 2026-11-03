@@ -793,6 +793,22 @@ class Order:
         return f"Order(0x{self.order_type:X}, player={self.player_index}, [{args}])"
 
 
+# The first order id a player issues; everything below is engine bookkeeping.
+_FIRST_PLAYER_ORDER = 0x3E9
+# The annotation block a patched client appends at the end (outcome, scores); never actions.
+_FIRST_ANNOTATION = 0x7D0
+# Orders in the player range that the engine issues on a player's behalf.
+_NOT_ACTIONS = frozenset(
+    {
+        Bfme2OrderType.EndOfRecording,
+        Bfme2OrderType.LeaveGame,
+        Bfme2OrderType.ChecksumHeartbeat,
+        Bfme2OrderType.Handshake,
+        Bfme2OrderType.ModalBracket,
+    }
+)
+
+
 @dataclass
 class ReplayChunk:
     timecode: int
@@ -803,6 +819,14 @@ class ReplayChunk:
     @property
     def player_index(self) -> int:
         return self.number - 1
+
+    @property
+    def is_action(self) -> bool:
+        """Whether this is something a player did - a click, a hotkey, a cast - and so counts
+        towards APM. Selections count, as every APM counter counts them; heartbeats, handshakes
+        and the patch's annotations do not."""
+        kind = self.order_type
+        return _FIRST_PLAYER_ORDER <= kind < _FIRST_ANNOTATION and kind not in _NOT_ACTIONS
 
     @staticmethod
     def parse(stream: BinaryStream) -> ReplayChunk:

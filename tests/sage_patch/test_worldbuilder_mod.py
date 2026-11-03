@@ -18,7 +18,7 @@ import struct
 
 import pytest
 
-from sage_patch.patches.worldbuilder_mod import (
+from sage_patch.patches.worldbuilder.worldbuilder_mod import (
     _CODE_OFF,
     _HOOK_BYTES,
     ANCHORS,

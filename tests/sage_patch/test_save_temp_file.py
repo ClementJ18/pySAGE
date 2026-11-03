@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     LOCAL_FILE_SYSTEM_OPEN_WIDE,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.save_temp_file import (
+from sage_patch.patches.platform.save_temp_file import (
     ANCHORS,
     CODE_OFFSET,
     HOOKS,
@@ -34,7 +34,7 @@ from sage_patch.patches.save_temp_file import (
     build_section,
     entry_points,
 )
-from sage_patch.patches.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
+from sage_patch.patches.platform.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 

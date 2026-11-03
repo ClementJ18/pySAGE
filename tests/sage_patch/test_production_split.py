@@ -33,7 +33,7 @@ import pytest
 from sage_ini.engine import Engine
 from sage_ini.model.enums import ModifierType
 from sage_patch import ProductionSplitPatch, apply_patches
-from sage_patch.patches.production_split import (
+from sage_patch.patches.economy.production_split import (
     AI_HOOKS,
     ANCHORS,
     CALC_TIME_TO_BUILD,

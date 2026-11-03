@@ -1,6 +1,6 @@
 # Queuing past the command-point cap — reverse-engineering notes
 
-The RE behind [`patches/queue_ignore_cp.py`](../patches/queue_ignore_cp.py). ROTWK `game.dat`
+The RE behind [`patches/economy/queue_ignore_cp.py`](../patches/economy/queue_ignore_cp.py). ROTWK `game.dat`
 build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-08.
 
 ## The report

@@ -44,7 +44,7 @@ from sage_patch.addresses import (
     SCENARIO_FACTION_CALL_SITES,
     SCENARIO_IS_FACTION_ENABLED,
 )
-from sage_patch.patches.scenario_player_factions import (
+from sage_patch.patches.campaign.scenario_player_factions import (
     ANCHORS,
     PLAYER_SEPARATOR,
     SECTION_NAME,

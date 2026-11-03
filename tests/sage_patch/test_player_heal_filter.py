@@ -18,7 +18,7 @@ import struct
 import pytest
 
 from sage_patch import PlayerHealFilterPatch, apply_patches
-from sage_patch.patches.player_heal_filter import (
+from sage_patch.patches.combat.player_heal_filter import (
     FIELD_ENTRY_SIZE,
     FIELD_TABLE_REF_VA,
     FIELD_TABLE_VA,

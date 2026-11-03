@@ -1,6 +1,6 @@
 # Letting an observer page the command bar — reverse-engineering notes
 
-The RE behind [`patches/observer_command_range.py`](../patches/observer_command_range.py), which
+The RE behind [`patches/multiplayer/observer_command_range.py`](../patches/multiplayer/observer_command_range.py), which
 lets an observer click `PUSH_VISIBLE_COMMAND_RANGE` and `POP_VISIBLE_COMMAND_RANGE` buttons so the
 pages behind them can be read while watching. ROTWK `game.dat` build `2.01.2614.37001`, ImageBase
 `0x400000`, recovered statically from `sage_patch/engine/game.dat.backup` on
@@ -199,7 +199,7 @@ observer:
 Verdict 1 reaches `0x00943C7C` → `winEnable(TRUE)`. So the button an observer sees is enabled,
 hit-tested, and delivered to `processCommandUI` — where §3 throws it away.
 
-## 6. The patch — [`patches/observer_command_range.py`](../patches/observer_command_range.py)
+## 6. The patch — [`patches/multiplayer/observer_command_range.py`](../patches/multiplayer/observer_command_range.py)
 
 **One `call` retargeted, plus a cave.**
 

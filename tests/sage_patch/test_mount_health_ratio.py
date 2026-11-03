@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     TOGGLE_MOUNTED_HEALTH_COPY_SEQUENCE,
     TOGGLE_MOUNTED_MOUNT_HEALTH_COPY,
 )
-from sage_patch.patches.mount_health_ratio import (
+from sage_patch.patches.units.mount_health_ratio import (
     HOOK_SITES,
     SECTION_NAME,
     STOCK_HOOK,
@@ -33,6 +33,7 @@ from sage_patch.patches.mount_health_ratio import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import mount_health_ratio_image
 
 SEQUENCES = (TOGGLE_MOUNTED_MOUNT_HEALTH_COPY, TOGGLE_MOUNTED_DISMOUNT_HEALTH_COPY)
@@ -249,7 +250,7 @@ class TestTheHandOverRuns:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

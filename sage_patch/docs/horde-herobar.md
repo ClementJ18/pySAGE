@@ -1,7 +1,7 @@
 # HordeHerobarPatch: horde health in the hero bar
 
 `HordeHerobarPatch` (`horde-herobar`) changes the health source for an existing horde entry in
-the hero bar. Its implementation is in `sage_patch/patches/horde_herobar.py`. It does not create
+the hero bar. Its implementation is in `sage_patch/patches/ui/horde_herobar.py`. It does not create
 hero-bar entries, change selection, write object health, or alter death and recruitment logic.
 The independent [`HeroHordeDeathPatch`](hero-horde-death.md) handles death registration.
 

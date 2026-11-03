@@ -1,5 +1,6 @@
 """What both map views draw over the terrain: the map boundaries, roads, trigger areas, waypoint
-links, object and waypoint markers with their footprints, and build list entries.
+links, object and waypoint markers with their footprints, build list entries, and the areas,
+points and paths marked for an agent.
 
 `OverlayPainter` is a mixin. The view supplies `document`, `options`, `transform`, `scene`,
 `footprints`, `road_styles`, `build_entry` and `is_shown`, and a `_draw_grid` of its own. The
@@ -35,6 +36,7 @@ from sage_worldbuilder.build_lists import build_list_entries, side_names
 from sage_worldbuilder.footprints import FootprintShape
 from sage_worldbuilder.gizmos import HANDLE_KNOB_PIXELS, front_tip
 from sage_worldbuilder.influences import SOUND_FLAG, SoundFlag, sound_ranges
+from sage_worldbuilder.markers import AreaMarker, PathMarker
 from sage_worldbuilder.road_mesh import RoadPiece, road_pieces
 from sage_worldbuilder.roads import DEFAULT_ROAD_WIDTH, RoadSegment, RoadStyle
 from sage_worldbuilder.scene import MapScene, Marker, MarkerKind
@@ -52,6 +54,7 @@ __all__ = [
     "BRIDGE_FILL",
     "CAMERA_PATH",
     "GRID_COLOR",
+    "MARKED_REGION",
     "ROAD_FILL",
     "OverlayPainter",
     "arrow_head",
@@ -100,6 +103,10 @@ _LAKE_FILL = QColor(60, 130, 220, 90)
 _WATER_EDGE = QColor(110, 180, 255, 210)
 _WAVE = QColor(170, 240, 255, 220)
 CAMERA_PATH = QColor(255, 170, 60, 230)
+# A marker drawn for an agent: unlike any map item's colour, since it is not map data.
+MARKED_REGION = QColor(240, 110, 255)
+_MARKED_REGION_FILL = QColor(240, 110, 255, 28)
+_MARKED_REGION_CHOSEN = QColor(240, 110, 255, 60)
 _LABEL_MIN_SCALE = 0.35
 # A name over the terrain is white inside a dark halo, so it reads over pale sand as well as over
 # dark rock. It is drawn once into a pixmap of whole device pixels and blitted where it belongs:
@@ -347,6 +354,89 @@ class OverlayPainter:
         if self.options.show_objects:
             self._draw_build_lists(painter)
         self._draw_camera_path(painter)
+        self._draw_agent_markers(painter)
+
+    def _draw_agent_markers(self, painter: QPainter) -> None:
+        """The areas, paths and points marked for an agent, named: always shown, since a marker
+        is there to be pointed at. The marker being worked on is drawn brighter, with its
+        corners or stops as handles."""
+        document = self.document
+        if document is None or not document.markers:
+            return
+        markers = document.markers
+        selected = markers.selected
+        painter.save()
+        for area in markers.areas():
+            chosen = area is selected
+            painter.setPen(QPen(MARKED_REGION, 3 if chosen else 2, Qt.PenStyle.DashLine))
+            painter.setBrush(QBrush(_MARKED_REGION_CHOSEN if chosen else _MARKED_REGION_FILL))
+            self.world_polygon(painter, area.points)
+            x0, _y0, _x1, y1 = area.bounds
+            corner = self._to_screen(x0, y1)
+            if corner is not None:
+                draw_label(painter, corner + QPointF(4, 14), area.name, MARKED_REGION)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for path in markers.paths():
+            points = markers.path_points(path)
+            if len(points) < 2:
+                continue
+            chosen = path is selected
+            painter.setPen(QPen(MARKED_REGION, 4 if chosen else 2.5, cap=Qt.PenCapStyle.RoundCap))
+            self.world_polygon(painter, points, closed=False)
+            self._draw_path_arrows(painter, points)
+            middle = self._path_middle(points)
+            if middle is not None:
+                draw_label(painter, middle + QPointF(6, -6), path.name, MARKED_REGION)
+        for point in markers.points():
+            screen = self._to_screen(point.x, point.y)
+            if screen is None:
+                continue
+            chosen = point is selected
+            radius = 6.0 if chosen else 4.5
+            painter.setPen(QPen(_SELECTED if chosen else _LABEL_HALO, 1.5))
+            painter.setBrush(QBrush(MARKED_REGION))
+            painter.drawEllipse(screen, radius, radius)
+            draw_label(painter, screen + QPointF(7, -7), point.name, MARKED_REGION)
+        if selected is not None:
+            if isinstance(selected, PathMarker):
+                handles = markers.path_points(selected)
+            elif isinstance(selected, AreaMarker):
+                handles = list(selected.points)
+            else:
+                handles = []
+            painter.setPen(QPen(MARKED_REGION, 1.5))
+            painter.setBrush(QBrush(_SELECTED))
+            for x, y in handles:
+                handle = self._to_screen(x, y)
+                if handle is not None:
+                    painter.drawRect(QRectF(handle.x() - 3.5, handle.y() - 3.5, 7, 7))
+        painter.restore()
+
+    def _draw_path_arrows(self, painter: QPainter, points: Sequence[tuple[float, float]]) -> None:
+        """An arrowhead midway along each leg of a path, pointing the way it runs."""
+        painter.save()
+        painter.setBrush(QBrush(MARKED_REGION))
+        painter.setPen(Qt.PenStyle.NoPen)
+        for (ax, ay), (bx, by) in zip(points, points[1:], strict=False):
+            tail = self._to_screen(ax, ay)
+            tip = self._to_screen((ax + bx) / 2, (ay + by) / 2)
+            if tail is None or tip is None:
+                continue
+            head = arrow_head((tail.x(), tail.y()), (tip.x(), tip.y()))
+            if head is not None:
+                painter.drawPolygon(QPolygonF([QPointF(x, y) for x, y in head]))
+        painter.restore()
+
+    def _path_middle(self, points: Sequence[tuple[float, float]]) -> QPointF | None:
+        """Where a path's label goes: halfway along it."""
+        legs = [math.dist(a, b) for a, b in zip(points, points[1:], strict=False)]
+        remaining = sum(legs) / 2
+        for (a, b), length in zip(zip(points, points[1:], strict=False), legs, strict=True):
+            if remaining <= length and length > 0:
+                t = remaining / length
+                return self._to_screen(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+            remaining -= length
+        return self._to_screen(*points[0])
 
     def _draw_camera_path(self, painter: QPainter) -> None:
         """The chosen camera animation's path on the ground, its keys as squares (Show Path)."""

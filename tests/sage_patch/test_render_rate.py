@@ -14,8 +14,8 @@ place the patch's derivation can be checked against something it did not produce
 the stock bytes. That is not decoration: it is what makes the whole edit set checkable, and
 `TestTheStockRateIsAnIdentity` is where it is actually checked, one site at a time.
 
-**The cave's shape.** The two routines in `.fxrate` are the only assembly here, and every one of
-their three exits is an address the patch does not own. A jump landing one byte off is a crash, so
+**The cave's shape.** The particle gate in `.fxrate` is the only assembly here, and both of
+its exits are addresses the patch does not own. A jump landing one byte off is a crash, so
 the disassembly is read back and each target compared against the engine address it is meant to be.
 
 **The Edain-only anchor.** The latch divisor this patch writes does not exist on stock SAGE, where
@@ -31,12 +31,10 @@ from pathlib import Path
 import pytest
 
 from sage_patch import apply_patches
-from sage_patch.patches.render_rate import (
+from sage_patch.patches.render.render_rate import (
     ANCHORS,
     CLIENT_RATE,
-    DEFER_MS,
     GAME_CLIENT,
-    GET_TICK_COUNT,
     GPU_CLOCK_STOCK,
     GPU_CLOCKS,
     IMM8,
@@ -51,27 +49,15 @@ from sage_patch.patches.render_rate import (
     PREDICATE,
     RECOMPUTE_GATE,
     SECTION_NAME,
-    STATE_RESET,
-    STATE_RESET_RESUME,
-    STATE_RESET_STOCK,
     STOCK_CLIENT_RATE,
     STOCK_LOGIC_RATE,
-    STORE_STATES,
-    STORE_STATES_END,
     STRIDES,
-    UPDATE_LOOP,
-    UPDATE_LOOP_DONE,
-    UPDATE_LOOP_STOCK,
-    UPDATE_LOOP_TOP,
     WRAP,
     RenderRatePatch,
     cave_code,
-    defer_entry,
     derived_floats,
     gpu_clock_bytes,
     latch_divisor,
-    state_reset_entry,
-    tick_stamp,
 )
 from sage_patch.utils import find_section, va_to_offset
 
@@ -330,8 +316,8 @@ class TestTheAnchorsAgreeWithTheEdits:
 
 
 class TestTheParticleCave:
-    """§9.4's fix, and §9.6's beside it: the only assembly in this patch, and the only place a
-    wrong byte crashes rather than merely running at the wrong speed."""
+    """§9.4's fix: the only assembly in this patch, and the only place a wrong byte crashes
+    rather than merely running at the wrong speed."""
 
     @staticmethod
     def _disassembled(data: bytes | bytearray) -> list:
@@ -353,18 +339,11 @@ class TestTheParticleCave:
         assert set(window[5:]) == {0x90}, "the rest of the window is not nop"
 
     def test_both_exits_land_on_the_engine_addresses_they_name(self, image: bytearray) -> None:
-        """The five jumps out. `PARTICLE_GATE_RESUME` is the engine's own compare-and-store,
-        which the cave deliberately does not reimplement; `PARTICLE_GATE_RUN` is the update body,
-        taken when there is no `TheGameClient` to ask; `STATE_RESET_RESUME` is the spell store
-        handler's own `ret 4`."""
+        """`PARTICLE_GATE_RESUME` is the engine's own compare-and-store, which the cave
+        deliberately does not reimplement; `PARTICLE_GATE_RUN` is the update body, taken when
+        there is no `TheGameClient` to ask."""
         jumps = [i for i in self._disassembled(_patched(image)) if i.mnemonic == "jmp"]
-        assert [int(i.op_str, 16) for i in jumps] == [
-            PARTICLE_GATE_RESUME,
-            PARTICLE_GATE_RUN,
-            STATE_RESET_RESUME,
-            UPDATE_LOOP_TOP,
-            UPDATE_LOOP_DONE,
-        ]
+        assert [int(i.op_str, 16) for i in jumps] == [PARTICLE_GATE_RESUME, PARTICLE_GATE_RUN]
 
     def test_the_cave_multiplies_by_the_authored_rate_and_divides_by_the_live_one(
         self, image: bytearray
@@ -398,157 +377,12 @@ class TestTheParticleCave:
             find_section(_patched(image), SECTION_NAME)[0]  # type: ignore[index]
         )
 
-    def test_the_section_is_executable_and_writable_for_the_stamp(self, image: bytearray) -> None:
-        """The particle gate needs no writable storage, but §9.6's deferral does: it stamps the
-        millisecond the spell store initialised at and reads it back every update. Four bytes of
-        run-time state is the whole reason this section is writable, and the stamp ships zeroed."""
-        data = _patched(image)
-        flags = _characteristics(data, SECTION_NAME)
+    def test_the_section_is_executable_and_not_writable(self, image: bytearray) -> None:
+        """The gate keeps no state of its own - the tick it compares lives in the manager."""
+        flags = _characteristics(_patched(image), SECTION_NAME)
         assert flags & 0x20000000, "the cave is not executable"
         assert flags & 0x40000000, "the cave is not readable"
-        assert flags & 0x80000000, "the tick stamp cannot be written"
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        assert at(data, tick_stamp(located[0]), 4) == bytes(4)
-
-
-class TestTheStateResetCave:
-    """§9.6's fix: re-send the spell store's button states once the movie is built.
-
-    The engine sends a button's state only when it differs from the value cached at
-    `this+0x2AC`, and writes that cache whether or not the movie took the message - so a state
-    the movie refused is never repeated and the spellbook shows nothing purchasable. This cave
-    hangs off `AptSpellStore::OnInitialized` and stamps every slot with a value no computed
-    state can equal, which makes the next `update` re-send all twenty.
-    """
-
-    @staticmethod
-    def _text(data: bytes | bytearray) -> list[str]:
-        capstone = pytest.importorskip("capstone")
-        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        section_va, off, vsize = located
-        return [
-            f"{i.mnemonic} {i.op_str}"
-            for i in md.disasm(bytes(data[off : off + vsize]), section_va)
-        ]
-
-    def test_the_hook_is_a_near_jump_padded_to_the_whole_window(self, image: bytearray) -> None:
-        data = _patched(image)
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        window = at(data, STATE_RESET, len(STATE_RESET_STOCK))
-        assert window[0] == 0xE9
-        target = STATE_RESET + 5 + struct.unpack("<i", window[1:5])[0]
-        assert target == state_reset_entry(located[0]), "the hook does not land on the routine"
-        assert set(window[5:]) == {0x90}, "the rest of the window is not nop"
-
-    def test_the_displaced_store_is_carried_into_the_cave(self, image: bytearray) -> None:
-        """The window taken over is `mov byte [ecx+0x2A0], 1` - the flag that tells `update` the
-        panel is open. Losing it would leave the store shut and `update` returning immediately,
-        which looks exactly like the bug this is fixing."""
-        data = _patched(image)
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        entry = state_reset_entry(located[0])
-        assert at(data, entry, len(STATE_RESET_STOCK)) == STATE_RESET_STOCK
-
-    def test_the_loop_covers_exactly_the_twenty_state_slots(self, image: bytearray) -> None:
-        """The bounds are the two `lea`s, and the stride is the 8 that steps over each button
-        pointer. Twenty is the count `update` itself iterates (`cmp [ebp-0x14], 0x14`), and a
-        bound one pair too far would stamp `+0x34C`, a real field the handler resets to -1."""
-        text = self._text(_patched(image))
-        assert f"lea edx, [ecx + 0x{STORE_STATES:x}]" in text
-        assert f"lea ecx, [ecx + 0x{STORE_STATES_END:x}]" in text
-        assert "add edx, 8" in text
-        assert (STORE_STATES_END - STORE_STATES) % 8 == 0
-        assert (STORE_STATES_END - STORE_STATES) // 8 == 20
-
-    def test_the_sentinel_is_a_value_no_computed_state_can_equal(self, image: bytearray) -> None:
-        """`update` computes 0..5 (the six labels at `0x00C50BF8`). The cache is only ever
-        compared against that, never used to index it, so -1 is safe to park there and is what
-        guarantees a mismatch on the next pass."""
-        assert "or eax, 0xffffffff" in self._text(_patched(image))
-
-    def test_it_writes_the_slots_and_not_the_button_pointers(self, image: bytearray) -> None:
-        """`+0x2AC` is the state; `+0x2A8` is the `CommandButton` beside it. Starting the walk
-        four bytes early would null every button and take the panel out entirely."""
-        assert STORE_STATES - 4 == 0x2A8
-        assert "mov dword ptr [edx], eax" in self._text(_patched(image))
-
-
-class TestTheDeferral:
-    """§9.6's other half, and the half that does the work: `update` sends nothing at all for the
-    first `DEFER_MS` after the panel initialises, so that when the twenty sends do go out the
-    movie has built its button clips and can accept them.
-
-    Invalidating the cache without this is a no-op - `OnInitialized` is what sets `+0x2A0`, so the
-    first update after it is the pass the original send was already happening on.
-    """
-
-    @staticmethod
-    def _text(data: bytes | bytearray) -> list[str]:
-        capstone = pytest.importorskip("capstone")
-        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        section_va, off, vsize = located
-        return [
-            f"{i.mnemonic} {i.op_str}"
-            for i in md.disasm(bytes(data[off : off + vsize]), section_va)
-        ]
-
-    def test_the_hook_is_a_near_jump_padded_to_the_whole_window(self, image: bytearray) -> None:
-        data = _patched(image)
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        window = at(data, UPDATE_LOOP, len(UPDATE_LOOP_STOCK))
-        assert window[0] == 0xE9
-        target = UPDATE_LOOP + 5 + struct.unpack("<i", window[1:5])[0]
-        assert target == defer_entry(located[0]), "the hook does not land on the deferral"
-        assert set(window[5:]) == {0x90}, "the rest of the window is not nop"
-
-    def test_the_displaced_loop_setup_is_carried_into_the_cave(self, image: bytearray) -> None:
-        """The window taken over is the loop's index and cursor. Dropping either walks the wrong
-        memory twenty times, which is a crash rather than a wrong colour."""
-        assert UPDATE_LOOP_STOCK in bytes(_patched(image))
-
-    def test_it_waits_on_a_clock_rather_than_on_a_count_of_passes(self, image: bytearray) -> None:
-        """`update` runs off whatever pump is turning, and while the store is up that is the modal
-        `Sleep(5)` spin rather than the client frame - so a pass count would mean a different
-        wall-clock wait at every rate, which is the exact class of bug this patch is about."""
-        text = self._text(_patched(image))
-        assert f"call dword ptr [0x{GET_TICK_COUNT:x}]" in text
-        assert f"cmp eax, 0x{DEFER_MS:x}" in text
-
-    def test_the_wait_is_unsigned_so_it_survives_the_tick_wrap(self, image: bytearray) -> None:
-        """`GetTickCount` wraps every 49 days. An unsigned subtract and an unsigned compare give
-        the right answer across it; `jl` would defer for a further 24 days."""
-        text = self._text(_patched(image))
-        assert any(t.startswith("jb ") for t in text), "the compare is not unsigned"
-        assert not any(t.startswith("jl ") for t in text)
-
-    def test_both_exits_are_the_loop_the_engine_already_has(self, image: bytearray) -> None:
-        """Neither exit is invented: one is the loop body, the other is the `jmp` the loop itself
-        takes once all twenty iterations are done, which is exactly what "not this pass" means."""
-        text = self._text(_patched(image))
-        assert f"jmp 0x{UPDATE_LOOP_TOP:x}" in text
-        assert f"jmp 0x{UPDATE_LOOP_DONE:x}" in text
-
-    def test_the_stamp_is_written_by_the_reset_and_read_by_the_deferral(
-        self, image: bytearray
-    ) -> None:
-        """One dword, one writer, one reader - and the reset is the writer because it is the only
-        hook that runs exactly once per panel."""
-        data = _patched(image)
-        located = find_section(data, SECTION_NAME)
-        assert located is not None
-        stamp = tick_stamp(located[0])
-        text = self._text(data)
-        assert f"mov dword ptr [0x{stamp:x}], eax" in text, "the reset does not stamp the tick"
-        assert f"sub eax, dword ptr [0x{stamp:x}]" in text, "the deferral does not read it"
-        assert stamp >= located[0] + len(cave_code(located[0])) - 4, "the stamp is inside the code"
+        assert not flags & 0x80000000, "the cave is writable for no reason"
 
 
 class TestItRefusesTheWrongBuild:

@@ -1,7 +1,7 @@
 # Stopping the AI producing from a building that is still going up
 
 The reverse-engineering behind
-[`patches/ai_construction_gate.py`](../patches/ai_construction_gate.py). ROTWK `game.dat` build
+[`patches/ai/ai_construction_gate.py`](../patches/ai/ai_construction_gate.py). ROTWK `game.dat` build
 `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-09 against the repo's
 `game.dat`, with one fact taken from live-captured bytes
 (`tests/sage_live/fixtures/match.snapshot.gz`); patch built and applied 2026-08-10.
@@ -355,7 +355,7 @@ every object, so this needs no new instrumentation.
 ## Status
 
 **Built, applied and runtime-verified in game.** The patch is
-[`patches/ai_construction_gate.py`](../patches/ai_construction_gate.py), registered as
+[`patches/ai/ai_construction_gate.py`](../patches/ai/ai_construction_gate.py), registered as
 `ai-construction-gate` and tested in
 [`tests/sage_patch/test_ai_construction_gate.py`](../../tests/sage_patch/test_ai_construction_gate.py).
 Every anchor above holds on the repo's `game.dat`, and `apply` followed by `verify` runs clean on

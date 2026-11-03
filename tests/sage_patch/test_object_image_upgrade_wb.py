@@ -8,7 +8,6 @@ TooltipUpgrade's runtime factory and owns only a small ModuleData factory and fi
 from __future__ import annotations
 
 import struct
-from pathlib import Path
 
 import pytest
 
@@ -26,7 +25,7 @@ from sage_patch.addresses import (
     WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK,
 )
 from sage_patch.patches import ObjectImageUpgradeWorldbuilderPatch as Exported
-from sage_patch.patches.object_image_upgrade import (
+from sage_patch.patches.ui.object_image_upgrade import (
     _WORLDBUILDER_INTERFACE_MASK,
     _WORLDBUILDER_REGISTER_BYTES,
     _WORLDBUILDER_REGISTER_PREFIX,
@@ -37,9 +36,10 @@ from sage_patch.patches.object_image_upgrade import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import WORLDBUILDER
 from tests.sage_patch.synthetic import object_image_upgrade_worldbuilder_image
 
-_WORLDBUILDER = Path(__file__).resolve().parents[2] / "sage_patch" / "Worldbuilder.exe.backup"
+_WORLDBUILDER = WORLDBUILDER
 
 
 @pytest.fixture

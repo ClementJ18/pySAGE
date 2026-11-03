@@ -14,7 +14,7 @@ which claims that settled and which are still static-only.
 - **There is no `PRODUCTION_HERO`.** Hero entries are identifiable at the queue site, but the
   accrual does not move them; §2.2 says why. Do not add it at the queue site.
 - **Status: implemented as `production-split`**
-  ([`../patches/production_split.py`](../patches/production_split.py)), applying and verifying
+  ([`../patches/economy/production_split.py`](../patches/economy/production_split.py)), applying and verifying
   against the real `game.dat` and composing in either order with `commandset-limit` and
   `foundation-rebind`. The queue hook is **runtime-verified** (2026-08-13, live match: a keyword of
   5.0 measured as exactly 5.000 progress per frame at `entry+0x1c`); the money and construction

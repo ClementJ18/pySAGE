@@ -26,7 +26,7 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.infantry_lighting import (
+from sage_patch.patches.render.infantry_lighting import (
     DEFAULT_KINDS,
     EVERY_MASK,
     FINGERPRINT,

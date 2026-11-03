@@ -179,7 +179,7 @@ class GameProcess:
 
 
 def launch(
-    file_argument: str,
+    file_argument: str | None,
     game_dat: str | os.PathLike[str],
     *,
     game_info: str | None = None,
@@ -189,7 +189,9 @@ def launch(
     script_debug: bool = False,
     extra: tuple[str, ...] = (),
 ) -> GameProcess:
-    """Start `game_dat` on the map `file_argument` names, from its own directory.
+    """Start `game_dat` on the map `file_argument` names, from its own directory - or, with
+    `file_argument=None`, at the main menu, as a player's own launch does (what loading a save
+    through the menu needs).
 
     The binary has to be the install's `game.dat` **under that name**: a section-modified image
     run under any other name dies immediately inside `msvcr71.dll`, so a patched build cannot be
@@ -224,7 +226,7 @@ def launch(
 
 
 def launch_arguments(
-    file_argument: str,
+    file_argument: str | None,
     game_dat: str | os.PathLike[str],
     *,
     game_info: str | None = None,
@@ -244,7 +246,9 @@ def launch_arguments(
     fine: the engine's argv comes from the CRT's `__getmainargs`, which honours the quoting
     `subprocess` applies.
     """
-    arguments = [str(Path(game_dat)), "-file", file_argument]
+    arguments = [str(Path(game_dat))]
+    if file_argument is not None:
+        arguments += ["-file", file_argument]
     if game_info is not None:
         arguments += ["-gameInfo", game_info]
     for tree in _mod_trees(mod):

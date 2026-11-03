@@ -38,7 +38,11 @@ from sage_patch.addresses import (
     OBSERVER_BAR_SHOW,
     PLAYER_LIST_LOCAL_IS_NOT_ACTIVE,
 )
-from sage_patch.patches.observer_switch import ANCHORS, ObserverSwitchPatch, patched_call_bytes
+from sage_patch.patches.multiplayer.observer_switch import (
+    ANCHORS,
+    ObserverSwitchPatch,
+    patched_call_bytes,
+)
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import observer_switch_image

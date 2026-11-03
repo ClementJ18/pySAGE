@@ -1,6 +1,6 @@
 # `GrantUpgrade` / `RemoveUpgrade` as lists — reverse-engineering notes
 
-The RE behind [`patches/upgrade_grant_lists.py`](../patches/upgrade_grant_lists.py). ROTWK
+The RE behind [`patches/upgrades/upgrade_grant_lists.py`](../patches/upgrades/upgrade_grant_lists.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, no ASLR, so a file offset is
 `VA - 0x400000` throughout. Read statically from the repo's own `game.dat` (11,346,944 bytes),
 2026-08-18.

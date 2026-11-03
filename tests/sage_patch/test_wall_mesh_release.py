@@ -32,10 +32,13 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch import apply_patches
-from sage_patch.patches.wall_mesh_release import (
+from sage_patch.patches.structures.wall_mesh_release import (
     ANCHORS,
+    BOUNDS_OBJECT_DESTROY_VA,
     CLAIM_WALL_LAYER,
+    CODE_OFFSET,
     ENTRY_SIZE,
+    FRAME_BOUNDS_OBJECT,
     GET_WALL_BOUNDS_MESH,
     HOOK_BOUNDS_VA,
     HOOK_CLAIM_SLOT_VA,
@@ -56,6 +59,8 @@ from sage_patch.patches.wall_mesh_release import (
     SCRATCH_SIZE,
     SECTION_NAME,
     SLOT_LIST_HEAD_OFFSET,
+    STANDIN_OBJECT,
+    STANDIN_VTABLE,
     UNMARK_LOOP_VA,
     WallMeshReleasePatch,
     build_section,
@@ -226,7 +231,7 @@ def test_the_ledger_leads_the_cave_and_starts_empty(image: bytearray) -> None:
     free - so a cave that shipped with anything else in it would release a stale render object."""
     data = _patched(image)
     _va, off, vsize = _cave(data)
-    assert vsize > LEDGER_SIZE + SCRATCH_SIZE
+    assert vsize > CODE_OFFSET
     assert bytes(data[off : off + LEDGER_SIZE + SCRATCH_SIZE]) == bytes(LEDGER_SIZE + SCRATCH_SIZE)
 
 
@@ -235,7 +240,7 @@ def test_the_ledger_is_bounded_by_its_declared_size(image: bytearray) -> None:
     than walking past the last row into the scratch dwords behind it."""
     data = _patched(image)
     _section_va, off, vsize = _cave(data)
-    code = bytes(data[off + LEDGER_SIZE + SCRATCH_SIZE : off + vsize])
+    code = bytes(data[off + CODE_OFFSET : off + vsize])
     bound = b"\xb9" + struct.pack("<I", LEDGER_SLOTS)  # mov ecx, LEDGER_SLOTS
     assert code.count(bound) == 3  # the lookup, the free-row search, and the wholesale clear
     assert LEDGER_SIZE == LEDGER_SLOTS * ENTRY_SIZE
@@ -248,7 +253,7 @@ def test_the_scratch_dwords_sit_behind_the_table(image: bytearray) -> None:
     content, _entries = build_section(section_va)
     entry_va = section_va + LEDGER_SIZE
     pathfinder_va = entry_va + 4
-    code = content[LEDGER_SIZE + SCRATCH_SIZE :]
+    code = content[CODE_OFFSET:]
     assert struct.pack("<I", entry_va) in code
     assert struct.pack("<I", pathfinder_va) in code
 
@@ -260,7 +265,7 @@ def _disassembled(data: bytes | bytearray) -> list:
     capstone = pytest.importorskip("capstone")
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     section_va, off, vsize = _cave(data)
-    start = LEDGER_SIZE + SCRATCH_SIZE
+    start = CODE_OFFSET
     code = bytes(data[off + start : off + vsize])
     return list(md.disasm(code, section_va + start))
 
@@ -270,7 +275,7 @@ def test_the_cave_disassembles_cleanly_to_its_end(image: bytearray) -> None:
     the whole body has to decode, and the last instruction has to be one that leaves."""
     data = _patched(image)
     _va, off, vsize = _cave(data)
-    body = vsize - LEDGER_SIZE - SCRATCH_SIZE
+    body = vsize - CODE_OFFSET
     instructions = _disassembled(data)
     decoded = sum(ins.size for ins in instructions)
     assert decoded == body, f"decoded {decoded} of {body} bytes"
@@ -298,6 +303,21 @@ def test_the_surface_walk_uses_the_engines_own_offsets(
     assert accesses, f"the cave never touches {what} at +0x{offset:x}"
 
 
+def test_a_surface_is_unlinked_before_it_is_destroyed(image: bytearray) -> None:
+    """The surface destructor deletes the chain at its own +0x3C. Destroying a surface whose link
+    still names the walls behind it frees them while the slot keeps pointing at them, and
+    `Pathfinder::reset` then destroys freed memory - the crash on loading a save."""
+    data = _patched(image)
+    instructions = _disassembled(data)
+    clear = f"dword ptr [eax + 0x{RENDER_OBJ_NEXT_OFFSET:x}], 0"
+    at = next(
+        i for i, ins in enumerate(instructions) if ins.mnemonic == "and" and ins.op_str == clear
+    )
+    # then: push ecx; mov ecx, eax; call _destroy
+    assert [ins.mnemonic for ins in instructions[at + 1 : at + 4]] == ["push", "mov", "call"]
+    assert instructions[at + 2].op_str == "ecx, eax"
+
+
 def test_the_ramp_walk_uses_the_engines_own_offsets(image: bytearray) -> None:
     """The ramp list is headed on the `Pathfinder` and linked through the record's `+4`, exactly
     as `Pathfinder::reset` walks it."""
@@ -315,6 +335,40 @@ def test_the_removal_ends_at_the_stock_unmark_loop(image: bytearray) -> None:
         ins.op_str for ins in _disassembled(data) if ins.mnemonic == "jmp" and "0x" in ins.op_str
     }
     assert hex(UNMARK_LOOP_VA) in targets
+
+
+def test_the_removal_hands_the_epilogue_a_harmless_bounds_object(image: bytearray) -> None:
+    """The divert skips the stock store of the bounds query's answer to [ebp-0x48], and the
+    epilogue at 0x00936B5C destroys that slot on every way out. Left alone it destroys stack
+    garbage - on 2026-11-01 the dying wall's own draw module (good 08, crash on the next hit on
+    the rubble). So the removal must fill the slot, before it leaves for the unmark loop, with an
+    object whose vt[0] answers NULL."""
+    data = _patched(image)
+    section_va, off, _vsize = _cave(data)
+    instructions = _disassembled(data)
+    standin_va = section_va + STANDIN_OBJECT
+    store = f"dword ptr [ebp - 0x{FRAME_BOUNDS_OBJECT:x}], 0x{standin_va:x}"
+    at = next(
+        i for i, ins in enumerate(instructions) if ins.mnemonic == "mov" and ins.op_str == store
+    )
+    leave = next(
+        i
+        for i, ins in enumerate(instructions)
+        if ins.mnemonic == "jmp" and ins.op_str == hex(UNMARK_LOOP_VA)
+    )
+    assert at < leave, "the stand-in is stored after the jump to the unmark loop"
+    # The stand-in: object -> vtable -> a destructor that returns NULL and pops its one argument.
+    vtable = struct.unpack_from("<I", data, off + STANDIN_OBJECT)[0]
+    assert vtable == section_va + STANDIN_VTABLE
+    destructor = struct.unpack_from("<I", data, off + STANDIN_VTABLE)[0]
+    body = [ins for ins in instructions if ins.address >= destructor][:2]
+    assert [(ins.mnemonic, ins.op_str) for ins in body] == [("xor", "eax, eax"), ("ret", "4")]
+
+
+def test_the_epilogue_destroy_is_pinned(image: bytearray) -> None:
+    """The stand-in is shaped for the epilogue's `vt[0](0)` + `operator delete` pair, so that pair
+    is an anchor."""
+    assert BOUNDS_OBJECT_DESTROY_VA in ANCHORS
 
 
 def test_the_removal_hands_a_shared_slot_back_through_the_engine(image: bytearray) -> None:

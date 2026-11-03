@@ -1,6 +1,6 @@
 # Making the AI respect a disabled `REVIVE` button — reverse-engineering notes
 
-The RE behind [`patches/ai_revive_gate.py`](../patches/ai_revive_gate.py). ROTWK `game.dat` build
+The RE behind [`patches/ai/ai_revive_gate.py`](../patches/ai/ai_revive_gate.py). ROTWK `game.dat` build
 `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-07-30.
 
 ## TL;DR

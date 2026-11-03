@@ -218,9 +218,9 @@ To combine death registration, mixed payload creation and health display:
 
 ```python
 from sage_patch import apply_patches
-from sage_patch.patches.combo_horde_recruitment import ComboHordeRecruitmentPatch
+from sage_patch.patches.economy.combo_horde_recruitment import ComboHordeRecruitmentPatch
 from sage_patch.patches.experimental.hero_horde_death import HeroHordeDeathPatch
-from sage_patch.patches.horde_herobar import HordeHerobarPatch
+from sage_patch.patches.ui.horde_herobar import HordeHerobarPatch
 
 apply_patches(
     "original.dat",

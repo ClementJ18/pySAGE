@@ -3,7 +3,7 @@
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`).
 
 This is the write-up for **`grant-science-upgrade`** and its editor twin
-**`grant-science-upgrade-wb`**, [`patches/grant_science_upgrade.py`](../patches/grant_science_upgrade.py),
+**`grant-science-upgrade-wb`**, [`patches/upgrades/grant_science_upgrade.py`](../patches/upgrades/grant_science_upgrade.py),
 with tests in
 [`tests/sage_patch/test_grant_science_upgrade.py`](../../tests/sage_patch/test_grant_science_upgrade.py).
 

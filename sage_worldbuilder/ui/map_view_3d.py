@@ -245,7 +245,6 @@ ModelProvider = Callable[[list[str]], None]
 # Asked for the textures and FX materials of the loaded game; None without one.
 ArtProvider = Callable[[], ArtTextures | None]
 
-_BACKGROUND = (24 / 255, 26 / 255, 30 / 255)
 _ZOOM_STEP = 1.2
 _CIRCLE_POINTS = 48
 # Grid lines drawn at most along each axis; a finer grid is not drawn.
@@ -1116,6 +1115,15 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self.transform.moved()
         self.update()
 
+    def fit_rect(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        """Look at a world rectangle whole, from a little further back than it needs, since the
+        camera looks down at a slant."""
+        middle = ((x0 + x1) / 2, (y0 + y1) / 2)
+        self.camera.fit(x0, y0, x1, y1, self.transform.ground(*middle))
+        self.camera.zoom(1 / 1.3)
+        self.transform.moved()
+        self.update()
+
     def zoom_to(self, x: float, y: float, scale: float = 1.0) -> None:
         """Aim at a world position, coming in to at least `scale` pixels per world unit there."""
         camera = self.camera
@@ -1394,8 +1402,8 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 self.failure = f"The 3D view cannot draw: {exc}"
         painter = QPainter(self)
         if self.failure is not None or document is None:
-            painter.fillRect(self.rect(), QColor(24, 26, 30))
-            painter.setPen(QColor(200, 200, 200))
+            painter.fillRect(self.rect(), self.source.background)
+            painter.setPen(self.source.message_color)
             text = self.failure if self.failure is not None else self.message
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, text)
         else:
@@ -1431,11 +1439,16 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 painter.drawRect(left, top, frame_width, band)
                 painter.drawRect(left, top + frame_height - band, frame_width, band)
 
+    def _clear_to_background(self) -> None:
+        """Clear the frame to the top-down view's ground colour, which follows the theme."""
+        red, green, blue, _ = self.source.background.getRgbF()
+        glClearColor(red, green, blue, 1.0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
     def _draw_world(self, document: MapDocument | None) -> None:
         ratio = self.devicePixelRatioF()
         glViewport(0, 0, int(self.width() * ratio), int(self.height() * ratio))
-        glClearColor(*_BACKGROUND, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        self._clear_to_background()
         grid = document.terrain if document is not None else None
         if document is None or grid is None:
             self._release()
@@ -1513,8 +1526,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         glViewport(left, bottom, width, height)
         glScissor(left, bottom, width, height)
         glEnable(GL_SCISSOR_TEST)
-        glClearColor(*_BACKGROUND, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        self._clear_to_background()
         self._draw_pass(document, grid, matrix)
         glDisable(GL_SCISSOR_TEST)
         glViewport(0, 0, int(self.width() * ratio), int(self.height() * ratio))

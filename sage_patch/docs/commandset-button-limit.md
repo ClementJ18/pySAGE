@@ -6,7 +6,7 @@ patch **2.01.2614**, `game.dat`) enforces its **command-buttons-per-`CommandSet`
 surface that has to change to raise it to an arbitrary **N** — engine **and** APT UI.
 
 The applied patch that implements this — generalised to any N in 34..127 — is
-[`patches/commandset.py`](../patches/commandset.py) (`CommandSetLimitPatch(count=N)`); this doc
+[`patches/commandbar/commandset.py`](../patches/commandbar/commandset.py) (`CommandSetLimitPatch(count=N)`); this doc
 is the reverse-engineering behind it. Paging past the on-screen 33 once a set holds more, and the
 visible-window clamp the same patch installs, are covered in
 [`push-visible-command-range.md`](push-visible-command-range.md).

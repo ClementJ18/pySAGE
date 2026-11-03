@@ -23,7 +23,7 @@ Two things need a decision rather than a lookup:
 
 - **Cost:** 1 byte + 3 rel32/imm32 repoints + a 224-byte table copy + ~90 bytes of cave.
 - **Risk:** low. The filter is skipped unless explicitly specified, by construction.
-- **Status:** **built** — see [`patches/banner_filter.py`](../patches/banner_filter.py).
+- **Status:** **built** — see [`patches/units/banner_filter.py`](../patches/units/banner_filter.py).
 
 ```
 sage-patch apply banner-filter --in game.dat.backup --out game.dat

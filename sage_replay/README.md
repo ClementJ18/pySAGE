@@ -86,6 +86,15 @@ AI opponents). See
 winning team; `sidecar.py` maps it onto the replay's slots and refuses one whose teams don't line
 up.
 
+## Reading a match while it is played
+
+The recorder appends each frame's orders to the replay as the match runs. `ReplayTail(path)`
+follows such a file: each `poll()` reads only the bytes added since the last one and returns the
+chunks that are now complete, keeping a half-written last chunk for the next poll. A file that
+shrinks has been overwritten by a new recording, which `poll()` reports as `restarted`.
+`ReplayChunk.is_action` says whether a chunk is something a player did (it counts towards APM)
+or engine bookkeeping such as heartbeats and handshakes.
+
 ## Sharing a parse without the game that made it
 
 A replay's ids only resolve against the game build that recorded it. `translated.py` defines

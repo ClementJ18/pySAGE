@@ -44,7 +44,7 @@ from sage_patch.addresses import (  # noqa: E402
     PRODUCTION_UPDATE_VTABLE,
     REVIVE_MGR_OFFSET,
 )
-from sage_patch.patches.production_death_no_refund import (  # noqa: E402
+from sage_patch.patches.economy.production_death_no_refund import (  # noqa: E402
     FLAG_OFF,
     SECTION_NAME,
     ProductionDeathNoRefundPatch,

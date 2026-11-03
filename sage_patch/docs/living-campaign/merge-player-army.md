@@ -3,7 +3,7 @@
 Engine build `2.01.2614.37001`, ImageBase `0x400000`, against `C:\BFME1\lotrbfme.exe`. Static
 analysis 2026-08-27. **Nothing here has been run in game.**
 
-**Built.** The scope below became [`campaign-army-verbs`](../../patches/campaign_army_verbs.py)
+**Built.** The scope below became [`campaign-army-verbs`](../../patches/campaign/campaign_army_verbs.py)
 — both verbs in one patch, since they share every piece of scaffolding. What the build changed
 about the scope is recorded in §9.
 
@@ -276,7 +276,7 @@ has the line written for it.
 
 ## 9. What the build changed about this scope
 
-[`campaign-army-verbs`](../../patches/campaign_army_verbs.py) is written, applies to
+[`campaign-army-verbs`](../../patches/campaign/campaign_army_verbs.py) is written, applies to
 the shipped `game.dat`, verifies, and round-trips through `detect`/`sagepatch`. Four things came
 out different from the scope above.
 

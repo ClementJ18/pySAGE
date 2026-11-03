@@ -73,7 +73,7 @@ from sage_patch.addresses import (  # noqa: E402
     OBJECT_IMAGE_UPGRADE_FIND_IMAGE,
     OBJECT_IMAGE_UPGRADE_THE_IMAGES,
 )
-from sage_patch.patches.map_list_symbols import (  # noqa: E402
+from sage_patch.patches.multiplayer.map_list_symbols import (  # noqa: E402
     DEFAULT_KEYWORD,
     DEFAULT_SORT,
     DEFAULT_SYMBOLS,

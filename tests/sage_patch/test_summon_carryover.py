@@ -26,8 +26,7 @@ from sage_patch.addresses import (
     THE_GAME_LOGIC,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.experimental.ranged_stand_off import RangedStandOffPatch
-from sage_patch.patches.summon_carryover import (
+from sage_patch.patches.campaign.summon_carryover import (
     ANCHORS,
     GAME_LOGIC_OBJECT_LIST_HEAD,
     HOOK_BYTES,
@@ -36,6 +35,7 @@ from sage_patch.patches.summon_carryover import (
     SummonCarryoverPatch,
     build_code,
 )
+from sage_patch.patches.experimental.ranged_stand_off import RangedStandOffPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 

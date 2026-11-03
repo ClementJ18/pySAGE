@@ -7,7 +7,7 @@ only; the runtime checks at the end are **open**.
 true for exactly as long as a structure's production queue is non-empty — training a unit,
 researching an upgrade, or both. Two opt-in extras ride the same trigger: a `WeaponSetFlags` name
 (§10) and a `LocomotorSetType` name (§11), neither installed unless asked for. Implemented by
-[`patches/production_condition.py`](../patches/production_condition.py).
+[`patches/economy/production_condition.py`](../patches/economy/production_condition.py).
 
 ```ini
 ; anywhere a model condition is accepted

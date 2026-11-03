@@ -23,8 +23,10 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtWidgets import (
+    QAbstractSpinBox,
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QLabel,
@@ -52,6 +54,7 @@ from sage_worldbuilder.ui.host import PanelHost
 from sage_worldbuilder.ui.property_form import PropertyForm
 from sage_worldbuilder.ui.upgrade_list import UpgradeList
 from sage_worldbuilder.upgrades import (
+    all_upgrades,
     set_upgrades,
     stored_upgrades,
     upgrade_choices,
@@ -244,6 +247,11 @@ class ObjectPropertiesPanel(QWidget):
         self.other_keys.setRootIsDecorated(False)
         self.tabs.addTab(self.other_keys, "Other keys")
         layout.addWidget(self.tabs, 1)
+        # No field changes value under the wheel: scrolling over the panel scrolls its page.
+        self._wheel_filter = _WheelPassThrough(self)
+        for field in self.findChildren((QAbstractSpinBox, QComboBox)):
+            field.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            field.installEventFilter(self._wheel_filter)
         self.refresh()
 
     @staticmethod
@@ -401,7 +409,9 @@ class ObjectPropertiesPanel(QWidget):
         game = self.host.game
         names = upgrade_choices(game, self.objects)
         checked = stored_upgrades(self.objects[0].properties) if self.objects else []
-        self.upgrades.show_choices(names, checked, has_game=game is not None)
+        self.upgrades.show_choices(
+            names, checked, has_game=game is not None, all_names=all_upgrades(game)
+        )
 
     def _set_upgrades(self, names: list[str]) -> None:
         if self._updating or not self.objects:
@@ -496,3 +506,14 @@ def _scrolling(widget: QWidget) -> QScrollArea:
     area.setWidgetResizable(True)
     area.setWidget(widget)
     return area
+
+
+class _WheelPassThrough(QObject):
+    """Keeps a wheel event from the field it is installed on and passes it to the field's
+    parents, so the scroll area holding the field scrolls instead."""
+
+    def eventFilter(self, watched: QObject | None, event: QEvent | None) -> bool:  # noqa: N802 - Qt override
+        if event is not None and event.type() == QEvent.Type.Wheel:
+            event.ignore()
+            return True
+        return super().eventFilter(watched, event)

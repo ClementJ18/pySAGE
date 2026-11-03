@@ -94,6 +94,8 @@ __all__ = [
     "ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET",
     "ATTRIBUTE_MODIFIER_AURA_UPDATE",
     "ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE",
+    "AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON",
+    "AUTO_ABILITY_BEHAVIOR_VTABLE",
     "AUTO_HEAL_AFFECTS_CONTAINED",
     "AUTO_HEAL_ANCHORS",
     "AUTO_HEAL_CONTAINED_EXIT",
@@ -826,6 +828,13 @@ DIE_MUX_IS_APPLICABLE_ENTRY = bytes.fromhex("558bec83ec0c5657")
 # `esi` in steps of 4 until it loads NULL. Three interface getters in a row share the idiom,
 # so the offset is corroborated three times over rather than inferred from one.
 OBJECT_MODULE_LIST = 0x24C
+# `AutoAbilityBehavior`'s primary vtable, set by its constructor (`0x0085D7FD`).
+AUTO_ABILITY_BEHAVIOR_VTABLE = 0x00C57F8C
+# The AsciiString naming the button whose auto-cast is on, empty while it is off. Turning it on
+# (`0x0085D48F`) copies the button's name in and wakes the module; turning it off (`0x0085D481`)
+# empties it and puts the module to sleep. The readiness test (`0x0085D5EA`) finds the button by
+# this name, so an empty one never casts. `StartsActive = Yes` turns it on at creation.
+AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON = 0x20
 THING_TEMPLATE_COMMAND_POINT_BONUS = 0x62C
 MODIFIER_TYPE_COMMAND_POINT_BONUS = 24
 #: `Object::applyModifierList`, the door for all 32 attribute-modifier sites. A refused apply
@@ -2331,7 +2340,7 @@ DELETION_UPDATE_UPDATE = 0x0088B84F
 
 
 # Confirmed RotWK Pillage layout and full native fingerprints; docs/pillage-module.md.
-# The patch-owned ModuleData tail is defined in patches/pillage_module_extension.py.
+# The patch-owned ModuleData tail is defined in patches/units/pillage_module_extension.py.
 PILLAGE_DATA_SIZE = 0x14
 PILLAGE_MODULEDATA_CTOR = 0x00653593
 PILLAGE_MODULEDATA_FACTORY = 0x006535ED

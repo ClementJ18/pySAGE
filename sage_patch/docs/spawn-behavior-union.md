@@ -1,6 +1,6 @@
 # `spawn-union` — make every `SpawnBehavior` answer, not just the first
 
-**Status: implemented as `spawn-union`** ([`../patches/spawn_union.py`](../patches/spawn_union.py)),
+**Status: implemented as `spawn-union`** ([`../patches/units/spawn_union.py`](../patches/units/spawn_union.py)),
 applying and verifying against the real `game.dat`. Every address below is from the ROTWK
 SAGE-engine `game.dat` build `2.01.2614.37001` (ImageBase `0x400000`), derived statically with
 `scripts/pe.py`, and confirmed in a running process - the patch is runtime-verified, and §7
@@ -216,7 +216,7 @@ Two were settled by the live match that runtime-verified the patch, by this proc
 
 ## 8. Where it lives
 
-Patch `spawn-union`, in [`../patches/spawn_union.py`](../patches/spawn_union.py) as
+Patch `spawn-union`, in [`../patches/units/spawn_union.py`](../patches/units/spawn_union.py) as
 `SpawnUnionPatch`, registered in [`../registry.py`](../registry.py), with the stubs asserted by
 disassembly in [`../../tests/sage_patch/test_spawn_union.py`](../../tests/sage_patch/test_spawn_union.py).
 No parameters: the first-only rule is either in force or it is not.

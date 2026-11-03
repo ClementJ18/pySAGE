@@ -7,7 +7,7 @@ stock `game.dat` (11,349,504 bytes) and the `lotrbfme2ep1.exe` shipped beside it
 - **Risk:** low for the three launch gates — each turns a `jcc` into a `jmp` with the same
   displacement, so the patched control flow is a path the stock binary already takes, just
   unconditionally. The fourth, the LAN join gate, removes a branch rather than forcing one.
-- **Status:** **built** — see [`patches/multi_instance.py`](../patches/multi_instance.py). The
+- **Status:** **built** — see [`patches/platform/multi_instance.py`](../patches/platform/multi_instance.py). The
   three launch gates are **runtime-verified in game**; the LAN gate is **static only**.
 - **It removes a licence check.** The fourth gate stops a LAN host refusing a joiner for sharing
   its serial, which is what makes two clients on one machine able to play each other at all. That
@@ -280,7 +280,7 @@ the game at `TheLAN+0x44` with slots 2, 3 and 5 open; the two refused ones were 
 the same game, slots and all, at the head of their list (`TheLAN+0x10`); and all five had the same
 exe and INI CRCs (`[0x00DE4364]+0xB04` / `+0xB38`), which rules out reason 4.
 
-[`lan-join-bystanders`](../patches/lan_join_bystanders.py) points the three not-hosting branches at
+[`lan-join-bystanders`](../patches/multiplayer/lan_join_bystanders.py) points the three not-hosting branches at
 `0x0098AF1D`, the exit the IP test already takes, so a request reaches a reply only from the copy
 that hosts. Nothing between the tests and that exit owns a destructor. The cost falls on a real
 LAN: a request to a machine that stopped hosting now times out instead of being told at once.

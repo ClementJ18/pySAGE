@@ -33,7 +33,7 @@ call — so the gate costs a test at the top of `update` and nothing else. See �
   reuses the engine's own mask helpers and its own bonus-removal call, and the allocation growth
   ends at the module's private `newModuleData` thunk — nothing else in the image reads that
   `sizeof`, and the destructor's `operator delete` is the unsized form.
-- **Status:** **built** — see [`patches/large_group_bonus.py`](../patches/large_group_bonus.py).
+- **Status:** **built** — see [`patches/units/large_group_bonus.py`](../patches/units/large_group_bonus.py).
   The loose-object half is **runtime-verified in game** as of the `+4` fix in §8.1 — the version
   before it crashed on the first poll of any module that wrote the keyword. The upgrade gate is
   verified statically and against the real binary's rebuilt table, and has not yet been run in a

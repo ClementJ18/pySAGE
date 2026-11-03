@@ -38,7 +38,7 @@ from sage_patch.addresses import (
     PERF_SCOPE_NULL_GATE_RESUME,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.perf_scope_skip import (
+from sage_patch.patches.diagnostics.perf_scope_skip import (
     ANCHORS,
     BLOCK_MAGIC,
     CODE_OFFSET,
@@ -51,8 +51,8 @@ from sage_patch.patches.perf_scope_skip import (
     gate_va,
     probe_va,
 )
-from sage_patch.patches.perf_stage_readout import ANCHORS as READOUT_ANCHORS
-from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
+from sage_patch.patches.diagnostics.perf_stage_readout import ANCHORS as READOUT_ANCHORS
+from sage_patch.patches.diagnostics.perf_stage_readout import PerfStageReadoutPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 

@@ -25,8 +25,9 @@ decouples each such subsystem that was measured to matter.
   different frame rates with no desync** (§9.9). `sage-patch apply render-rate --fps 60` is the
   whole build.
 - **What it writes:** the client rate and four derived floats, the wrap, the recompute gate, three
-  timecode strides, Edain's latch divisor, four GPU-particle clock multiplies, and three jumps into
-  a `.fxrate` cave — the particle rate gate and the two halves of the spell-store fix (§4).
+  timecode strides, Edain's latch divisor, four GPU-particle clock multiplies, and a jump into
+  a `.fxrate` cave holding the particle rate gate (§4). The spell-store fix (§9.6) is its own
+  patch, `spell-store-deferral`; apply the two together.
 - **What is still open:** a 4–11% simulation slowdown (§9.5), a handful of unrescaled constants
   (§9.7), the two flipbook sites (§9.11), and the rendered-frame clock (§9.9), which is real
   arithmetic but not a barrier to network play. §10 is the list.
@@ -252,8 +253,6 @@ one-byte immediate each, and `max` so that a modest rate still writes the stock 
 | `0x00ECA400` | `8` | `8` if `fps // 8 == 3`, else `fps // 3` | keeps the latch predicate on sub-frame 2 (§9.2) |
 | `0x005F515F` | the cinematics-flag test | `jmp` to the `.fxrate` particle gate | CPU particles step at the authored 30 (§9.4) |
 | `0x007B1102`, `0x007B1160`, `0x007B12FE`, `0x007B140B` | `imul eax, [clientRate]` | `imul eax, eax, 30` + `nop`s | GPU particles age at the authored 30 (§9.11) |
-| `0x00822890` | `mov byte [ecx+0x2A0], 1` | `jmp` to the spell-store state reset | invalidates the button cache and stamps the time (§9.6) |
-| `0x008231CA` | the button loop's head | `jmp` to the spell-store deferral | holds the sends for 500 ms (§9.6) |
 | `0x00D9F608` | `5` | `5` | **asserted, never written** |
 
 `ratio = fps / 5`, and `fps` must be a multiple of 5 so a whole number of client frames fits in a
@@ -385,9 +384,9 @@ to stay.
 
 So the split runs the other way: **the client frame advances on every drawn iteration, and each
 frame-counted subsystem is decoupled from it individually**, with its own divider or a fractional
-step. The CPU particle rate (§9.4), the GPU particle clock (§9.11) and the spell store's state
-delivery (§9.6) are the subsystems this patch decouples; §9.7 lists the constants that are not yet
-rescaled.
+step. The CPU particle rate (§9.4) and the GPU particle clock (§9.11) are the subsystems this
+patch decouples, and `spell-store-deferral` fixes the spell store's state delivery (§9.6); §9.7
+lists the constants that are not yet rescaled.
 
 ## 9. What live matches measured
 
@@ -656,7 +655,7 @@ engine held the correct answer: `0x005FED5B` passed for the two affordable power
 and points were right, `AptSpellStore::InputEnabled` (`0x00822974`) read `"1"`, and the closing
 latch at `this+0x2A2` was clear. The failure is entirely in delivery.
 
-**The fix ships in this patch.** Two hooks, because one is not enough.
+**The fix is the `spell-store-deferral` patch.** Two hooks, because one is not enough.
 
 - `AptSpellStore::OnInitialized` (`0x0082285B`) already resets `+0x2A2`, `+0x348`, `+0x34C`,
   `+0x350` and `+0x354` and simply omits the button array. The patch takes over the seven-byte
@@ -686,9 +685,10 @@ not derived from a measurement: what is actually needed is however long the movi
 its clips and run each one's ten-frame `_fade_in`. If the book comes up blank and stays blank, the
 number is the first thing to raise, and `DEFER_MS` is where it lives.
 
-**This fix is not rate-specific**, and folding it into `render-rate` is a deliberate choice rather
-than a technical one: the same race can tip on a stock 30 fps build, where nothing installs this.
-Reaching those installs means giving it a patch of its own.
+**This fix is not rate-specific**, which is why it is a patch of its own rather than part of
+`render-rate`: the same race can tip on a stock 30 fps build, and the accelerator's render-only
+frames (`accel-module.md`) move the movie against the engine the same way a raised client rate
+does.
 
 **Three behaviours that look like the bug, and are not.** All three are real, all three were
 measured, and none of them is rate-dependent:
@@ -1171,7 +1171,8 @@ measured at one paused instant, 7 frames into an effect that has 23 to go.
 
 The patch is registered and played, including network matches between peers at different achieved
 frame rates with no desync (§9.9). The pacing core (§9.8), the latch predicate (§9.2), the recompute
-gate (§9.10), both particle clocks (§9.4, §9.11) and the spell store (§9.6) are in it.
+gate (§9.10) and both particle clocks (§9.4, §9.11) are in it; the spell store (§9.6) is in
+`spell-store-deferral`, which a `render-rate` build should carry too.
 
 Open:
 

@@ -7,8 +7,8 @@ import itertools
 import pytest
 
 from sage_patch.patches.experimental import hero_horde_death as death
-from sage_patch.patches.herobar import HeroBarPatch
-from sage_patch.patches.horde_herobar import ANCHORS, HOOK, ORIGINAL, HordeHerobarPatch
+from sage_patch.patches.ui.herobar import HeroBarPatch
+from sage_patch.patches.ui.horde_herobar import ANCHORS, HOOK, ORIGINAL, HordeHerobarPatch
 from sage_patch.utils import file_offset
 
 from .synthetic import synthetic_image

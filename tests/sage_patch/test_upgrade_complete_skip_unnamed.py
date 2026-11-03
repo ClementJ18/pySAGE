@@ -22,7 +22,7 @@ from sage_patch.addresses import (
     UPGRADE_COMPLETE_MESSAGE_RESUME,
     UPGRADE_TEMPLATE_DISPLAY_NAME,
 )
-from sage_patch.patches.upgrade_complete_skip_unnamed import (
+from sage_patch.patches.ui.upgrade_complete_skip_unnamed import (
     ANCHORS,
     SECTION_NAME,
     UpgradeCompleteSkipUnnamedPatch,

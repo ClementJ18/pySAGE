@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.attribute_modifier_aura_conflicts import (
+from sage_patch.patches.combat.attribute_modifier_aura_conflicts import (
     SECTION_NAME,
     AttributeModifierAuraConflictsPatch,
     build_code,

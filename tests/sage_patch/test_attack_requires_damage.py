@@ -24,7 +24,7 @@ from sage_patch.addresses import (
     WEAPON_ANY_NUGGET_VALID_VICTIM_BYTES,
     WEAPONTEMPLATE_NUGGET_VECTOR_OFFSET,
 )
-from sage_patch.patches.attack_requires_damage import (
+from sage_patch.patches.combat.attack_requires_damage import (
     ANCHORS,
     ATTACK_VTABLES,
     CALL_VA,

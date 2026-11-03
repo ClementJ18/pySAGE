@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.ai_equivalent_build_gate import (
+from sage_patch.patches.ai.ai_equivalent_build_gate import (
     ANCHORS,
     PUSH_WANTED,
     AiEquivalentBuildGatePatch,

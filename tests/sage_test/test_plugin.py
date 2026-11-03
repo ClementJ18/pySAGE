@@ -102,7 +102,7 @@ class TestShard:
 
 class _Config:
     def __init__(self, **options):
-        self.options = {"--shard": None, "--headless": False, **options}
+        self.options = {"--shard": None, "--headless": False, "--script-debug": False, **options}
 
     def getoption(self, name):
         return self.options[name]
@@ -126,3 +126,9 @@ def test_headless_stops_drawing_and_keeps_the_frame_cap():
     assert plugin._engine_args(_Config()) == ()
     # `-renderEvery 0`, not `-headless`: that one uncaps the loop as well.
     assert plugin._engine_args(_Config(**{"--headless": True})) == ("-renderEvery", "0")
+
+
+def test_script_debug_adds_the_debug_window_after_the_headless_flags():
+    assert plugin._engine_args(_Config(**{"--script-debug": True})) == ("-scriptDebug2",)
+    both = _Config(**{"--headless": True, "--script-debug": True})
+    assert plugin._engine_args(both) == ("-renderEvery", "0", "-scriptDebug2")

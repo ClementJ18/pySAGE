@@ -266,6 +266,7 @@ __all__ = [
     "RECORDER_END_WRITE_CALL",
     "RECORDER_END_WRITE_CALL_BYTES",
     "RECORDER_FILE",
+    "RECORDER_PLAYBACK_PATH",
     "RECORDER_GAME_MODE",
     "RECORDER_GAME_MODE_RESET",
     "RECORDER_LAST_REPLAY_NAME",
@@ -687,10 +688,12 @@ GAME_SLOT_STATE_HARD_AI = 4
 GAME_SLOT_STATE_BRUTAL_AI = 5
 GAME_SLOT_STATE_LOCAL_HUMAN = 6
 GAME_MESSAGE_APPEND_INTEGER = 0x007111E5
-# The loading screen's progress update. `[this + 0x88]` is a window the shell creates, so a
-# menu-less start dereferences null here; the engine treats the same member as nullable at
-# `0x0081C5C4`, whose whole body clears it. The twenty-four bytes run to a resume point two
-# nearby branches already target.
+# The loading screen's progress update. `[this + 0x88]` is the `GameInfo *` that
+# `LoadScreen::init` stores at `0x0081CB2D`; its vtable `+0x34` is `getLocalSlotNum()`, and the
+# report is `(localSlot, percent)` (`ret 8`, `percent` pushed early). A menu-less start has no
+# `TheGameInfo`, so `init` returns before the store and this dereferences null; the engine treats
+# the same member as nullable at `0x0081C5C4`, whose whole body clears it. The twenty-four bytes
+# run to a resume point two nearby branches already target.
 LOADING_SCREEN_PROGRESS = 0x0081C64A
 LOADING_SCREEN_PROGRESS_BYTES = bytes.fromhex("8b8e880000008b0157ff50348b0d2c41de0050e82c9ee0ff")
 LOADING_SCREEN_PROGRESS_RESUME = 0x0081C662
@@ -741,6 +744,10 @@ RECORDER_MODE = 0x1C
 RECORDER_MODE_RECORD = 0
 RECORDER_MODE_PLAYBACK = 1
 RECORDER_FILE = 0x10
+# `m_currentReplayFilename`, a `UnicodeString`: during playback, the full path of the replay being
+# played (read live 2026-11-01 while playing back `Replays\Game 4.BfME2Replay`). Generals marks it
+# valid during playback only, so it is not read as the recording's path.
+RECORDER_PLAYBACK_PATH = 0x20
 RECORDER_WRITE_TO_FILE = 0x0077D8FC
 # `RecorderClass::m_gameMode`. Do not read it inside `startRecording`, whose `reset()` overwrites it
 # with 9 first; read its mode argument instead (`START_RECORDING_MODE_ARG`).
@@ -1124,13 +1131,15 @@ GAME_LOGIC_SCHEDULE_UPDATE = 0x00850C32
 GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE = 0x0062B921
 
 #: Writing a save, derived in `docs/living-campaign/wotr-save-failure.md`.
-#: `GameState::saveGame(UnicodeString file, UnicodeString desc, int list, bool showMessage,
-#: bool isAutoSave)` - `__thiscall` on `THE_GAME_STATE`, `ret 0x14`. It opens the destination file
-#: itself (no temporary and rename), writes the 16-byte header through the `XferSave` at
-#: `XFER_SAVE_VTABLE`, and runs `GAME_STATE_XFER_SAVE_DATA` inside a `catch (...)` whose handler
-#: (`GAME_STATE_SAVE_CATCH`) shows `GUI:ErrorSavingGame`, closes the file and returns. The build
-#: is VC++ 7.1, whose `catch (...)` also catches structured exceptions, so an access violation in
-#: any snapshot's `xfer` lands there too and the partial file stays on disk.
+#: `GameState::saveGame(UnicodeString file, const UnicodeString &desc, int list, bool showMessage,
+#: bool isAutoSave)` - `desc` is a reference (`0x006DE5FC` assigns through it); a null `file`
+#: makes it pick the next free `Saved Game N`. `__thiscall` on `THE_GAME_STATE`, `ret 0x14`. It
+#: opens the destination file itself (no temporary and rename), writes the 16-byte header through
+#: the `XferSave` at `XFER_SAVE_VTABLE`, and runs `GAME_STATE_XFER_SAVE_DATA` inside a
+#: `catch (...)` whose handler (`GAME_STATE_SAVE_CATCH`) shows `GUI:ErrorSavingGame`, closes the
+#: file and returns. The build is VC++ 7.1, whose `catch (...)` also catches structured
+#: exceptions, so an access violation in any snapshot's `xfer` lands there too and the partial
+#: file stays on disk.
 GAME_STATE_SAVE_GAME = 0x006DE498
 GAME_STATE_SAVE_CATCH = 0x006DE7DD
 #: `GameState::xferSaveData(Xfer *, int list)`: for each snapshot registered in `list`, write its

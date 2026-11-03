@@ -1,6 +1,6 @@
 # Sizing the AI's attack teams in battalions
 
-The reverse-engineering behind [`patches/ai_team_size.py`](../patches/ai_team_size.py). ROTWK
+The reverse-engineering behind [`patches/ai/ai_team_size.py`](../patches/ai/ai_team_size.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-09-29, with the
 symptom measured live in two Edain skirmishes against an Imladris AI the same day.
 

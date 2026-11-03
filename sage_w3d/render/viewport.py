@@ -81,10 +81,12 @@ from OpenGL.GL import (
 )
 from OpenGL.GLU import gluPerspective
 from PyQt6.QtCore import QElapsedTimer, QObject, QPointF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
+from PyQt6.QtGui import QColor, QKeyEvent, QMouseEvent, QWheelEvent
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtWidgets import QWidget
 
+from sage_utils.styles import palette
+from sage_utils.widgets import saved_dark_theme, theme_notifier
 from sage_w3d.render.pose import Pose, PoseEvaluator
 from sage_w3d.render.scene import RenderMesh, Scene
 from sage_w3d.render.textures import decode_texture
@@ -296,6 +298,11 @@ class W3DViewport(QOpenGLWidget):
         self._bbox_center = (0.0, 0.0, 0.0)
         self._last_mouse: QPointF | None = None
         self._lighting_preset = "Default"
+        # The ground behind the model, in the shared SAGE theme's background; followed on a
+        # theme flip.
+        self._background = (0.0, 0.0, 0.0)
+        self._follow_theme(saved_dark_theme())
+        theme_notifier.changed.connect(self._follow_theme)
         self._scene = scene
         self.set_scene(scene)
 
@@ -375,9 +382,13 @@ class W3DViewport(QOpenGLWidget):
     def _adjust_zoom(self, delta: float) -> None:
         self._zoom = max(self._zoom_far, min(self._zoom_near, self._zoom + delta))
 
+    def _follow_theme(self, dark: bool) -> None:
+        red, green, blue, _ = QColor(palette(dark)["canvas"]).getRgbF()
+        self._background = (red, green, blue)
+        self.update()
+
     def initializeGL(self) -> None:
         glEnable(GL_DEPTH_TEST)
-        glClearColor(0.2, 0.2, 0.2, 1.0)
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
         glEnable(GL_COLOR_MATERIAL)
@@ -393,6 +404,7 @@ class W3DViewport(QOpenGLWidget):
         glMatrixMode(GL_MODELVIEW)
 
     def paintGL(self) -> None:
+        glClearColor(*self._background, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         self._apply_lighting()

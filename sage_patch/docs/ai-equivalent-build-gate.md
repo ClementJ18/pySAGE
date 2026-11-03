@@ -1,7 +1,7 @@
 # Asking about the unit that was requested, not its equivalent
 
 The reverse-engineering behind
-[`patches/ai_equivalent_build_gate.py`](../patches/ai_equivalent_build_gate.py). ROTWK `game.dat`
+[`patches/ai/ai_equivalent_build_gate.py`](../patches/ai/ai_equivalent_build_gate.py). ROTWK `game.dat`
 build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-10-13, with the symptom
 read live the same day from six Edain skirmishes with a Brutal Imladris AI. **Not yet played with
 the patch applied.**

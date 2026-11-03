@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     OBJECT_STATUS_UNSELECTABLE,
     PLAYER_RELATIONSHIP_ALLIES,
 )
-from sage_patch.patches.ai_flag_capture_gate import (
+from sage_patch.patches.ai.ai_flag_capture_gate import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

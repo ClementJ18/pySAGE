@@ -75,14 +75,14 @@ from sage_patch.addresses import (
     STRCPY,
     STRLEN,
 )
-from sage_patch.patches import mod_load_order as mlo
-from sage_patch.patches import multi_mod as mm
-from sage_patch.patches.mod_load_order import (
+from sage_patch.patches.platform import mod_load_order as mlo
+from sage_patch.patches.platform import multi_mod as mm
+from sage_patch.patches.platform.mod_load_order import (
     MOD_MOUNT_BLOCK,
     MOD_MOUNT_BLOCK_ORIGINAL,
     ModLoadOrderPatch,
 )
-from sage_patch.patches.multi_mod import (
+from sage_patch.patches.platform.multi_mod import (
     ANCHORS,
     ASSET_CACHE_BLOCK,
     ASSET_CACHE_BLOCK_ORIGINAL,

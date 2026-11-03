@@ -26,7 +26,7 @@ import pytest
 from sage_ini.model.objects import REGISTRY
 from sage_ini.model.types import _List
 from sage_patch.addresses import THE_UPGRADE_CENTER
-from sage_patch.patches.upgrade_grant_lists import (
+from sage_patch.patches.upgrades.upgrade_grant_lists import (
     ANCHORS,
     FIELD_TABLE_REF_VA,
     FIELD_TABLE_VA,

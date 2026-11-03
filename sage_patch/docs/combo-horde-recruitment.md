@@ -238,7 +238,7 @@ session (`sage_live`, a barracks, a two-payload horde):
 
 ## 8. The patch
 
-[`combo_horde_recruitment.py`](../patches/combo_horde_recruitment.py) — `combo-horde-recruitment`.
+[`combo_horde_recruitment.py`](../patches/economy/combo_horde_recruitment.py) — `combo-horde-recruitment`.
 
 Six bytes at `0x00871BAB` become a `call` into a cave. The cave computes the same
 `Object::m_producerID` the two replaced instructions did, and returns it **unless** the payload

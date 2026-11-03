@@ -2,7 +2,7 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read from the repo's
 clean `game.dat`. This is the writeup for the **`science-prereqs`** patch,
-[`patches/science_prereqs.py`](../patches/science_prereqs.py), with its tests in
+[`patches/upgrades/science_prereqs.py`](../patches/upgrades/science_prereqs.py), with its tests in
 [`tests/sage_patch/test_science_prereqs.py`](../../tests/sage_patch/test_science_prereqs.py).
 
 ```sh

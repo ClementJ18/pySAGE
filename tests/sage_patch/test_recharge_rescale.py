@@ -31,7 +31,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import apply_patches
-from sage_patch.patches.recharge_rescale import (
+from sage_patch.patches.special_powers.recharge_rescale import (
     ANCHORS,
     DISCOUNT_FOLD_STOCK,
     DISCOUNT_FOLD_VA,
@@ -65,7 +65,7 @@ from sage_patch.patches.recharge_rescale import (
     RechargeRescalePatch,
     build_section,
 )
-from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
+from sage_patch.patches.special_powers.spell_recharge_targets import SpellRechargeTargetsPatch
 from sage_patch.utils import find_section, va_to_offset
 
 from .synthetic import recharge_rescale_image

@@ -48,5 +48,7 @@ def test_the_fire_alias_is_not_an_armor_row(tmp_path):
 
 def test_fire_is_still_read_in_a_modifier_line(tmp_path):
     """Shipped `ModifierList`s write `ARMOR 50% FIRE` and load, so it must not be reported there."""
-    found = _lint(tmp_path, "ModifierList FireWard\n    Modifier = ARMOR 50% FIRE\n    Duration = 0\nEnd\n")
+    found = _lint(
+        tmp_path, "ModifierList FireWard\n    Modifier = ARMOR 50% FIRE\n    Duration = 0\nEnd\n"
+    )
     assert not any("FIRE" in line for line in found)

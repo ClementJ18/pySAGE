@@ -49,7 +49,7 @@ from sage_patch.addresses import (
     UPGRADE_TEMPLATE_NEXT,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.give_upgrade_all import (
+from sage_patch.patches.upgrades.give_upgrade_all import (
     ANCHORS,
     SECTION_NAME,
     GiveUpgradeAllPatch,

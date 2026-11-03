@@ -1,7 +1,7 @@
 # `replace-self-rubble` — a `ReplaceSelfUpgrade` must not bulldoze the rubble it lands on
 
 **Status: implemented as `replace-self-rubble`**
-([`../patches/replace_self_rubble.py`](../patches/replace_self_rubble.py)). It applies and verifies
+([`../patches/structures/replace_self_rubble.py`](../patches/structures/replace_self_rubble.py)). It applies and verifies
 against the real `game.dat` and composes in either order with `foundation-rebind`, which reads the
 same `ReplaceSelfUpgrade` creation `call`. Every address below was recovered **statically** from
 ROTWK `game.dat` build `2.01.2614.37001` (ImageBase `0x400000`) on 2026-09-30 with `explore.py`.

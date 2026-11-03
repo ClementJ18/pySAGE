@@ -13,7 +13,7 @@ priority is `STRUCTURE` down the `COMMANDCENTER` branch, and fills the circle.
   change.
 - **Risk:** low. Presentation only: the painter runs on the client, draws into the radar surface
   and changes no game state.
-- **Status:** built ([`patches/radar_structure_discs.py`](../patches/radar_structure_discs.py)),
+- **Status:** built ([`patches/ui/radar_structure_discs.py`](../patches/ui/radar_structure_discs.py)),
   and both caves are emulated against the engine's own bytes in
   `tests/sage_patch/test_radar_structure_discs.py`. **Not runtime-verified.**
 

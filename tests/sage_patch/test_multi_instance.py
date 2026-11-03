@@ -17,12 +17,10 @@ present, and ``docs/multi-instance.md`` records the derivation.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from sage_ini.engine import STOCK
-from sage_patch.patches.multi_instance import (
+from sage_patch.patches.platform.multi_instance import (
     GAME_FINGERPRINT,
     GAME_GUARDS,
     JMP_SHORT,
@@ -34,13 +32,14 @@ from sage_patch.patches.multi_instance import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
+from tests.binaries import ROTWK_INSTALL, STOCK_GAME_DAT
 from tests.sage_patch.synthetic import instance_guard_image
 
 PATCH_CLASSES = (MultiInstancePatch, MultiInstanceLauncherPatch)
 
-_INSTALL = Path(r"C:\Program Files (x86)\Games\bfme\rotwk")
+_INSTALL = ROTWK_INSTALL
 _BINARIES = {
-    MultiInstancePatch.name: Path(__file__).resolve().parents[2] / "game.dat",
+    MultiInstancePatch.name: STOCK_GAME_DAT,
     MultiInstanceLauncherPatch.name: _INSTALL / "lotrbfme2ep1.exe",
 }
 

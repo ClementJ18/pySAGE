@@ -30,6 +30,8 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QWidget
 
+from sage_utils.styles import palette
+from sage_utils.widgets import saved_dark_theme, theme_notifier
 from sage_worldbuilder.anchors import RotationAnchors
 from sage_worldbuilder.changes import Change, ChangeKind, Region
 from sage_worldbuilder.document import MapDocument
@@ -59,7 +61,6 @@ __all__ = ["MapView", "ViewTwin", "arrow_head"]
 
 BaseColors = Callable[[MapDocument], object]
 
-_BACKGROUND = QColor(24, 26, 30)
 _STRETCHED = (255, 60, 200, 110)
 _UNBLENDED = (255, 255, 255, 130)
 _CONTOUR = (255, 236, 120, 220)
@@ -109,6 +110,13 @@ class MapView(QWidget, OverlayPainter):
         # The 3D view showing the same map, told about every change made here.
         self.twin: ViewTwin | None = None
         super().__init__(parent)
+        # The ground around the map and the colour of a message drawn on it, which follow the
+        # app's theme. They are painted here rather than by the stylesheet, so a theme flip
+        # recolours them through `_follow_theme`; the 3D view reads them from here too.
+        self.background = QColor()
+        self.message_color = QColor()
+        self._follow_theme(saved_dark_theme())
+        theme_notifier.changed.connect(self._follow_theme)
         self.options = options if options is not None else ViewOptions()
         self.document: MapDocument | None = None
         self.transform = ViewTransform()
@@ -297,6 +305,11 @@ class MapView(QWidget, OverlayPainter):
             return self.cursor_world
         return self.transform.center_x, self.transform.center_y
 
+    def fit_rect(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        """Show a world rectangle whole."""
+        self.transform.fit(x0, y0, x1, y1, margin=0.15)
+        self.update()
+
     def zoom_to(self, x: float, y: float, scale: float = 1.0) -> None:
         """Centre on a world position, zooming in to at least `scale` pixels per world unit."""
         self.transform.center_on(x, y)
@@ -460,12 +473,20 @@ class MapView(QWidget, OverlayPainter):
             return None
         return np.ascontiguousarray(_stack(pictures)[::-1])
 
+    def _follow_theme(self, dark: bool) -> None:
+        colours = palette(dark)
+        self.background = QColor(colours["canvas"])
+        self.message_color = QColor(colours["muted"])
+        self.update()
+        if self.twin is not None:
+            self.twin.update()
+
     def paintEvent(self, event: QPaintEvent | None) -> None:  # noqa: N802 - Qt override
         painter = QPainter(self)
-        painter.fillRect(self.rect(), _BACKGROUND)
+        painter.fillRect(self.rect(), self.background)
         document = self.document
         if document is None:
-            painter.setPen(QColor(200, 200, 200))
+            painter.setPen(self.message_color)
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.message)
             return
         self._draw_terrain(painter)

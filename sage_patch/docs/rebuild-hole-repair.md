@@ -2,7 +2,7 @@
 
 RotWK `game.dat` 2.01.2614.37001, ImageBase `0x400000`. The write-up behind
 `rebuild-hole-repair`, in
-[`patches/rebuild_hole_repair.py`](../patches/rebuild_hole_repair.py).
+[`patches/structures/rebuild_hole_repair.py`](../patches/structures/rebuild_hole_repair.py).
 
 Two defects, one function. Sections 1–4 cover the first: `RebuildHoleExposeDie::onDie` refuses to
 make a hole for a structure that is still going up. §6 records what a running game showed when

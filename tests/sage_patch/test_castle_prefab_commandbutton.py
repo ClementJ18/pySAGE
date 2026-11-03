@@ -7,7 +7,7 @@ import struct
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches import command_point_cost as cost
+from sage_patch.patches.economy import command_point_cost as cost
 from sage_patch.patches.experimental import castle_prefab as cp
 from sage_patch.registry import PATCHES
 from sage_patch.utils import file_offset, u32

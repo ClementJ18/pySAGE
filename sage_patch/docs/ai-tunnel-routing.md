@@ -3,7 +3,7 @@
 RotWK 2.01 `game.dat`, ImageBase `0x400000`.
 
 **Status: implemented as `ai-tunnel-routing`**
-([`../patches/ai_tunnel_routing.py`](../patches/ai_tunnel_routing.py)). **Runtime-verified for a
+([`../patches/ai/ai_tunnel_routing.py`](../patches/ai/ai_tunnel_routing.py)). **Runtime-verified for a
 skirmish AI's hordes** (§6). Every site below was read from this repo's `game.dat`; the patch
 applies, verifies and round-trips through `detect` on it, and its cave runs under unicorn against a
 stand-in engine (`tests/sage_patch/test_ai_tunnel_routing.py`). §6 says what a running game showed

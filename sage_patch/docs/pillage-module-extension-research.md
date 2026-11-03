@@ -19,7 +19,7 @@ The requested extension can be clearly scoped using the BFME2 implementation:
   and the victim -1; the floating cash display above the owner shows +2.
 
 The recommendation is to check the conditions directly on each Pillage event,
-following the existing pattern in `patches/large_group_bonus.py`. This does not
+following the existing pattern in `patches/units/large_group_bonus.py`. This does not
 require extending the class hierarchy with an actual UpgradeMux.
 
 ## 1. Sources examined and evidence status
@@ -254,7 +254,7 @@ RotWK search and confirmation sequence:
 ## 7. Implementation in sage-patch
 
 Proposed patch name: `pillage-module-extension`; class: `PillageModuleExtensionPatch`;
-implementation: `sage_patch/patches/pillage_module_extension.py`.
+implementation: `sage_patch/patches/units/pillage_module_extension.py`.
 
 1. Add confirmed RotWK facts centrally to `sage_patch/addresses/objects.py` or
    `runtime.py` and export them from `addresses/__init__.py`: table/xrefs,

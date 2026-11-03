@@ -48,7 +48,7 @@ from sage_patch.addresses import (
     TUNNEL_CONTAIN_UPDATE_VTABLE_SLOT,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.ai_tunnel_routing import (
+from sage_patch.patches.ai.ai_tunnel_routing import (
     ANCHORS,
     ENTER_SECONDS,
     ENTRY_SIZE,

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.ai_disabled_regions import NOPS, AiDisabledRegionsPatch
+from sage_patch.patches.ai.ai_disabled_regions import NOPS, AiDisabledRegionsPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import _sparse_image

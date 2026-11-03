@@ -270,7 +270,7 @@ invisible: not an INI problem, not a path problem, not MFC. The editor simply ne
 was requested.
 ## 7. The patch
 
-[`worldbuilder-mod`](../patches/worldbuilder_mod.py) calls `0x01682780` with the `-mod` argument
+[`worldbuilder-mod`](../patches/worldbuilder/worldbuilder_mod.py) calls `0x01682780` with the `-mod` argument
 during Worldbuilder's own startup. Everything downstream — mounting, the loose-file prefix, the
 fallback — already works and is not touched.
 

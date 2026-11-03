@@ -42,10 +42,17 @@ from sage_worldbuilder.document import MapDocument
 from sage_worldbuilder.footprints import FootprintShape
 from sage_worldbuilder.generic_ai import PICK_DISTANCES, GenericAIType, new_generic_ai_object
 from sage_worldbuilder.gizmos import HANDLE_PIXELS, front_tip
+from sage_worldbuilder.markers import (
+    AreaMarker,
+    MarkerError,
+    PathMarker,
+    PointMarker,
+)
+from sage_worldbuilder.markers import Marker as AnyMarker
 from sage_worldbuilder.scene import MapScene, Marker, MarkerKind
 from sage_worldbuilder.selection.pick import PickRules
 from sage_worldbuilder.terrain.grid import WORLD_UNITS_PER_CELL
-from sage_worldbuilder.ui.overlays import draw_label
+from sage_worldbuilder.ui.overlays import MARKED_REGION, draw_label
 from sage_worldbuilder.viewport import ViewOptions, ViewTransform, snap
 from sage_worldbuilder.waypoints import (
     add_linked_waypoint,
@@ -63,6 +70,9 @@ __all__ = [
     "EditHost",
     "GenericAIHost",
     "GenericAIObjectTool",
+    "MarkerHost",
+    "MarkerMode",
+    "MarkerTool",
     "Gesture",
     "PasteHost",
     "PasteTool",
@@ -301,7 +311,8 @@ class _Mode(Enum):
 
 
 class SelectTool(Tool):
-    """Select and Move: click to select an object, or a trigger area by clicking inside it;
+    """Select and Move: click to select an object, or a trigger area by clicking its outline
+    (an edge or a corner - the inside is left free, so stacked areas can each be picked);
     Shift-click adds or removes; drag an empty spot for a marquee; drag an object or area to move
     the selection (snapping the dragged object to the grid when Snap To Grid is on); drag a corner
     of a selected area to reshape it; drag the handle out of a selected object's ring to turn it,
@@ -365,7 +376,8 @@ class SelectTool(Tool):
             return marker.source
         if not rules.allows_areas() or not view.options.show_areas:
             return None
-        area = scene.area_at(*point, accept=lambda outline: view.is_shown(outline.source))
+        radius = PICK_PIXELS / view.transform.scale_at(*point)
+        area = scene.area_at(*point, radius, accept=lambda outline: view.is_shown(outline.source))
         return area.source if area is not None else None
 
     def _handle_at(self, view: ToolView, document: MapDocument, gesture: Gesture) -> Marker | None:
@@ -1061,6 +1073,405 @@ class RulerTool(Tool):
             view.world_circle(painter, *self.start, self.distance())
         end = QPointF(*view.transform.world_to_screen(*self.end))
         draw_label(painter, end + QPointF(8, -8), self.measurement())
+
+
+class MarkerHost(Protocol):
+    def show_status(self, text: str) -> None: ...
+
+
+class MarkerMode(Enum):
+    EDIT = "Edit"
+    RECTANGLE = "Rectangle"
+    POLYGON = "Polygon"
+    POINT = "Point"
+    PATH = "Path"
+
+
+@dataclass(frozen=True)
+class _MarkerHit:
+    """What a click on the markers landed on: a marker, and which corner of an area or which
+    point (by name) when it was a handle rather than the body."""
+
+    name: str
+    corner: int | None = None
+    point: str | None = None
+
+
+class MarkerTool(Tool):
+    """Markers (beyond WorldBuilder): areas, points and paths to point an AI agent at, drawn and
+    edited in the mode the Markers panel picks. Markers stay shown under every tool, and are never
+    saved with the map.
+
+    Every mode drags a handle of the chosen marker, or a point, when the press lands on one. Edit
+    also drags a whole marker by its body; Shift-click on the chosen area's edge or path's leg
+    adds a corner or point there, Alt-click on a handle removes it. Rectangle drags an area,
+    Polygon clicks corners (closed on the first corner or Enter), Point drops points, and Path
+    clicks points or ground (new points) in order, finished on the last stop again or Enter; a
+    path started from an end of the chosen path extends it. Escape drops a half-made shape,
+    Backspace its last corner or stop, Delete the chosen marker."""
+
+    def __init__(self, host: MarkerHost) -> None:
+        self.host = host
+        self.mode = MarkerMode.RECTANGLE
+        self._press: Gesture | None = None
+        self._end: tuple[float, float] | None = None
+        self._grab: _MarkerHit | None = None
+        self._dragging = False
+        self._last: tuple[float, float] | None = None
+        self._hover: Gesture | None = None
+        self.corners: list[tuple[float, float]] = []
+        # A path in the making: point names, and positions where new points will go.
+        self.stops: list[str | tuple[float, float]] = []
+        # The path being extended, and whether at its end (or its start).
+        self._extend: tuple[str, bool] | None = None
+
+    def set_mode(self, mode: MarkerMode) -> None:
+        self.cancel()
+        self.mode = mode
+
+    def press(self, view: ToolView, gesture: Gesture) -> bool:
+        document = view.document
+        if document is None:
+            return False
+        self._press, self._end, self._last = gesture, gesture.world, gesture.world
+        self._dragging = False
+        hit = self._hit(view, gesture)
+        self._grab = None
+        if hit is not None and not gesture.shift and not gesture.alt:
+            if hit.corner is not None or hit.point is not None:
+                # A handle: every mode drags it, except Path, where a click adds the point.
+                if self.mode is not MarkerMode.PATH:
+                    self._grab = hit
+            elif self.mode is MarkerMode.EDIT:
+                self._grab = hit
+        if self._grab is not None and self.mode is MarkerMode.EDIT:
+            document.markers.select(self._grab.name)
+        return True
+
+    def move(self, view: ToolView, gesture: Gesture) -> bool:
+        if self._press is None:
+            self.hover(view, gesture)
+            return False
+        document = view.document
+        if not self._dragging and _travelled(self._press, gesture) < DRAG_PIXELS:
+            return True
+        self._dragging = True
+        if self._grab is not None and document is not None and self._last is not None:
+            self._drag(document, view, gesture)
+        else:
+            self._end = gesture.world
+            self._hover = gesture
+        view.update()
+        return True
+
+    def _drag(self, document: MapDocument, view: ToolView, gesture: Gesture) -> None:
+        grab, markers = self._grab, document.markers
+        assert grab is not None and self._last is not None
+        marker = markers.get(grab.name)
+        if marker is None:
+            self._grab = None
+            return
+        try:
+            if grab.point is not None:
+                markers.set_position(grab.point, *_snapped(view, gesture.world))
+            elif grab.corner is not None and isinstance(marker, AreaMarker):
+                corners = list(marker.points)
+                corners[grab.corner] = _snapped(view, gesture.world)
+                markers.set_corners(marker.name, corners)
+            else:
+                dx, dy = gesture.world[0] - self._last[0], gesture.world[1] - self._last[1]
+                markers.move(marker.name, dx, dy)
+        except MarkerError:
+            return  # a corner dragged onto a line with the others: wait for a better place
+        self._last = gesture.world
+
+    def hover(self, view: ToolView, gesture: Gesture) -> None:
+        self._hover = gesture
+        if self.corners or self.stops:
+            view.update()
+
+    def release(self, view: ToolView, gesture: Gesture) -> bool:
+        press, document = self._press, view.document
+        dragging, grab = self._dragging, self._grab
+        self._press = self._end = self._last = self._grab = None
+        self._dragging = False
+        if press is None or document is None:
+            return False
+        if grab is not None and dragging:
+            view.update()
+            return True
+        markers = document.markers
+        world = _snapped(view, gesture.world)
+        if self.mode is MarkerMode.RECTANGLE and dragging:
+            (x0, y0), (x1, y1) = _snapped(view, press.world), world
+            if x0 != x1 and y0 != y1:
+                area = markers.mark_rectangle(x0, y0, x1, y1)
+                markers.select(area.name)
+                self.host.show_status(f'Marked area {area.name}: tell the agent "{area.name}"')
+        elif self.mode is MarkerMode.POLYGON:
+            self._add_corner(view, document, gesture, world)
+        elif self.mode is MarkerMode.PATH:
+            self._add_stop(view, document, gesture, world)
+        elif self.mode is MarkerMode.POINT and grab is None:
+            point = markers.mark_point(*world)
+            markers.select(point.name)
+            self.host.show_status(f'Marked point {point.name}: tell the agent "{point.name}"')
+        elif not dragging:
+            self._click(view, document, gesture, world)
+        view.update()
+        return True
+
+    def _click(
+        self, view: ToolView, document: MapDocument, gesture: Gesture, world: tuple[float, float]
+    ) -> None:
+        """A click in Edit or Rectangle mode: choose what it hit, or add or remove a handle."""
+        markers = document.markers
+        hit = self._hit(view, gesture)
+        selected = markers.selected
+        try:
+            if gesture.alt and hit is not None and selected is not None:
+                self._remove_handle(document, selected, hit)
+                return
+            if gesture.shift and selected is not None and self._insert(view, document, gesture):
+                return
+        except MarkerError as error:
+            self.host.show_status(str(error))
+            return
+        markers.select(hit.name if hit is not None else None)
+
+    def _remove_handle(self, document: MapDocument, selected: AnyMarker, hit: _MarkerHit) -> None:
+        markers = document.markers
+        corner = hit.corner if hit.name == selected.name else None
+        if isinstance(selected, AreaMarker) and corner is not None:
+            corners = [p for i, p in enumerate(selected.points) if i != corner]
+            markers.set_corners(selected.name, corners)
+        elif isinstance(selected, PathMarker) and hit.point in selected.stops:
+            markers.set_stops(selected.name, [s for s in selected.stops if s != hit.point])
+
+    def _insert(self, view: ToolView, document: MapDocument, gesture: Gesture) -> bool:
+        """Shift-click on the chosen area's edge or path's leg: a corner, or a new point, goes in
+        there. False when the click was not on one."""
+        markers = document.markers
+        selected = markers.selected
+        world = _snapped(view, gesture.world)
+        if isinstance(selected, AreaMarker):
+            points = list(selected.points)
+            leg = _nearest_leg(view, [*points, points[0]], gesture.screen)
+            if leg is None:
+                return False
+            points.insert(leg + 1, world)
+            markers.set_corners(selected.name, points)
+            return True
+        if isinstance(selected, PathMarker):
+            leg = _nearest_leg(view, markers.path_points(selected), gesture.screen)
+            if leg is None:
+                return False
+            point = markers.mark_point(*world)
+            stops = list(selected.stops)
+            stops.insert(leg + 1, point.name)
+            markers.set_stops(selected.name, stops)
+            markers.select(selected.name)
+            return True
+        return False
+
+    def _add_corner(
+        self, view: ToolView, document: MapDocument, gesture: Gesture, world: tuple[float, float]
+    ) -> None:
+        if len(self.corners) >= 3 and _near(view, self.corners[0], gesture.screen):
+            self._finish(document)
+        else:
+            self.corners.append(world)
+
+    def _add_stop(
+        self, view: ToolView, document: MapDocument, gesture: Gesture, world: tuple[float, float]
+    ) -> None:
+        markers = document.markers
+        hit = self._hit(view, gesture, points_only=True)
+        stop: str | tuple[float, float] = hit.point if hit and hit.point else world
+        if not self.stops:
+            selected = markers.selected
+            if isinstance(selected, PathMarker) and stop in (selected.stops[0], selected.stops[-1]):
+                at_end = stop == selected.stops[-1]
+                self._extend = (selected.name, at_end)
+                self.host.show_status(f"Extending path {selected.name}: Enter to finish")
+        elif self._last_stop_is(view, stop, gesture):
+            self._finish(document)
+            return
+        self.stops.append(stop)
+
+    def _last_stop_is(
+        self, view: ToolView, stop: str | tuple[float, float], gesture: Gesture
+    ) -> bool:
+        last = self.stops[-1]
+        if isinstance(last, str):
+            return stop == last
+        return _near(view, last, gesture.screen)
+
+    def key(self, view: ToolView, key: int) -> bool:
+        document = view.document
+        if document is None:
+            return False
+        pending = bool(self.corners or self.stops)
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and pending:
+            self._finish(document)
+        elif key == Qt.Key.Key_Escape and pending:
+            self.cancel()
+        elif key == Qt.Key.Key_Backspace and pending:
+            (self.corners or self.stops).pop()
+            if not self.stops:
+                self._extend = None
+        elif key == Qt.Key.Key_Delete and not pending and document.markers.selected is not None:
+            name = document.markers.selected.name
+            document.markers.remove(name)
+            self.host.show_status(f"Removed {name}")
+        else:
+            return False
+        view.update()
+        return True
+
+    def _finish(self, document: MapDocument) -> None:
+        """Mark the polygon or path in the making."""
+        markers = document.markers
+        try:
+            if self.corners:
+                area = markers.mark_area(self.corners)
+                markers.select(area.name)
+                self.host.show_status(f'Marked area {area.name}: tell the agent "{area.name}"')
+            elif self.stops:
+                self._finish_path(document)
+        except MarkerError as error:
+            self.host.show_status(str(error))
+            return
+        self.corners, self.stops, self._extend = [], [], None
+
+    def _finish_path(self, document: MapDocument) -> None:
+        markers = document.markers
+        stops = list(self.stops)
+        extend = self._extend
+        existing = markers.get(extend[0]) if extend is not None else None
+        if extend is not None and isinstance(existing, PathMarker):
+            stops = stops[1:]  # the first stop is the end the extension started from
+        if not stops and existing is not None:
+            return
+        created: list[str] = []
+        try:
+            names: list[str] = []
+            for stop in stops:
+                if isinstance(stop, tuple):
+                    stop = markers.mark_point(*stop).name
+                    created.append(stop)
+                names.append(stop)
+            if extend is not None and isinstance(existing, PathMarker):
+                if extend[1]:
+                    names = [*existing.stops, *names]
+                else:
+                    names = [*reversed(names), *existing.stops]
+                path = markers.set_stops(existing.name, names)
+                self.host.show_status(f"Extended path {path.name}")
+            else:
+                path = markers.mark_path(names)
+                self.host.show_status(f'Marked path {path.name}: tell the agent "{path.name}"')
+        except MarkerError:
+            for name in created:
+                markers.remove(name)
+            raise
+        markers.select(path.name)
+
+    def cancel(self) -> None:
+        self._press = self._end = self._last = self._grab = None
+        self._dragging = False
+        self.corners, self.stops, self._extend = [], [], None
+
+    def _hit(
+        self, view: ToolView, gesture: Gesture, points_only: bool = False
+    ) -> _MarkerHit | None:
+        """The marker under a click: a handle of the chosen marker, then a point, then an area's
+        corner; then (unless `points_only`) a path's leg, then an area's inside."""
+        document = view.document
+        if document is None:
+            return None
+        markers = document.markers
+        selected = markers.selected
+        screen = gesture.screen
+        if isinstance(selected, AreaMarker):
+            for index, corner in enumerate(selected.points):
+                if _near(view, corner, screen):
+                    return _MarkerHit(selected.name, corner=index)
+        if isinstance(selected, PathMarker):
+            for stop in selected.stops:
+                point = markers.get(stop)
+                if isinstance(point, PointMarker) and _near(view, point.position, screen):
+                    return _MarkerHit(selected.name, point=stop)
+        for point in reversed(markers.points()):
+            if _near(view, point.position, screen):
+                return _MarkerHit(point.name, point=point.name)
+        if points_only:
+            return None
+        for area in reversed(markers.areas()):
+            for index, corner in enumerate(area.points):
+                if _near(view, corner, screen):
+                    return _MarkerHit(area.name, corner=index)
+        for path in reversed(markers.paths()):
+            if _nearest_leg(view, markers.path_points(path), screen) is not None:
+                return _MarkerHit(path.name)
+        area = markers.at(*gesture.world)
+        return _MarkerHit(area.name) if area is not None else None
+
+    def paint(self, view: ToolView, painter: QPainter) -> None:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self.mode is MarkerMode.RECTANGLE and self._press is not None and self._end is not None:
+            if self._grab is None:
+                (x0, y0), (x1, y1) = self._press.world, self._end
+                painter.setPen(QPen(MARKED_REGION, 1.5, Qt.PenStyle.DashLine))
+                view.world_polygon(painter, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
+            return
+        document = view.document
+        if self.corners:
+            outline = list(self.corners)
+        elif self.stops and document is not None:
+            outline = [_stop_position(document, stop) for stop in self.stops]
+        else:
+            return
+        painter.setPen(QPen(MARKED_REGION, 1.5))
+        view.world_polygon(painter, outline, closed=False)
+        if self._hover is not None:
+            painter.setPen(QPen(MARKED_REGION, 1, Qt.PenStyle.DashLine))
+            view.world_polygon(painter, [outline[-1], self._hover.world], closed=False)
+        painter.setPen(QPen(MARKED_REGION, 1.5))
+        for index, (x, y) in enumerate(outline):
+            sx, sy = view.transform.world_to_screen(x, y)
+            size = 7.0 if index == 0 and self.corners else 5.0
+            painter.drawRect(QRectF(sx - size / 2, sy - size / 2, size, size))
+
+
+def _stop_position(document: MapDocument, stop: str | tuple[float, float]) -> tuple[float, float]:
+    if isinstance(stop, tuple):
+        return stop
+    point = document.markers.get(stop)
+    return point.position if isinstance(point, PointMarker) else (0.0, 0.0)
+
+
+def _near(view: ToolView, world: tuple[float, float], screen: QPointF) -> bool:
+    sx, sy = view.transform.world_to_screen(*world)
+    return math.hypot(sx - screen.x(), sy - screen.y()) <= PICK_PIXELS
+
+
+def _nearest_leg(
+    view: ToolView, points: Sequence[tuple[float, float]], screen: QPointF
+) -> int | None:
+    """The leg (index of its first point) of a line through `points` that passes within
+    `PICK_PIXELS` of a screen position, the nearest; None when none does."""
+    projected = [view.transform.world_to_screen(x, y) for x, y in points]
+    best, best_distance = None, PICK_PIXELS
+    for index, ((ax, ay), (bx, by)) in enumerate(zip(projected, projected[1:], strict=False)):
+        dx, dy = bx - ax, by - ay
+        length = dx * dx + dy * dy
+        t = 0.0 if length == 0 else ((screen.x() - ax) * dx + (screen.y() - ay) * dy) / length
+        t = min(1.0, max(0.0, t))
+        distance = math.hypot(screen.x() - (ax + t * dx), screen.y() - (ay + t * dy))
+        if distance <= best_distance:
+            best, best_distance = index, distance
+    return best
 
 
 def selected_objects(document: MapDocument) -> list[Object]:

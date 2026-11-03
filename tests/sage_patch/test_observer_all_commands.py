@@ -25,7 +25,7 @@ from sage_patch.patches.experimental.observer_all_commands import (
     ANCHORS,
     ObserverAllCommandsPatch,
 )
-from sage_patch.patches.observer_command_range import ObserverCommandRangePatch
+from sage_patch.patches.multiplayer.observer_command_range import ObserverCommandRangePatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import observer_all_commands_image

@@ -21,8 +21,8 @@ from sage_patch.addresses import (
     OBJECT_STATUS_UNDER_CONSTRUCTION,
     OBJECT_TEST_STATUS,
 )
-from sage_patch.patches import ai_revive_gate as revive
-from sage_patch.patches.ai_construction_gate import (
+from sage_patch.patches.ai import ai_revive_gate as revive
+from sage_patch.patches.ai.ai_construction_gate import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

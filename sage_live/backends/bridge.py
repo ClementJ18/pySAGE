@@ -25,13 +25,20 @@ from sage_live.api.observation import Vec3
 from sage_live.backends.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend, MemorySource
 from sage_live.backends.protocol import Diagnostic, Handshake
 from sage_patch.addresses import (
+    GAME_STATE_SAVE_GAME,
     IMAGE_BASE,
+    THE_GAME_STATE,
     THE_TACTICAL_VIEW,
     VIEW_LOCATION_SIZE,
     VIEW_POSITION_OFFSET,
 )
-from sage_patch.patches.experimental.live_bridge import (
+from sage_patch.patches.diagnostics.live_bridge import (
     BUFFER_TAG,
+    BUFFER_TAG_CHEATS,
+    CALL_DIRECT,
+    CALL_MAX_ARGS,
+    CALL_SCRATCH_SIZE,
+    CALL_VTABLE,
     CAMERA_APPLY,
     CAMERA_CAPTURE,
     CAMERA_OFF,
@@ -41,6 +48,7 @@ from sage_patch.patches.experimental.live_bridge import (
     READY_OFF,
     SECTION_NAME,
     TAG_OFF,
+    cheat_offsets,
 )
 from sage_patch.pe import find as pe_find
 from sage_patch.pe import mapped_sections
@@ -180,6 +188,7 @@ class BridgeBackend(MemoryBackend):
         super().__init__(source, layout=layout, handshake=handshake, expect=expect)
         self._writable = source
         self._section: tuple[int, int] | None = None
+        self._calls = False
 
     @property
     def section(self) -> tuple[int, int] | None:
@@ -195,7 +204,7 @@ class BridgeBackend(MemoryBackend):
             )
         self._section = located
         tag = self._u32(located[0] + TAG_OFF)
-        if tag != BUFFER_TAG:
+        if tag not in (BUFFER_TAG, BUFFER_TAG_CHEATS):
             # The section is present, so the game is patched - just not by this version. Every
             # offset this module writes at would land somewhere else in that cave, and the
             # nearest thing to a camera write is the middle of the appender table, which the
@@ -206,7 +215,128 @@ class BridgeBackend(MemoryBackend):
                 "game was patched by a different version of live-bridge. Re-apply it with "
                 "`sage-patch apply live-bridge --in game.dat`."
             )
+        self._calls = tag == BUFFER_TAG_CHEATS
         return super().connect()
+
+    @property
+    def can_call(self) -> bool:
+        """True when the game's live-bridge carries the call command (`--cheats`)."""
+        return self._section is not None and self._calls
+
+    @property
+    def scratch_address(self) -> int | None:
+        """Where `call`'s `scratch` bytes land - a fixed address a call argument can point at."""
+        if self._section is None or not self._calls:
+            return None
+        return cheat_offsets(self._section[0])["scratch"]
+
+    def call(
+        self,
+        target: int,
+        args: Sequence[int] = (),
+        *,
+        this: int = 0,
+        vtable: bool = False,
+        cleanup: int = 0,
+        scratch: bytes = b"",
+        timeout: float = _ACK_TIMEOUT,
+    ) -> int | None:
+        """Call engine code on the logic thread, at the start of the next logic frame, and return
+        its `eax` - or None when the call was refused or never served.
+
+        `target` is an address, or with `vtable` a byte offset into the vtable at `this`, which
+        goes in `ecx`. `cleanup` is what to add to `esp` afterwards: 0 for the engine's
+        `__thiscall`/`__stdcall` targets, `4 * len(args)` for a `__cdecl` one. `scratch` is
+        written to `scratch_address` first, for arguments that point at a structure.
+
+        Needs the `--cheats` build of live-bridge: it calls whatever address it is given, so a
+        wrong one crashes the game.
+        """
+        if not self._connected or self._section is None:
+            self._diagnostics.append(Diagnostic("call before connect"))
+            return None
+        if not self._calls:
+            self._diagnostics.append(
+                Diagnostic("the game's live-bridge has no call command; apply it with --cheats")
+            )
+            return None
+        if len(args) > CALL_MAX_ARGS or len(scratch) > CALL_SCRATCH_SIZE:
+            raise ValueError(
+                f"a call takes at most {CALL_MAX_ARGS} arguments and {CALL_SCRATCH_SIZE} bytes "
+                "of scratch"
+            )
+        fields = cheat_offsets(self._section[0])
+        if not self._await_zero(fields["ready"], timeout):
+            self._diagnostics.append(Diagnostic("the previous call was never served"))
+            return None
+        record = struct.pack(
+            "<IIIII",
+            CALL_VTABLE if vtable else CALL_DIRECT,
+            this & 0xFFFFFFFF,
+            target & 0xFFFFFFFF,
+            len(args),
+            cleanup,
+        )
+        arguments = b"".join(struct.pack("<I", value & 0xFFFFFFFF) for value in args)
+        # Everything first, `ready` last: the flag is what publishes the call.
+        written = (
+            (not scratch or self._writable.write(fields["scratch"], scratch))
+            and self._writable.write(fields["mode"], record)
+            and (not arguments or self._writable.write(fields["args"], arguments))
+            and self._writable.write(fields["result"], struct.pack("<I", 0))
+            and self._writable.write(fields["ready"], struct.pack("<I", 1))
+        )
+        if not written:
+            self._diagnostics.append(Diagnostic("failed to write the call block"))
+            return None
+        if not self._await_zero(fields["ready"], timeout):
+            self._diagnostics.append(Diagnostic("the call was not served; is the game paused?"))
+            return None
+        return self._u32(fields["result"])
+
+    def save_game(self, timeout: float = 60.0) -> bool:
+        """Save the running game as a new save, the way the save menu's "new save" does: the
+        engine picks the next free `Saved Game N` and the extension of the game's type, in the
+        user's save folder. True when the call was served; compare the folder before and after
+        to find the file.
+
+        `GameState::saveGame(UnicodeString file, const UnicodeString &desc, int list,
+        bool showMessage, bool isAutoSave)` is `__thiscall` on `TheGameState`. A null `file` is
+        what selects the engine's own naming (it tests the string's length at +4); `desc` is a
+        reference, so it gets the address of an empty string in the scratch area - a null one
+        is dereferenced (seen live: an access violation in the string code mid-save).
+
+        A name of the caller's choosing is deliberately not offered. One the engine cannot open
+        as a file (seen live: a name without its extension, which it created as a folder) throws
+        outside `saveGame`'s own `catch`, and the game ends with "Uncaught Exception in
+        GameEngine::update".
+        """
+        game_state = self._u32(THE_GAME_STATE)
+        if not game_state:
+            self._diagnostics.append(Diagnostic("save_game: no GameState"))
+            return False
+        scratch = self.scratch_address
+        if scratch is None:
+            self._diagnostics.append(Diagnostic("save_game: no call command"))
+            return False
+        empty_description = struct.pack("<I", 0)  # an `UnicodeString` holding no data
+        result = self.call(
+            GAME_STATE_SAVE_GAME,
+            (0, scratch, 0, 0, 0),
+            this=game_state,
+            scratch=empty_description,
+            timeout=timeout,
+        )
+        return result is not None
+
+    def _await_zero(self, address: int, timeout: float) -> bool:
+        """Wait for the dword at `address` to read 0; False on timeout."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self._u32(address) == 0:
+                return True
+            time.sleep(_ACK_POLL)
+        return False
 
     def _ready_flag(self) -> int | None:
         if self._section is None:

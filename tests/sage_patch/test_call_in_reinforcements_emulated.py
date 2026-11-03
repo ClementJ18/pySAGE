@@ -41,7 +41,7 @@ from sage_patch.addresses import (  # noqa: E402
     THE_GAME_LOGIC,
     THE_LIVING_WORLD_LOGIC,
 )
-from sage_patch.patches.call_in_reinforcements import (  # noqa: E402
+from sage_patch.patches.campaign.call_in_reinforcements import (  # noqa: E402
     SECTION_NAME,
     CallInReinforcementsPatch,
 )

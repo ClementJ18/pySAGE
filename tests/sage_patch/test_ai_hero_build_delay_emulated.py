@@ -31,7 +31,7 @@ from sage_patch.addresses import (
     THE_GAME_LOGIC,
     THE_NAME_KEY_GENERATOR,
 )
-from sage_patch.patches.ai_hero_build_delay import build_section, layout
+from sage_patch.patches.ai.ai_hero_build_delay import build_section, layout
 
 unicorn = pytest.importorskip("unicorn", reason="the emulator harness needs unicorn")
 

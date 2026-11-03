@@ -129,7 +129,7 @@ whether or not its roster contains that hero, which is what keeps theirs apart. 
 
 ## Built: `ForceBattle` and `ExactPosition` in `campaign-army-verbs`
 
-Both live in [`campaign-army-verbs`](../../patches/campaign_army_verbs.py), which already owns the
+Both live in [`campaign-army-verbs`](../../patches/campaign/campaign_army_verbs.py), which already owns the
 eleventh act pass. **Static only.**
 
 **`ForceBattle`.** The two calls into the stub (`0x0096C897`, `0x0096C8D4`) are repointed at cave

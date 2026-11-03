@@ -248,7 +248,7 @@ def test_lock_layout_takes_every_drop_target_away(qapp, tmp_path, monkeypatch):
         assert not window.dockOptions() & options.GroupedDragging
         assert not window.dockOptions() & options.AllowTabbedDocks
         # Panels already tabbed together stay that way; the lock only stops new ones.
-        assert window.tabifiedDockWidgets(window.map_dock)
+        assert window.tabifiedDockWidgets(dock)
 
         window.lock_layout_action.setChecked(False)
         assert not window.settings.lock_layout

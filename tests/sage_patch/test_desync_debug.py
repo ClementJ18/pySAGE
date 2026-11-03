@@ -38,7 +38,7 @@ from sage_patch.addresses import (
     NET_CRC_INTERVAL,
     NET_CRC_INTERVAL_STOCK,
 )
-from sage_patch.patches.desync_debug import (
+from sage_patch.patches.diagnostics.desync_debug import (
     MAX_FOCUS_FRAME,
     MAX_INTERVAL,
     MIN_FOCUS_FRAME,

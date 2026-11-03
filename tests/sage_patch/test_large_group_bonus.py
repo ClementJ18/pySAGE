@@ -30,7 +30,7 @@ from sage_patch.addresses import (  # noqa: E402
     INI_PARSE_BOOL,
     OPERATOR_NEW,
 )
-from sage_patch.patches.large_group_bonus import (  # noqa: E402
+from sage_patch.patches.units.large_group_bonus import (  # noqa: E402
     ALLOC_RESUME_VA,
     ALLOC_WINDOW_BYTES,
     ALLOC_WINDOW_VA,
@@ -83,7 +83,7 @@ from sage_patch.patches.large_group_bonus import (  # noqa: E402
     build_new_allow,
     build_setup,
 )
-from sage_patch.patches.large_group_bonus import (  # noqa: E402
+from sage_patch.patches.units.large_group_bonus import (  # noqa: E402
     LargeGroupBonusPatch as Patch,
 )
 from sage_patch.utils import find_section, va_to_offset  # noqa: E402

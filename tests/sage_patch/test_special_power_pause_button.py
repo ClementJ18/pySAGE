@@ -19,7 +19,7 @@ from sage_patch.addresses import (
     CONTROL_BAR_SPECIAL_POWER_PERCENT_CALL,
     CONTROL_BAR_SPECIAL_POWER_PERCENT_CALL_BYTES,
 )
-from sage_patch.patches import special_power_pause_button as ui
+from sage_patch.patches.special_powers import special_power_pause_button as ui
 from sage_patch.utils import file_offset, find_section
 from tests.sage_patch.test_experience_follow_up import UpgradeWorld, upgrade_image
 

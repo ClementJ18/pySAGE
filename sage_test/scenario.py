@@ -60,6 +60,15 @@ class Placement:
     #: A map-side owner that is not a seat, such as `PlyrCreeps/teamPlyrCreeps`: one of the
     #: template map's own players. Overrides `seat`. An enemy no skirmish AI gives orders to.
     owner: str | None = None
+    #: Where the engine puts the object, when that is not `at`: a castle piece with
+    #: `GeometryRotationAnchorOffset` is stored at its castle's centre and moved out along its
+    #: facing. Only binding reads it; the map is written with `at`.
+    expect_at: Vec3 | None = None
+
+    @property
+    def live_at(self) -> Vec3:
+        """Where the harness looks for the live object."""
+        return self.expect_at if self.expect_at is not None else self.at
 
 
 @dataclass(frozen=True)

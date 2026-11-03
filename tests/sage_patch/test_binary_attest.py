@@ -33,7 +33,7 @@ from sage_patch.addresses import (  # noqa: E402
     TEXT_SECTION_VA,
     THE_RECORDER,
 )
-from sage_patch.patches.binary_attest import (  # noqa: E402
+from sage_patch.patches.multiplayer.binary_attest import (  # noqa: E402
     CODE_OFF,
     FNV_OFFSET_BASIS,
     FNV_PRIME,
@@ -45,7 +45,7 @@ from sage_patch.patches.binary_attest import (  # noqa: E402
     build_section,
     expected_hash,
 )
-from sage_patch.patches.replay_outcome import ReplayOutcomePatch  # noqa: E402
+from sage_patch.patches.multiplayer.replay_outcome import ReplayOutcomePatch  # noqa: E402
 from sage_patch.registry import PATCHES  # noqa: E402
 from sage_patch.utils import find_section, va_to_offset  # noqa: E402
 

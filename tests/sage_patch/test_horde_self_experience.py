@@ -17,7 +17,7 @@ from sage_patch.addresses import (
     KILL_SCORE_HORDE_EXPERIENCE_CALL,
     KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES,
 )
-from sage_patch.patches.horde_self_experience import (
+from sage_patch.patches.units.horde_self_experience import (
     ANCHORS,
     SECTION_NAME,
     HordeSelfExperiencePatch,

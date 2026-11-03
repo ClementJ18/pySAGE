@@ -4,7 +4,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR
 is `VA - 0x400000`. Read from the repo's `game.dat` (11,346,944 bytes), which
 `sage-patch sagepatch` reports as carrying no known patch, so every byte quoted here is stock.
 
-**Status: built** - see [`patches/experience_award.py`](../patches/experience_award.py) - and
+**Status: built** - see [`patches/combat/experience_award.py`](../patches/combat/experience_award.py) - and
 **statically verified, not runtime-verified.** Every site is byte-asserted in the tests against the
 real `game.dat`, and the stub is run under an emulator against stand-ins for the two engine
 functions it calls. None of it has been watched in a running game.

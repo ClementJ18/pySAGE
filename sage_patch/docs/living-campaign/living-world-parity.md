@@ -135,7 +135,7 @@ Problem (2) below — the dead hero — is **resolved** in [`hero-permadeath.md`
 the hero is not dead. The post-battle harvest at `0x00811E1F` writes only survivors back into the
 army, and RotWK moves a hero with no surviving object into his faction's fortress hero-spawn queue,
 with his upgrades, re-buyable as a one-hero army. BFME1 keeps him in his army instead; the
-[`hero-army-carryover`](../../patches/experimental/hero_army_carryover.py) patch adds that rule as
+[`hero-army-carryover`](../../patches/campaign/hero_army_carryover.py) patch adds that rule as
 an opt-in `Persistent` keyword on `ArmyEntry`, runtime-verified. The carryover/revival machinery
 below is a different, linear-campaign system. Problem (1), the per-hero ownership transfer, stands
 as written.

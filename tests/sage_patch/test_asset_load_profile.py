@@ -24,7 +24,7 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch.addresses import GLOBAL_DATA_ASSET_PROFILE
-from sage_patch.patches.asset_load_profile import (
+from sage_patch.patches.diagnostics.asset_load_profile import (
     ANCHORS,
     CTOR_STORE_PAIR,
     CTOR_STORE_PAIR_BYTES,

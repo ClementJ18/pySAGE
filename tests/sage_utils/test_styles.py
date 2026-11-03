@@ -58,4 +58,4 @@ def test_a_checked_radio_button_shows_its_dot(style, palette):
             centres.append(qt_gui.QColor(image.pixel(rect.center())).name())
     finally:
         app.setStyleSheet(previous)
-    assert centres == [palette["accent"], palette["surface"]]
+    assert centres == [palette["radioDot"], palette["surface"]]

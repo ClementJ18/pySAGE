@@ -1342,7 +1342,8 @@ class HeroManaPatch(Patch):
             default=_DEFAULT_REGEN,
             metavar="N",
             help="default refill, in hundredths of a point per logic frame, for an Object that "
-            f"declares no ManaRegen (default {_DEFAULT_REGEN} == 1.5 points/second at the 5 Hz logic rate)",
+            f"declares no ManaRegen (default {_DEFAULT_REGEN} == 1.5 points/second at the 5 Hz "
+            "logic rate)",
         )
         parser.add_argument(
             "--trace",

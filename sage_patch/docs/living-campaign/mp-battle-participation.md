@@ -3,7 +3,7 @@
 Engine build `2.01.2614.37001`, ImageBase `0x400000`. Static analysis 2026-09-06,
 **confirmed against a running three-player game on 2026-09-06** - see *Measured live*.
 The fix is built as
-[`wotr-battle-observers`](../../patches/wotr_battle_observers.py).
+[`wotr-battle-observers`](../../patches/campaign/wotr_battle_observers.py).
 
 ## The symptom
 
@@ -256,7 +256,7 @@ slot of its own.
 
 ## The patch
 
-Built as [`wotr-battle-observers`](../../patches/wotr_battle_observers.py). Nine
+Built as [`wotr-battle-observers`](../../patches/campaign/wotr_battle_observers.py). Nine
 rewritten sites, one cave, no INI surface. It applies and verifies against the build, and **it is
 confirmed in a running three-player game on 2026-09-06** - see *Measured live*.
 

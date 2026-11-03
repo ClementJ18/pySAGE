@@ -31,7 +31,7 @@ from sage_patch.addresses import (
     PRODUCTION_ON_LOSS,
     PRODUCTION_ON_LOSS_BYTES,
 )
-from sage_patch.patches.production_death_no_refund import (
+from sage_patch.patches.economy.production_death_no_refund import (
     ANCHORS,
     FLAG_OFF,
     SECTION_NAME,

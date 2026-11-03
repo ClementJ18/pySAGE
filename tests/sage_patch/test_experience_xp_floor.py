@@ -8,7 +8,7 @@ import pytest
 
 from sage_patch import ExperienceLevelDownPatch
 from sage_patch.addresses import EXPERIENCE_XP_CAP_WINDOWS
-from sage_patch.patches import experience_level_down as xp
+from sage_patch.patches.combat import experience_level_down as xp
 from sage_patch.utils import file_offset, find_section
 from tests.sage_patch.test_experience_follow_up import capped_world
 from tests.sage_patch.test_experience_level_down import image

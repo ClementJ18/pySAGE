@@ -25,15 +25,15 @@ from sage_patch.addresses import (
     MP_SETUP_SYNC_FACTION,
     MP_SETUP_SYNC_FACTION_CALLS,
 )
-from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
-from sage_patch.patches.faction_variants import (
+from sage_patch.patches.campaign.scenario_player_factions import ScenarioPlayerFactionsPatch
+from sage_patch.patches.economy.command_point_upkeep import CommandPointUpkeepPatch
+from sage_patch.patches.multiplayer.faction_variants import (
     FIELD_NAME,
     SECTION_NAME,
     FactionVariantsPatch,
     build_section,
     layout,
 )
-from sage_patch.patches.scenario_player_factions import ScenarioPlayerFactionsPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 

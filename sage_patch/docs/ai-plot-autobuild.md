@@ -1,6 +1,6 @@
 # Letting an AI-owned plot build its own building
 
-The reverse-engineering behind [`patches/ai_plot_autobuild.py`](../patches/ai_plot_autobuild.py).
+The reverse-engineering behind [`patches/ai/ai_plot_autobuild.py`](../patches/ai/ai_plot_autobuild.py).
 ROTWK `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-10-23,
 and played the same day in an Edain skirmish (Edain-Mod `tests/test_ai_dunedain_outpost_plots.py`).
 

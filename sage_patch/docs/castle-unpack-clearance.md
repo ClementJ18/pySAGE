@@ -5,7 +5,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), recove
 known patch; every site cited is stock `.text`.
 
 **Status: implemented as `castle-unpack-clearance`**
-([`../patches/castle_unpack_clearance.py`](../patches/castle_unpack_clearance.py)), applying and
+([`../patches/structures/castle_unpack_clearance.py`](../patches/structures/castle_unpack_clearance.py)), applying and
 verifying against the real `game.dat`. §4 is the design space it was chosen from and §4.2 is what
 was built; §5 records the choice and §6 what is and is not tested. **Not runtime-verified** — the
 disassembly and the tests are two readings of the same evidence, and only the running game is a

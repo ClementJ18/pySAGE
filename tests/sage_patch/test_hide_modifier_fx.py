@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     THING_TEMPLATE_ID,
     THING_TEMPLATE_ID_COUNTER,
 )
-from sage_patch.patches.hide_modifier_fx import (
+from sage_patch.patches.render.hide_modifier_fx import (
     DEFAULT_KEYWORD,
     FINGERPRINT,
     ID_TABLE_SIZE,

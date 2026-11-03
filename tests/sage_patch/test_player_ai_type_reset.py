@@ -23,7 +23,7 @@ from sage_patch.addresses import (
     INI_LOAD_CREATE_OVERRIDES,
     INI_OBJECT_SIZE,
 )
-from sage_patch.patches.player_ai_type_reset import (
+from sage_patch.patches.ai.player_ai_type_reset import (
     ANCHORS,
     GLOBAL_FILE,
     HOOK_VA,

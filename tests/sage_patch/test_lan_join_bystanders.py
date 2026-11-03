@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.lan_join_bystanders import (
+from sage_patch.patches.multiplayer.lan_join_bystanders import (
     LanJoinBystandersPatch,
     jcc_target,
     retargeted,

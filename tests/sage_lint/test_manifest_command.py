@@ -321,15 +321,19 @@ class TestManifestIncludes:
             mod,
             "data/ini/object/evilfaction/units/wild/spider.ini",
             "Object GoodSpider\n"
-            '    #include "..\..\..\includes\StandardUnitEvaEvents.inc"\n'
+            '    #include "..\\..\\..\\includes\\StandardUnitEvaEvents.inc"\n'
             "End\n"
             "Object BadSpider\n"
-            '    #include "..\includes\StandardUnitEvaEvents.inc"\n'
+            '    #include "..\\includes\\StandardUnitEvaEvents.inc"\n'
             "End\n",
         )
         manifest_path = tmp_path / "base-manifest.json"
         write_manifest(build_manifest(load_game(base), [base]), manifest_path)
 
-        unresolved = [d for d in lint_folder(mod, manifest=manifest_path).items if d.code == "unresolved-include"]
+        unresolved = [
+            d
+            for d in lint_folder(mod, manifest=manifest_path).items
+            if d.code == "unresolved-include"
+        ]
 
         assert [d.span.line_start for d in unresolved] == [5]

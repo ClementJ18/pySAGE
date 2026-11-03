@@ -27,7 +27,7 @@ from sage_patch.addresses import (  # noqa: E402
     OBJECT_TEMPLATE_EXPERIENCE_GROUP_OFFSET,
     OBJECT_THING_TEMPLATE,
 )
-from sage_patch.patches.horde_self_experience import (  # noqa: E402
+from sage_patch.patches.units.horde_self_experience import (  # noqa: E402
     GROUP_CAP,
     SECTION_NAME,
     HordeSelfExperiencePatch,

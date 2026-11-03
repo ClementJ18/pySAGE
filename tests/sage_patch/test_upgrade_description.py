@@ -43,7 +43,7 @@ from sage_patch.addresses import (
     WIDE_BLANK_LINE,
     WIDE_NEWLINE,
 )
-from sage_patch.patches.upgrade_description import (
+from sage_patch.patches.ui.upgrade_description import (
     ANCHORS,
     SECTION_NAME,
     SEPARATORS,

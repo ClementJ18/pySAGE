@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 
 import pytest
+
 from sage_patch.addresses import GAME_ENGINE, GAME_ENGINE_MAX_FPS
 from sage_test.pace import CLIENT_FRAMES_PER_SECOND, Sample, pace_to_client_rate, summarise
 
@@ -26,7 +27,7 @@ def test_a_steady_game_reports_its_rates():
 
 
 def test_a_missed_sample_is_not_a_slow_frame():
-    """The poll skipping a frame shows as a two-frame gap; it is spread, not counted as one hitch."""
+    """The poll skipping a frame shows as a two-frame gap, spread rather than counted as a hitch."""
     samples = [s for s in steady(60.0, 1.0) if s.client_frame != 130]
     report = summarise(samples, 60, 5)
     assert report.frame_ms_max == pytest.approx(16.67, abs=0.01)

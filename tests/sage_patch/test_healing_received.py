@@ -34,7 +34,7 @@ from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the impor
 
 from sage_ini.engine import Engine  # noqa: E402
 from sage_ini.model.enums import ModifierType  # noqa: E402
-from sage_patch.patches.healing_received import (  # noqa: E402
+from sage_patch.patches.combat.healing_received import (  # noqa: E402
     ANCHORS,
     DEFAULT_KEYWORD,
     GET_MODIFIER_MULTIPLIER,
@@ -46,7 +46,7 @@ from sage_patch.patches.healing_received import (  # noqa: E402
     HealingReceivedWorldbuilderPatch,
     build_stub,
 )
-from sage_patch.patches.production_split import (  # noqa: E402
+from sage_patch.patches.economy.production_split import (  # noqa: E402
     NEW_TYPES,
     ProductionSplitPatch,
     ProductionSplitWorldbuilderPatch,

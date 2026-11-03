@@ -42,8 +42,8 @@ from sage_patch.addresses import (
     THE_GAME_LOGIC,
     THE_SKIRMISH_AI_MANAGER,
 )
-from sage_patch.patches import ai_ally_targets as aao
-from sage_patch.patches.ai_ally_targets import (
+from sage_patch.patches.ai import ai_ally_targets as aao
+from sage_patch.patches.ai.ai_ally_targets import (
     ALLY_OBJECT_INDEX,
     ALLY_OBJECT_NAME,
     ALLY_STRUCTURE_INDEX,

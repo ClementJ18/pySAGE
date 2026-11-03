@@ -4,7 +4,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), recove
 2026-09-28.
 
 **Status: implemented as `castle-unpack-buttons`**
-([`../patches/castle_unpack_buttons.py`](../patches/castle_unpack_buttons.py)), option C of §4;
+([`../patches/structures/castle_unpack_buttons.py`](../patches/structures/castle_unpack_buttons.py)), option C of §4;
 §5 is what was built. It applies and verifies against the real `game.dat`. **Not
 runtime-verified.**
 

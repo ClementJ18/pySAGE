@@ -89,7 +89,7 @@ and is not needed for the patch.
 
 ## 4. The patch
 
-`damage-subtypes` (`sage_patch/patches/damage_subtypes.py`) builds one table in a `.dmgsub` cave -
+`damage-subtypes` (`sage_patch/patches/combat/damage_subtypes.py`) builds one table in a `.dmgsub` cave -
 the four stock string pointers copied through by pointer, the reserved slot, the new names, NULL,
 then the strings - and repoints the three `userData` slots at it. Option `names` (CLI `--names`,
 comma-separated; default `CUSTOM_1`..`CUSTOM_8`) picks the names, indices 5 upward in order.

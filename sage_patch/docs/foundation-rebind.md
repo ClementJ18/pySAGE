@@ -1,7 +1,7 @@
 # `foundation-rebind` — let a replaced structure keep the plot it stands on
 
 **Status: implemented as `foundation-rebind`**
-([`../patches/foundation_rebind.py`](../patches/foundation_rebind.py)), applying and verifying
+([`../patches/structures/foundation_rebind.py`](../patches/structures/foundation_rebind.py)), applying and verifying
 against the real `game.dat` and composing in either order with `commandset-limit`,
 `unique-production-id`, `spawn-union` and `multi-execute-gate`. Every address below was recovered
 **statically** from a ROTWK `game.dat` build `2.01.2614.37001` (ImageBase `0x400000`) on

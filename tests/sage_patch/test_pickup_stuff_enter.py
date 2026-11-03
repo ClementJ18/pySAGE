@@ -29,8 +29,8 @@ from sage_patch.addresses import (
     PICKUP_STUFF_MOVE_TO,
     SLAUGHTER_HORDE_CONTAIN_INTERFACE_VTABLE,
 )
-from sage_patch.patches import multi_contain as mcon
-from sage_patch.patches.pickup_stuff_enter import (
+from sage_patch.patches.units import multi_contain as mcon
+from sage_patch.patches.units.pickup_stuff_enter import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

@@ -27,7 +27,8 @@ import struct
 
 import pytest
 
-from sage_patch.patches.herobar import (
+from sage_patch.patches.economy.production_condition import ProductionConditionPatch
+from sage_patch.patches.ui.herobar import (
     DEFAULT_GROUP_KINDOF,
     DEFAULT_JUMP_WINDOW,
     DEFAULT_KINDOF,
@@ -42,7 +43,6 @@ from sage_patch.patches.herobar import (
     HeroBarPatch,
     build_cave,
 )
-from sage_patch.patches.production_condition import ProductionConditionPatch
 from sage_patch.patches.utils import kind_of
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import stock_kindof_name, synthetic_image

@@ -18,9 +18,10 @@ from sage_patch.addresses import (
     TEXT_ENTRY_SET_CURSOR,
     UNICODE_STRING_DTOR,
 )
-from sage_patch.patches.text_entry_clipboard import APIS, CODE_OFFSET, SECTION_NAME, build_code
+from sage_patch.patches.ui.text_entry_clipboard import APIS, CODE_OFFSET, SECTION_NAME, build_code
 from sage_patch.registry import PATCHES
 from sage_patch.utils import allocate_section, file_offset, find_section, read_bytes
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.test_patching import _tiny_pe
 
 
@@ -474,7 +475,7 @@ def test_disassembly_and_different_cave_locations(base: int) -> None:
 
 @pytest.mark.full
 def test_real_rotwk_application_and_composition(tmp_path: Path) -> None:
-    source = Path("tools/BFME-FILES/game.dat.backup")
+    source = STOCK_GAME_DAT
     if not source.exists():
         pytest.skip("original RotWK 2.01 binary unavailable")
     original = source.read_bytes()

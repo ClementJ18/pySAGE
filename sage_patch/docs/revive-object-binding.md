@@ -1,6 +1,6 @@
 # Binding a REVIVE button to a hero by `Object`
 
-The RE behind [`patches/revive_object_binding.py`](../patches/revive_object_binding.py). ROTWK
+The RE behind [`patches/commandbar/revive_object_binding.py`](../patches/commandbar/revive_object_binding.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-10-01. **Not yet
 run in a game.**
 
@@ -16,8 +16,13 @@ run in a game.**
   `ledger.findEntry(X)`, skipped by pass 2, and accepted by `canMakeUnit` only for that ledger
   index, through the button's `NeededUpgrade` gate. Bound buttons take no positional ordinal and no
   positional count, so bound and unbound buttons can share a set.
-- Three hooks and one 279-byte cave (`.revobj`). Composes with `commandset-limit` and
-  `ai-revive-gate`, which also edit `canMakeUnit`.
+- The tooltip builder picks its unit case for any button with a `ThingTemplate`, before it looks
+  at the command. A fourth hook sends a bound `REVIVE` button to the builder's `REVIVE` case
+  instead, so its text, rank and cost come from the hero's ledger entry (`RecruitText` or
+  `ReviveText`), as they do for a positional button (§6).
+- Four hooks and one cave (`.revobj`). Composes with `commandset-limit` and `ai-revive-gate`, which
+  also edit `canMakeUnit`, and with `description-timers`, which times a `REVIVE` button off the
+  ledger.
 
 ```ini
 CommandButton Command_ReviveBeregond
@@ -53,6 +58,23 @@ Matching by name rather than by pointer is what makes an override, or a map-scop
 find the entry its base filed. The patch always asks for ordinal 0, the first entry of that name.
 A ledger holding two entries with the same template name would reach only the first through a bound
 button. No stock roster does this.
+
+### A hero already on the field
+
+An entry does not always mean the hero is dead. In a War of the Ring battle the player's init
+(`0x006B1777`) moves the world-map player's off-map hero pool into the ledger before the first
+frame ([`hero-revive-ownership.md`](hero-revive-ownership.md) §1), and a map that then gives the
+player that hero, placed or by script, leaves him alive with an entry. Seen in Edain's good
+campaign on 2026-10-29: map 01's House of Elrond offered Elrond while he stood beside it.
+
+So both bound paths first ask `Player::countObjectsByThingTemplate` (`0x006ABAF7`), with the OCL
+cap test's own arguments (`1, &tmpl, ignoreDead = 1, &count, 0`; see
+[`special-power-object-cap.md`](special-power-object-cap.md)). When the player already owns a live
+object of the bound template, pass 1 leaves the button unbound and `canMakeUnit` moves on without
+matching. The count is by template, so a hero alive under another template name (a script that
+creates `ElvenGlorfindel` where the ledger holds `ImladrisGlorfindel`) does not hide the button.
+The ordinal decrement of §3 runs before the test, so a fielded bound button still stays out of the
+positional numbering.
 
 ## 3. Pass 1: `0x00943F97`
 
@@ -172,7 +194,44 @@ the interface would refuse is refused by the engine too. That closes the hole in
 Registers: `ebx` and `edi` are scratch at this point in the loop (`UPGRADE_GATE` zeroes both and
 `ACCEPT` reloads the producer from `[ebp+8]`). The cave still uses only `eax`, `ecx` and `edx`.
 
-## 6. Other `REVIVE` readers
+## 6. The tooltip: `0x00807EF2`
+
+`ControlBar`'s description builder (`0x00807A81`, see
+[`description-timers.md`](description-timers.md) §1) fills the title from the button's
+`TextLabel` and the description from its `DescriptLabel`, then picks a case. Its first test is not
+the GUI command:
+
+```
+00807b14  call 0x75d1dc                ; getThingTemplate -> [ebp-0x4c]
+...
+00807ef2  mov  ebx, [ebp-0x4c]         ; <- hook (11 bytes)
+00807ef5  cmp  ebx, edi                ;    edi is 0 throughout
+00807ef7  je   0x808144                ;    no template: the upgrade, science, REVIVE ... cases
+00807efd  cmp  [ebp-0x24], edi         ; the unit case: Object's cost, BuildTime, requirements
+...
+008083ef  mov  eax, [esi+0xc]          ; the REVIVE case
+008083f2  cmp  [eax+0x14], 0x2e
+008083fe  mov  eax, [eax+0xc0]         ;   ledger index -> entry -> the hero's template
+0080844f  ...                          ;   RecruitText or ReviveText over the description
+008084d6  call 0x80774e                ;   the rank line, into the title
+008085d5  call 0x780ad3                ;   the ledger's revive cost
+```
+
+A stock `REVIVE` button has no `Object`, so it reaches `0x008083EF`. A bound one does have an
+`Object`, so the builder took the unit case: the button's own labels, the template's build cost
+and, with `description-timers`, the template's `BuildTime`. None of that is the revive, and the
+hero's `RecruitText` and `ReviveText` were never read.
+
+The hook reproduces the test and adds one branch. A button with a template whose command is
+`REVIVE` jumps to `0x008083EF`. Everything else goes where the stock test sent it, and the unit case
+still gets its template in `ebx`. The `REVIVE` case reloads the button from `[esi+0xc]` and reads
+nothing else from the frame that the unit case would have written. `0x00807EF2` is reached only by
+falling through from `0x00807EB0`, and nothing branches into the three instructions it replaces.
+
+When the hero is fielded, `+0xC0` is -1 and the `REVIVE` case leaves at once, keeping the button's
+own `TextLabel` and `DescriptLabel`. A positional button does the same.
+
+## 7. Other `REVIVE` readers
 
 `explore.py` finds five sites that compare a command type against `0x2E` ([`ai-revive-gate.md`](ai-revive-gate.md)):
 
@@ -180,13 +239,13 @@ Registers: `ebx` and `edi` are scratch at this point in the loop (`UPGRADE_GATE`
 |---|---|---|
 | `0x00943F97`, `0x0094428F` | pass 1, pass 2 | hooked (§3, §4) |
 | `0x007950CE` | `canMakeUnit` | preceded by the §5 hook |
-| `0x008083F2` | tooltip builder | reads `+0xC0`, so it describes the bound hero |
+| `0x008083F2` | tooltip builder | reached for a bound button through the §6 hook. It reads `+0xC0`, so it describes the bound hero |
 | `0x00697B19` | an "execute the n-th REVIVE button" helper, called only from an `AIGroup` routine (`0x0076FF1C`) | counts every `REVIVE` button positionally, bound ones included, then dispatches with that button's `+0xC0`. Unchanged, and so as positional as before |
 
 `Object::doCommandButton`'s revive case (`0x006973D3`) queues `+0xC0` directly, so a click on a
 bound button orders the bound hero.
 
-## 7. What is still open
+## 8. What is still open
 
 - **Not run in a game.** The tests emulate each routine against stubbed helpers. They check exits,
   registers, the frame and the stack, which is the patch's reading of the engine, not the engine.
@@ -195,3 +254,6 @@ bound button orders the bound hero.
   path instead hides buttons that `canMakeUnit` refuses, such a button would vanish instead of
   greying.
 - **Ledger entries with the same name.** Only the first is reachable through a bound button (§2).
+- **The tooltip of a bound button** (§6) is a static reading of the builder. A live check is to
+  hover a bound button before and after the hero dies. It should show `RecruitText`, then
+  `ReviveText`, with the revive cost, as a positional button does.

@@ -27,7 +27,7 @@ from sage_patch.addresses import (
     GUICOMMAND_REVIVE,
     PLAYER_LIST_LOCAL_IS_NOT_ACTIVE,
 )
-from sage_patch.patches.observer_command_range import (
+from sage_patch.patches.multiplayer.observer_command_range import (
     ANCHORS,
     PAGING_COMMANDS,
     SECTION_NAME,

@@ -24,7 +24,7 @@ import math
 import struct
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from sage_patch.addresses.ui import THE_TACTICAL_VIEW, VIEW_POSITION_OFFSET
 
@@ -32,6 +32,12 @@ __all__ = ["CameraFollow", "tactical_view_mover"]
 
 Point = tuple[float, float, float]
 Mover = Callable[[Point], bool]
+
+
+def _point(values: Iterable[float]) -> Point:
+    x, y, z = values
+    return x, y, z
+
 
 #: Camera writes per second: above any frame rate the game draws at.
 DEFAULT_RATE = 120.0
@@ -61,9 +67,9 @@ def tactical_view_mover(process) -> Mover:
 class CameraFollow:
     """Follows the last aimed point from a thread of its own while the `with` block runs.
 
-        with CameraFollow(tactical_view_mover(process)) as camera:
-            camera.aim(where_the_army_is)
-            ...
+    with CameraFollow(tactical_view_mover(process)) as camera:
+        camera.aim(where_the_army_is)
+        ...
     """
 
     def __init__(
@@ -93,7 +99,7 @@ class CameraFollow:
         with self._lock:
             if self._aim is not None and now > self._aimed_at:
                 dt = now - self._aimed_at
-                self._velocity = tuple((p - a) / dt for p, a in zip(point, self._aim, strict=True))
+                self._velocity = _point((p - a) / dt for p, a in zip(point, self._aim, strict=True))
             self._aim, self._aimed_at = point, now
 
     def predicted(self, now: float) -> Point | None:
@@ -101,7 +107,7 @@ class CameraFollow:
             if self._aim is None:
                 return None
             ahead = min(max(0.0, now - self._aimed_at), MAX_EXTRAPOLATION_S)
-            return tuple(a + v * ahead for a, v in zip(self._aim, self._velocity, strict=True))
+            return _point(a + v * ahead for a, v in zip(self._aim, self._velocity, strict=True))
 
     def step(self, now: float) -> None:
         """One camera update at time `now`: jump to the first aim, ease towards later ones."""
@@ -112,7 +118,8 @@ class CameraFollow:
             self.current = target
         else:
             k = 1.0 - math.exp(-max(0.0, now - self._stepped_at) / self.time_constant)
-            self.current = tuple(c + (t - c) * k for c, t in zip(self.current, target, strict=True))
+            pairs = zip(self.current, target, strict=True)
+            self.current = _point(c + (t - c) * k for c, t in pairs)
         self._stepped_at = now
         if not self.move(self.current):
             self.failed_writes += 1

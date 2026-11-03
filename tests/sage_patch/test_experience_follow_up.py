@@ -20,8 +20,8 @@ from sage_patch.addresses import (
     UPGRADE_MODULE_REMOVAL_WINDOWS,
 )
 from sage_patch.asm import Asm
-from sage_patch.patches import experience_level_down as xp
-from sage_patch.patches import upgrade_module_removal as upgrades
+from sage_patch.patches.combat import experience_level_down as xp
+from sage_patch.patches.upgrades import upgrade_module_removal as upgrades
 from sage_patch.registry import PATCHES
 from sage_patch.sagepatch import detect_patches, manifest, rebuild
 from sage_patch.utils import file_offset, find_section

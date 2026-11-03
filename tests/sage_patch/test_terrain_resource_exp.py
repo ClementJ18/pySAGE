@@ -43,7 +43,7 @@ from sage_patch.addresses import (
     TERRAIN_RESOURCE_UPDATE_VTABLE,
     TERRAIN_RESOURCE_UPDATE_VTABLE_SLOT,
 )
-from sage_patch.patches.terrain_resource_exp import (
+from sage_patch.patches.economy.terrain_resource_exp import (
     DEFAULT_KEYWORD,
     SECTION_NAME,
     STOCK_FIELD_COUNT,

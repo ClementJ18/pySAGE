@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     THE_GAME_LOGIC,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.gate_close_repath import (
+from sage_patch.patches.units.gate_close_repath import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

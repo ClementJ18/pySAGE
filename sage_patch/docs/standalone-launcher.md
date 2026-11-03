@@ -8,7 +8,7 @@ running process). This is the binary [`standalone-game.md`](standalone-game.md) 
 - **Cost:** 38 bytes, in place. No cave, no section, no relocation.
 - **Risk:** low, and unusually well evidenced: the patched image is **byte-identical to the
   launcher the Edain mod ships**, which is what `apply` is asserted to reproduce.
-- **Status:** **built** — [`patches/standalone_launcher.py`](../patches/standalone_launcher.py).
+- **Status:** **built** — [`patches/platform/standalone_launcher.py`](../patches/platform/standalone_launcher.py).
   The path half is **runtime-verified** (§2, §5); the token half is the edit Edain has shipped for
   years, and is verified here only as far as byte identity with theirs.
 

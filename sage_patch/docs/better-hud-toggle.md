@@ -1,6 +1,6 @@
 # F9 hides the HUD in replays
 
-The RE behind [`patches/better_hud_toggle.py`](../patches/better_hud_toggle.py). Build
+The RE behind [`patches/multiplayer/better_hud_toggle.py`](../patches/multiplayer/better_hud_toggle.py). Build
 `2.01.2614.37001`, ImageBase `0x400000`. Every address below was read statically, and every site
 the patch asserts holds the same bytes in the repo-root `game.dat` and in the clean
 `sage_mods/edain/patching/engine/game.dat.backup`.

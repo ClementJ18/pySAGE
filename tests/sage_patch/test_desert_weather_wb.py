@@ -16,8 +16,8 @@ import struct
 
 import pytest
 
-from sage_patch.patches import desert_weather as dw
-from sage_patch.patches.desert_weather import (
+from sage_patch.patches.render import desert_weather as dw
+from sage_patch.patches.render.desert_weather import (
     _WORLDBUILDER_DIALOG_FINGERPRINT,
     DEFAULT_WEATHER,
     STOCK_WEATHER_NAMES,

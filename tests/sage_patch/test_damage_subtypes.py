@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from sage_patch.patches import damage_subtypes as ds
-from sage_patch.patches.damage_subtypes import (
+from sage_patch.patches.combat import damage_subtypes as ds
+from sage_patch.patches.combat.damage_subtypes import (
     DEFAULT_NAMES,
     FIRST_NEW_INDEX,
     GAME,

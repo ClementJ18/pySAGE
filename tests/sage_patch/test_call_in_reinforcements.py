@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.call_in_reinforcements import (
+from sage_patch.patches.campaign.call_in_reinforcements import (
     ACTION_ID,
     ANCHORS,
     SECTION_NAME,

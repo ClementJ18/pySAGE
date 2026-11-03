@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     PLAYER_LIST_GET_LOCAL_PLAYER,
     RESOURCE_MODIFIER_COUNT_CALLBACK,
 )
-from sage_patch.patches import inflation_readout as ir
+from sage_patch.patches.ui import inflation_readout as ir
 from sage_patch.patches.utils.income_link import (
     READOUT_IMPORT_OFF,
     UPKEEP_EXPORT_OFF,

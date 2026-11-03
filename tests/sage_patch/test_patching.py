@@ -19,9 +19,9 @@ from sage_patch.addresses import (
     CONTROL_BAR_RANGE_FETCH_RESUME,
 )
 from sage_patch.patcher import EXPERIMENTAL_WARNING
-from sage_patch.patches import cah_factions as cf
-from sage_patch.patches import commandset as cs
-from sage_patch.patches.commandset import MAX_COUNT, MIN_COUNT
+from sage_patch.patches.commandbar import commandset as cs
+from sage_patch.patches.commandbar.commandset import MAX_COUNT, MIN_COUNT
+from sage_patch.patches.multiplayer import cah_factions as cf
 from sage_patch.pe import find, image_sections, mapped_sections
 from sage_patch.readme import sync
 from sage_patch.registry import PATCHES
@@ -765,11 +765,11 @@ class TestApplyProducesVerifiablePatch:
         CommandSetLimitPatch(count=count).apply(data)
         count_off = struct.pack("<I", cs._ARRAY_OFF + count * 4)
         flag_off = struct.pack("<I", cs._ARRAY_OFF + count * 4 + 4)
-        assert bytes(data[0x31C4B7 : 0x31C4B9]) == b"\x6a" + bytes([count])
-        assert bytes(data[0x31C4CA : 0x31C4D0]) == b"\x8b\x87" + count_off
-        assert bytes(data[0x31C4D0 : 0x31C4D6]) == b"\x89\x86" + count_off
-        assert bytes(data[0x31C4D6 : 0x31C4DC]) == b"\x8b\x87" + flag_off
-        assert bytes(data[0x31C4DC : 0x31C4E2]) == b"\x89\x86" + flag_off
+        assert bytes(data[0x31C4B7:0x31C4B9]) == b"\x6a" + bytes([count])
+        assert bytes(data[0x31C4CA:0x31C4D0]) == b"\x8b\x87" + count_off
+        assert bytes(data[0x31C4D0:0x31C4D6]) == b"\x89\x86" + count_off
+        assert bytes(data[0x31C4D6:0x31C4DC]) == b"\x8b\x87" + flag_off
+        assert bytes(data[0x31C4DC:0x31C4E2]) == b"\x89\x86" + flag_off
 
     @pytest.mark.full
     def test_every_site_holds_its_stock_bytes_in_the_real_binary(self):
@@ -950,7 +950,7 @@ class TestInfoCommand:
         out = capsys.readouterr().out
         assert "commandset-limit" in out
         assert "officialNecro" in out
-        assert "sage_patch/patches/commandset.py" in out
+        assert "sage_patch/patches/commandbar/commandset.py" in out
 
     def test_points_at_the_write_up(self, capsys):
         assert main(["info", "commandset-limit"]) == 0
