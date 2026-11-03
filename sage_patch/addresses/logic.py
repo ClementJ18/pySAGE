@@ -266,6 +266,7 @@ __all__ = [
     "RECORDER_END_WRITE_CALL",
     "RECORDER_END_WRITE_CALL_BYTES",
     "RECORDER_FILE",
+    "RECORDER_PLAYBACK_PATH",
     "RECORDER_GAME_MODE",
     "RECORDER_GAME_MODE_RESET",
     "RECORDER_LAST_REPLAY_NAME",
@@ -687,10 +688,12 @@ GAME_SLOT_STATE_HARD_AI = 4
 GAME_SLOT_STATE_BRUTAL_AI = 5
 GAME_SLOT_STATE_LOCAL_HUMAN = 6
 GAME_MESSAGE_APPEND_INTEGER = 0x007111E5
-# The loading screen's progress update. `[this + 0x88]` is a window the shell creates, so a
-# menu-less start dereferences null here; the engine treats the same member as nullable at
-# `0x0081C5C4`, whose whole body clears it. The twenty-four bytes run to a resume point two
-# nearby branches already target.
+# The loading screen's progress update. `[this + 0x88]` is the `GameInfo *` that
+# `LoadScreen::init` stores at `0x0081CB2D`; its vtable `+0x34` is `getLocalSlotNum()`, and the
+# report is `(localSlot, percent)` (`ret 8`, `percent` pushed early). A menu-less start has no
+# `TheGameInfo`, so `init` returns before the store and this dereferences null; the engine treats
+# the same member as nullable at `0x0081C5C4`, whose whole body clears it. The twenty-four bytes
+# run to a resume point two nearby branches already target.
 LOADING_SCREEN_PROGRESS = 0x0081C64A
 LOADING_SCREEN_PROGRESS_BYTES = bytes.fromhex("8b8e880000008b0157ff50348b0d2c41de0050e82c9ee0ff")
 LOADING_SCREEN_PROGRESS_RESUME = 0x0081C662
@@ -741,6 +744,10 @@ RECORDER_MODE = 0x1C
 RECORDER_MODE_RECORD = 0
 RECORDER_MODE_PLAYBACK = 1
 RECORDER_FILE = 0x10
+# `m_currentReplayFilename`, a `UnicodeString`: during playback, the full path of the replay being
+# played (read live 2026-11-01 while playing back `Replays\Game 4.BfME2Replay`). Generals marks it
+# valid during playback only, so it is not read as the recording's path.
+RECORDER_PLAYBACK_PATH = 0x20
 RECORDER_WRITE_TO_FILE = 0x0077D8FC
 # `RecorderClass::m_gameMode`. Do not read it inside `startRecording`, whose `reset()` overwrites it
 # with 9 first; read its mode argument instead (`START_RECORDING_MODE_ARG`).
@@ -1124,13 +1131,15 @@ GAME_LOGIC_SCHEDULE_UPDATE = 0x00850C32
 GAME_LOGIC_SCHEDULE_ABSOLUTE_CANDIDATE = 0x0062B921
 
 #: Writing a save, derived in `docs/living-campaign/wotr-save-failure.md`.
-#: `GameState::saveGame(UnicodeString file, UnicodeString desc, int list, bool showMessage,
-#: bool isAutoSave)` - `__thiscall` on `THE_GAME_STATE`, `ret 0x14`. It opens the destination file
-#: itself (no temporary and rename), writes the 16-byte header through the `XferSave` at
-#: `XFER_SAVE_VTABLE`, and runs `GAME_STATE_XFER_SAVE_DATA` inside a `catch (...)` whose handler
-#: (`GAME_STATE_SAVE_CATCH`) shows `GUI:ErrorSavingGame`, closes the file and returns. The build
-#: is VC++ 7.1, whose `catch (...)` also catches structured exceptions, so an access violation in
-#: any snapshot's `xfer` lands there too and the partial file stays on disk.
+#: `GameState::saveGame(UnicodeString file, const UnicodeString &desc, int list, bool showMessage,
+#: bool isAutoSave)` - `desc` is a reference (`0x006DE5FC` assigns through it); a null `file`
+#: makes it pick the next free `Saved Game N`. `__thiscall` on `THE_GAME_STATE`, `ret 0x14`. It
+#: opens the destination file itself (no temporary and rename), writes the 16-byte header through
+#: the `XferSave` at `XFER_SAVE_VTABLE`, and runs `GAME_STATE_XFER_SAVE_DATA` inside a
+#: `catch (...)` whose handler (`GAME_STATE_SAVE_CATCH`) shows `GUI:ErrorSavingGame`, closes the
+#: file and returns. The build is VC++ 7.1, whose `catch (...)` also catches structured
+#: exceptions, so an access violation in any snapshot's `xfer` lands there too and the partial
+#: file stays on disk.
 GAME_STATE_SAVE_GAME = 0x006DE498
 GAME_STATE_SAVE_CATCH = 0x006DE7DD
 #: `GameState::xferSaveData(Xfer *, int list)`: for each snapshot registered in `list`, write its
@@ -1216,3 +1225,70 @@ OVERRIDABLE_NEXT_OVERRIDE = 0x04
 OVERRIDABLE_IS_OVERRIDE = 0x08
 THING_FACTORY_RESET = 0x006D120A
 OVERRIDABLE_DELETE_OVERRIDES = 0x005E2E2E
+
+#: `ThePlayerAITypeSet` and the `map.ini` pass, derived in `docs/player-ai-type-reset.md`.
+#: The set is a plain vector of 16-byte records (`+0` name, `+4` the `LibraryMap`) at `+0xC`, not
+#: an `Overridable` store: the `PlayerAIType` block parser (`0x00615871`) parses into a temporary
+#: and swaps it over the entry of the same name, so a `map.ini` block edits the global record.
+#: Its `SubsystemInterface::reset` is the bare `ret` at `PLAYER_AI_TYPE_SET_RESET`, so nothing
+#: puts the global value back before the next map.
+THE_PLAYER_AI_TYPE_SET = 0x00DE3D5C
+PLAYER_AI_TYPE_SET_VTABLE = 0x00BFE8D0
+PLAYER_AI_TYPE_SET_RESET_SLOT = 0x24
+PLAYER_AI_TYPE_SET_RESET = 0x0063F3BF
+#: `GameLogic`'s map-INI loader - `__thiscall`, the map's path as an `AsciiString` by value. It
+#: loads `<mapdir>\map.ini` and `<mapdir>\solo.ini` with load type `INI_LOAD_CREATE_OVERRIDES`.
+#: Its one caller is `GAME_LOGIC_LOAD_MAP_INI_CALL`, inside `startNewGame`; nothing branches into
+#: its first five bytes (`mov eax, <SEH table>`), which is what makes them hookable.
+GAME_LOGIC_LOAD_MAP_INI = 0x0062710D
+GAME_LOGIC_LOAD_MAP_INI_ENTRY = bytes.fromhex("b8a33bb800")
+GAME_LOGIC_LOAD_MAP_INI_RESUME = 0x00627112
+GAME_LOGIC_LOAD_MAP_INI_RESUME_BYTES = bytes.fromhex("e8d95d4100")
+GAME_LOGIC_LOAD_MAP_INI_CALL = 0x0062FA07
+GAME_LOGIC_LOAD_MAP_INI_CALL_BYTES = bytes.fromhex("e80177ffff")
+#: The `INI` parser object the loader builds on its stack for each file: constructor and destructor
+#: are `__thiscall` with no arguments. The object is `0x87C` bytes (`[ebp-0xA98]` up to the path
+#: buffer at `[ebp-0x21C]`); `INI_OBJECT_SIZE` rounds it to a dword-aligned stack reservation.
+INI_CTOR = 0x0042CAB8
+INI_CTOR_ENTRY = bytes.fromhex("b8320cb700")
+INI_DTOR = 0x0042CB63
+INI_DTOR_ENTRY = bytes.fromhex("b8630cb700")
+INI_OBJECT_SIZE = 0x880
+INI_LOAD_ENTRY = bytes.fromhex("b86a0db700")
+INI_LOAD_CREATE_OVERRIDES = 2
+FILE_SYSTEM_DOES_FILE_EXIST_ENTRY = bytes.fromhex("558bec81ec")
+ASCII_STRING_CTOR_ENTRY = bytes.fromhex("8b54240485d2")
+__all__ += [
+    "ASCII_STRING_CTOR_ENTRY",
+    "FILE_SYSTEM_DOES_FILE_EXIST_ENTRY",
+    "GAME_LOGIC_LOAD_MAP_INI",
+    "GAME_LOGIC_LOAD_MAP_INI_CALL",
+    "GAME_LOGIC_LOAD_MAP_INI_CALL_BYTES",
+    "GAME_LOGIC_LOAD_MAP_INI_ENTRY",
+    "GAME_LOGIC_LOAD_MAP_INI_RESUME",
+    "GAME_LOGIC_LOAD_MAP_INI_RESUME_BYTES",
+    "INI_CTOR",
+    "INI_CTOR_ENTRY",
+    "INI_DTOR",
+    "INI_DTOR_ENTRY",
+    "INI_LOAD_CREATE_OVERRIDES",
+    "INI_LOAD_ENTRY",
+    "INI_OBJECT_SIZE",
+    "PLAYER_AI_TYPE_SET_RESET",
+    "PLAYER_AI_TYPE_SET_RESET_SLOT",
+    "PLAYER_AI_TYPE_SET_VTABLE",
+    "THE_PLAYER_AI_TYPE_SET",
+]
+
+#: `GameLogic::reset` - zeroes the frame counter (`0x0062D421`) among the rest, between matches and
+#: before a save loads. Reached only through slot 9 of `GameLogic`'s two vtables (`0x00BD8590`, and
+#: `0x00BFDB68` that its constructor at `0x0062CB42` stamps); no direct caller. `__thiscall`, `ret`.
+GAME_LOGIC_RESET = 0x0062D232
+GAME_LOGIC_RESET_ENTRY = bytes.fromhex("b83f41b800e8b4fc4000515153568bf1")
+GAME_LOGIC_RESET_VTABLE_SLOTS = (0x00BD85B4, 0x00BFDB8C)
+
+__all__ += [
+    "GAME_LOGIC_RESET",
+    "GAME_LOGIC_RESET_ENTRY",
+    "GAME_LOGIC_RESET_VTABLE_SLOTS",
+]

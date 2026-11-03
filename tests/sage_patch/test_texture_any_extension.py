@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     TEXTURE_GET_BY_NAME_BYTES,
     TEXTURE_GET_BY_NAME_RESUME,
 )
-from sage_patch.patches.texture_any_extension import (
+from sage_patch.patches.platform.texture_any_extension import (
     ANCHORS,
     HOOK_WIDTH,
     MAX_NAME_LENGTH,
@@ -36,6 +36,7 @@ from sage_patch.patches.texture_any_extension import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, jmp_rel32, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import texture_any_extension_image
 
 
@@ -288,7 +289,7 @@ class TestTheWrapperRuns:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

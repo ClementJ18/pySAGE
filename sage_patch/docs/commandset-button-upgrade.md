@@ -1,7 +1,7 @@
 # Buying single command buttons with an upgrade — reverse-engineering notes
 
 The RE behind
-[`patches/commandset_button_upgrade.py`](../patches/commandset_button_upgrade.py). Engine build
+[`patches/commandbar/commandset_button_upgrade.py`](../patches/commandbar/commandset_button_upgrade.py). Engine build
 `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR), read statically from
 the RotWK reference executable (11,346,432 bytes) — the clean reference,
 **not** the repo-root `game.dat`, which carries 11 modifications.

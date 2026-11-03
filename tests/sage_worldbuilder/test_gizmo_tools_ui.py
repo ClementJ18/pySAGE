@@ -294,3 +294,21 @@ def test_the_gizmo_stands_on_a_level_plane_over_sloping_ground(window, qapp):
     tail, tip = window.move_tool._segment(view, center, Axis.X, scale)
     assert tail == pytest.approx(view.transform.plane_to_screen(*center, plane))
     assert tip == pytest.approx(view.transform.plane_to_screen(center[0] + out, center[1], plane))
+
+
+def test_the_gizmo_rises_with_a_raised_selection(window, qapp):
+    tree, _rock = objects(window)
+    tree.position = (200.0, 200.0, 80.0)
+    select(window, tree)
+    view = _Sloped(window.document)
+    center = (200.0, 200.0)
+    # An object's height is stored over the ground, so the gizmo stands that far above it.
+    plane = view.transform.ground(*center) + 80.0
+    assert gizmo_tools._plane(view, center) == pytest.approx(plane)
+    scale = view.transform.scale_at(*center)
+    tail, _tip = window.move_tool._segment(view, center, Axis.X, scale)
+    assert tail == pytest.approx(view.transform.plane_to_screen(*center, plane))
+    assert tail != pytest.approx(view.transform.plane_to_screen(*center, plane - 80.0))
+    # The knob is grabbed where it now stands, up with the object.
+    knob = QPointF(*tail)
+    assert window.move_tool._grab(view, center, Gesture(center, knob)) is Axis.GROUND

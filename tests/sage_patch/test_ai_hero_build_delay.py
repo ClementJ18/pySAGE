@@ -50,7 +50,7 @@ from sage_patch.addresses import (
     THE_NAME_KEY_GENERATOR,
     THE_THING_FACTORY,
 )
-from sage_patch.patches.ai_hero_build_delay import (
+from sage_patch.patches.ai.ai_hero_build_delay import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

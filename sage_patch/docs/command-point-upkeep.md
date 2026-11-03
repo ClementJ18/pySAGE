@@ -1,7 +1,7 @@
 # Command-point upkeep
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read from the repo's
-clean `game.dat`. Implemented by [`patches/command_point_upkeep.py`](../patches/command_point_upkeep.py);
+clean `game.dat`. Implemented by [`patches/economy/command_point_upkeep.py`](../patches/economy/command_point_upkeep.py);
 the palantir side of it lives in [`inflation-readout.md`](inflation-readout.md), which draws the
 product of both patches' factors.
 
@@ -275,7 +275,7 @@ army-size thresholds, not a fraction of the player's cap.
 - **No AI work.** Upkeep never makes something unaffordable that the AI believes it can afford;
   it only makes gold arrive more slowly, exactly as the existing inflation already does. Expect
   the AI to *play* worse under a harsh curve, not to stall.
-- **No per-frame hook**, so no collision with [`live-bridge`](../patches/experimental/live_bridge.py)'s
+- **No per-frame hook**, so no collision with [`live-bridge`](../patches/diagnostics/live_bridge.py)'s
   `GameLogic::update` hook.
 - **Composition.** The cave is allocated past every existing section and `verify` finds it by
   name. The field table is read **live** rather than assumed, so a patch that extended it first

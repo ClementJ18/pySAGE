@@ -117,7 +117,8 @@ if 6 in streams:
     # parameters at all, which is why four of the six dumps in the install root say a crash
     # happened and not which one. The `crash-dump` patch fills three: the formatted crash text,
     # the .rdata literal saying whether it was an assertion or an error, and the mode. The first
-    # is a heap pointer, so it resolves only in a dump whose type carried the heap.
+    # is a heap pointer: the default profile reaches it through the memory captured around stack
+    # pointers, and a fulldump carries all of it.
     if code == 0x04560123:
         if not nparam:
             print("\nGame crash: no exception parameters (binary without the crash-dump patch)")

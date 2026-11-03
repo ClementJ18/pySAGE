@@ -25,17 +25,17 @@ from sage_patch.addresses import (
 )
 from sage_patch.patches import GrantScienceUpgradePatch as Exported
 from sage_patch.patches import GrantScienceUpgradeWorldbuilderPatch as ExportedWorldbuilder
-from sage_patch.patches.grant_science_upgrade import (
+from sage_patch.patches.ui.object_image_upgrade import (
+    ObjectImageUpgradePatch,
+    ObjectImageUpgradeWorldbuilderPatch,
+)
+from sage_patch.patches.upgrades.grant_science_upgrade import (
     BLOCK_NAME,
     FIELD,
     SECTION_NAME,
     WORLDBUILDER_SECTION_NAME,
     GrantScienceUpgradePatch,
     GrantScienceUpgradeWorldbuilderPatch,
-)
-from sage_patch.patches.object_image_upgrade import (
-    ObjectImageUpgradePatch,
-    ObjectImageUpgradeWorldbuilderPatch,
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset

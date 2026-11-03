@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QStringListModel, Qt, QThread, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QIcon, QImage, QPixmap
+from PyQt6.QtGui import QAction, QDesktopServices, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
     QApplication,
@@ -53,6 +53,7 @@ __all__ = [
     "SourceLoader",
     "SourcesPanel",
     "theme_notifier",
+    "ThemeAction",
     "ThemeToggle",
     "Worker",
 ]
@@ -71,8 +72,27 @@ class _ThemeNotifier(QObject):
     changed = pyqtSignal(bool)
 
 
-# One process-wide notifier; widgets connect to `theme_notifier.changed` to recolour on toggle.
-theme_notifier = _ThemeNotifier()
+class _AppThemeNotifier:
+    """The running application's `_ThemeNotifier`, made on first use as a child of the
+    QApplication. A notifier made at import would not outlive that application: destroying it
+    deletes the notifier, and a later application (the next test module's) would find every
+    `connect` failing on a deleted object."""
+
+    @property
+    def changed(self):
+        app = QApplication.instance()
+        notifier = None
+        if app is not None:
+            notifier = app.findChild(
+                _ThemeNotifier, options=Qt.FindChildOption.FindDirectChildrenOnly
+            )
+        if notifier is None:
+            notifier = _ThemeNotifier(app)  # with no application yet, nothing can listen
+        return notifier.changed
+
+
+# Widgets connect to `theme_notifier.changed` to recolour on toggle.
+theme_notifier = _AppThemeNotifier()
 
 
 def saved_dark_theme(default: bool = True) -> bool:
@@ -111,6 +131,28 @@ class ThemeToggle(QPushButton):
 
     def _sync_label(self) -> None:
         self.setText("☾ Dark" if self.isChecked() else "☀ Light")
+
+
+class ThemeAction(QAction):
+    """`ThemeToggle` as a checkable menu item ("Dark Theme"), for a front end whose controls
+    live in menus rather than a header. It stays in step with the theme when anything else
+    flips it."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__("&Dark Theme", parent)
+        self.setCheckable(True)
+        self.setChecked(saved_dark_theme())
+        self.setStatusTip("Switch between the dark and light theme; remembered for every app.")
+        self.toggled.connect(self._on_toggled)
+        theme_notifier.changed.connect(self._follow)
+
+    def _on_toggled(self, dark: bool) -> None:
+        if dark != saved_dark_theme():
+            apply_theme(dark)
+
+    def _follow(self, dark: bool) -> None:
+        if self.isChecked() != dark:
+            self.setChecked(dark)
 
 
 class CopyableLabel(QLabel):

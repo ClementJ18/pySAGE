@@ -36,8 +36,13 @@ from sage_utils.extras import package_version
 
 from .addresses import BUILD
 from .patcher import Patch
-from .patches import desert_weather
-from .patches.utils import locomotor_sets, model_conditions, modifier_types, weapon_set_flags
+from .patches.utils import (
+    locomotor_sets,
+    map_weather,
+    model_conditions,
+    modifier_types,
+    weapon_set_flags,
+)
 from .patches.utils.name_tables import read_cstring, read_terminated, resolve_base
 from .registry import PATCHES
 
@@ -85,9 +90,9 @@ class Generated:
 
 def _weather_names(data: bytes | bytearray) -> list[str]:
     """The live global-weather list. It is a plain NULL-terminated table like the other three,
-    but it belongs to no single patch module, so it is read here from the references the
-    desert-weather patch repoints."""
-    base_va = resolve_base(data, desert_weather.WEATHER_TABLE_REF_VAS, "weather name table")
+    but it belongs to no single patch module, so it is read here from the references every
+    map-weather patch repoints."""
+    base_va = resolve_base(data, map_weather.WEATHER_TABLE_REF_VAS, "weather name table")
     pointers = read_terminated(data, base_va, "weather name table")
     return [read_cstring(data, pointer) or "" for pointer in pointers]
 
@@ -103,7 +108,7 @@ def name_table_members(data: bytes | bytearray) -> tuple[tuple[EnumDelta, ...], 
     notes: list[str] = []
     readers: list[tuple[str, int, object]] = [
         *_NAME_TABLES,
-        ("MapWeatherType", len(desert_weather.STOCK_WEATHER_NAMES), None),
+        ("MapWeatherType", len(map_weather.STOCK_WEATHER_NAMES), None),
     ]
     for enum_name, stock_count, reader in readers:
         try:
@@ -116,7 +121,8 @@ def name_table_members(data: bytes | bytearray) -> tuple[tuple[EnumDelta, ...], 
             notes.append(f"{enum_name}: could not read the name table ({exc})")
             continue
         for index in range(stock_count, len(names)):
-            if names[index]:
+            # A placeholder holds a map-weather slot for a patch the image does not carry.
+            if names[index] and not map_weather.is_placeholder(names[index]):
                 members.append(EnumDelta(enum=enum_name, name=names[index], value=index))
     return tuple(members), tuple(notes)
 

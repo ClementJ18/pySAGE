@@ -339,7 +339,7 @@ with modeled Xfer storage/load; actual game save/load remains an in-game check.
 
 ## Hook strategy and binary validation
 
-Implementation: `../patches/pillage_module_extension.py`.
+Implementation: `../patches/units/pillage_module_extension.py`.
 Facts/fingerprints: `../addresses/objects.py`, exported through the central
 `addresses` namespace. Shared unsigned parser and all-of mask test constants are
 added to `addresses/runtime.py` and `addresses/player.py` respectively. Existing

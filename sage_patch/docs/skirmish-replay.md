@@ -1,6 +1,6 @@
 # Recording a skirmish — reverse-engineering notes
 
-The RE behind [`patches/skirmish_replay.py`](../patches/skirmish_replay.py). ROTWK `game.dat`
+The RE behind [`patches/multiplayer/skirmish_replay.py`](../patches/multiplayer/skirmish_replay.py). ROTWK `game.dat`
 build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-07-31.
 
 ## The gap

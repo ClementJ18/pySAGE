@@ -155,18 +155,21 @@ def test_corner_moves_merge_until_closed_and_areas_move_with_objects():
     assert area.points == SQUARE
 
 
-def test_picking_inside_areas():
+def test_areas_are_picked_by_their_outline_not_their_inside():
     assert area_contains(SQUARE, 5.0, 5.0)
     assert not area_contains(SQUARE, 15.0, 5.0)
     map = empty_map()
     lower = TriggerArea("Lower", "", 1, list(SQUARE), 0)
-    upper = TriggerArea("Upper", "", 2, [(5.0, 5.0), (20.0, 5.0), (20.0, 20.0)], 0)
+    # Stacked exactly over the lower one but larger: its inside covers the lower one entirely.
+    upper = TriggerArea("Upper", "", 2, [(-5.0, -5.0), (15.0, -5.0), (15.0, 15.0)], 0)
     map.trigger_areas.trigger_areas += [lower, upper]
     scene = MapScene.from_map(map)
-    assert scene.area_at(8.0, 6.0).source is upper
-    assert scene.area_at(2.0, 2.0).source is lower
-    assert scene.area_at(8.0, 6.0, accept=lambda outline: outline.source is lower).source is lower
-    assert scene.area_at(50.0, 50.0) is None
+    assert scene.area_at(5.0, 0.5, 1.0).source is lower
+    assert scene.area_at(0.0, 10.0, 1.0).source is lower
+    assert scene.area_at(15.5, 5.0, 1.0).source is upper
+    assert scene.area_at(3.0, 6.0, 1.0) is None
+    assert scene.area_at(15.0, -5.0, 1.0, accept=lambda outline: outline.source is lower) is None
+    assert scene.area_at(50.0, 50.0, 1.0) is None
 
 
 def test_waypoints_links_and_areas_survive_saving_a_real_map():

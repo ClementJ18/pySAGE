@@ -1244,6 +1244,61 @@ def test_an_id_the_table_walk_never_saw_reads_as_no_powers():
     assert reader.power_cooldowns(4242) == {}
 
 
+def _auto_ability(img: FakeImage, power: str, button: str) -> int:
+    """An `AutoAbilityBehavior` module casting `power`; `button` is "" while auto-cast is off."""
+    data = img.alloc(0x40)
+    img.u32(data + LAY.auto_ability_power, img.ascii(power))
+    module = img.alloc(0x40)
+    img.u32(module, LAY.auto_ability_vtable)
+    img.u32(module + LAY.module_data, data)
+    img.u32(module + LAY.auto_ability_button, img.ascii(button) if button else 0)
+    return module
+
+
+def test_kill_count_reads_the_engines_own_tally():
+    img = FakeImage()
+    ent = img.game_object(img.template("SummonedEnt", "Elves"), (0.0, 0.0, 0.0))
+    img.write(ent + LAY.obj_kills, struct.pack("<i", 7))
+    img.game_logic(5000, [img.entry(900, ent)])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.kill_count(900) == 7
+    assert reader.kill_count(4242) is None
+
+
+def test_replay_playback_path_is_named_only_while_playing_back():
+    img = FakeImage()
+    recorder = img.alloc(0x40)
+    img.u32(LAY.the_recorder, recorder)
+    path = r"C:\Users\me\Replays\Game 4.BfME2Replay"
+    img.u32(recorder + LAY.recorder_playback_path, img.utf16(path))
+    img.game_logic(5000, [])
+    reader = backend(img)
+    img.u32(recorder + LAY.recorder_mode, 1)
+    assert reader.replay_playback_path() == path
+    # Recording, or neither: the field is not the playback file then.
+    img.u32(recorder + LAY.recorder_mode, 0)
+    assert reader.replay_playback_path() is None
+    img.u32(LAY.the_recorder, 0)
+    assert reader.replay_playback_path() is None
+
+
+def test_auto_cast_powers_are_the_auto_abilities_holding_a_button():
+    """Auto-cast on is a button name in the module; off empties it, and another module family
+    sharing the list is never mistaken for one."""
+    img = FakeImage()
+    raven_t = img.template("CarcRaben", "Dwarves")
+    raven = img.game_object(raven_t, (0.0, 0.0, 0.0))
+    on = _auto_ability(img, "SpecialAbilityRabenflug", "Command_SpecialAbilityRabenflug")
+    off = _auto_ability(img, "SpecialAbilityUglukMedizin", "")
+    img.modules(raven, [on, off, _spell_module(img, "SpecialAbilityRabenflug", 4200)])
+    img.game_logic(5000, [img.entry(900, raven)])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.auto_cast_powers(900) == frozenset({"SpecialAbilityRabenflug"})
+    assert reader.auto_cast_powers(4242) == frozenset()
+
+
 def _spectated_game(color: int = 0xFF3366CC) -> tuple[FakeImage, int]:
     """One seat named in the lobby, coloured, and playing a faction whose side it shares."""
     img = FakeImage()

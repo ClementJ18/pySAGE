@@ -1,7 +1,7 @@
 # Skipping an AI build order that has no builder
 
 The reverse-engineering behind
-[`patches/ai_build_queue_skip.py`](../patches/ai_build_queue_skip.py). ROTWK `game.dat` build
+[`patches/ai/ai_build_queue_skip.py`](../patches/ai/ai_build_queue_skip.py). ROTWK `game.dat` build
 `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-10-12, with the symptom and the
 queue contents read live the same day from an Edain skirmish with a Brutal Imladris AI.
 

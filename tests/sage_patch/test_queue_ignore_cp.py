@@ -56,7 +56,7 @@ from sage_patch.addresses import (
     FIELD_PARSE_STRIDE,
     INI_PARSE_BOOL,
 )
-from sage_patch.patches.queue_ignore_cp import (
+from sage_patch.patches.economy.queue_ignore_cp import (
     DEFAULT_KEYWORD,
     SECTION_NAME,
     build_code,

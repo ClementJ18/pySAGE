@@ -144,7 +144,7 @@ adjusting bytes elsewhere. The whole fold is ~135 bytes of code.
 **The value is a property of the file, not a secret of the process.** The image carries no
 `.reloc` and does not set `DYNAMIC_BASE`, so the loader maps `.text` at `IMAGE_BASE` and never
 rewrites a byte of it: what the running game folds is what is on disk.
-`sage_patch.patches.binary_attest.expected_hash` recomputes it offline, so two people can compare
+`sage_patch.patches.multiplayer.binary_attest.expected_hash` recomputes it offline, so two people can compare
 binaries without either of them starting a game — and `sage-verify attest` reads the live value
 out of a running process to check that the running game is the file it claims to be.
 
@@ -215,7 +215,7 @@ machine after the fact and there is nothing in it for the cheater to patch. That
 python sage_patch/scripts/pe.py                       # section table
 sage-patch apply binary-attest --in game.dat --out patched.dat
 sage-patch verify binary-attest --in patched.dat
-python -c "import pathlib; from sage_patch.patches.binary_attest import expected_hash; \
+python -c "import pathlib; from sage_patch.patches.multiplayer.binary_attest import expected_hash; \
            print(hex(expected_hash(pathlib.Path('patched.dat').read_bytes())))"
 ```
 

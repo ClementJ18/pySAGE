@@ -20,7 +20,7 @@ import struct
 import pytest
 
 from sage_patch import SpawnUnionPatch, apply_patches
-from sage_patch.patches.spawn_union import (
+from sage_patch.patches.units.spawn_union import (
     ANY,
     BROADCAST,
     CLOSEST,

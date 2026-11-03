@@ -26,8 +26,8 @@ from sage_patch.addresses import (
     CONSTRUCTION_RAMP_HEALTH_STEP,
     SELF_BUILD_HEAL_STEP,
 )
-from sage_patch.patches import production_split as ps
-from sage_patch.patches.construction_initial_health import (
+from sage_patch.patches.economy import production_split as ps
+from sage_patch.patches.structures.construction_initial_health import (
     _HOOKS,
     _ROUTINES,
     ANCHORS,

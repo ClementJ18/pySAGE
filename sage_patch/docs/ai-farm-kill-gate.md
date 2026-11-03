@@ -1,6 +1,6 @@
 # Putting the AI's farm raids in the INI
 
-The reverse-engineering behind [`patches/ai_farm_kill_gate.py`](../patches/ai_farm_kill_gate.py).
+The reverse-engineering behind [`patches/ai/ai_farm_kill_gate.py`](../patches/ai/ai_farm_kill_gate.py).
 ROTWK `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-10-11.
 **Nothing here has been run in a match yet**; [§7](#7-what-remains) lists what a match has to show.
 

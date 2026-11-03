@@ -57,6 +57,18 @@ class Placement:
     #: `objectName`, the WorldBuilder label. Scripts address objects by this; tests do not need
     #: it, but a scenario that wants to be openable in WorldBuilder does.
     name: str | None = None
+    #: A map-side owner that is not a seat, such as `PlyrCreeps/teamPlyrCreeps`: one of the
+    #: template map's own players. Overrides `seat`. An enemy no skirmish AI gives orders to.
+    owner: str | None = None
+    #: Where the engine puts the object, when that is not `at`: a castle piece with
+    #: `GeometryRotationAnchorOffset` is stored at its castle's centre and moved out along its
+    #: facing. Only binding reads it; the map is written with `at`.
+    expect_at: Vec3 | None = None
+
+    @property
+    def live_at(self) -> Vec3:
+        """Where the harness looks for the live object."""
+        return self.expect_at if self.expect_at is not None else self.at
 
 
 @dataclass(frozen=True)
@@ -96,7 +108,7 @@ class Scenario:
 
     def place(self, template: str, at: Vec3, seat: int | None = 0, **kwargs) -> Handle:
         """Declare an object, and return the handle a test refers to it by."""
-        if seat is not None and not 0 <= seat < len(self.seats):
+        if seat is not None and kwargs.get("owner") is None and not 0 <= seat < len(self.seats):
             raise ValueError(f"seat {seat} is not one of this scenario's {len(self.seats)} seats")
         placement = Placement(template=template, at=at, seat=seat, **kwargs)
         self.placements.append(placement)
@@ -104,6 +116,8 @@ class Scenario:
 
     def owner_of(self, placement: Placement) -> str | None:
         """The qualified map-side owner to write for `placement`, or None when it is neutral."""
+        if placement.owner is not None:
+            return placement.owner
         if placement.seat is None:
             return None
         return self.seats[placement.seat].map_team

@@ -4,10 +4,11 @@ WotR sits outside the auto-discovered corpus (see `corpus.py`): the mode and the
 from the BFME2 invariants the corpus-wide tests assert. This module pins what the tooling concludes
 about each kind:
 
-- **Battle saves** (`ang 5`, `Saved Game 4`) are full in-battle snapshots - an embedded map and a
-  live object/drawable index. They exercise the Edain-specific decode: the `CHUNK_GameLogic` object
-  table carries Latin-1 template names (German umlauts), and its preamble embeds `Command_*` strings
-  that a naive locator mistakes for a one-entry table. The table locator must survive both.
+- **Battle saves** (`ang 5`, `good 07`, `Saved Game 4`) are full in-battle snapshots - an embedded
+  map and a live object/drawable index. They exercise the Edain-specific decode: the
+  `CHUNK_GameLogic` object table carries Latin-1 template names (German umlauts), and its preamble
+  embeds `Command_*` strings that a naive locator mistakes for a one-entry table. The table locator
+  must survive both.
 - **Living-world saves** (`Saved Game 2/3/5/6/7`) are valid, loadable strategic-layer saves that are
   *objectless by nature*: no embedded battle map, no live objects. They are the counter-examples
   that make "no map + no objects" a normal state, not a corruption signal - so the tooling must
@@ -24,10 +25,12 @@ from pathlib import Path
 import pytest
 
 from sage_save import (
+    CHUNK_CODECS,
     decode_game_client,
     decode_game_logic,
     decode_game_state_map,
     decode_living_world_logic,
+    decode_script_engine,
     diagnose_save,
     encode_game_client,
     encode_game_logic,
@@ -46,6 +49,7 @@ from tests.sage_save.corpus import (
     WOTR_GAME_CORRUPT,
     WOTR_LIVING_WORLD,
     WOTR_PARSEABLE,
+    WOTR_SEQUENTIAL_SCRIPTS,
     WOTR_TRUNCATED,
     fixture_id,
 )
@@ -79,6 +83,29 @@ def test_game_logic_and_client_re_encode_exactly(path):
     client_chunk = _chunk(save, "CHUNK_GameClient")
     assert encode_game_logic(decode_game_logic(logic_chunk)) == logic_chunk.payload
     assert encode_game_client(decode_game_client(client_chunk)) == client_chunk.payload
+
+
+@pytest.mark.parametrize("path", WOTR_PARSEABLE, ids=fixture_id)
+def test_every_registered_codec_re_encodes_exactly(path):
+    """The corpus-wide codec gate skips WotR, so run it here: every decoder this package registers
+    must be an exact inverse on Edain saves too."""
+    save = parse_save_from_path(_require(path))
+    for chunk in save.chunks:
+        codec = CHUNK_CODECS.get(chunk.name)
+        if codec is not None:
+            assert codec.encode(codec.decode(chunk)) == chunk.payload, chunk.name
+
+
+def test_script_engine_decodes_running_sequential_scripts():
+    """Good 07 was saved while its map scripts drove Player_3's teams: thirty `Unit N-M ON CREATE`
+    sequential scripts, each on a team rather than an object, sit before the counters."""
+    save = parse_save_from_path(_require(WOTR_SEQUENTIAL_SCRIPTS))
+    scripts = decode_script_engine(_chunk(save, "CHUNK_ScriptEngine")).sequential_scripts
+    assert len(scripts) == 30
+    first = scripts[0]
+    assert (first.scope, first.name) == ("Player_3", "Unit 1-1 ON CREATE")
+    assert first.team_id != 0 and first.object_id == 0
+    assert all(script.name.endswith("ON CREATE") for script in scripts)
 
 
 @pytest.mark.parametrize("path", WOTR_BATTLE, ids=fixture_id)

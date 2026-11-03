@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import struct
-from pathlib import Path
 
 import pytest
 
@@ -21,7 +20,7 @@ from sage_patch.addresses import (
     SLAVED_IDLE_XFER,
     THE_GAME_LOGIC,
 )
-from sage_patch.patches.slaved_update_idle import (
+from sage_patch.patches.units.slaved_update_idle import (
     CODE_OFFSET,
     SECTION_NAME,
     TABLE_OFFSET,
@@ -30,6 +29,7 @@ from sage_patch.patches.slaved_update_idle import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import file_offset, find_section
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.test_patching import _tiny_pe
 
 
@@ -368,7 +368,7 @@ def test_arbitrary_inclusive_intervals_and_independence() -> None:
 
 @pytest.mark.full
 def test_stock_binary() -> None:
-    path = Path("tools/BFME-FILES/game.dat.backup")
+    path = STOCK_GAME_DAT
     if not path.exists():
         pytest.skip("stock RotWK not installed")
     b = bytearray(path.read_bytes())

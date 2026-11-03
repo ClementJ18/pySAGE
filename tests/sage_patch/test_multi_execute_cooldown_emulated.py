@@ -32,7 +32,7 @@ from sage_patch.addresses import (  # noqa: E402
     SELECTION_LIST_DRAWABLE,
     THE_IN_GAME_UI,
 )
-from sage_patch.patches.multi_execute_cooldown import (  # noqa: E402
+from sage_patch.patches.special_powers.multi_execute_cooldown import (  # noqa: E402
     SECTION_NAME,
     MultiExecuteCooldownPatch,
     layout,

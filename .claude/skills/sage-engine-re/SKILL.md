@@ -30,7 +30,7 @@ in the order to try them:
 |---|---|---|
 | `sage_patch/addresses/` | 400+ named addresses of this build - globals, hooked functions, the labels inside them | `explore.py known 0x9cdf23` (by VA) or `explore.py known PRODUCTION` (by name) |
 | `sage_patch/docs/*.md` | 78 write-ups, each one a finding with its evidence | `grep -rin '9cdf23\|CommandSet' sage_patch/docs` |
-| `sage_patch/patches/*.py` | the patches themselves - every hook site, with the stock bytes asserted in code | `grep -rn '0x5ef716' sage_patch/patches` |
+| `sage_patch/patches/<area>/*.py` | the patches themselves, one subpackage per game area - every hook site, with the stock bytes asserted in code | `grep -rn '0x5ef716' sage_patch/patches` |
 | `sage_patch/docs/*.json` | the engine's own INI surface, already recovered: name tables, enums, block/module field tables with offsets and defaults | `explore.py enum KindOf`, `explore.py block AutoDepositUpdate` |
 
 Start reading with [`sage_patch/README.md`](../../../sage_patch/README.md) (what each patch does and
@@ -156,7 +156,7 @@ The house shape for a new piece of RE, in order:
 2. **The addresses**, into `sage_patch/addresses/` with the docstring saying where they came from.
    That module is the single home for facts about this build; `sage_live` and the patches both read
    it.
-3. **Only if it becomes a patch**: a `Patch` subclass in `sage_patch/patches/`, registered in
+3. **Only if it becomes a patch**: a `Patch` subclass in the matching `sage_patch/patches/<area>/`, registered in
    `registry.py`, a README row, and tests that assert the **stock bytes** at every site plus an
    apply/verify/detect round-trip. Read the README's "The patch framework" and "Composing patches"
    first - allocate caves with `allocate_section`, never a fixed RVA; never edit or read bytes

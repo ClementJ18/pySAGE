@@ -4,7 +4,7 @@ How the skirmish AI decides which hero to recruit next, why it does that from th
 a match, and where a per-hero "not before N seconds" gate goes. Targets RotWK
 `game.dat` 2.01.2614.37001.
 
-The patch built on this is [`ai_hero_build_delay.py`](../patches/ai_hero_build_delay.py).
+The patch built on this is [`ai_hero_build_delay.py`](../patches/ai/ai_hero_build_delay.py).
 
 ## 1. The keyword
 

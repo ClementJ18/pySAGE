@@ -92,7 +92,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store",
         default=DEFAULT_TEMPLATE,
         metavar="NAME",
-        help=f"the shipped map scenarios are compiled onto (default: {DEFAULT_TEMPLATE})",
+        help="the shipped map scenarios are compiled onto, or a .map file on disk "
+        f"(default: {DEFAULT_TEMPLATE})",
     )
     group.addoption(
         "--mod",
@@ -114,6 +115,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         help="launch every game with -renderEvery 0, so it simulates without drawing. Needs the "
         "headless patch on game.dat",
+    )
+    group.addoption(
+        "--script-debug",
+        action="store_true",
+        help="launch every game with -scriptDebug2, so what the Lua scripts print shows in the "
+        "script debug window",
     )
     group.addoption(
         "--shard",
@@ -207,7 +214,10 @@ def _worker_id(config: pytest.Config) -> str:
 
 def _engine_args(config: pytest.Config) -> tuple[str, ...]:
     """What every launch adds to the command line for the options this run was given."""
-    return ("-renderEvery", "0") if config.getoption("--headless") else ()
+    arguments: tuple[str, ...] = ("-renderEvery", "0") if config.getoption("--headless") else ()
+    if config.getoption("--script-debug"):
+        arguments += ("-scriptDebug2",)
+    return arguments
 
 
 @pytest.fixture(scope="session")

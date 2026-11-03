@@ -77,7 +77,7 @@ def _attest(args: argparse.Namespace) -> int:
     # Deferred for the same reason as `_watch`, plus `sage_patch` is a heavier import than a
     # `--help` should pay for.
     from sage_live.backends.memory import ProcessMemory, find_game_processes  # noqa: PLC0415
-    from sage_patch.patches.binary_attest import (  # noqa: PLC0415
+    from sage_patch.patches.multiplayer.binary_attest import (  # noqa: PLC0415
         HASH_OFF,
         READY_OFF,
         SECTION_NAME,

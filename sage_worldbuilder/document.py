@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from sage_map.map import Map, parse_map, write_map
 from sage_worldbuilder.changes import Change, ChangeKind
 from sage_worldbuilder.commands import Command, UndoStack
+from sage_worldbuilder.markers import Markers
 from sage_worldbuilder.safeio import atomic_write
 from sage_worldbuilder.selection import Selection
 
@@ -63,6 +64,8 @@ class MapDocument:
         self._terrain: TerrainGrid | None = None
         self._cells: dict[Layer, np.ndarray | None] = {}
         self.selection = Selection()
+        # Areas, points and paths the user marked to point an agent at; never saved.
+        self.markers = Markers()
         self.stack = UndoStack(self, limit=undo_limit)
 
     @classmethod

@@ -3,8 +3,8 @@
 The fixture gate always runs: it strict-audits the checked-in fixtures for format coverage,
 so every still-opaque surface must match the documented known reality (the programmatic
 equivalent of `coverage --strict`). The `full`-marked corpus gate extends both the
-end-of-file parse check and the strict audit to the gitignored `<repo>/Replays` corpus when
-it is present."""
+end-of-file parse check and the strict audit to the gitignored local corpus
+(`tests.sage_replay.corpus`) when it is present."""
 
 from pathlib import Path
 
@@ -12,11 +12,9 @@ import pytest
 
 from sage_replay import parse_replay_from_path
 from sage_replay.coverage import audit
+from tests.sage_replay.corpus import CORPUS, REPLAYS_DIR, replay_id
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
-REPLAYS_DIR = Path(__file__).resolve().parents[2] / "Replays"
-
-_corpus = sorted(REPLAYS_DIR.glob("*.BfME2Replay")) if REPLAYS_DIR.is_dir() else []
 
 
 def test_fixtures_pass_strict_coverage():
@@ -30,8 +28,8 @@ def test_fixtures_pass_strict_coverage():
 @pytest.mark.full
 @pytest.mark.parametrize(
     "replay_path",
-    _corpus or [pytest.param(None, marks=pytest.mark.skip(reason="no Replays corpus present"))],
-    ids=[p.name for p in _corpus] or ["no-corpus"],
+    CORPUS or [pytest.param(None, marks=pytest.mark.skip(reason="no Replays corpus present"))],
+    ids=[replay_id(p) for p in CORPUS] or ["no-corpus"],
 )
 def test_corpus_replay_parses(replay_path):
     replay = parse_replay_from_path(replay_path)
@@ -46,7 +44,7 @@ def test_corpus_replay_parses(replay_path):
 
 
 @pytest.mark.full
-@pytest.mark.skipif(not _corpus, reason="no Replays corpus present")
+@pytest.mark.skipif(not CORPUS, reason="no Replays corpus present")
 def test_corpus_passes_strict_coverage():
     # The same "no raw bytes" gate over the local corpus: a deviation here is a real finding
     # (a new order id, a non-constant reserved field, an untyped metadata key).

@@ -39,7 +39,7 @@ from sage_patch.addresses import (
     TOGGLE_MOUNTED_DISMOUNT_HEALTH_COPY,
     TOGGLE_MOUNTED_HEALTH_COPY_SEQUENCE,
 )
-from sage_patch.patches.replacement_transfer import (
+from sage_patch.patches.upgrades.replacement_transfer import (
     BLOCKS,
     FLAG_EXPERIENCE,
     FLAG_HEALTH,

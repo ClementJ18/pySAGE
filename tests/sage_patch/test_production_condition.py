@@ -14,11 +14,12 @@ neither is visible from the code that relies on it.
 
 from __future__ import annotations
 
+import faulthandler
 import struct
 
 import pytest
 
-from sage_patch.patches.production_condition import (
+from sage_patch.patches.economy.production_condition import (
     _COUNT_SITES,
     _NAME_TABLE_VA,
     _PROPAGATE_VA,
@@ -567,3 +568,88 @@ class TestDetect:
 
     def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
         assert ProductionConditionPatch.detect(bytearray(b"MZ" + bytes(4096))) is None
+
+
+class TestTheSavedCountMatchesTheSavedNames:
+    """`WeaponSetFlags::xfer` saves a count and then the names of bits 0..103. The appended flag
+    sits at bit 104, so an unmasked count says one more than the names that follow - the save
+    that would not load (good 07, 2026-10-31)."""
+
+    @staticmethod
+    def run_stub(flags: bytes) -> int:
+        """Run the stub on `flags`, with `countBits` played by a popcount of what it is handed."""
+        unicorn = pytest.importorskip("unicorn")
+        x86 = pytest.importorskip("unicorn.x86_const")
+        stub_va, data_va = 0x00F00000, 0x00E00000
+        stack_top = data_va + 0x2000  # the stack shares the data page block
+        emu = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
+        # Unicorn 2.1.4's `mem_map` raises and catches an SEH fault on Windows; each map succeeds,
+        # but the fault handler would print a stack for it (as in test_script_debugger).
+        was_enabled = faulthandler.is_enabled()
+        faulthandler.disable()
+        try:
+            emu.mem_map(stub_va, 0x1000)
+            emu.mem_map(data_va, 0x2000)
+            emu.mem_map(weapon_set_flags.COUNT_BITS_VA & ~0xFFF, 0x1000)
+        finally:
+            if was_enabled:
+                faulthandler.enable()
+        code = weapon_set_flags.build_xfer_count_stub(stub_va)
+        emu.mem_write(stub_va, code)
+        emu.mem_write(data_va, flags)
+        emu.mem_write(weapon_set_flags.COUNT_BITS_VA, b"\xc3")  # ret, after the hook below
+
+        def count_bits(uc, address, _size, _user):
+            if address == weapon_set_flags.COUNT_BITS_VA:
+                words = struct.unpack("<4I", uc.mem_read(uc.reg_read(x86.UC_X86_REG_ECX), 16))
+                uc.reg_write(x86.UC_X86_REG_EAX, sum(bin(w).count("1") for w in words))
+
+        emu.hook_add(unicorn.UC_HOOK_CODE, count_bits)
+        return_va = stub_va + 0x800
+        esp = stack_top - 0x100
+        emu.mem_write(esp, struct.pack("<I", return_va))
+        emu.reg_write(x86.UC_X86_REG_ESP, esp)
+        emu.reg_write(x86.UC_X86_REG_ECX, data_va)
+        emu.reg_write(x86.UC_X86_REG_EBX, 0x1234)
+        emu.emu_start(stub_va, return_va)
+        assert emu.reg_read(x86.UC_X86_REG_ESP) == esp + 4, "the stack is not balanced"
+        assert emu.reg_read(x86.UC_X86_REG_EBX) == 0x1234
+        assert bytes(emu.mem_read(data_va, 16)) == flags, "the object's flags were changed"
+        return emu.reg_read(x86.UC_X86_REG_EAX)
+
+    def test_the_saved_bits_are_exactly_the_stock_ones(self):
+        words = struct.unpack("<4I", weapon_set_flags.saved_bits_mask())
+        assert sum(bin(w).count("1") for w in words) == weapon_set_flags.STOCK_FLAG_COUNT
+        assert words == (0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF)
+
+    def test_an_appended_flag_is_not_counted(self):
+        """PLAYER_UPGRADE (bit 3) plus PLAYER_PRODUCING (bit 104): the save names one flag."""
+        flags = weapon_set_flags.mask_bytes(3)
+        both = bytes(a | b for a, b in zip(flags, weapon_set_flags.mask_bytes(104), strict=True))
+        assert self.run_stub(both) == 1
+
+    def test_every_saved_bit_still_counts(self):
+        assert self.run_stub(b"\xff" * 16) == weapon_set_flags.STOCK_FLAG_COUNT
+        assert self.run_stub(weapon_set_flags.mask_bytes(103)) == 1
+        assert self.run_stub(b"\0" * 16) == 0
+
+    def test_the_xfer_call_is_sent_to_the_stub(self, image: bytearray):
+        ProductionConditionPatch(weapon_set_flag=WEAPON_FLAG).apply(image)
+        located = find_section(image, weapon_set_flags.XFER_SECTION_NAME)
+        assert located is not None
+        assert weapon_set_flags.xfer_count_problems(image, located[0]) == []
+
+    def test_without_a_weapon_flag_xfer_is_left_alone(self, image: bytearray):
+        ProductionConditionPatch().apply(image)
+        assert find_section(image, weapon_set_flags.XFER_SECTION_NAME) is None
+        off = va_to_offset(image, weapon_set_flags.XFER_COUNT_CALL_VA)
+        assert off is not None
+        assert bytes(image[off : off + 5]) == weapon_set_flags.XFER_COUNT_CALL_BYTES
+
+    def test_verify_notices_the_stock_count_put_back(self, image: bytearray):
+        patch = ProductionConditionPatch(weapon_set_flag=WEAPON_FLAG)
+        patch.apply(image)
+        off = va_to_offset(image, weapon_set_flags.XFER_COUNT_CALL_VA)
+        assert off is not None
+        image[off : off + 5] = weapon_set_flags.XFER_COUNT_CALL_BYTES
+        assert any("will not load" in problem for problem in patch.verify(image))

@@ -1612,7 +1612,16 @@ class _ModifierEntry(Multivalued):
             amount = eval_number(game, raw) if raw is not None else None
         except (ValueError, KeyError):
             amount = None
-        damage_types = [DamageType.convert(game, token) for token in operands[1:]]
+        damage_types = []
+        for token in operands[1:]:
+            if token.upper() == "FIRE":
+                # Not an engine damage type (the binary has no `FIRE` name at all), yet shipped
+                # `ModifierList`s write it (`ARMOR 50% FIRE`) and load, so this parser tolerates it.
+                # Read it as the two fire types it is meant for; what the engine itself does with
+                # the token is not known.
+                damage_types += [DamageType.FLAME, DamageType.LOGICAL_FIRE]
+            else:
+                damage_types.append(DamageType.convert(game, token))
         return cls(kind, raw, amount, damage_types)
 
     def __repr__(self):

@@ -1,7 +1,7 @@
 # Starting without the Windows XP compatibility mode
 
 The reverse-engineering behind
-[`patches/os_name_fallback.py`](../patches/os_name_fallback.py). ROTWK `game.dat` build
+[`patches/platform/os_name_fallback.py`](../patches/platform/os_name_fallback.py). ROTWK `game.dat` build
 `2.01.2614.37001`, ImageBase `0x400000`, found 2026-10-15 from the crash dump of an Edain launch on
 Windows 11 with the compatibility mode turned off.
 

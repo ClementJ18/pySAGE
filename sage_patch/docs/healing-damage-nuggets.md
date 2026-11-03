@@ -314,10 +314,13 @@ consistent with how little of it is wired up.
 
 ## Unknowns
 
-- `Object+0x457 & 0x10`, the flag that bypasses **both** relationship gates (`0x006c93bf`,
-  `0x006c9475`, `0x0090d879`, `0x004b5988`). Only ever read; the writes at `0x00693185`..`0x006931ef`
-  are a bitfield read-modify-write whose caller was not traced. If this is settable from INI it is
-  the intended way to make an object healable by a weapon.
+- ~~`Object+0x457 & 0x10`~~ **Resolved 2026-10-25:** it is the map object's `objectTargetable`
+  property. `0x00695d19` reads the `objectTargetable` Dict key (`0x00da2e0c`) at map load and
+  sets the bit through the `+0x457` setter `0x0069317d`. (The same loader maps `objectEnabled`
+  to `0x1`, `objectPowered` to `0x2` and `objectUnsellable` to `0x4`, each inverted where its name
+  says so.) It cannot be set from INI. A placed object with WorldBuilder's "Targetable" box ticked
+  skips both relationship gates (`0x006c93bf`, `0x006c9475`, `0x0090d879`, `0x004b5988`), but still
+  goes through the nugget's `SpecialObjectFilter` at `0x0090d8bb`.
 - `TheWriteableGlobalData+0xb40`, the scan-radius threshold at `0x0090e257`. Its INI keyword was
   not chased.
 - The nugget's `[vtbl+0x30]` test at `0x006cced3`, which routes a nugget away from the object path.

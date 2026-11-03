@@ -52,6 +52,15 @@ def test_the_view_lod_level_round_trips_and_bad_values_fall_back_to_ultra_high()
     assert ViewOptions().lod_level is LodLevel.UltraHigh
 
 
+def test_object_dots_are_shown_by_default():
+    # A first run, and a settings file saved before the option existed, both show them.
+    assert ViewOptions().show_object_dots
+    assert Settings.load().view.show_object_dots
+    assert ViewOptions.from_dict({"show_objects": True}).show_object_dots
+    # A user's own choice to hide them is kept.
+    assert not ViewOptions.from_dict({"show_object_dots": False}).show_object_dots
+
+
 def test_recent_is_newest_first_deduplicated_and_capped():
     settings = Settings()
     for index in range(MAX_RECENT + 3):

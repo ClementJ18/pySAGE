@@ -25,8 +25,9 @@ from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.walk import walk_objects
 from sage_lint.rules.base import Rule
 
-# SAGE logic runs at a fixed 30 frames per second; a particle `SystemLifetime` is a count of
-# those frames, so its duration in milliseconds is `frames * 1000 / 30`.
+# A particle `SystemLifetime` is a count of particle updates, which run on the 30 Hz client
+# frame (`sage_patch/docs/render-rate.md`), not the 5 Hz logic frame, so its duration in
+# milliseconds is `frames * 1000 / 30`.
 _FRAME_MS = 1000 / 30
 
 # An effect that outlasts or falls short of its modifier by up to a second is close enough:

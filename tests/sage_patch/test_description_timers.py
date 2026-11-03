@@ -33,6 +33,7 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch.addresses import (
+    COMMAND_BUTTON_REVIVE_INDEX,
     DESCRIPTION_BUTTON_CAPTURE,
     DESCRIPTION_BUTTON_CAPTURE_BYTES,
     DESCRIPTION_BUTTON_CAPTURE_RESUME,
@@ -42,14 +43,17 @@ from sage_patch.addresses import (
     DESCRIPTION_TAIL_BYTES,
     DESCRIPTION_TAIL_RESUME,
     GET_FINAL_OVERRIDE,
+    GUICOMMAND_REVIVE,
+    HERO_LEDGER_REVIVE_TIME,
     OBJECT_HAS_UPGRADE,
     PLAYER_FOR_EACH_TEAM_OBJECT,
+    PLAYER_HERO_LEDGER_OFFSET,
     UNICODE_STRING_APPEND,
     UNICODE_STRING_CONCAT,
     UNICODE_STRING_CONCAT_WIDE,
     WIDE_NEWLINE,
 )
-from sage_patch.patches.description_timers import (
+from sage_patch.patches.ui.description_timers import (
     ANCHORS,
     COMMAND_BUTTON_GET_THING_TEMPLATE,
     GET_MODIFIER_MULTIPLIER,
@@ -76,7 +80,7 @@ from sage_patch.patches.description_timers import (
     UPGRADE_TYPE_OBJECT,
     DescriptionTimersPatch,
 )
-from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
+from sage_patch.patches.ui.upgrade_description import UpgradeDescriptionPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import description_timers_image
@@ -300,14 +304,42 @@ class TestCave:
         assert callee in branch_targets(patched)
 
     def test_the_durations_come_from_the_engine_not_from_ini(self, patched):
-        """Both build times are the engine's own `calcTimeToBuild`, which is the whole claim.
+        """Every build time is the engine's own `calcTimeToBuild`, which is the whole claim.
 
-        Re-deriving either from a template's `BuildTime` field would produce a number the
-        production queue then disagrees with, because the queue asks these two functions.
+        Re-deriving any from a template's `BuildTime` field would produce a number the production
+        queue then disagrees with, because the queue asks these three functions.
         """
         targets = branch_targets(patched)
         assert THING_TEMPLATE_CALC_TIME_TO_BUILD in targets
         assert UPGRADE_TEMPLATE_CALC_TIME_TO_BUILD in targets
+        assert HERO_LEDGER_REVIVE_TIME in targets
+
+    def test_a_revive_button_is_timed_off_the_ledger_before_any_other_arm(self, patched):
+        """A REVIVE button's `Object` (with `revive-object-binding`) names the hero, whose
+        `BuildTime` is not what recruiting or reviving him takes. So the dispatcher sends REVIVE
+        to the ledger arm first, and that arm asks the ledger for the button's own entry."""
+        decoded = instructions(patched)
+        tests = [
+            i
+            for i, insn in enumerate(decoded)
+            if insn.mnemonic == "cmp"
+            and insn.op_str == f"dword ptr [esi + 0x14], {GUICOMMAND_REVIVE:#x}"
+        ]
+        assert len(tests) == 1
+        dispatch = tests[0]
+        assert decoded[dispatch + 1].mnemonic == "je"
+        assert not any("esi + 0x44" in insn.op_str for insn in decoded[:dispatch])
+        arm = next(
+            i
+            for i, insn in enumerate(decoded)
+            if insn.address == int(decoded[dispatch + 1].op_str, 16)
+        )
+        assert decoded[arm].op_str == f"eax, dword ptr [esi + {COMMAND_BUTTON_REVIVE_INDEX:#x}]"
+        call = next(i for i in range(arm, len(decoded)) if decoded[i].mnemonic == "call")
+        assert decoded[call].op_str == hex(HERO_LEDGER_REVIVE_TIME)
+        window = " ".join(insn.op_str for insn in decoded[arm:call])
+        assert f"ebp - {-DESCRIPTION_OBJECT_EBP_OFFSET:#x}" in window, "the producer is passed"
+        assert f"ecx, {PLAYER_HERO_LEDGER_OFFSET:#x}" in window, "on the player's ledger"
 
     @pytest.mark.parametrize(
         ("recharge", "pause_count", "ready_frame"),
@@ -581,16 +613,16 @@ class TestCave:
         assert depth == 0
 
     def test_every_arm_ends_at_the_shared_emitter(self, patched):
-        """Three arms, one emitter, and no arm that computes a number and drops it.
+        """Four arms, one emitter, and no arm that computes a number and drops it.
 
         An arm whose tail `jmp` went anywhere else would compute a duration and never print it,
-        which nothing else here would notice.
+        which nothing else here would notice. The unit and revive arms share `TOOLTIP:BuildTime`.
         """
         decoded = instructions(patched)
         keys = {
-            insn.address for insn in decoded if insn.mnemonic == "mov" and "edx, 0x" in insn.op_str
+            insn.op_str for insn in decoded if insn.mnemonic == "mov" and "edx, 0x" in insn.op_str
         }
-        assert len(keys) == len(KEYS), "one `mov edx, <key>` per key, and no more"
+        assert len(keys) == len(KEYS), "every key is loaded, and nothing else is"
         entries = set()
         for insn in decoded:
             if insn.mnemonic == "mov" and "edx, 0x" in insn.op_str:

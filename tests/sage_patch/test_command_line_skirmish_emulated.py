@@ -54,7 +54,7 @@ from sage_patch.addresses import (
     THE_GAME_INFO,
     THE_SKIRMISH_GAME_INFO,
 )
-from sage_patch.patches.experimental.command_line_skirmish import (
+from sage_patch.patches.platform.command_line_skirmish import (
     SECTION_NAME,
     STATUS_APPLIED,
     STATUS_NOT_GIVEN,

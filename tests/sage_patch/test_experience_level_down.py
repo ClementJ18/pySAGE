@@ -12,7 +12,7 @@ from sage_patch import ExperienceLevelDownPatch, LevelGrantSpecialPowerPatch
 from sage_patch.__main__ import main
 from sage_patch.addresses import EXPERIENCE_LEVEL_DOWN_ANCHORS
 from sage_patch.asm import Asm
-from sage_patch.patches import experience_level_down as xp
+from sage_patch.patches.combat import experience_level_down as xp
 from sage_patch.registry import PATCHES
 from sage_patch.utils import file_offset, find_section
 from tests.sage_patch.test_patching import _tiny_pe

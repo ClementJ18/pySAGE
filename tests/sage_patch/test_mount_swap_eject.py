@@ -33,7 +33,7 @@ from sage_patch.addresses import (
     TOGGLE_MOUNTED_RETIRE_BYTES,
     TOGGLE_MOUNTED_RETIRE_DESTROY,
 )
-from sage_patch.patches.mount_swap_eject import (
+from sage_patch.patches.units.mount_swap_eject import (
     ANCHORS,
     HOOK_WIDTH,
     RESUME,
@@ -43,6 +43,7 @@ from sage_patch.patches.mount_swap_eject import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, jmp_rel32, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import mount_swap_eject_image
 
 
@@ -327,7 +328,7 @@ class TestTheRetireRuns:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

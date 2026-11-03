@@ -185,7 +185,7 @@ than the stock routine it replaces.
 Redirect the single `call 0x006cb779` at `0x006cdcd1` into a cave that repeats the walk above but
 counts a nugget only when its vtable is one of `ATTACK_NUGGET_VTABLES` **and** it accepts the
 victim. Every other use of `0x006cb779` is left stock. See
-[`../patches/attack_requires_damage.py`](../patches/attack_requires_damage.py).
+[`../patches/combat/attack_requires_damage.py`](../patches/combat/attack_requires_damage.py).
 
 Each allowlisted vtable is anchored by the `mov dword ptr [esi], <vtable>` in its own constructor
 (`ATTACK_NUGGET_VTABLE_STORES`), reached from that nugget's row of the parse table - so a build

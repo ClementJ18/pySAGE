@@ -221,3 +221,35 @@ def test_the_list_is_never_squeezed_below_five_rows(qapp, game):
     assert row_height > 0
     assert rows.minimumSizeHint().height() >= row_height * VISIBLE_ROWS
     assert rows.height() // row_height >= VISIBLE_ROWS
+
+
+@pytest.mark.full
+def test_a_fruitless_search_offers_every_upgrade_in_the_mod(qapp, game):
+    from PyQt6.QtCore import Qt  # noqa: PLC0415
+
+    from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel  # noqa: PLC0415
+
+    soldier = placed("GondorSoldier")
+    map = Map()
+    map.objects_list = ObjectsList(version=3, object_list=[soldier], start_pos=0, end_pos=0)
+    document = MapDocument(map)
+    panel = ObjectPropertiesPanel(Host(document, game))
+    document.selection.set([soldier])
+    panel.refresh()
+    offered = available_upgrades(game, ["GondorSoldier"])
+    other = next(
+        name for name in game.upgrades if name not in offered and "armor" not in name.casefold()
+    )
+
+    panel.upgrades.search.setText(other)
+    rows = panel.upgrades.list
+    shown = [rows.item(i) for i in range(rows.count()) if not rows.item(i).isHidden()]
+    assert shown[0].flags() == Qt.ItemFlag.NoItemFlags
+    granted = next(item for item in shown if item.text() == other)
+    granted.setCheckState(Qt.CheckState.Checked)
+    assert soldier.properties[UPGRADES_KEY]["value"] == f"{other} "
+
+    # Once the search moves on, the granted upgrade is one of the object's rows, still ticked.
+    panel.upgrades.search.setText("")
+    assert other in [rows.item(i).text() for i in range(rows.count())]
+    assert panel.upgrades.checked() == [other]

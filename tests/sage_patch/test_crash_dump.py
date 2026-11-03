@@ -39,7 +39,7 @@ from sage_patch.addresses import (
     MINI_DUMP_FULL_DUMP_EBP,
     WRITE_MINI_DUMP,
 )
-from sage_patch.patches.crash_dump import (
+from sage_patch.patches.diagnostics.crash_dump import (
     ANCHORS,
     DEEP_PROFILE,
     MODULE_WRITE_DATA_SEG,
@@ -68,9 +68,13 @@ _WRITE_MINI_DUMP_SIZE = 0x1D1
 _DEBUG_CRASH = 0x0043A820
 _DEBUG_CRASH_SIZE = 0x44D
 
-#: `MiniDumpWithPrivateReadWriteMemory`, the bit that answers "what was this pointer pointing at"
-#: and the one the constructor refuses a profile without.
+#: `MiniDumpWithFullMemory` and `MiniDumpWithPrivateReadWriteMemory`, the two bits that put the
+#: heap in a dump; the constructor refuses a deep profile carrying neither.
+_WITH_FULL_MEMORY = 0x0002
 _WITH_PRIVATE_READ_WRITE_MEMORY = 0x0200
+
+#: `MiniDumpWithIndirectlyReferencedMemory`, a window around every pointer-shaped stack value.
+_WITH_INDIRECTLY_REFERENCED_MEMORY = 0x0040
 
 
 def instructions(base: int = BASE):
@@ -124,10 +128,17 @@ def _characteristics(data: bytes | bytearray, name: str) -> int:
 
 
 class TestTheProfiles:
-    def test_the_default_carries_the_heap(self):
-        """The whole point: without this bit the dump still holds every singleton pointer and
-        nothing any of them points at."""
-        assert NORMAL_PROFILE & _WITH_PRIVATE_READ_WRITE_MEMORY
+    def test_the_default_leaves_the_heap_out(self):
+        """A mid-game heap is over a gigabyte, and every crash would leave one in the install
+        root with nothing to clean it up."""
+        assert not NORMAL_PROFILE & (_WITH_PRIVATE_READ_WRITE_MEMORY | _WITH_FULL_MEMORY)
+
+    def test_the_default_walks_the_stacks(self):
+        """What reaches the crash message and the objects in flight without the heap."""
+        assert NORMAL_PROFILE & _WITH_INDIRECTLY_REFERENCED_MEMORY
+
+    def test_the_deep_profile_carries_the_heap(self):
+        assert DEEP_PROFILE & (_WITH_PRIVATE_READ_WRITE_MEMORY | _WITH_FULL_MEMORY)
 
     def test_the_deep_profile_only_ever_adds(self):
         assert DEEP_PROFILE & NORMAL_PROFILE == NORMAL_PROFILE
@@ -136,15 +147,18 @@ class TestTheProfiles:
     def test_the_stock_type_is_refused(self):
         """`MiniDumpWithDataSegs` alone is what the engine already asks for, so accepting it would
         let somebody install this patch and change nothing."""
-        with pytest.raises(ValueError, match="no heap"):
+        with pytest.raises(ValueError, match="stock"):
             CrashDumpPatch(normal=0x0001)
 
     def test_a_deep_profile_without_a_heap_is_refused(self):
         with pytest.raises(ValueError, match="no heap"):
             CrashDumpPatch(deep=0x0001)
 
+    def test_a_normal_profile_may_carry_the_heap(self):
+        assert CrashDumpPatch(normal=0x1B65).normal == 0x1B65
+
     def test_full_memory_counts_as_a_heap(self):
-        assert CrashDumpPatch(normal=0x0002).normal == 0x0002
+        assert CrashDumpPatch(deep=0x0002).deep == 0x0002
 
     @pytest.mark.parametrize("value", [-1, 0x1_0000_0000])
     def test_a_type_that_is_not_a_dword_is_refused(self, value):

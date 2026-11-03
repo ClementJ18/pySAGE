@@ -85,7 +85,7 @@ class DamageNugget(WeaponEffectNugget):
     AcceptDamageAdd: Bool
     DamageTaperOff: Float
     DamageSpeed: Float
-    DamageSubType: e.DamageType
+    DamageSubType: e.DamageSubType
     DrainLife: Bool
     DrainLifeMultiplier: Float
     CylinderAOE: Bool

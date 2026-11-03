@@ -31,7 +31,7 @@ from sage_patch.addresses import (
     PLAYER_GET_BUILDABLE_HERO,
     PLAYER_HERO_LEDGER_OFFSET,
 )
-from sage_patch.patches.ai_revive_gate import (
+from sage_patch.patches.ai.ai_revive_gate import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

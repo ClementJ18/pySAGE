@@ -1,7 +1,7 @@
 # Stopping the AI casting its rebuild spell on a building that is still going up
 
 The reverse-engineering behind
-[`patches/ai_rebuild_gate.py`](../patches/ai_rebuild_gate.py). ROTWK
+[`patches/ai/ai_rebuild_gate.py`](../patches/ai/ai_rebuild_gate.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, md5
 `daed3668006cd90f01c34e5a7da1901f`, recovered statically 2026-09-22.
 

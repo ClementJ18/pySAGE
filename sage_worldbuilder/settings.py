@@ -86,7 +86,7 @@ class Settings:
     array: ArrayOptions = field(default_factory=ArrayOptions)
     # Lock Layout: panels stay where they are and never dock or tab into one another, so a
     # floating panel can be dragged over the others without being swallowed by them.
-    lock_layout: bool = False
+    lock_layout: bool = True
     # Base64 of Qt's saveGeometry / saveState, so docks come back where they were left.
     window_geometry: str | None = None
     window_state: str | None = None

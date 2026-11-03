@@ -35,7 +35,7 @@ from sage_patch.addresses import (
     UNICODE_STRING_CONCAT,
     UNICODE_STRING_DTOR,
 )
-from sage_patch.patches.kill_count_tooltip import (
+from sage_patch.patches.ui.kill_count_tooltip import (
     ANCHORS,
     ENTRY_OFFSET,
     LABEL,

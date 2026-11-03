@@ -34,15 +34,20 @@ from sage_patch.addresses import (
     CONTROL_BAR_REVIVE_ROSTER_RESUME,
     CONTROL_BAR_REVIVE_UNBOUND,
     CONTROL_BAR_REVIVE_USED_COUNT,
+    DESCRIPTION_REVIVE_CASE,
+    DESCRIPTION_TEMPLATE_CASE,
+    DESCRIPTION_TEMPLATE_DISPATCH,
+    DESCRIPTION_UNTEMPLATED_CASES,
     GUICOMMAND_REVIVE,
     HERO_LEDGER_FIND_ENTRY,
     HERO_LEDGER_GET_ENTRY,
     HERO_LEDGER_GET_TEMPLATE,
     OBJECT_GET_CONTROLLING_PLAYER,
+    PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE,
     PLAYER_GET_BUILDABLE_HERO,
     PLAYER_HERO_LEDGER_OFFSET,
 )
-from sage_patch.patches.revive_object_binding import (
+from sage_patch.patches.commandbar.revive_object_binding import (
     ANCHORS,
     HOOKS,
     SECTION_NAME,
@@ -52,6 +57,7 @@ from sage_patch.patches.revive_object_binding import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, jmp_rel32, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import revive_object_binding_image
 
 _EXITS = {
@@ -64,6 +70,9 @@ _EXITS = {
     CONTROL_BAR_REVIVE_UNBOUND: "unbound",
     CONTROL_BAR_REVIVE_PASS2_RESUME: "pass 2 resume",
     CONTROL_BAR_REVIVE_PASS2_NEXT: "pass 2 next",
+    DESCRIPTION_TEMPLATE_CASE: "tooltip unit case",
+    DESCRIPTION_UNTEMPLATED_CASES: "tooltip untemplated cases",
+    DESCRIPTION_REVIVE_CASE: "tooltip revive case",
 }
 
 
@@ -116,6 +125,7 @@ class TestStructure:
             HERO_LEDGER_FIND_ENTRY,
             HERO_LEDGER_GET_ENTRY,
             HERO_LEDGER_GET_TEMPLATE,
+            PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE,
             PLAYER_GET_BUILDABLE_HERO,
         }
         for ins in md.disasm(code, base):
@@ -124,7 +134,7 @@ class TestStructure:
             target = int(ins.op_str, 16)
             inside = base <= target < base + len(code)
             if ins.mnemonic == "call":
-                assert target in calls, f"call at {ins.address:#x}"
+                assert inside or target in calls, f"call at {ins.address:#x}"
             elif ins.mnemonic == "jmp":
                 assert inside or target in _EXITS, f"jmp at {ins.address:#x}"
             else:
@@ -212,6 +222,7 @@ _ARGS = {
     HERO_LEDGER_GET_ENTRY: 1,
     HERO_LEDGER_GET_TEMPLATE: 1,
     PLAYER_GET_BUILDABLE_HERO: 1,
+    PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE: 5,
 }
 
 
@@ -225,6 +236,7 @@ class World:
     ledger: list[int] = field(default_factory=lambda: [_ROSTER_HERO, _BOROMIR, _BEREGOND])
     revive_index: int = 2
     ordinal: int = 5
+    alive: int = 0  # live objects of the bound template the player owns
     calls: list[tuple[int, int, tuple[int, ...]]] = field(default_factory=list)
 
 
@@ -260,7 +272,12 @@ def _run(world: World, label: str, is_revive: bool = True) -> Outcome:
     uc.mem_write(_BUTTON + 0x14, struct.pack("<I", world.command))
 
     frame = bytearray(0x84 + 0x14)
+    # The tooltip routine reaches the button through its builder, `[esi+0xc]`; pointing the
+    # button's own `+0xc` at itself lets one `esi` serve every routine.
+    uc.mem_write(_BUTTON + 0x0C, struct.pack("<I", _BUTTON))
+
     frame[0x84 - 1] = int(is_revive)
+    struct.pack_into("<I", frame, 0x84 - 0x4C, world.bound)
     struct.pack_into("<I", frame, 0x84 + 8, _PRODUCER)
     struct.pack_into("<i", frame, 0x84 + 0x10, world.revive_index)
     struct.pack_into("<I", frame, 0x84 - 0x1C, _PLAYER)
@@ -277,11 +294,19 @@ def _run(world: World, label: str, is_revive: bool = True) -> Outcome:
         if fn == PLAYER_GET_BUILDABLE_HERO:
             assert this == _PLAYER
             return _ROSTER_HERO
+        if fn == PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE:
+            assert this == _PLAYER
+            count, templates, ignore_dead, counts, under_construction = args
+            assert (count, ignore_dead, under_construction) == (1, 1, 0)
+            assert struct.unpack("<I", bytes(uc.mem_read(templates, 4)))[0] == world.bound
+            uc.mem_write(counts, struct.pack("<I", world.alive))
+            return 0
         assert this == _LEDGER, f"ledger helper {fn:#x} called on {this:#x}"
         if fn == HERO_LEDGER_FIND_ENTRY:
             what, ident, ordinal = args
-            assert (ident, ordinal) == (0xFFFFFFFF, 0)
-            return world.ledger.index(what) if what in world.ledger else 0xFFFFFFFF
+            assert ident == 0xFFFFFFFF
+            matches = [i for i, hero in enumerate(world.ledger) if hero == what]
+            return matches[ordinal] if ordinal < len(matches) else 0xFFFFFFFF
         (index,) = args
         if not 0 <= index < len(world.ledger):
             return 0
@@ -365,6 +390,22 @@ class TestCanMakeUnit:
         assert out.exit == "next slot"
         assert out.stack == []
 
+    def test_a_hero_twice_in_the_ledger_answers_for_his_latest_entry(self) -> None:
+        """The War of the Ring pool's level-1 entry comes first; the death appended after it is
+        the hero who fell."""
+        ledger = [_BEREGOND, _BOROMIR, _BEREGOND]
+        assert _run(World(ledger=ledger, revive_index=2), "can_make_unit").exit == "upgrade gate"
+        assert _run(World(ledger=ledger, revive_index=0), "can_make_unit").exit == "next slot"
+
+    def test_a_bound_hero_already_on_the_field_is_refused(self) -> None:
+        """A War of the Ring battle seeds the ledger with off-map heroes, so a hero the map hands
+        the player can have an entry while he is alive."""
+        world = World(alive=1)
+        out = _run(world, "can_make_unit")
+        assert out.exit == "next slot"
+        assert out.stack == []
+        assert not any(fn == HERO_LEDGER_FIND_ENTRY for fn, _, _ in world.calls)
+
 
 class TestPassOne:
     def test_an_unbound_button_runs_the_displaced_roster_lookup(self) -> None:
@@ -385,6 +426,20 @@ class TestPassOne:
         assert out.at(-0x28) == _ENTRIES + 2 * 0xE8
         assert out.stack == [_ENTRIES + 2 * 0xE8], "the setter's argument, already pushed"
         assert out.used(2) == 1, "pass 2 must see the entry as claimed"
+
+    def test_a_hero_twice_in_the_ledger_binds_his_latest_entry(self) -> None:
+        out = _run(World(ledger=[_BEREGOND, _BOROMIR, _BEREGOND]), "pass1")
+        assert out.exit == "bind"
+        assert out.regs["ebx"] == 2
+        assert out.at(-0x28) == _ENTRIES + 2 * 0xE8
+        assert out.used(2) == 1 and out.used(0) == 0
+
+    def test_a_bound_hero_already_on_the_field_stays_unbound(self) -> None:
+        out = _run(World(alive=1), "pass1")
+        assert out.exit == "unbound"
+        assert out.at(-0x20) == 4, "still out of the positional numbering"
+        assert out.used(2) == 0
+        assert out.stack == []
 
     @pytest.mark.parametrize(
         "world", [World(bound=0x0BADBAD0), World(ledger=[])], ids=["not in ledger", "empty"]
@@ -422,10 +477,29 @@ class TestPassTwo:
         assert world.calls == []
 
 
+class TestTooltip:
+    def test_a_bound_revive_button_takes_the_revive_case(self) -> None:
+        world = World()
+        assert _run(world, "tooltip").exit == "tooltip revive case"
+        assert world.calls == []
+
+    def test_a_unit_button_takes_the_unit_case_with_its_template_in_ebx(self) -> None:
+        out = _run(World(command=3), "tooltip")
+        assert out.exit == "tooltip unit case"
+        assert out.regs["ebx"] == _BEREGOND
+        assert out.stack == []
+
+    @pytest.mark.parametrize("command", [GUICOMMAND_REVIVE, 3])
+    def test_a_button_without_a_template_goes_on_to_the_other_cases(self, command: int) -> None:
+        out = _run(World(command=command, bound=0), "tooltip")
+        assert out.exit == "tooltip untemplated cases"
+        assert out.regs["ebx"] == 0
+
+
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 
@@ -456,3 +530,4 @@ class TestStockBinaries:
             assert patch.verify(data) == [], f"{patch} in order {order}"
         assert _read(data, CAN_MAKE_UNIT_REVIVE_DISPATCH, 1) == b"\xe9"
         assert _read(data, CONTROL_BAR_REVIVE_ROSTER_LOOKUP, 1) == b"\xe9"
+        assert _read(data, DESCRIPTION_TEMPLATE_DISPATCH, 1) == b"\xe9"

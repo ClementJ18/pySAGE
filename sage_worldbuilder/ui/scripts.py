@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QStyle,
+    QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QTreeWidgetItemIterator,
@@ -105,6 +106,11 @@ _PLAYER_ROLE = Qt.ItemDataRole.UserRole + 1
 _FIRED = QBrush(QColor(190, 100, 0))
 _INACTIVE = QBrush(Qt.GlobalColor.gray)
 _LINT_DELAY_MS = 400
+_WARNINGS = "Warnings"
+# The script tree never narrows past this, so script names stay readable beside the script page.
+_TREE_MIN_WIDTH = 360
+# Tall enough for the script's settings and a tab of conditions or actions under them.
+_MIN_HEIGHT = 640
 _COMMENT_DELAY_MS = 400
 _SCB_FILTER = "Map export data files (*.scb);;All files (*)"
 _INDENT = "&nbsp;" * 6
@@ -250,9 +256,9 @@ class _ItemList(QWidget):
 
     def __init__(self, title: str, buttons: list[tuple[str, Callable[[], None]]]) -> None:
         super().__init__()
+        # The name of its tab, which the tab shows with the number of entries.
+        self.title = title
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(QLabel(f"<b>{title}</b>"))
         self.list = QListWidget()
         # Rows draw their arguments as links; a click on one is reported, not a row click.
         self.delegate = SentenceDelegate(self.list)
@@ -364,7 +370,9 @@ class ScriptsPanel(QWidget):
         )
         library_buttons.addStretch(1)
         tree_layout.addLayout(library_buttons)
+        tree_side.setMinimumWidth(_TREE_MIN_WIDTH)
         splitter.addWidget(tree_side)
+        splitter.setCollapsible(0, False)
 
         self.pages = QStackedWidget()
         self.pages.addWidget(QLabel("Select a script or a group."))
@@ -374,7 +382,8 @@ class ScriptsPanel(QWidget):
         scroll.setWidget(self._build_script_page())
         self.pages.addWidget(scroll)
         splitter.addWidget(self.pages)
-        splitter.setSizes([320, 680])
+        splitter.setSizes([_TREE_MIN_WIDTH, 1000 - _TREE_MIN_WIDTH])
+        self.setMinimumHeight(_MIN_HEIGHT)
 
         self._comment_timer = QTimer(self)
         self._comment_timer.setSingleShot(True)
@@ -478,7 +487,7 @@ class ScriptsPanel(QWidget):
         layout.addLayout(form)
 
         self.conditions = _ItemList(
-            "Conditions (IF ... OR ...)",
+            "Conditions",
             [
                 ("New Condition", self.new_condition),
                 ("New OR", self.new_or_clause),
@@ -489,8 +498,9 @@ class ScriptsPanel(QWidget):
                 ("Enable/Disable", lambda: self.toggle_item(self.conditions)),
             ],
         )
-        self.actions_true = self._action_list("Actions if true", "actions_if_true")
-        self.actions_false = self._action_list("Actions if false", "actions_if_false")
+        self.actions_true = self._action_list("Actions if True", "actions_if_true")
+        self.actions_false = self._action_list("Actions if False", "actions_if_false")
+        self.item_tabs = QTabWidget()
         for items in (self.conditions, self.actions_true, self.actions_false):
             items.list.itemDoubleClicked.connect(lambda _item, items=items: self.edit_item(items))
             items.list.currentRowChanged.connect(lambda _row: self._sync_buttons())
@@ -501,7 +511,12 @@ class ScriptsPanel(QWidget):
             items.list.customContextMenuRequested.connect(
                 lambda point, items=items: self.show_item_menu(items, point)
             )
-            layout.addWidget(items, 1)
+            self.item_tabs.addTab(items, items.title)
+        # What the map linter finds in the selected script, one problem a row.
+        self.warning_list = QListWidget()
+        self.warning_list.setWordWrap(True)
+        self.item_tabs.addTab(self.warning_list, _WARNINGS)
+        layout.addWidget(self.item_tabs, 1)
         return page
 
     def _action_list(self, title: str, attribute: str) -> _ItemList:
@@ -760,6 +775,7 @@ class ScriptsPanel(QWidget):
                     node, item, self._imported.get(id(item)), self._live_state(node, item)
                 )
             iterator += 1
+        self._show_warnings()
 
     def _searching(self) -> bool:
         return bool(self.search.text().strip())
@@ -867,6 +883,30 @@ class ScriptsPanel(QWidget):
                 text, markup = self._row(action, TemplateKind.ACTION)
                 action_rows.append((text, index, markup))
             self._fill(items.list, action_rows)
+        conditions = sum(len(clause.conditions) for clause in script.or_conditions)
+        for items, count in (
+            (self.conditions, conditions),
+            (self.actions_true, len(script.actions_if_true)),
+            (self.actions_false, len(script.actions_if_false)),
+        ):
+            self.item_tabs.setTabText(self.item_tabs.indexOf(items), f"{items.title} ({count})")
+        self._show_warnings()
+
+    def _show_warnings(self) -> None:
+        """The Warnings tab, for the selected script. A script a library map lends the player
+        is checked where it is defined, so none are listed for it here."""
+        selected = self.selected
+        problems: list[str] = []
+        if isinstance(selected, Script) and not self.locked():
+            problems = self.warnings.get(selected.name.lower(), [])
+        self.warning_list.clear()
+        icon = self._standard_icon(QStyle.StandardPixmap.SP_MessageBoxWarning)
+        for problem in problems:
+            self.warning_list.addItem(QListWidgetItem(icon, problem))
+        index = self.item_tabs.indexOf(self.warning_list)
+        title = f"{_WARNINGS} ({len(problems)})" if problems else _WARNINGS
+        self.item_tabs.setTabText(index, title)
+        self.item_tabs.setTabIcon(index, icon if problems else QIcon())
 
     @staticmethod
     def _row(item: ScriptDerived, kind: TemplateKind) -> tuple[str, str]:

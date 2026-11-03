@@ -78,7 +78,7 @@ from sage_patch.addresses import (  # noqa: E402
     UPGRADE_MASK_ANY,
     UPGRADE_MASK_TEST_ANY,
 )
-from sage_patch.patches.lifetime_fields import (  # noqa: E402
+from sage_patch.patches.upgrades.lifetime_fields import (  # noqa: E402
     BONUS_OFFSET,
     DEFAULT_BONUS_KEYWORD,
     DEFAULT_KEYWORD,
@@ -96,7 +96,7 @@ from sage_patch.patches.lifetime_fields import (  # noqa: E402
     validate_keywords,
     widened_latch_default,
 )
-from sage_patch.patches.lifetime_fields import (
+from sage_patch.patches.upgrades.lifetime_fields import (
     LifetimeFieldsPatch as Patch,
 )
 from sage_patch.registry import PATCHES  # noqa: E402

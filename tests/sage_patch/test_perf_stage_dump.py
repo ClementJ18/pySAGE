@@ -18,7 +18,7 @@ import struct
 import pytest
 
 from sage_patch.addresses import IMAGE_BASE
-from sage_patch.patches.perf_stage_readout import (
+from sage_patch.patches.diagnostics.perf_stage_readout import (
     OFF_SLOTS,
     SLOT_CAPACITY,
     SLOT_SIZE,

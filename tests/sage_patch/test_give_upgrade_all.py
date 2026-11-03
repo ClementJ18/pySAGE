@@ -49,7 +49,7 @@ from sage_patch.addresses import (
     UPGRADE_TEMPLATE_NEXT,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.give_upgrade_all import (
+from sage_patch.patches.upgrades.give_upgrade_all import (
     ANCHORS,
     SECTION_NAME,
     GiveUpgradeAllPatch,
@@ -470,8 +470,8 @@ class TestTheRealBinary:
     """The synthetic image proves the patch is self-consistent; only a real `game.dat` proves the
     addresses are right. Skipped where there is none, which is every machine but the author's."""
 
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

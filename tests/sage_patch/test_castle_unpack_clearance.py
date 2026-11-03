@@ -24,8 +24,8 @@ import struct
 
 import pytest
 
-from sage_patch.patches import foundation_rebind as fnd
-from sage_patch.patches.castle_unpack_clearance import (
+from sage_patch.patches.structures import foundation_rebind as fnd
+from sage_patch.patches.structures.castle_unpack_clearance import (
     ANCHORS,
     BUILD_ASSISTANT_OBJECT_GATE,
     BUILD_ASSISTANT_TERRAIN_GATE,

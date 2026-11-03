@@ -28,7 +28,7 @@ from typing import Any
 
 from sage_save.reversing import NestedBlock, nested_block_tree
 from sage_save.save import BLOCK_MARKER, Chunk, SaveFile
-from sage_save.xfer import XferReader
+from sage_save.xfer import XferReader, write_ascii_string, write_unicode_string
 from sage_utils.stream import BinaryStream
 
 
@@ -58,12 +58,6 @@ def _write_systemtime(stream: BinaryStream, when: datetime) -> None:
     )
     for value in fields:
         stream.write_uint16(value)
-
-
-def _write_unicode(stream: BinaryStream, text: str) -> None:
-    """A save `xferUnicodeString`: uint8 character count then that many UTF-16LE units."""
-    stream.write_uchar(len(text))
-    stream.write_bytes(text.encode("utf-16-le"))
 
 
 @dataclass
@@ -117,11 +111,11 @@ def encode_game_state(header: GameStateHeader) -> bytes:
     stream.write_uchar(header.version)
     stream.write_bytes(header.leading)
     _write_systemtime(stream, header.saved_at)
-    _write_unicode(stream, header.description)
-    stream.write_string(header.map_name)
+    write_unicode_string(stream, header.description)
+    write_ascii_string(stream, header.map_name)
     stream.write_bytes(header.post_map)
-    _write_unicode(stream, header.hero_name)
-    _write_unicode(stream, header.user_name)
+    write_unicode_string(stream, header.hero_name)
+    write_unicode_string(stream, header.user_name)
     stream.write_bytes(header.trailing)
     return stream.getvalue()
 
@@ -199,8 +193,8 @@ def encode_game_state_map(gsm: GameStateMap) -> bytes:
     if gsm.map_block_end < 0 or not gsm.map_data:
         stream.write_bytes(gsm.trailing)  # mission stub: nothing else was decoded
         return stream.getvalue()
-    stream.write_string(gsm.save_map_name)
-    stream.write_string(gsm.pristine_map_name)
+    write_ascii_string(stream, gsm.save_map_name)
+    write_ascii_string(stream, gsm.pristine_map_name)
     stream.write_int32(gsm.game_mode)
     stream.write_int32(gsm.block_tag)
     stream.write_bytes(BLOCK_MARKER)
@@ -436,7 +430,7 @@ def encode_campaign(campaign: Campaign) -> bytes:
     stream.write_uchar(campaign.version)
     stream.write_uchar(1 if campaign.active else 0)
     if campaign.active:
-        stream.write_string(campaign.current_campaign)
+        write_ascii_string(stream, campaign.current_campaign)
         stream.write_int32(campaign.campaign_flag)
         stream.write_bytes(campaign.roster)
     return stream.getvalue()
@@ -515,6 +509,78 @@ def object_veterancy_level(obj: SaveObject) -> int:
     `ActiveBody` body module (`ModuleTag_03`), not this scalar prefix, and is not decoded yet."""
     levels = [int(match.group(1)) for match in _OBJECT_LEVEL_RE.finditer(obj.body)]
     return max(levels) if levels else 0
+
+
+@dataclass(frozen=True)
+class WeaponSetFlagList:
+    """An object's saved `WeaponSetFlags`: the count `xfer` wrote, the names that follow it, and
+    the body offset of the count. A count above the number of names is the save that will not
+    load - see `object_weapon_set_flags`."""
+
+    count: int
+    names: tuple[str, ...]
+    count_offset: int
+
+    @property
+    def consistent(self) -> bool:
+        return self.count == len(self.names)
+
+
+#: The engine's six per-slot bytes `Object::xfer` writes between the weapon-set flags and the
+#: weapon set (`0x00698686`: one byte for each of six slots).
+_WEAPON_SET_GAP = 6
+_MAX_FLAGS = 16
+
+
+def object_weapon_set_flags(obj: SaveObject) -> WeaponSetFlagList | None:
+    """The object's saved `WeaponSetFlags`, or None when its prefix does not carry the layout.
+
+    `WeaponSetFlags::xfer` (`0x00691C46`) writes a version byte (1), a `u32` count and one name
+    per set flag; six bytes later `WeaponSet::xfer` starts with a version byte (1) and an ascii
+    echo of the template name. The list is found from that echo backwards: the last
+    `01 <len> <template>` before the first module, minus the six bytes, is where the names end,
+    and the count is the one whose version byte and names end exactly there.
+
+    **What this catches.** The count is a popcount of the whole mask, while the names stop at the
+    engine's 104th flag. A flag a patch appends (`production-condition`'s weapon-set flag) is
+    counted but never named, and the loader then reads a name that is not there and fails the
+    whole save ("Error loading game", seen 2026-10-31). A consistent list has as many names as
+    its count says.
+    """
+    body = obj.body
+    modules = [block for block in object_modules(obj) if block.depth == 0]
+    end = modules[0].marker_offset if modules else len(body)
+    name = obj.template_name.encode("latin-1")
+    weapon_set = body.rfind(bytes([1, len(name)]) + name, 0, end)
+    if weapon_set < 0:
+        return None
+    names_end = weapon_set - _WEAPON_SET_GAP
+    for version_at in range(names_end - 5, max(-1, names_end - 600), -1):
+        if body[version_at] != 1:
+            continue
+        (count,) = struct.unpack_from("<I", body, version_at + 1)
+        if count > _MAX_FLAGS:
+            continue
+        for named in range(count, -1, -1):
+            names = _read_names(body, version_at + 5, named, names_end)
+            if names is not None:
+                return WeaponSetFlagList(count, names, version_at + 1)
+    return None
+
+
+def _read_names(body: bytes, at: int, count: int, end: int) -> tuple[str, ...] | None:
+    """`count` length-prefixed flag names from `at` ending exactly at `end`, or None."""
+    names: list[str] = []
+    for _ in range(count):
+        if at >= end:
+            return None
+        length = body[at]
+        raw = body[at + 1 : at + 1 + length]
+        if len(raw) != length or not raw or not all(48 <= c < 123 for c in raw):
+            return None
+        names.append(raw.decode("ascii"))
+        at += 1 + length
+    return tuple(names) if at == end else None
 
 
 def set_object_position(obj: SaveObject, position: tuple[float, float, float]) -> SaveObject:
@@ -709,7 +775,7 @@ def _write_template_table(stream: BinaryStream, templates: dict[int, str]) -> No
     the dict's insertion order (which is file order - the decode inserts by id 1..count)."""
     stream.write_uint32(len(templates))
     for template_id, name in templates.items():
-        stream.write_string(name)
+        write_ascii_string(stream, name)
         stream.write_uint16(template_id)
 
 
@@ -1016,9 +1082,9 @@ def encode_players(state: PlayersState) -> bytes:
             stream.write_uchar(1)
             stream.write_uint32(len(sciences))
             for science in sciences:
-                stream.write_string(science)
+                write_ascii_string(stream, science)
         for upgrade in player.upgrades:
-            stream.write_string(upgrade.name)
+            write_ascii_string(stream, upgrade.name)
             stream.write_uchar(1)
             stream.write_uint32(upgrade.status)
 
@@ -1027,13 +1093,30 @@ def encode_players(state: PlayersState) -> bytes:
             stream.write_uchar(1)
             stream.write_uint16(len(mask))
             for name in mask:
-                stream.write_string(name)
+                write_ascii_string(stream, name)
         stream.write_bytes(player.energy)
         stream.write_uint16(len(player.team_ids))
         for team_id in player.team_ids:
             stream.write_uint32(team_id)
         stream.write_bytes(player.tail)
     return stream.getvalue()
+
+
+@dataclass
+class SequentialScript:
+    """One running sequential script (`SequentialScript::xfer`, v1): a script a team or object
+    is executing one action at a time. ZH's record, plus the same always-present player-scope
+    string BFME2 gave counters and flags. Present in campaign missions whose map scripts drive
+    units on creation (good 07: thirty `Unit N-M ON CREATE` scripts on Player_3's teams)."""
+
+    team_id: int  # TeamID the script runs on, 0 when it runs on an object
+    object_id: int  # ObjectID the script runs on, 0 when it runs on a team
+    scope: str  # "" = global, else "Player_N"
+    name: str  # the script's name in the map
+    current_instruction: int
+    times_to_loop: int
+    frames_to_wait: int  # -1 = not waiting
+    dont_advance_instruction: bool
 
 
 @dataclass
@@ -1119,7 +1202,8 @@ class ScriptEngineState:
     all observed constant or near-constant."""
 
     version: int
-    unknown_head: bytes  # 4 bytes after the version, observed all-zero corpus-wide
+    unknown_head: bytes  # 2 bytes after the version, observed all-zero corpus-wide
+    sequential_scripts: list[SequentialScript]
     counters: list[ScriptCounter]
     flags: list[ScriptFlag]
     unknown_mid: bytes  # 12 bytes between flags and attack priorities, observed all-zero
@@ -1172,11 +1256,31 @@ def _write_pair_list(stream: BinaryStream, pairs: list[tuple[int, int]]) -> None
 def decode_script_engine(chunk: Chunk) -> ScriptEngineState:
     reader = XferReader(chunk.payload)
     version = reader.version(5)
-    unknown_head = reader.bytes(4)
-    if unknown_head != b"\x00\x00\x00\x00":
-        # Tripwire: possibly a sequential-script count (ZH's first section). A non-zero value
-        # would mean records this decoder has never seen; refuse rather than mis-parse.
+    unknown_head = reader.bytes(2)
+    if unknown_head != b"\x00\x00":
+        # Tripwire: a non-zero value would mean a section this decoder has never seen; refuse
+        # rather than mis-parse.
         raise ValueError(f"ScriptEngine head bytes {unknown_head.hex()} != 0; new section?")
+
+    sequential_scripts = []
+    for _ in range(reader.uint16()):
+        reader.version(1)
+        team_id = reader.uint32()
+        object_id = reader.uint32()
+        scope = reader.ascii_string()
+        name = reader.ascii_string()
+        sequential_scripts.append(
+            SequentialScript(
+                team_id,
+                object_id,
+                scope,
+                name,
+                reader.int32(),
+                reader.int32(),
+                reader.int32(),
+                reader.bool(),
+            )
+        )
 
     counters = []
     for _ in range(reader.uint16()):
@@ -1287,6 +1391,7 @@ def decode_script_engine(chunk: Chunk) -> ScriptEngineState:
     return ScriptEngineState(
         version,
         unknown_head,
+        sequential_scripts,
         counters,
         flags,
         unknown_mid,
@@ -1325,17 +1430,29 @@ def encode_script_engine(state: ScriptEngineState) -> bytes:
     stream.write_uchar(state.version)
     stream.write_bytes(state.unknown_head)
 
+    stream.write_uint16(len(state.sequential_scripts))
+    for script in state.sequential_scripts:
+        stream.write_uchar(1)
+        stream.write_uint32(script.team_id)
+        stream.write_uint32(script.object_id)
+        write_ascii_string(stream, script.scope)
+        write_ascii_string(stream, script.name)
+        stream.write_int32(script.current_instruction)
+        stream.write_int32(script.times_to_loop)
+        stream.write_int32(script.frames_to_wait)
+        stream.write_uchar(1 if script.dont_advance_instruction else 0)
+
     stream.write_uint16(len(state.counters))
     for counter in state.counters:
-        stream.write_string(counter.scope)
-        stream.write_string(counter.name)
+        write_ascii_string(stream, counter.scope)
+        write_ascii_string(stream, counter.name)
         stream.write_int32(counter.value)
         stream.write_uchar(1 if counter.is_countdown_timer else 0)
 
     stream.write_uint16(len(state.flags))
     for flag in state.flags:
-        stream.write_string(flag.scope)
-        stream.write_string(flag.name)
+        write_ascii_string(stream, flag.scope)
+        write_ascii_string(stream, flag.name)
         stream.write_uchar(1 if flag.value else 0)
 
     stream.write_bytes(state.unknown_mid)
@@ -1343,11 +1460,11 @@ def encode_script_engine(state: ScriptEngineState) -> bytes:
     stream.write_uint16(len(state.attack_priorities))
     for priority in state.attack_priorities:
         stream.write_uchar(1)
-        stream.write_string(priority.name)
+        write_ascii_string(stream, priority.name)
         stream.write_int32(priority.default_priority)
         stream.write_uint16(len(priority.overrides))
         for template, value in priority.overrides:
-            stream.write_string(template)
+            write_ascii_string(stream, template)
             stream.write_int32(value)
     stream.write_int32(len(state.attack_priorities))
 
@@ -1356,7 +1473,7 @@ def encode_script_engine(state: ScriptEngineState) -> bytes:
 
     stream.write_uint16(len(state.named_objects))
     for name, object_id in state.named_objects:
-        stream.write_string(name)
+        write_ascii_string(stream, name)
         stream.write_uint32(object_id)
 
     stream.write_uchar(1 if state.first_update else 0)
@@ -1379,7 +1496,7 @@ def encode_script_engine(state: ScriptEngineState) -> bytes:
         stream.write_uchar(1)
         stream.write_uint32(len(sciences))
         for science in sciences:
-            stream.write_string(science)
+            write_ascii_string(stream, science)
 
     stream.write_uchar(1)  # topple-direction list version
     stream.write_uint32(len(state.topple_directions))
@@ -1399,25 +1516,25 @@ def encode_script_engine(state: ScriptEngineState) -> bytes:
     stream.write_bytes(state.reveal_unknown)
     for reveal in state.reveals:
         stream.write_uint32(reveal.key)
-        stream.write_string(reveal.name)
+        write_ascii_string(stream, reveal.name)
         stream.write_float(reveal.radius)
-        stream.write_string(reveal.player)
+        write_ascii_string(stream, reveal.player)
 
     stream.write_uint16(len(state.object_type_lists))
     for type_list in state.object_type_lists:
         stream.write_uchar(1)
-        stream.write_string(type_list.name)
+        write_ascii_string(stream, type_list.name)
         stream.write_uint16(len(type_list.templates))
         for template in type_list.templates:
-            stream.write_string(template)
+            write_ascii_string(stream, template)
 
     stream.write_uchar(1 if state.difficulty_bonus else 0)
-    stream.write_string(state.current_track)
+    write_ascii_string(stream, state.current_track)
 
     stream.write_uint32(len(state.scoped_named_objects))
     for scope, name, object_id in state.scoped_named_objects:
-        stream.write_string(scope)
-        stream.write_string(name)
+        write_ascii_string(stream, scope)
+        write_ascii_string(stream, name)
         stream.write_uint32(object_id)
 
     stream.write_bytes(state.unknown_tail)
@@ -1712,7 +1829,7 @@ CHUNK_CODECS: dict[str, ChunkCodec] = {
             "CHUNK_ScriptEngine",
             decode_script_engine,
             encode_script_engine,
-            # the four raw regions kept verbatim: head u32, the 12 mid bytes, the 20-byte
+            # the raw regions kept verbatim: head u16, the 12 mid bytes, the 20-byte
             # fade-counter block, the reveal-section u32 pair, and the 8-byte tail
             lambda value: (
                 len(value.unknown_head)
@@ -1783,6 +1900,7 @@ __all__ = [
     "ScriptCounter",
     "ScriptEngineState",
     "ScriptFlag",
+    "SequentialScript",
     "LivingWorldLogicState",
     "SmallChunk",
     "TacticalView",
@@ -1817,5 +1935,7 @@ __all__ = [
     "living_world_object_templates",
     "object_modules",
     "object_veterancy_level",
+    "object_weapon_set_flags",
+    "WeaponSetFlagList",
     "set_object_position",
 ]

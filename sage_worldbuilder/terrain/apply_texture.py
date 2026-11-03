@@ -102,15 +102,20 @@ def apply_texture(
     border: int,
     options: ApplyTextureOptions,
     random: np.random.Generator | None = None,
+    block: tuple[int, int, int, int] | None = None,
 ) -> TilePaint | None:
-    """`texture` over the playable cells that qualify, or None when no cell changes. A texture
-    in `textures` keeps its tiling offset on the map; a new one is tiled from (0, 0)."""
+    """`texture` over the playable cells that qualify, only those in `block` (`x0, y0, x1, y1`)
+    when one is given, or None when no cell changes. A texture in `textures` keeps its tiling
+    offset on the map; a new one is tiled from (0, 0)."""
     tiles = layers[TileLayer.TILES]
     rows, columns = tiles.shape
     if heights.shape != tiles.shape:
         return None
     x0, y0 = max(border, 0), max(border, 0)
     x1, y1 = columns - x0, rows - y0
+    if block is not None:
+        x0, y0 = max(x0, block[0]), max(y0, block[1])
+        x1, y1 = min(x1, block[2]), min(y1, block[3])
     if x0 >= x1 or y0 >= y1:
         return None
     slopes, height_range, saturation = options.limits()

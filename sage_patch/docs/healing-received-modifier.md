@@ -4,7 +4,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR
 is `VA - 0x400000`. Read from the repo's `game.dat` (11,346,944 bytes), which
 `sage-patch sagepatch` reports as carrying no known patch, so every byte quoted here is stock.
 
-**Status: built** - see [`patches/healing_received.py`](../patches/healing_received.py) - and
+**Status: built** - see [`patches/combat/healing_received.py`](../patches/combat/healing_received.py) - and
 **statically verified, not runtime-verified.** Every claim below carries the instruction it came
 from, and every site is byte-asserted in the tests against the real `game.dat`. None of it has
 been watched in a running game.
@@ -208,7 +208,7 @@ list starts four bytes past its terminator, so **there is no slack** and the tab
 in a cave with both references repointed.
 
 `production-split` appends to the same table
-([`patches/production_split.py`](../patches/production_split.py)), so the two patches have to
+([`patches/economy/production_split.py`](../patches/economy/production_split.py)), so the two patches have to
 compose in either order. A rebuild from stock constants would not: whichever ran second would
 either drop the other's entry or fail its own stock fingerprint.
 

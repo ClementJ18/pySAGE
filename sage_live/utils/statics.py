@@ -235,10 +235,10 @@ COST_MODIFIER = "CostModifierUpgrade"
 # active; `reachable_recruits` reads them all at once.
 COMMAND_SET_UPGRADE = "CommandSetUpgrade"
 
-# SAGE logic runs at a fixed 30 frames a second, and `GameData` may cap it lower with
-# `FramesPerSecondLimit`. This is the fallback for a tree that declares neither, which is the
-# usual case - RotWK 2.01 + Edain leaves the field out entirely.
-LOGIC_FRAMES_PER_SECOND = 30.0
+# RotWK's logic runs at 5 frames a second: `0x00D9F608` holds 5 (`sage_patch.addresses.logic`),
+# and a 300 s `ReloadTime` reads as 1500 frames on a live power clock (2026-10-23). The 30 four
+# bytes above it, and `GameData`'s `FramesPerSecondLimit`, are the draw rate, not the logic's.
+LOGIC_FRAMES_PER_SECOND = 5.0
 
 # The crush fields: a mover crushes a stander when its `CrusherLevel` is strictly greater than the
 # stander's `CrushableLevel`, unless the stander's body resists that level (`CrusherLevelResisted`,
@@ -2212,16 +2212,9 @@ class Statics:
     def frames_per_second(self) -> float:
         """The logic frame rate, so a frame count can be read as a match age.
 
-        `GameData.FramesPerSecondLimit` when the tree declares it, and the engine's fixed 30
-        when it does not - which is the usual case, RotWK 2.01 + Edain among them.
+        The engine's fixed 5. `GameData.FramesPerSecondLimit` caps the draw rate, not this, so
+        the tree has no say in it.
         """
-        for block in self.game.tables.get("gamedatas", {}).values():
-            declared = block.fields.get("FramesPerSecondLimit")
-            if declared:
-                try:
-                    return float(str(declared).split()[0])
-                except ValueError:
-                    break
         return LOGIC_FRAMES_PER_SECOND
 
     def army_plan(self, side: str) -> ArmyPlan | None:

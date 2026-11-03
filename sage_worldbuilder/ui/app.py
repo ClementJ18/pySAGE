@@ -45,7 +45,7 @@ def parse_arguments(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None, extra_checks: "MapChecks | None" = None) -> None:
     args = parse_arguments(sys.argv[1:] if argv is None else argv)
-    require_extra("worldbuilder", "sage-worldbuilder", "PyQt6", "pyBIG")
+    require_extra("worldbuilder", "sage-worldbuilder", "PyQt6", "pyBIG", "numpy", "OpenGL", "PIL")
     # Imported after the check: both pull in PyQt6 at import time, which is exactly the failure
     # `require_extra` is here to report in plain language.
     from sage_utils.installs import user_data_dir  # noqa: PLC0415

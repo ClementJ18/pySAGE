@@ -37,7 +37,7 @@ from sage_patch.addresses import (  # noqa: E402
     VICTORY_CONDITIONS_HAS_BEEN_DEFEATED_SLOT,
     VICTORY_CONDITIONS_VTABLE,
 )
-from sage_patch.patches.replay_outcome import (
+from sage_patch.patches.multiplayer.replay_outcome import (
     CHUNK_LEN,
     CODE_OFF,
     ORDER_TYPE,

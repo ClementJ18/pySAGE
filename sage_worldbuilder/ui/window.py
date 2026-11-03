@@ -61,7 +61,7 @@ from sage_map.map import Map
 from sage_utils.config import user_config_dir
 from sage_utils.elevation import relaunch_elevated
 from sage_utils.extras import package_version
-from sage_utils.widgets import Worker, add_help_menu, resource_path, run_worker
+from sage_utils.widgets import ThemeAction, Worker, add_help_menu, resource_path, run_worker
 from sage_worldbuilder.ambient import (
     ListenMode,
     min_volume_customizations,
@@ -209,6 +209,8 @@ from sage_worldbuilder.ui.layers import LayersPanel
 from sage_worldbuilder.ui.map_settings import MapSettingsPanel, MultiplayerPositionsPanel
 from sage_worldbuilder.ui.map_view import MapView
 from sage_worldbuilder.ui.mapcache_dialog import MapCacheDialog
+from sage_worldbuilder.ui.markers_panel import MarkersPanel
+from sage_worldbuilder.ui.mcp_bridge import AgentListener, EditorSession
 from sage_worldbuilder.ui.new_map_dialog import NewMapDialog
 from sage_worldbuilder.ui.object_palette import ObjectPalettePanel, ReplaceObjectDialog
 from sage_worldbuilder.ui.object_properties import ObjectPropertiesPanel
@@ -233,6 +235,8 @@ from sage_worldbuilder.ui.toolbar_dialog import CustomizeToolbarDialog
 from sage_worldbuilder.ui.tools import (
     BuildListTool,
     GenericAIObjectTool,
+    MarkerMode,
+    MarkerTool,
     PasteTool,
     PlaceTool,
     PolygonTool,
@@ -486,7 +490,7 @@ rings under <b>Show Objects</b>. <b>3D Options</b> holds what only the 3D view c
 wireframe, the object dots a click picks by, how much of the map is drawn at once, and the
 Letterbox and Safe Frame that show what a 16:9 or 4:3 screen would. <b>Set LOD</b> draws the map
 at one of the game's five detail levels, leaving out the models the game itself drops there.</p>
-<p><b>View &gt; Panels</b> shows or hides the toolbar, the status bar and each panel; which tools
+<p><b>View &gt; Panels</b> shows or hides the toolbar and each panel; which tools
 the toolbar carries, and in what order, is <b>Customize Toolbar…</b> there (also on the toolbar's
 own right-click menu), and it wraps onto more rows as the window gets narrower rather than hiding
 anything. Every panel docks, tabs, or is pulled out into a window of its own.
@@ -530,8 +534,9 @@ deprecated or missing objects, objects on missing teams, and the objects of a ba
 <p>With the <b>Waypoint Tool</b> (W), click to add a waypoint, drag from one waypoint to another to
 link them (drag again to remove the link), or drag from a waypoint to an empty spot to add a
 linked one. With the <b>Polygon Tool</b>, click the corners of a trigger area and click the first
-corner again to close it. Select and Move selects an area by clicking inside it; drag it to move
-it, or drag one of its corners to reshape it.</p>
+corner again to close it. Select and Move selects an area by clicking its outline (an edge or a
+corner; the inside is left free, so stacked areas can each be picked); drag it to move it, or drag
+one of its corners to reshape it.</p>
 <h3>Layers, helpers and the ruler</h3>
 <p>The <b>Layers List</b> shows each layer with what is on it: untick a layer to hide it, and
 <b>Set Active</b> to put new objects, waypoints and areas on it. The <b>Ruler Tool</b> measures
@@ -831,6 +836,7 @@ class MainWindow(QMainWindow):
         self.waypoint_tool = WaypointTool(self)
         self.polygon_tool = PolygonTool(self)
         self.ruler_tool = RulerTool(self)
+        self.marker_tool = MarkerTool(self)
         self.build_list_tool = BuildListTool(self)
         self.road_tool = RoadTool(self)
         self.generic_ai_tool = GenericAIObjectTool(self)
@@ -1248,6 +1254,12 @@ class MainWindow(QMainWindow):
             command=CMD_RULER_TOOL,
             tip="Measure distance between two points.",
         )
+        self.markers_tool_action = self._action(
+            "&Markers",
+            partial(self.use_tool, "markers"),
+            tip="Mark areas, points and paths to point an AI agent at, in the mode the Markers "
+            "panel picks. Not saved with the map.",
+        )
         self.build_list_tool_action = self._action(
             "&Build List Tool",
             partial(self.use_tool, "build list"),
@@ -1347,6 +1359,7 @@ class MainWindow(QMainWindow):
             *self.water_tool_actions.values(),
             *self.dressing_tool_actions.values(),
             self.ruler_tool_action,
+            self.markers_tool_action,
             *self.height_tool_actions.values(),
             self.single_tile_action,
             self.large_tile_action,
@@ -1361,6 +1374,18 @@ class MainWindow(QMainWindow):
             self.tool_actions.addAction(action)
         self.circular_ruler_action = self._action("&Circular Measurements", self.map_view.update)
         self.circular_ruler_action.setCheckable(True)
+        self.agent_listener: AgentListener | None = None
+        self.agent_connections_action = self._action(
+            "Allow &Agent Connections",
+            self.toggle_agent_connections,
+            tip="Let an AI agent read and edit the open map through sage-worldbuilder-mcp --bridge",
+        )
+        self.agent_connections_action.setCheckable(True)
+        self.clear_markers_action = self._action(
+            "C&lear Markers",
+            self.clear_markers,
+            tip="Remove every area, point and path marked for an agent",
+        )
         self.contour_options_action = self._action("Co&ntour Options…", self.edit_contour_options)
         self.stretched_options_action = self._action(
             "Stretched Tiles &Options…", self.edit_stretched_options, command=CMD_STRETCHED_OPTIONS
@@ -1748,7 +1773,27 @@ class MainWindow(QMainWindow):
         self.camera_dock = self._dock("Cameras", "camerasDock", self.camera_panel)
         self.camera_dock.visibilityChanged.connect(self._camera_dock_shown)
         self.tabifyDockWidget(self.map_dock, self.camera_dock)
-        self.map_dock.raise_()
+        self.markers_panel = MarkersPanel(self)
+        self.markers_panel.mode_chosen.connect(self._marker_mode)
+        self.markers_panel.frame_requested.connect(self._frame_marker)
+        self.markers_panel.status.connect(self.show_status)
+        self.markers_dock = self._dock("Markers", "markersDock", self.markers_panel)
+        self.tabifyDockWidget(self.map_dock, self.markers_dock)
+        # A fresh layout opens with only the panels most edits start from on the right; the rest
+        # come up when their tool is picked or from the Window menu.
+        for dock in self._docks_hidden_at_start():
+            dock.hide()
+        self.palette_dock.raise_()
+
+    def _docks_hidden_at_start(self) -> tuple[QDockWidget, ...]:
+        shown = (self.palette_dock, self.object_dock, self.terrain_material_dock)
+        return tuple(
+            dock
+            for dock in self._docks()
+            if dock is not self.scripts_dock
+            and dock not in shown
+            and self.dockWidgetArea(dock) == Qt.DockWidgetArea.RightDockWidgetArea
+        )
 
     def _read_library_map(self, game_path: str) -> Map | None:
         """A library map the open map's players draw scripts from, read from the loaded game."""
@@ -2020,6 +2065,10 @@ class MainWindow(QMainWindow):
         the palette's object itself."""
         if self.map_view.tool is not self.array_tool:
             self.use_tool("place")
+        # The ghost at the cursor is the palette's object, drawn only when a view repaints.
+        self.map_view.update()
+        if self.map_view_3d is not None:
+            self.map_view_3d.update()
 
     def array_options(self) -> ArrayOptions:
         return self.settings.array
@@ -2360,6 +2409,7 @@ class MainWindow(QMainWindow):
             "waypoint": (self.waypoint_tool, self.waypoint_tool_action),
             "polygon": (self.polygon_tool, self.polygon_tool_action),
             "ruler": (self.ruler_tool, self.ruler_tool_action),
+            "markers": (self.marker_tool, self.markers_tool_action),
             "build list": (self.build_list_tool, self.build_list_tool_action),
             "road": (self.road_tool, self.road_tool_action),
             "generic ai": (self.generic_ai_tool, self.generic_ai_tool_action),
@@ -2393,6 +2443,9 @@ class MainWindow(QMainWindow):
             self._show_dock(self.copy_terrain_dock)
         if tool is self.build_list_tool:
             self._show_dock(self.build_list_dock)
+        if tool is self.marker_tool:
+            self.markers_panel.set_mode(self.marker_tool.mode)
+            self._show_dock(self.markers_dock)
         page = next((key for key, each in self.dressing_tools.items() if each is tool), None)
         if page is not None:
             self.dressing_panel.show_page(page)
@@ -2843,7 +2896,20 @@ class MainWindow(QMainWindow):
         self.generic_ai_panel.refresh()
         self.map_view.update()
         self.object_panel.refresh()
+        if document is not None and any(
+            isinstance(item, Object) and not is_road_point(item) for item in document.selection
+        ):
+            self._bring_up_object_properties()
         self._refresh()
+
+    def _bring_up_object_properties(self) -> None:
+        """Selecting an object opens Object Properties, or brings it to the front of the panels
+        it shares a place with. Not when the pick was made in the Item List: it shares a place
+        with Object Properties at first, and the list would vanish under the click."""
+        focus = QApplication.focusWidget()
+        if focus is not None and self.item_list_panel.isAncestorOf(focus):
+            return
+        self._show_dock(self.object_dock)
 
     def _toggle_view(self, name: str) -> None:
         setattr(self.settings.view, name, self.view_actions[name].isChecked())
@@ -3264,11 +3330,6 @@ class MainWindow(QMainWindow):
             toolbar_toggle.setText("&Toolbar")
             panels_menu.addAction(toolbar_toggle)
         panels_menu.addAction(self.customize_toolbar_action)
-        self.status_bar_action = QAction("&Status Bar", self)
-        self.status_bar_action.setCheckable(True)
-        self.status_bar_action.setChecked(True)
-        self.status_bar_action.toggled.connect(lambda visible: _status(self).setVisible(visible))
-        panels_menu.addAction(self.status_bar_action)
         panels_menu.addSeparator()
         for dock in self._docks():
             toggle = dock.toggleViewAction()
@@ -3288,6 +3349,9 @@ class MainWindow(QMainWindow):
         tools_menu.addActions(self.tool_actions.actions())
         tools_menu.addSeparator()
         tools_menu.addAction(self.circular_ruler_action)
+        tools_menu.addSeparator()
+        tools_menu.addAction(self.agent_connections_action)
+        tools_menu.addAction(self.clear_markers_action)
 
         texture_menu = _menu(bar.addMenu("Te&xture Sizing"))
         texture_menu.addActions(
@@ -3308,6 +3372,9 @@ class MainWindow(QMainWindow):
         window_menu.addAction(self.reset_layout_action)
         window_menu.addSeparator()
         window_menu.addActions([self.next_pane_action, self.previous_pane_action])
+        window_menu.addSeparator()
+        self.theme_action = ThemeAction(self)
+        window_menu.addAction(self.theme_action)
 
         game_menu = _menu(bar.addMenu("&Game"))
         game_menu.addAction(self.load_mod_action)
@@ -3988,6 +4055,7 @@ class MainWindow(QMainWindow):
             self.dressing_dock,
             self.generic_ai_dock,
             self.camera_dock,
+            self.markers_dock,
             self.validation_dock,
             self.script_debugger_dock,
         )
@@ -4066,11 +4134,14 @@ class MainWindow(QMainWindow):
     def reset_layout(self) -> None:
         self.restoreState(self._default_state)
         self.toolbar.show()
+        hidden = self._docks_hidden_at_start()
         for dock in self._docks():
-            if dock is not self.scripts_dock:
+            if dock is not self.scripts_dock and dock not in hidden:
                 dock.show()
+        for dock in hidden:
+            dock.hide()
+        self.palette_dock.raise_()
         self._scripts_placed = False
-        self.status_bar_action.setChecked(True)
 
     def save_named_layout(self) -> None:
         """Save the current window and panel positions under a name the user picks; an existing
@@ -4174,9 +4245,11 @@ class MainWindow(QMainWindow):
                 document.subscribe(self._on_change),
                 document.stack.subscribe(self._refresh),
                 document.selection.subscribe(self._selection_changed),
+                document.markers.subscribe(self._markers_changed),
             ]
             document.selection.locked = self.lock_selection_action.isChecked()
         self.map_view.set_document(document)
+        self.markers_panel.set_markers(document.markers if document is not None else None)
         self._update_texture_colors()
         self._refresh_texture_catalogue()
         self._refresh_road_catalogue()
@@ -4418,6 +4491,51 @@ class MainWindow(QMainWindow):
             if QApplication.activeWindow() is self:
                 self.raise_floating_docks()
 
+    def toggle_agent_connections(self) -> None:
+        """Start or stop accepting the MCP server's connections, as the action says."""
+        wanted = self.agent_connections_action.isChecked()
+        if not wanted:
+            if self.agent_listener is not None:
+                self.agent_listener.stop()
+            _status(self).showMessage("Agent connections stopped", 5000)
+            return
+        if self.agent_listener is None:
+            self.agent_listener = AgentListener(EditorSession(self), self)
+            self.agent_listener.connections_changed.connect(self._agent_connections_changed)
+        if not self.agent_listener.start():
+            self.agent_connections_action.setChecked(False)
+            QMessageBox.warning(self, APP_TITLE, "Could not listen for agent connections.")
+            return
+        _status(self).showMessage(
+            f"Accepting agent connections on port {self.agent_listener.port}", 5000
+        )
+
+    def clear_markers(self) -> None:
+        if self.document is not None:
+            self.document.markers.clear()
+
+    def _marker_mode(self, mode: MarkerMode) -> None:
+        """A mode picked in the Markers panel: the Markers tool takes it up."""
+        self.marker_tool.set_mode(mode)
+        if self.map_view.tool is not self.marker_tool:
+            self.use_tool("markers")
+        self.active_view().setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _frame_marker(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        self.active_view().fit_rect(x0, y0, x1, y1)
+
+    def _markers_changed(self) -> None:
+        """A marker was made, changed or removed, here or by an agent: both views and the
+        Markers panel show them."""
+        self.markers_panel.refresh()
+        self.map_view.update()
+        if self.map_view_3d is not None:
+            self.map_view_3d.update()
+
+    def _agent_connections_changed(self, count: int) -> None:
+        if count:
+            _status(self).showMessage(f"{count} agent connection(s)", 5000)
+
     def closeEvent(self, event: QCloseEvent | None) -> None:  # noqa: N802 - Qt override
         if event is None:
             return
@@ -4440,15 +4558,17 @@ class MainWindow(QMainWindow):
         self.autosave_timer.stop()
         self.ambient_player.stop()
         self.script_debugger_panel.shutdown()
+        if self.agent_listener is not None:
+            self.agent_listener.stop()
         self._store_layout()
         self.settings.save()
         event.accept()
 
 
 def _scripts_geometry(editor: QRect) -> QRect:
-    """Where the Scripts window first opens: two thirds of the editor wide, seven tenths tall,
+    """Where the Scripts window first opens: two thirds of the editor wide, nine tenths tall,
     over its middle."""
-    size = QSize(editor.width() * 2 // 3, editor.height() * 7 // 10).expandedTo(_FLOATING_MINIMUM)
+    size = QSize(editor.width() * 2 // 3, editor.height() * 9 // 10).expandedTo(_FLOATING_MINIMUM)
     placed = QRect(QPoint(0, 0), size)
     placed.moveCenter(editor.center())
     return placed

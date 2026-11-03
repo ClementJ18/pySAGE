@@ -15,7 +15,7 @@ import pytest
 
 from sage_patch import addresses as ad
 from sage_patch.patches import SpellbookHotkeysPatch as Exported
-from sage_patch.patches import spellbook_commandset_refresh as refresh
+from sage_patch.patches.commandbar import spellbook_commandset_refresh as refresh
 from sage_patch.patches.experimental import spellbook_hotkeys as hk
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset

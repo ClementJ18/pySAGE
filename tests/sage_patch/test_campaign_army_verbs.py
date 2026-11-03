@@ -19,8 +19,8 @@ from sage_ini.engine import Engine, dump_engine, parse_engine
 from sage_ini.model.objects import REGISTRY
 from sage_ini.parser import parse
 from sage_patch import addresses as ad
-from sage_patch.patches import campaign_army_verbs as cav
-from sage_patch.patches.campaign_army_verbs import (
+from sage_patch.patches.campaign import campaign_army_verbs as cav
+from sage_patch.patches.campaign.campaign_army_verbs import (
     ARMY_SLOTS,
     BATTLE_CAPACITY,
     BATTLE_SIZE,

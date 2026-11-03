@@ -41,8 +41,8 @@ Three sites put entries in, and only three:
 | address | signature | when |
 |---|---|---|
 | `0x00781792` | `addEntry(Object *hero, Bool isAutoSpawn)` | a hero dies - **the only caller is `0x008B3879`** |
-| `0x00781801` | `insertEntry(ThingTemplate *, Player *)` | seeding a player's roster from `PlayerTemplate+0x198`, looped at `0x008BC4E3` |
-| `0x00781861` | `insertEntry(entry, player)` | the WorldBuilder "is allowed to revive" script action (`0x007C6D8E`), and save-game load (`0x006B17EA`) |
+| `0x00781801` | `insertEntry(ThingTemplate *, Player *)` | seeding from the `PlayerTemplate`: the ring-hero list (`+0x198`) from a module's vtable slot (`0x008BC4C6`, vtable `0x00C6FC40`), looped at `0x008BC4E3`, and `BuildableHeroesMP` (`+0x18C`) in the player's init at `0x006B17EA`, which skips it in a campaign or Living World game (`0x006B179F` calls `0x005FF924`) |
+| `0x00781861` | `insertEntry(entry, player)` | the WorldBuilder "is allowed to revive" script action (`0x007C6EAC`); the player's init in a War of the Ring battle (`0x006B1777`), which moves its world-map player's hero pool (`LivingWorldPlayer+0x1D4`, collected by `0x006E42DA`) into the ledger; also `0x005EC055` and `0x00810322`, not yet read |
 
 Nothing in an entry says who it belongs to. Whichever `Player` the vector hangs off owns the hero.
 

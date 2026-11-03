@@ -18,7 +18,7 @@ do it*: nothing in the engine tells a module that an upgrade arrived.
   not structural: an object carrying the field **wakes every frame for its whole lifetime**
   instead of sleeping to its death frame, because that is the only way to see an upgrade arrive.
 - **Status:** **built** as two of `lifetime-fields`'s three keywords
-  ([`patches/lifetime_fields.py`](../patches/lifetime_fields.py)), applying and verifying against
+  ([`patches/upgrades/lifetime_fields.py`](../patches/upgrades/lifetime_fields.py)), applying and verifying against
   the repo's own `game.dat`. **Runtime-verified in game.** The third keyword is
   [`lifetime-transform.md`](lifetime-transform.md), and it shares this patch's sites 1 and 2 - so
   the `ModuleData` size and the rebuilt table are that document's, not this one's.

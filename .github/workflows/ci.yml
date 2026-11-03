@@ -25,7 +25,8 @@ jobs:
       - name: Install tools
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          # mcp ships type hints, so mypy checks the MCP server against it rather than ignoring it.
+          pip install -e ".[worldbuilder-mcp]"
           pip install ruff==0.15.22 mypy==2.3.0  # pinned ruff matches .pre-commit-config.yaml
           # pytest's own type hints, for mypy's check of the `sage_test.plugin` pytest plugin.
           pip install pytest
@@ -132,7 +133,7 @@ jobs:
       # Core CLIs run with no extras; desktop apps refuse with the pip command to fix it.
       - name: Console scripts work without extras
         run: |
-          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify; do
+          for script in sage-lint sage-ini sage-live sage-replay sage-apt sage-save sage-map sage-asset sage-w3d sage-cah sage-patch sage-test sage-verify sage-worldbuilder-mcp; do
             echo "== $script"
             /tmp/wheelenv/bin/$script --help > /dev/null
           done

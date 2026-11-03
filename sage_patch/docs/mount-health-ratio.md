@@ -12,7 +12,7 @@ becomes `old current / old max x new max`.
 - **Cost:** two 5-byte `call` hooks and a 23-byte cave (`.mnthp`). No INI change.
 - **Risk:** low. The cave calls two body getters that every body class already has, and the stock
   code still does the store.
-- **Status:** built ([`patches/mount_health_ratio.py`](../patches/mount_health_ratio.py)) and
+- **Status:** built ([`patches/units/mount_health_ratio.py`](../patches/units/mount_health_ratio.py)) and
   statically verified against the Edain install's `game.dat`. **Not runtime-verified.**
 
 ## 1. The example

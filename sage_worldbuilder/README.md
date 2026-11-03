@@ -145,6 +145,74 @@ document.save()  # byte-identical again, compressed as it was
 `MapDocument` caches the decoded terrain and patches it in place (`write_heights`, `write_cells`).
 `CompositeCommand` and `UndoStack.group` fold a gesture into one undo entry.
 
+## MCP server
+
+`sage-worldbuilder-mcp` (the `worldbuilder-mcp` extra) serves the model layer to an agent over
+stdio: open and save a map, list and inspect objects, place, move, rotate and delete them, set
+their properties, read and set the selection, sample and flatten terrain, undo and redo. Each
+call is one undo entry.
+
+It runs in one of two modes:
+
+```sh
+# Headless, on its own copy of a map.
+claude mcp add sage-worldbuilder -- sage-worldbuilder-mcp "maps/my map/my map.map"
+# Driving the running editor: turn on Tools > Allow Agent Connections first.
+claude mcp add sage-worldbuilder -- sage-worldbuilder-mcp --bridge
+```
+
+Connected to the editor, the agent edits the window's own map, so every edit shows at once and
+sits on the undo stack the user sees. It can also move the view (`view_at`) and capture it
+(`screenshot`). The editor listens on localhost only, and only while that menu item is checked.
+It writes the port and a random token to `mcp_bridge.json` in its settings folder, and removes
+the file when it stops; every request must carry the token. The agent can't open another map
+over unsaved edits, or save a `.bse` base (the editor must rebuild its castle templates).
+
+**Markers** let the user point at a place instead of describing it. The Markers panel (Tools >
+Markers) draws three kinds: areas, as dragged rectangles or clicked polygons, named A, B, C, ...;
+points, named P1, P2, ...; and paths through points, named L1, L2, ... A path holds its points by
+name, so dragging a point reshapes every path through it. The panel's Edit mode drags whole
+markers, corners and points; Shift-click adds a corner or a point on a path's leg, Alt-click
+removes one, Delete removes the chosen marker. The list renames markers in place (a name the user
+tells the agent), frames them on double-click, and deletes them. Markers show under every tool
+and are never saved or put on the undo stack.
+
+The agent reads them with `get_markers` and `describe_marker` (an area's objects by template,
+waypoints, trigger areas, heights, slope and textures; a point's height, texture and nearby
+objects; a path's segments, height profile, steepest grade and textures crossed). It passes an
+area as `region="A"` to `list_objects`, `sample_heights`, `set_terrain_height` and the texturing
+tools, which keep to a polygon's shape, and `marker=` to `screenshot` (which crops to it, framing
+it first when it is off screen). It can show the user where it means with `mark_area`,
+`mark_point` and `mark_path` (a path's stops are point names or positions, which mark new
+points), change a marker with `edit_marker` (move, reshape, re-route, rename) and remove them
+with `delete_markers`. A marker can also be attached to a message: the `markers://all` resource
+(`@` in Claude Code) or the `marker` prompt, which adds a picture of it.
+
+**Texturing.** `paint_texture` paints a rectangle or area (optionally `only_over` one
+texture), `paint_texture_by_terrain` is Apply To Tiles limited to an area, and
+`flood_fill_texture` and `auto_blend` are Flood Fill and Auto Edge at a point. `blend_region` runs
+Auto Edge over every unblended texture area in an area, as one undo entry. `paint_path` paints a
+band of a given width along a path and Auto Edges it, so "a blended dirt road along L1" is one
+call and one undo entry. `list_textures` gives
+the map's textures and, with the editor's game data loaded, the game's; headless, only textures
+already on the map can be painted, since a name the game lacks would ruin the map.
+
+For mappers without Python there is a Claude Desktop extension, `SageWorldBuilder.mcpb`, built
+by the release (`tools/build_release.py`). It packs the server frozen by
+`sage-worldbuilder-mcp.spec` with a manifest made by `tools/build_mcpb.py`, which takes the
+version from `pyproject.toml` and the tool list from the server. Double-clicking the file, or
+dragging it into Claude Desktop's Settings > Extensions, installs it in bridge mode. To pack one
+by hand:
+
+```sh
+pyinstaller sage_worldbuilder/sage-worldbuilder-mcp.spec
+python tools/build_mcpb.py dist/sage-worldbuilder-mcp.exe
+```
+
+The tools are plain functions in `mcp_server/tools.py` (`WorldBuilderSession`), with no Qt and no
+MCP in them. `mcp_server/server.py` wraps them for MCP, `mcp_server/bridge.py` is the line
+protocol and client, and `ui/mcp_bridge.py` is the editor's listener.
+
 ## Mod overlays
 
 A mod's conventions live in its overlay: `sage_worldbuilder.ui.app.main(extra_checks=...)` takes a

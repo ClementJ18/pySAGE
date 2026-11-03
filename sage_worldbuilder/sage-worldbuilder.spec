@@ -40,6 +40,14 @@ try:
 except Exception:  # not installed (a source-tree build): the version is simply unknown
     METADATA = []
 
+# The shared theme's glyphs, every one: sage_utils.styles builds the stylesheet from their
+# paths, and an image it names that is missing from the bundle is silently not drawn.
+THEME_GLYPHS = [
+    (os.path.join(SHARED, name), 'assets')
+    for name in sorted(os.listdir(SHARED))
+    if name.endswith('.svg')
+]
+
 a = Analysis(
     [os.path.join(PACKAGE, 'ui', 'app.py')],
     pathex=[ROOT],
@@ -52,13 +60,7 @@ a = Analysis(
         # WorldBuilder's extracted icons, cursors and toolbar bitmaps. `resource_path` looks
         # under the bundle root, which is where the whole tree goes.
         (os.path.join(PACKAGE, 'assets', 'worldbuilder_icons'), os.path.join('assets', 'worldbuilder_icons')),
-        # The shared theme's glyphs (sage_utils.styles builds the stylesheet from these paths).
-        (os.path.join(SHARED, 'check.svg'), 'assets'),  # checkbox check mark
-        (os.path.join(SHARED, 'dock_close_dark.svg'), 'assets'),  # dock title bars
-        (os.path.join(SHARED, 'dock_close_light.svg'), 'assets'),
-        (os.path.join(SHARED, 'dock_float_dark.svg'), 'assets'),
-        (os.path.join(SHARED, 'dock_float_light.svg'), 'assets'),
-    ] + REFPACK + METADATA,
+    ] + THEME_GLYPHS + REFPACK + METADATA,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

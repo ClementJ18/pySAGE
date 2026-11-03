@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     PLAYER_FOR_EACH_TEAM_OBJECT,
     THE_SPECIAL_POWER_STORE,
 )
-from sage_patch.patches.spell_recharge_targets import (
+from sage_patch.patches.special_powers.spell_recharge_targets import (
     ANCHORS,
     CAPACITY,
     CXX_THROW_EXCEPTION,
@@ -64,6 +64,7 @@ from sage_patch.patches.spell_recharge_targets import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, jmp_rel32, read_cstring, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import SPELL_RECHARGE_FIELD_ROWS, spell_recharge_targets_image
 
 
@@ -577,7 +578,7 @@ class TestTheConstructorAndParser:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

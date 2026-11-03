@@ -1,7 +1,7 @@
 # Sending a lobby seat's faction past the 14th `PlayerTemplate`
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read statically from the
-stock `game.dat`. The patch is `lobby-faction-byte` (`patches/lobby_faction_byte.py`).
+stock `game.dat`. The patch is `lobby-faction-byte` (`patches/multiplayer/lobby_faction_byte.py`).
 
 **The bug.** The LAN lobby host broadcasts the whole `GameInfo` in a binary form, and that form
 packs each seat's colour and faction into one byte, a nibble each. A faction at

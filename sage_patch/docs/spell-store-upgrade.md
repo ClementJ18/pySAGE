@@ -1,7 +1,7 @@
 # Spell-store upgrade selection
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`). Implemented by
-[`patches/spell_store_upgrade.py`](../patches/spell_store_upgrade.py).
+[`patches/commandbar/spell_store_upgrade.py`](../patches/commandbar/spell_store_upgrade.py).
 
 ## INI surface
 

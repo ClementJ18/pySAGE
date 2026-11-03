@@ -56,7 +56,7 @@ from sage_patch.addresses import (  # noqa: E402
     VICTORY_CONDITIONS_HAS_BEEN_DEFEATED_SLOT,
     VICTORY_CONDITIONS_VTABLE,
 )
-from sage_patch.patches.replay_annotations import (  # noqa: E402
+from sage_patch.patches.multiplayer.replay_annotations import (  # noqa: E402
     CODE_OFF,
     KIND_PLAYER_SCORE,
     MANIFEST_LEN,
@@ -76,7 +76,7 @@ from sage_patch.patches.replay_annotations import (  # noqa: E402
     manifest_template,
     score_template,
 )
-from sage_patch.patches.replay_outcome import ReplayOutcomePatch  # noqa: E402
+from sage_patch.patches.multiplayer.replay_outcome import ReplayOutcomePatch  # noqa: E402
 from sage_patch.pe import image_sections  # noqa: E402
 from sage_patch.utils import (  # noqa: E402
     append_section,

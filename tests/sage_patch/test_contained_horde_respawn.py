@@ -43,7 +43,7 @@ from sage_patch.addresses import (
     OBJECT_GET_HORDE_IFACE,
     OBJECT_TEST_STATUS,
 )
-from sage_patch.patches.contained_horde_respawn import (
+from sage_patch.patches.units.contained_horde_respawn import (
     SECTION_NAME,
     ContainedHordeRespawnPatch,
     build_code,

@@ -16,7 +16,7 @@ the buffer it is holding. Swapping which of those two runs is the entire feature
   state.
 - **Status: built, static-verified and runtime-verified in game** (Edain, 2026-08-15) — a
   researched upgrade's tooltip keeps its `DescriptLabel` with the *"already researched"* line
-  under it. See [`patches/upgrade_description.py`](../patches/upgrade_description.py).
+  under it. See [`patches/ui/upgrade_description.py`](../patches/ui/upgrade_description.py).
 
 ```
 sage-patch apply upgrade-description --in game.dat.backup --out game.dat

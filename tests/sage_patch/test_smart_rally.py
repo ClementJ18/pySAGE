@@ -33,7 +33,7 @@ import pytest
 
 from sage_ini.engine import STOCK
 from sage_patch import apply_patches
-from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
+from sage_patch.patches.ai.ai_construction_gate import AiConstructionGatePatch
 from sage_patch.patches.experimental.smart_rally import (
     AI_GUARD_OBJECT,
     AI_GUARD_TARGET_OFFSET,
@@ -74,10 +74,11 @@ from sage_patch.patches.experimental.smart_rally import (
     build_code,
     entry_points,
 )
-from sage_patch.patches.spawn_union import SpawnUnionPatch
-from sage_patch.patches.wall_mesh_release import WallMeshReleasePatch
+from sage_patch.patches.structures.wall_mesh_release import WallMeshReleasePatch
+from sage_patch.patches.units.spawn_union import SpawnUnionPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 
 from .synthetic import smart_rally_image
 
@@ -573,13 +574,12 @@ class TestItRefusesAnotherBuild:
 
 # The real binaries
 
-#: Both copies a checkout can hold. The repo-root `game.dat` carries eleven modifications and is
-#: **not** stock, so a site is only safe to describe as stock when it agrees with the clean
-#: `sage_patch/engine/game.dat.backup` - and none of this patch's does anything else. Neither
-#: binary is committed (both are gitignored), so each check skips when its file is absent.
+#: Both copies a checkout can hold: the repo root's `game.dat`, and the unpatched one
+#: `tests.binaries` names (the same file unless `PYSAGE_ROTWK_GAME_DAT` gives another). Neither
+#: is committed, so each check skips when its file is absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 #: The other `game.dat` cave patches this one shares an image with. None of them touches the

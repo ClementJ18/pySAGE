@@ -2,7 +2,7 @@
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read from the repo's
 clean `game.dat`. This is the writeup for the **`inflation-readout`** patch,
-[`patches/inflation_readout.py`](../patches/inflation_readout.py), with the cross-patch link in
+[`patches/ui/inflation_readout.py`](../patches/ui/inflation_readout.py), with the cross-patch link in
 [`patches/utils/income_link.py`](../patches/utils/income_link.py) and the tests in
 [`tests/sage_patch/test_inflation_readout.py`](../../tests/sage_patch/test_inflation_readout.py).
 
@@ -285,7 +285,7 @@ Client-local and read-only means the multiplayer rule is `replay-outcome`'s, not
 `command-point-upkeep`'s: a patched and an unpatched client can play each other, and replays
 cross. Nothing this patch reads or writes enters the simulation.
 
-Repo-side that came out as [`patches/inflation_readout.py`](../patches/inflation_readout.py), the
+Repo-side that came out as [`patches/ui/inflation_readout.py`](../patches/ui/inflation_readout.py), the
 shared [`patches/utils/income_link.py`](../patches/utils/income_link.py), one line in
 [`registry.py`](../registry.py) and this document. `ini_surface()` stays `STOCK` — no
 `Engine`/`FieldDelta` work and no `docs/ini-types.json` follow-up, which is the open item both

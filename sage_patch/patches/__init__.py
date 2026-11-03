@@ -1,39 +1,52 @@
 """Concrete `Patch` implementations."""
 
-from sage_patch.patches.ai_build_queue_skip import AiBuildQueueSkipPatch
-from sage_patch.patches.ai_command_null_target import AiCommandNullTargetPatch
-from sage_patch.patches.ai_construction_gate import AiConstructionGatePatch
-from sage_patch.patches.ai_equivalent_build_gate import AiEquivalentBuildGatePatch
-from sage_patch.patches.ai_farm_kill_gate import AiFarmKillGatePatch
-from sage_patch.patches.ai_flag_capture_gate import AiFlagCaptureGatePatch
-from sage_patch.patches.ai_revive_gate import AiReviveGatePatch
-from sage_patch.patches.ai_team_size import AiTeamSizePatch
-from sage_patch.patches.auto_deposit_inflation import AutoDepositInflationPatch
-from sage_patch.patches.banner_filter import BannerFilterPatch
-from sage_patch.patches.cah_factions import (
-    CahFactionsPatch,
-    CahFactionsWorldbuilderPatch,
+from sage_patch.patches.ai.ai_build_queue_skip import AiBuildQueueSkipPatch
+from sage_patch.patches.ai.ai_construction_gate import AiConstructionGatePatch
+from sage_patch.patches.ai.ai_equivalent_build_gate import AiEquivalentBuildGatePatch
+from sage_patch.patches.ai.ai_farm_kill_gate import AiFarmKillGatePatch
+from sage_patch.patches.ai.ai_flag_capture_gate import AiFlagCaptureGatePatch
+from sage_patch.patches.ai.ai_revive_gate import AiReviveGatePatch
+from sage_patch.patches.ai.ai_team_size import AiTeamSizePatch
+from sage_patch.patches.ai.player_ai_type_reset import PlayerAiTypeResetPatch
+from sage_patch.patches.campaign.summon_carryover import SummonCarryoverPatch
+from sage_patch.patches.campaign.wotr_battle_observers import WotrBattleObserversPatch
+from sage_patch.patches.campaign.wotr_lobby_slots import WotrLobbySlotsPatch
+from sage_patch.patches.combat.damage_subtypes import (
+    DamageSubtypesPatch,
+    DamageSubtypesWorldbuilderPatch,
 )
-from sage_patch.patches.castle_unpack_clearance import CastleUnpackClearancePatch
-from sage_patch.patches.command_point_cost import CommandPointCostPatch
-from sage_patch.patches.command_point_upkeep import CommandPointUpkeepPatch
-from sage_patch.patches.commandset import CommandSetLimitPatch
-from sage_patch.patches.construction_initial_health import ConstructionInitialHealthPatch
-from sage_patch.patches.desert_weather import (
-    DesertWeatherPatch,
-    DesertWeatherWorldbuilderPatch,
-)
-from sage_patch.patches.experience_award import ExperienceAwardPatch
-from sage_patch.patches.experience_level_down import (
+from sage_patch.patches.combat.experience_award import ExperienceAwardPatch
+from sage_patch.patches.combat.experience_level_down import (
     ExperienceLevelDownPatch,
 )
+from sage_patch.patches.combat.fire_at_attacker import FireAtAttackerPatch
+from sage_patch.patches.combat.healing_received import HealingReceivedPatch
+from sage_patch.patches.combat.player_heal_filter import PlayerHealFilterPatch
+from sage_patch.patches.combat.share_experience_all import ShareExperienceAllPatch
+from sage_patch.patches.commandbar.commandset import CommandSetLimitPatch
+from sage_patch.patches.commandbar.multi_select_group import MultiSelectGroupPatch
+from sage_patch.patches.commandbar.revive_object_binding import ReviveObjectBindingPatch
+from sage_patch.patches.commandbar.spell_store_upgrade import SpellStoreUpgradePatch
+from sage_patch.patches.commandbar.spellbook_commandset_refresh import (
+    SpellbookCommandSetRefreshPatch,
+)
+from sage_patch.patches.diagnostics.live_bridge import LiveBridgePatch
+from sage_patch.patches.economy.auto_deposit_inflation import AutoDepositInflationPatch
+from sage_patch.patches.economy.command_point_cost import CommandPointCostPatch
+from sage_patch.patches.economy.command_point_upkeep import CommandPointUpkeepPatch
+from sage_patch.patches.economy.maintenance_cost import MaintenanceCostPatch
+from sage_patch.patches.economy.player_upgrade_discount import PlayerUpgradeDiscountPatch
+from sage_patch.patches.economy.production_condition import ProductionConditionPatch
+from sage_patch.patches.economy.production_split import ProductionSplitPatch
+from sage_patch.patches.economy.queue_ignore_cp import QueueIgnoreCpPatch
+from sage_patch.patches.economy.terrain_resource_exp import TerrainResourceExpPatch
+from sage_patch.patches.economy.unique_production_id import UniqueProductionIdPatch
 from sage_patch.patches.experimental.foggy_weather import (
     FoggyWeatherPatch,
     FoggyWeatherWorldbuilderPatch,
 )
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
 from sage_patch.patches.experimental.horde_orphan_target import HordeOrphanTargetPatch
-from sage_patch.patches.experimental.live_bridge import LiveBridgePatch
 from sage_patch.patches.experimental.living_world_override import LivingWorldOverridePatch
 from sage_patch.patches.experimental.map_transition import MapTransitionPatch
 from sage_patch.patches.experimental.second_resource import SecondResourcePatch
@@ -41,87 +54,90 @@ from sage_patch.patches.experimental.smart_rally import SmartRallyPatch
 from sage_patch.patches.experimental.special_power_music import SpecialPowerMusicPatch
 from sage_patch.patches.experimental.spellbook_hotkeys import SpellbookHotkeysPatch
 from sage_patch.patches.experimental.unit_plate_option import UnitPlateOptionPatch
-from sage_patch.patches.faction_variants import FactionVariantsPatch
-from sage_patch.patches.fire_at_attacker import FireAtAttackerPatch
-from sage_patch.patches.foundation_rebind import FoundationRebindPatch
-from sage_patch.patches.give_upgrade_all import GiveUpgradeAllPatch
-from sage_patch.patches.grant_science_upgrade import (
-    GrantScienceUpgradePatch,
-    GrantScienceUpgradeWorldbuilderPatch,
+from sage_patch.patches.multiplayer.cah_factions import (
+    CahFactionsPatch,
+    CahFactionsWorldbuilderPatch,
 )
-from sage_patch.patches.headless import HeadlessPatch
-from sage_patch.patches.healing_received import HealingReceivedPatch
-from sage_patch.patches.hero_bar_slots import HeroBarSlotsPatch
-from sage_patch.patches.hide_modifier_fx import HideModifierFxPatch
-from sage_patch.patches.inflation_readout import InflationReadoutPatch
-from sage_patch.patches.large_group_bonus import LargeGroupBonusPatch
-from sage_patch.patches.level_grant_special_power import (
+from sage_patch.patches.multiplayer.faction_variants import FactionVariantsPatch
+from sage_patch.patches.multiplayer.map_list_symbols import MapListSymbolsPatch
+from sage_patch.patches.multiplayer.replay_outcome import ReplayOutcomePatch
+from sage_patch.patches.multiplayer.skirmish_replay import SkirmishReplayPatch
+from sage_patch.patches.platform.headless import HeadlessPatch
+from sage_patch.patches.platform.null_guards import NullGuardsPatch
+from sage_patch.patches.platform.os_name_fallback import OsNameFallbackPatch
+from sage_patch.patches.platform.save_temp_file import SaveTempFilePatch
+from sage_patch.patches.platform.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
+from sage_patch.patches.render.ash_weather import (
+    AshWeatherPatch,
+    AshWeatherWorldbuilderPatch,
+)
+from sage_patch.patches.render.desert_weather import (
+    DesertWeatherPatch,
+    DesertWeatherWorldbuilderPatch,
+)
+from sage_patch.patches.render.hide_modifier_fx import HideModifierFxPatch
+from sage_patch.patches.special_powers.level_grant_special_power import (
     LevelGrantSpecialPowerPatch,
 )
-from sage_patch.patches.lifetime_fields import LifetimeFieldsPatch
-from sage_patch.patches.maintenance_cost import MaintenanceCostPatch
-from sage_patch.patches.map_list_symbols import MapListSymbolsPatch
-from sage_patch.patches.mount_health_ratio import MountHealthRatioPatch
-from sage_patch.patches.mount_swap_eject import MountSwapEjectPatch
-from sage_patch.patches.multi_contain import MultiContainPatch
-from sage_patch.patches.multi_execute_gate import MultiExecuteGatePatch
-from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
-from sage_patch.patches.object_image_upgrade import (
-    ObjectImageUpgradePatch,
-    ObjectImageUpgradeWorldbuilderPatch,
+from sage_patch.patches.special_powers.multi_execute_gate import MultiExecuteGatePatch
+from sage_patch.patches.special_powers.recharge_rescale import RechargeRescalePatch
+from sage_patch.patches.special_powers.special_power_object_cap import SpecialPowerObjectCapPatch
+from sage_patch.patches.special_powers.special_power_pause_button import (
+    SpecialPowerPauseButtonPatch,
 )
-from sage_patch.patches.objectives_screen import ObjectivesScreenPatch
-from sage_patch.patches.os_name_fallback import OsNameFallbackPatch
-from sage_patch.patches.pillage_module_extension import PillageModuleExtensionPatch
-from sage_patch.patches.player_heal_filter import PlayerHealFilterPatch
-from sage_patch.patches.player_upgrade_discount import PlayerUpgradeDiscountPatch
-from sage_patch.patches.production_condition import ProductionConditionPatch
-from sage_patch.patches.production_split import ProductionSplitPatch
-from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
-from sage_patch.patches.radar_structure_discs import RadarStructureDiscsPatch
-from sage_patch.patches.recharge_rescale import RechargeRescalePatch
-from sage_patch.patches.repair_damage_cancel import RepairDamageCancelPatch
-from sage_patch.patches.replace_self_rubble import ReplaceSelfRubblePatch
-from sage_patch.patches.replay_outcome import ReplayOutcomePatch
-from sage_patch.patches.revive_object_binding import ReviveObjectBindingPatch
-from sage_patch.patches.save_temp_file import SaveTempFilePatch
-from sage_patch.patches.science_prereqs import SciencePrereqPatch
-from sage_patch.patches.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
-from sage_patch.patches.share_experience_all import ShareExperienceAllPatch
-from sage_patch.patches.skirmish_replay import SkirmishReplayPatch
-from sage_patch.patches.slaved_update_idle import SlavedUpdateIdlePatch
-from sage_patch.patches.spawn_union import SpawnUnionPatch
-from sage_patch.patches.special_power_pause_button import SpecialPowerPauseButtonPatch
-from sage_patch.patches.special_power_refund_upgrade import (
+from sage_patch.patches.special_powers.special_power_refund_upgrade import (
     SpecialPowerRefundUpgradePatch,
     SpecialPowerRefundUpgradeWorldbuilderPatch,
 )
-from sage_patch.patches.spell_recharge_targets import SpellRechargeTargetsPatch
-from sage_patch.patches.spell_store_upgrade import SpellStoreUpgradePatch
-from sage_patch.patches.spellbook_commandset_refresh import SpellbookCommandSetRefreshPatch
-from sage_patch.patches.summon_carryover import SummonCarryoverPatch
-from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
-from sage_patch.patches.text_entry_clipboard import TextEntryClipboardPatch
-from sage_patch.patches.trigger_recharge_list import TriggerRechargeListPatch
-from sage_patch.patches.unique_production_id import UniqueProductionIdPatch
-from sage_patch.patches.upgrade_alias import UpgradeAliasPatch
-from sage_patch.patches.upgrade_description import UpgradeDescriptionPatch
-from sage_patch.patches.upgrade_grant_lists import UpgradeGrantListsPatch
-from sage_patch.patches.upgrade_module_removal import UpgradeModuleRemovalPatch
-from sage_patch.patches.wotr_battle_observers import WotrBattleObserversPatch
-from sage_patch.patches.wotr_lobby_slots import WotrLobbySlotsPatch
+from sage_patch.patches.special_powers.spell_recharge_targets import SpellRechargeTargetsPatch
+from sage_patch.patches.special_powers.trigger_recharge_list import TriggerRechargeListPatch
+from sage_patch.patches.structures.castle_unpack_clearance import CastleUnpackClearancePatch
+from sage_patch.patches.structures.construction_initial_health import ConstructionInitialHealthPatch
+from sage_patch.patches.structures.foundation_rebind import FoundationRebindPatch
+from sage_patch.patches.structures.repair_damage_cancel import RepairDamageCancelPatch
+from sage_patch.patches.structures.replace_self_rubble import ReplaceSelfRubblePatch
+from sage_patch.patches.ui.hero_bar_slots import HeroBarSlotsPatch
+from sage_patch.patches.ui.inflation_readout import InflationReadoutPatch
+from sage_patch.patches.ui.object_image_upgrade import (
+    ObjectImageUpgradePatch,
+    ObjectImageUpgradeWorldbuilderPatch,
+)
+from sage_patch.patches.ui.objectives_screen import ObjectivesScreenPatch
+from sage_patch.patches.ui.radar_structure_discs import RadarStructureDiscsPatch
+from sage_patch.patches.ui.text_entry_clipboard import TextEntryClipboardPatch
+from sage_patch.patches.ui.upgrade_description import UpgradeDescriptionPatch
+from sage_patch.patches.units.banner_filter import BannerFilterPatch
+from sage_patch.patches.units.large_group_bonus import LargeGroupBonusPatch
+from sage_patch.patches.units.mount_health_ratio import MountHealthRatioPatch
+from sage_patch.patches.units.mount_swap_eject import MountSwapEjectPatch
+from sage_patch.patches.units.multi_contain import MultiContainPatch
+from sage_patch.patches.units.pickup_stuff_enter import PickupStuffEnterPatch
+from sage_patch.patches.units.pillage_module_extension import PillageModuleExtensionPatch
+from sage_patch.patches.units.slaved_update_idle import SlavedUpdateIdlePatch
+from sage_patch.patches.units.spawn_union import SpawnUnionPatch
+from sage_patch.patches.upgrades.give_upgrade_all import GiveUpgradeAllPatch
+from sage_patch.patches.upgrades.grant_science_upgrade import (
+    GrantScienceUpgradePatch,
+    GrantScienceUpgradeWorldbuilderPatch,
+)
+from sage_patch.patches.upgrades.lifetime_fields import LifetimeFieldsPatch
+from sage_patch.patches.upgrades.science_prereqs import SciencePrereqPatch
+from sage_patch.patches.upgrades.upgrade_alias import UpgradeAliasPatch
+from sage_patch.patches.upgrades.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.upgrades.upgrade_module_removal import UpgradeModuleRemovalPatch
 
 __all__ = [
     "SlavedUpdateIdlePatch",
     "TextEntryClipboardPatch",
     "AiBuildQueueSkipPatch",
-    "AiCommandNullTargetPatch",
     "AiConstructionGatePatch",
     "AiEquivalentBuildGatePatch",
     "AiFarmKillGatePatch",
     "AiFlagCaptureGatePatch",
     "AiReviveGatePatch",
     "AiTeamSizePatch",
+    "AshWeatherPatch",
+    "AshWeatherWorldbuilderPatch",
     "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",
@@ -131,11 +147,14 @@ __all__ = [
     "CommandPointUpkeepPatch",
     "CommandSetLimitPatch",
     "ConstructionInitialHealthPatch",
+    "DamageSubtypesPatch",
+    "DamageSubtypesWorldbuilderPatch",
     "DesertWeatherPatch",
     "DesertWeatherWorldbuilderPatch",
     "FactionVariantsPatch",
     "ExperienceLevelDownPatch",
     "UpgradeModuleRemovalPatch",
+    "SpecialPowerObjectCapPatch",
     "SpecialPowerPauseButtonPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",
@@ -154,6 +173,7 @@ __all__ = [
     "HordeOrphanTargetPatch",
     "InflationReadoutPatch",
     "LargeGroupBonusPatch",
+    "PickupStuffEnterPatch",
     "PillageModuleExtensionPatch",
     "LevelGrantSpecialPowerPatch",
     "LifetimeFieldsPatch",
@@ -167,10 +187,12 @@ __all__ = [
     "MultiContainPatch",
     "MultiExecuteGatePatch",
     "MultiSelectGroupPatch",
+    "NullGuardsPatch",
     "ObjectivesScreenPatch",
     "OsNameFallbackPatch",
     "ObjectImageUpgradePatch",
     "ObjectImageUpgradeWorldbuilderPatch",
+    "PlayerAiTypeResetPatch",
     "PlayerHealFilterPatch",
     "PlayerUpgradeDiscountPatch",
     "ProductionConditionPatch",

@@ -26,7 +26,7 @@ from sage_patch.addresses import (
     SPELLBOOK_AI_REBUILD,
     SPELLBOOK_AI_TYPE_COUNT,
 )
-from sage_patch.patches.ai_rebuild_gate import (
+from sage_patch.patches.ai.ai_rebuild_gate import (
     ANCHORS,
     BEHAVIOR_CTOR_TARGET,
     HOOK_ORIGINAL,

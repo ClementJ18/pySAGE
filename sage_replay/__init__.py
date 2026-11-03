@@ -5,7 +5,8 @@
 order stream, needing no game install. `ids` builds on it to extract object-referencing
 integer ids and align them to a hand-written label log. Outcome inference has two
 independent sources: `winner` infers a verdict from session-end signals (a concession
-heuristic), and `sidecar` reads the ladder metadata sidecar's own stated winner.
+heuristic), and `sidecar` reads the ladder metadata sidecar's own stated winner. `tail` follows
+a replay the game is still writing.
 
 `narrate`, `stats`, `aggregate`, `translated` and `cache` resolve against a loaded game and
 import `sage_ini`, so they are not re-exported here - import from their own modules. That
@@ -49,6 +50,7 @@ from sage_replay.replay import (
     parse_replay_from_path,
 )
 from sage_replay.serialize import serialize_replay, write_replay, write_replay_to_path
+from sage_replay.tail import ReplayTail, TailRead
 from sage_replay.winner import (
     PlayerOutcome,
     PlayerSession,
@@ -82,8 +84,10 @@ __all__ = [
     "ReplaySlot",
     "ReplaySlotDifficulty",
     "ReplaySlotType",
+    "ReplayTail",
     "ReplayTimestamp",
     "Side",
+    "TailRead",
     "WinnerVerdict",
     "align",
     "arg_equals",

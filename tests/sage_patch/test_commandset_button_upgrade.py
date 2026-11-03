@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch.asm import Asm
-from sage_patch.patches.commandset_button_upgrade import (
+from sage_patch.patches.commandbar.commandset_button_upgrade import (
     ANCHORS,
     ASCII_STRING_ASSIGN,
     CLEAR_COMMAND_BUTTONS,

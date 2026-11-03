@@ -1,5 +1,5 @@
-"""Rules over CommandSet button slots: references that resolve to no CommandButton, and a
-REVIVE button wired into two slots of the same set."""
+"""Rules over CommandSet button slots: references that resolve to no CommandButton, a REVIVE
+button wired into two slots of the same set, and a slot number assigned twice."""
 
 from collections.abc import Iterator
 
@@ -277,5 +277,60 @@ class DuplicateReviveButtonRule(Rule):
                         "type": "CommandSet",
                         "commandset": commandset.name,
                         "slots": slots,
+                    },
+                )
+
+
+class RepeatedCommandSetSlotRule(Rule):
+    """One numbered CommandSet slot assigned twice (`29 = Command_A` then `29 = Command_B`). The
+    engine keeps only the last button, so every earlier one is silently gone from the set. The
+    schema-driven `repeated-field` cannot see this, because numbered slots are dynamic and not in
+    any fieldspec.
+
+    It matters most for REVIVE buttons. Heroes bind to a set's REVIVE buttons by position, and
+    Edain pads each producer with disabled filler slots so that position n serves roster entry
+    n-1. Losing a filler leaves the set one position short: the last roster hero has no button,
+    and the ControlBar's second, ledger-driven pass then drops that hero onto whichever REVIVE
+    button sits at its live revive-list index, so a different hero's button recruits it. Usually a
+    copy-paste when a hero is appended to every producer by hand. Always a WARNING; the message
+    names the REVIVE case when a dropped button is one (a REVIVE that overwrites some other button
+    costs no position)."""
+
+    code = "repeated-commandset-slot"
+
+    def check(self, game: Game) -> Iterator[Diagnostic]:
+        for commandset in game.commandsets.values():
+            for slot, value in commandset._fields.items():
+                if not slot.isdigit() or not isinstance(value, list) or len(value) < 2:
+                    continue
+                names = [v.strip() for v in value if isinstance(v, str)]
+                kept, dropped = names[-1], names[:-1]
+                revive = any(
+                    (button := game.lookup("commandbuttons", name)[0]) is not None
+                    and _is_revive(button)
+                    for name in dropped
+                )
+                detail = (
+                    "; a REVIVE position is lost, so heroes from here on bind one roster entry "
+                    "off and the last one can surface on another hero's button"
+                    if revive
+                    else ""
+                )
+                yield Diagnostic(
+                    code=self.code,
+                    message=(
+                        f"CommandSet {commandset.name!r} assigns slot {slot} {len(names)} times; "
+                        f"only {kept!r} takes effect and {', '.join(map(repr, dropped))} never "
+                        f"appears{detail}."
+                    ),
+                    span=commandset._field_spans.get(slot, commandset.span),
+                    severity=Severity.WARNING,
+                    extra={
+                        "type": "CommandSet",
+                        "commandset": commandset.name,
+                        "key": slot,
+                        "kept": kept,
+                        "dropped": dropped,
+                        "revive": revive,
                     },
                 )

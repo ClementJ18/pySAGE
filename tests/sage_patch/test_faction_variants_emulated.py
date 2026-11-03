@@ -94,7 +94,7 @@ from sage_patch.addresses import (
     WINDOW_STATUS_ENABLED,
     WINDOW_STATUS_HIDDEN,
 )
-from sage_patch.patches.faction_variants import (
+from sage_patch.patches.multiplayer.faction_variants import (
     _MEMSET,
     EVIL_LABEL,
     GADGET_KIND,

@@ -1,6 +1,6 @@
 # A command-point price on a button — reverse-engineering notes
 
-The RE behind [`patches/command_point_cost.py`](../patches/command_point_cost.py). ROTWK
+The RE behind [`patches/economy/command_point_cost.py`](../patches/economy/command_point_cost.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-19 from
 the RotWK reference executable.
 

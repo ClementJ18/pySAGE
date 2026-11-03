@@ -49,7 +49,7 @@ from sage_patch.addresses import (  # noqa: E402
     XFER_OBJECT_COUNT_MAP_LOAD_NEXT,
     XFER_OBJECT_COUNT_MAP_NEXT,
 )
-from sage_patch.patches.score_keeper_dangling_keys import (  # noqa: E402
+from sage_patch.patches.platform.score_keeper_dangling_keys import (  # noqa: E402
     SECTION_NAME,
     ScoreKeeperDanglingKeysPatch,
     entry_points,

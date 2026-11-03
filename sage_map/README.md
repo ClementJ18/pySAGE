@@ -38,7 +38,31 @@ The engine-generic front end - parse, inspect, serialize and diff `.map` files w
 sage-map info <map>          # terrain size, object count + top templates, waypoint/team tallies
 sage-map json <map> [--out]  # the parsed map as a JSON document
 sage-map diff <a> <b>        # human-readable content diff (moved objects, script edits, terrain)
+sage-map textconv <map>      # the map as line-per-fact text, for git diff (see below)
 ```
+
+### Diffing maps in git
+
+A saved map is compressed, so a few added scripts change most of its bytes and git can only say
+"binary files differ". `sage-map textconv` prints a map as canonical text, one fact per line,
+leaving out everything that shifts when something earlier changes (stream offsets, the asset name
+table, `waypointID` / `uniqueID` counters). Register it once per clone, since git config is not
+committed:
+
+```
+sage-map textconv --install      # or --global for every repository
+```
+
+and route maps through it in `.gitattributes`:
+
+```
+*.map diff=sage-map
+*.bse diff=sage-map
+```
+
+`git diff`, `git show` and `git log -p` then show map edits as script lines, and each hunk header
+names the script it sits in (`@@ -870,6 +903,12 @@ script "NebelUpgrades"  once  every 1s`).
+`git diff --stat` still counts the file as binary.
 
 The mod-specific map *checks* live with their mod (`sage_edain.map_checks`), and game-aware
 linting is exposed through `sage-lint`.

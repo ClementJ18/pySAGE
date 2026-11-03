@@ -26,7 +26,7 @@ from sage_patch.addresses import (
     REQUEST_UNIQUE_UNIT_ID_BODY,
     REQUEST_UNIQUE_UNIT_ID_VTABLE_SLOT,
 )
-from sage_patch.patches.unique_production_id import COUNTER_SIZE, SECTION_NAME, build_body
+from sage_patch.patches.economy.unique_production_id import COUNTER_SIZE, SECTION_NAME, build_body
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.test_ai_revive_gate import plant_sites as plant_ai_revive_gate_sites
 from tests.sage_patch.test_patching import (

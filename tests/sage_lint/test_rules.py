@@ -23,6 +23,7 @@ from sage_lint.rules.commandset import (
     DuplicateReviveButtonRule,
     InitialVisibleLimitRule,
     PushCommandRangeOverflowRule,
+    RepeatedCommandSetSlotRule,
 )
 from sage_lint.rules.definitions import (
     DuplicateDefinitionRule,
@@ -957,6 +958,58 @@ class TestDuplicateReviveButtonRule:
         assert diags[0].extra["name"] == "Command_Rev"  # the first spelling is reported
 
 
+class TestRepeatedCommandSetSlotRule:
+    _BUTTONS = (
+        "CommandButton Command_Rev17\n    Command = REVIVE\nEnd\n"
+        "CommandButton Command_Rev18\n    Command = REVIVE\nEnd\n"
+        "CommandButton Command_Plain\n    Command = TOGGLE_STANCE\nEnd\n"
+        "CommandButton Command_Back\n    Command = POP_VISIBLE_COMMAND_RANGE\nEnd\n"
+    )
+
+    def _run(self, body: str) -> list:
+        game = _load(self._BUTTONS + f"CommandSet Set\n{body}End\n")
+        return list(run_rules(game, [RepeatedCommandSetSlotRule]))
+
+    def test_flags_a_revive_slot_assigned_twice(self):
+        # The Firebeard level-2 barracks shape: one REVIVE filler overwritten by the next.
+        diags = self._run("    29 = Command_Rev17\n    29 = Command_Rev18\n    30 = Command_Back\n")
+
+        assert len(diags) == 1
+        assert diags[0].code == "repeated-commandset-slot"
+        assert diags[0].severity is Severity.WARNING
+        assert diags[0].extra["key"] == "29"
+        assert diags[0].extra["kept"] == "Command_Rev18"
+        assert diags[0].extra["dropped"] == ["Command_Rev17"]
+        assert diags[0].extra["revive"] is True
+        assert "REVIVE position is lost" in diags[0].message
+
+    def test_flags_a_plain_slot_assigned_twice_without_the_revive_note(self):
+        diags = self._run("    3 = Command_Plain\n    3 = Command_Back\n")
+
+        assert len(diags) == 1
+        assert diags[0].extra["revive"] is False
+        assert "REVIVE" not in diags[0].message
+
+    def test_a_revive_overwriting_another_button_loses_no_position(self):
+        diags = self._run("    3 = Command_Plain\n    3 = Command_Rev17\n")
+
+        assert len(diags) == 1
+        assert diags[0].extra["revive"] is False
+
+    def test_reports_every_dropped_button(self):
+        diags = self._run("    5 = Command_Plain\n    5 = Command_Rev17\n    5 = Command_Back\n")
+
+        assert diags[0].extra["dropped"] == ["Command_Plain", "Command_Rev17"]
+        assert diags[0].extra["kept"] == "Command_Back"
+
+    def test_does_not_flag_distinct_slots(self):
+        assert not self._run("    29 = Command_Rev17\n    30 = Command_Rev18\n")
+
+    def test_does_not_flag_a_repeated_non_slot_field(self):
+        # `InitialVisible` twice is the schema-driven `repeated-field`'s job, not this rule's.
+        assert not self._run("    InitialVisible = 9\n    InitialVisible = 10\n    1 = NONE\n")
+
+
 class TestInitialVisibleLimitRule:
     def _run(self, initial_visible: str) -> list:
         game = _load(f"CommandSet Set\n    InitialVisible = {initial_visible}\n    1 = NONE\nEnd\n")
@@ -1156,7 +1209,7 @@ class TestModifierFxDurationRule:
         assert "ends before" in diags[0].message
 
     def test_flags_a_particle_systemlifetime_in_frames(self):
-        # SystemLifetime is counted in 30/sec logic frames: 30 frames = 1000 ms, not 3000.
+        # SystemLifetime is counted in 30 Hz particle updates: 30 frames = 1000 ms, not 3000.
         game = _load(
             "FXParticleSystem PS_Aura\n    SystemLifetime = 30\nEnd\n"
             + self._mod("    ParticleSystem\n        Name = PS_Aura\n    End\n")

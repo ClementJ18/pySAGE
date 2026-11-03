@@ -27,7 +27,7 @@ from sage_patch.addresses import (  # noqa: E402
     GET_PROC_ADDRESS_IAT,
     LOCAL_FILE_SYSTEM_OPEN_WIDE,
 )
-from sage_patch.patches.save_temp_file import (  # noqa: E402
+from sage_patch.patches.platform.save_temp_file import (  # noqa: E402
     MOVE_FLAGS,
     OFF_ACTIVE,
     OFF_FINAL,

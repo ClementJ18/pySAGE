@@ -135,6 +135,7 @@ class ObjectPalettePanel(QWidget):
         layout = QVBoxLayout(self)
         self.objects = ObjectTree()
         self.objects.chosen.connect(self._clicked)
+        self.objects.current_changed.connect(self._moved)
         layout.addWidget(self.objects, 1)
         form = QFormLayout()
         self.chosen = QLabel("-")
@@ -193,6 +194,12 @@ class ObjectPalettePanel(QWidget):
     def _clicked(self, name: str) -> None:
         self.choose(name)
         self.template_chosen.emit(name)
+
+    def _moved(self, name: str) -> None:
+        """Moving the tree's cursor with the arrow keys chooses the object as a click would;
+        a heading chooses nothing."""
+        if name and name != self._template:
+            self._clicked(name)
 
 
 class ReplaceObjectDialog(QDialog):

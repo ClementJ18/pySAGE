@@ -4,7 +4,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`).
 
 This is the write-up for **`special-power-refund-upgrade`** and its editor twin
 **`special-power-refund-upgrade-wb`**,
-[`patches/special_power_refund_upgrade.py`](../patches/special_power_refund_upgrade.py), with tests
+[`patches/special_powers/special_power_refund_upgrade.py`](../patches/special_powers/special_power_refund_upgrade.py), with tests
 in
 [`tests/sage_patch/test_special_power_refund_upgrade.py`](../../tests/sage_patch/test_special_power_refund_upgrade.py).
 

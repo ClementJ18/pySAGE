@@ -61,7 +61,7 @@ from sage_patch.addresses import (
     THING_FACTORY_FIND_TEMPLATE,
     THING_TEMPLATE_IS_EQUIVALENT,
 )
-from sage_patch.patches.ai_farm_kill_gate import (
+from sage_patch.patches.ai.ai_farm_kill_gate import (
     ANCHORS,
     ARMY_KEYWORDS,
     FLAGS_OFFSET,

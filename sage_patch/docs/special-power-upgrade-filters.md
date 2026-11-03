@@ -146,7 +146,7 @@ exactly these.
 
 ## 3. The edits
 
-All of them are in `sage_patch/patches/special_power_upgrade_filters.py`, in one cave section
+All of them are in `sage_patch/patches/special_powers/special_power_upgrade_filters.py`, in one cave section
 named `.spupgf`.
 
 1. **The keyword rows.** The 24-row table at `SPECIAL_POWER_FIELD_TABLE` is rebuilt in the cave

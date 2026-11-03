@@ -28,7 +28,13 @@ _EDAIN = FIXTURES / "edain"
 _WOTR = FIXTURES / "wotr"
 
 # Battle saves: a full in-battle snapshot - an embedded map and a live object/drawable index.
-WOTR_BATTLE = sorted([_EDAIN / "ang 5.BfME2WotR", _WOTR / "Saved Game 4.BfME2WotR"])
+WOTR_BATTLE = sorted(
+    [_EDAIN / "ang 5.BfME2WotR", _EDAIN / "good 07.BfME2WotR", _WOTR / "Saved Game 4.BfME2WotR"]
+)
+
+# A good-campaign mission 7 battle save taken while the map's scripts were driving units: the one
+# fixture whose CHUNK_ScriptEngine carries running sequential scripts.
+WOTR_SEQUENTIAL_SCRIPTS = _EDAIN / "good 07.BfME2WotR"
 
 # Living-world (strategic-layer) saves: valid and loadable, but *objectless by nature* - no
 # embedded battle map and no live objects (the strategic state rides in LivingWorldLogic). These

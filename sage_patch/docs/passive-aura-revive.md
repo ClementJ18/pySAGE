@@ -8,7 +8,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read o
 they tick on a dead object, and nothing in the engine wakes an update module when an object is
 revived — so an aura on a structure that survives death as rubble is gone for the rest of the game
 once the structure is rebuilt. The patch returns each module's ordinary sleep on that arm instead.
-The passive module takes five bytes and no cave; the aura module takes an 87-byte cave, because its
+The passive module takes five bytes and no cave; the aura module takes a 154-byte cave, because its
 sentinel is shared with a second arm on which sleeping forever is correct, and because it has to be
 given the construction gate its sibling already has - without which it would resume when a rebuild
 *starts* rather than when it finishes. **Static-verified**: it
@@ -247,6 +247,23 @@ no_module:
   push 2                     ; OBJECT_STATUS_UNDER_CONSTRUCTION
   mov  ecx, esi
   call 0x0044ddec            ; Object::testStatus
+  test al, al
+  je   answer                ; not flagged -> finished
+  mov  ecx, [esi+0x25c]      ; flagged: building only while health < max - see below
+  test ecx, ecx
+  je   answer                ; no body: keep the flag's answer
+  sub  esp, 8
+  mov  eax, [ecx]
+  call [eax+0x10]            ; getHealth -> st(0)
+  fstp [esp]
+  mov  ecx, [esi+0x25c]
+  mov  eax, [ecx]
+  call [eax+0x1c]            ; getMaxHealth -> st(0)
+  fstp [esp+4]
+  movss  xmm0, [esp]
+  comiss xmm0, [esp+4]
+  setb al                    ; health < max -> still building
+  add  esp, 8
 answer:
   test al, al
   jne  ordinary_sleep        ; still going up -> wait, and look again
@@ -261,9 +278,9 @@ scan:
   jmp  0x0089f459
 ```
 
-Eighty-seven bytes, in a section appended past every existing one with `allocate_section`, which is
-what keeps the patch order-independent with everything else in the bundle. Both calls are
-`__thiscall` and preserve `esi`, `edi` and `ebx`, which is what lets the two stock tests below them
+154 bytes, in a section appended past every existing one with `allocate_section`, which is
+what keeps the patch order-independent with everything else in the bundle. Every call is
+`__thiscall` and preserves `esi`, `edi` and `ebx`, which is what lets the two stock tests below them
 run unchanged; `ebx` is still the zero the update set at `0x0089F43F`, and the `cmp` uses an
 immediate `0` rather than `bl` so the cave does not depend on that instruction staying there. The
 two exits are addresses the stock block already reached — `0x0089F459` is the byte it fell through
@@ -306,6 +323,23 @@ modules agree rather than inventing a third behaviour, and in the Edain tree it 
 — the 107 that repair out of rubble plus 47 more that are built but do not survive death. Units are
 untouched: they have no `GettingBuiltBehavior` and never carry `UNDER_CONSTRUCTION`, so the gate
 answers no.
+
+**The status fallback asks the body too (fixed 2026-11-01).** The first build tested
+`UNDER_CONSTRUCTION` alone when there was no `GettingBuiltBehavior`, on the reasoning that only a
+building going up carries the bit. That is wrong for one class of object. `ObjectCreationUpgrade`
+creates through `0x00797796`, which ORs `UNDER_CONSTRUCTION` into the *creation* status mask for any
+`KindOf STRUCTURE` (`0x0079788B`) - not through `setStatus`, so a breakpoint on that never sees it.
+Nothing ever clears it again: the engine's only "construction finished" for a building with no
+builder is the body's health-changed step (`0x008C53D0`), which clears the bit when health reaches
+maximum, and such an object is born at full health and never changes it. Stock never noticed,
+because stock `AttributeModifierAuraUpdate` had no gate. With the gate its aura never ran: Angmar's
+Favor of the Witch-king pings (`AngmarDenPing`, `CarnDumPing`, `CarnDumGunstPing`,
+`HallOfTwilightPing`, `VasallenhausPing`) and `BolgLevelObject` in Edain, seen live as the Den's
+ping sitting `UNDER_CONSTRUCTION | UNSELECTABLE` forever; clearing the two bits by hand gave the
+Witch-king his upgrade within two seconds. So the fallback now takes the body's own rule: flagged
+**and** health below maximum. A real build or rebuild always starts below maximum
+(`construction-initial-health` caps its start at 90%), so it stays gated; a full-health spawn
+does not. No body at all keeps the flag's answer.
 
 **Cost.** A dead or half-built aura object runs the gates and one module-array walk every
 `RefreshDelay + id % 5` frames instead of nothing. Un-triggered auras are untouched — that is the

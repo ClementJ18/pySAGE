@@ -49,7 +49,7 @@ from sage_patch.addresses import (
     W3D_MODEL_DRAW_STATIC_SORT_LEVEL,
     W3D_MODEL_DRAW_TRANSFORM_HELPER,
 )
-from sage_patch.patches.draw_module_scale import (
+from sage_patch.patches.render.draw_module_scale import (
     ANCHORS,
     DEFAULT_ANGLE_KEYWORD,
     DEFAULT_KEYWORD,
@@ -80,6 +80,7 @@ from sage_patch.patches.utils.name_tables import read_cstring
 from sage_patch.pe import image_sections
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import _sparse_image
 
 #: Where the stand-in keeps its keyword strings: the page the shared table already maps.
@@ -634,10 +635,10 @@ def test_it_is_registered_and_not_experimental() -> None:
 
 
 #: Both copies a checkout can hold; neither is committed, so each check skips when its file is
-#: absent. Only the clean backup says a site is stock rather than merely unpatched by this package.
+#: absent. Only the clean copy says a site is stock rather than merely unpatched by this package.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

@@ -39,14 +39,14 @@ __all__ = [
 # light theme gets its own darker, more saturated set (matching the palette in styles.py).
 SEVERITY_COLORS = {
     True: {  # dark
-        "error": QColor("#e06c75"),
-        "warning": QColor("#d8a657"),
-        "info": QColor("#5fa8d3"),
+        "error": QColor("#e2705e"),
+        "warning": QColor("#e7b95a"),
+        "info": QColor("#58bcd8"),
     },
     False: {  # light
-        "error": QColor("#c0392b"),
-        "warning": QColor("#b07a1f"),
-        "info": QColor("#2f6f9f"),
+        "error": QColor("#b8432f"),
+        "warning": QColor("#8a6414"),
+        "info": QColor("#1f6f8f"),
     },
 }
 SEVERITY_RANK = {"error": 0, "warning": 1, "info": 2}

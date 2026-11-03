@@ -36,6 +36,8 @@ __all__ = [
     "ACT_VERB_TABLE_PUSH",
     "ACT_VERB_TABLE_PUSH_SITE",
     "ACT_VERB_TABLE_PUSH_SITE_BYTES",
+    "APT_BANNER_UI_ON_BUTTON",
+    "APT_BANNER_UI_PRESS",
     "ARMY_DEFINITION_FIELD_TABLE",
     "ARMY_DEFINITION_FIELD_TABLE_REFS",
     "ARMY_DEFINITION_FIELD_TABLE_REF_OPCODES",
@@ -110,7 +112,9 @@ __all__ = [
     "LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY_THUNK",
     "LIVING_WORLD_BATTLE_ARMY_IDS_BEGIN",
     "LIVING_WORLD_BATTLE_ARMY_IDS_END",
+    "LIVING_WORLD_BATTLE_ARMY_STATE",
     "LIVING_WORLD_BATTLE_BRIDGE_OFFSET",
+    "LIVING_WORLD_BATTLE_CALL_IN_ARMY",
     "LIVING_WORLD_BATTLE_CTOR",
     "LIVING_WORLD_BATTLE_END",
     "LIVING_WORLD_BATTLE_HARVEST",
@@ -128,6 +132,7 @@ __all__ = [
     "LIVING_WORLD_BATTLE_SIDES_BEGIN",
     "LIVING_WORLD_BATTLE_SIDES_END",
     "LIVING_WORLD_BATTLE_SIDE_STRIDE",
+    "LIVING_WORLD_BATTLE_SUMMON_ARMY",
     "LIVING_WORLD_CAMPAIGN_ADVANCE_ACT",
     "LIVING_WORLD_CAMPAIGN_MANAGER_ADVANCE_ACT",
     "LIVING_WORLD_CAMPAIGN_MANAGER_CAMPAIGNS_BEGIN",
@@ -147,6 +152,7 @@ __all__ = [
     "LIVING_WORLD_END_TURN",
     "LIVING_WORLD_FIND_ARMY_BY_ID",
     "LIVING_WORLD_FIND_ARMY_BY_NAME",
+    "LIVING_WORLD_FIND_ARMY_BY_NAME_BYTES",
     "LIVING_WORLD_FIND_ARMY_ROSTER",
     "LIVING_WORLD_FIND_PLAYER_ARMY_BY_NAME",
     "LIVING_WORLD_FIND_PLAYER_BY_ID",
@@ -185,7 +191,16 @@ __all__ = [
     "LIVING_WORLD_REGION_OWNER",
     "LIVING_WORLD_REMOVE_MOVIE_EVENT",
     "LIVING_WORLD_REQUEST_ADVANCE_TURN_PHASE",
+    "LIVING_WORLD_ROSTER_AUTO_SUMMON_STEP",
+    "LIVING_WORLD_ROSTER_CALL_IN",
+    "LIVING_WORLD_ROSTER_CALL_IN_BYTES",
     "LIVING_WORLD_ROSTER_IN_BATTLE",
+    "LIVING_WORLD_ROSTER_STATE",
+    "LIVING_WORLD_ROSTER_SUMMON",
+    "LIVING_WORLD_ROSTER_SUMMON_DEADLINE",
+    "LIVING_WORLD_ROSTER_SUMMON_DELAY",
+    "LIVING_WORLD_ROSTER_SUMMON_START",
+    "LIVING_WORLD_ROSTER_SUMMON_TICK",
     "LIVING_WORLD_SCORE_KEEPER_BUILT",
     "LIVING_WORLD_SCORE_KEEPER_DESTROYED",
     "LIVING_WORLD_SCORE_KEEPER_LOST",
@@ -210,7 +225,15 @@ __all__ = [
     "LIVING_WORLD_TURN_PHASE_OFFSET",
     "LIVING_WORLD_UPDATE",
     "LIVING_WORLD_UPDATE_TURN_PHASE",
+    "MSG_CALL_IN_REINFORCEMENTS",
+    "MSG_SUMMON_REINFORCEMENTS",
     "PLAYER_MERGE_BATTLE_SCORE",
+    "PLAYER_WOTR_HERO_POOL_SEED",
+    "PLAYER_WOTR_HERO_POOL_SEED_BYTES",
+    "PLAYER_WOTR_HERO_POOL_SEED_RESUME",
+    "PLAYER_WOTR_HERO_POOL_SEED_RESUME_BYTES",
+    "PLAYER_WOTR_HERO_POOL_SEED_SKIP",
+    "PLAYER_WOTR_HERO_POOL_SEED_SKIP_BYTES",
     "REGION_DEFENDS_AGAINST",
     "REGION_ENABLED",
     "REGION_IS_DEFENDED",
@@ -220,8 +243,14 @@ __all__ = [
     "REGION_STORE_FIND_BATTLE",
     "REGION_STORE_FIND_REGION_BY_NAME",
     "REGION_STORE_REGION_AT",
+    "ROSTER_STATE_CALLED_IN",
+    "ROSTER_STATE_IN_BATTLE",
+    "ROSTER_STATE_READY",
+    "ROSTER_STATE_SUMMONING",
+    "ROSTER_STATE_WAITING",
     "SCENARIO_ALLOC",
     "SCENARIO_ALLOC_BYTES",
+    "SCENARIO_BATTLE_HERO_POOL_OFFSET",
     "SCENARIO_CTOR_HISTORICAL",
     "SCENARIO_CTOR_HISTORICAL_BYTES",
     "SCENARIO_CTOR_USE_MP_RULES",
@@ -497,6 +526,9 @@ SPAWN_ARMY_POSITION_OFFSET = 0x20
 REGION_ENABLED = 0x1C2
 #: `LivingWorldLogic::findArmyByScriptingName(AsciiString*)` - thiscall, walks `+0x8C..+0x90`.
 LIVING_WORLD_FIND_ARMY_BY_NAME = 0x006B53A4
+#: Its first instructions. Each player's armies are matched by `AsciiString::compare` on
+#: `army+0x1C` (`0x006E2CE7`), so the name is matched exactly as the engine matches it.
+LIVING_WORLD_FIND_ARMY_BY_NAME_BYTES = bytes.fromhex("568bf18b86900000002b868c000000")
 #: `LivingWorldCampaignManager::findPlayerArmyByName(AsciiString*)` - thiscall on
 #: `THE_LIVING_WORLD_CAMPAIGN_MANAGER`, striding its store at `+0x20..+0x24` by `0x68`.
 LIVING_WORLD_FIND_PLAYER_ARMY_BY_NAME = 0x007B98EC
@@ -620,6 +652,49 @@ LIVING_WORLD_BATTLE_ARMY_IDS_BEGIN = 0x14
 LIVING_WORLD_BATTLE_ARMY_IDS_END = 0x18
 #: Walks that vector and returns `roster->[0x1C]` for the first army whose `roster->[0x14]` is zero.
 LIVING_WORLD_BATTLE_PRIMARY_ARMY_ID = 0x0080FF1B
+#: A battle army's reinforcement state, on its roster container. `detectConflicts` sets every army
+#: it seats to `IN_BATTLE` (`0x0080FE01`); battle setup then drops every army in the battle that is
+#: not `IN_BATTLE` back to `WAITING` (`0x00812784`), which is what makes it a reinforcement. The
+#: banner reads the state every update through `LIVING_WORLD_BATTLE_ARMY_STATE` and draws it as
+#: `0, 2, 3, 4+` -> banner state `0, 1, 2, 3` (`0x00616546`). See
+#: `docs/living-campaign/reinforcements.md`.
+LIVING_WORLD_ROSTER_STATE = LIVING_WORLD_ROSTER_IN_BATTLE
+ROSTER_STATE_WAITING = 0
+ROSTER_STATE_IN_BATTLE = 1
+ROSTER_STATE_SUMMONING = 2
+ROSTER_STATE_READY = 3
+ROSTER_STATE_CALLED_IN = 4
+#: The summon countdown: `[+0x30]` is the delay in frames, set from an integer times
+#: `0x00D9F618` (`0x0080F475`); `[+0x34]` the frame it ends on and `[+0x38]` the frame it began.
+LIVING_WORLD_ROSTER_SUMMON_DELAY = 0x30
+LIVING_WORLD_ROSTER_SUMMON_DEADLINE = 0x34
+LIVING_WORLD_ROSTER_SUMMON_START = 0x38
+#: `roster.summon(frame)`, `ret 4`: `WAITING -> SUMMONING`, deadline = frame + delay. Any other
+#: state is left alone.
+LIVING_WORLD_ROSTER_SUMMON = 0x0080F3C0
+#: `roster.tickSummon()`: `SUMMONING -> READY` once `TheGameLogic`'s frame reaches the deadline.
+LIVING_WORLD_ROSTER_SUMMON_TICK = 0x0080F444
+#: `roster.callIn()`: `READY -> CALLED_IN`, then `LIVING_WORLD_ARMY_DEPLOY(0, 0, 0)`. Any other
+#: state is left alone, which is what makes a second call-in, or a banner click after one, inert.
+LIVING_WORLD_ROSTER_CALL_IN = 0x00812563
+LIVING_WORLD_ROSTER_CALL_IN_BYTES = bytes.fromhex("83792c03751133c0505050c7412c04000000")
+#: One step of an auto-summon on a roster: `WAITING` -> log `"Auto-Summoning army %d into battle"`
+#: and summon, `SUMMONING` -> tick, `READY` -> call in. **Nothing in the image calls it.**
+LIVING_WORLD_ROSTER_AUTO_SUMMON_STEP = 0x0081257B
+#: The battle bridge's by-id wrappers (`ecx` = the bridge, `ret 4`): the two the reinforcement
+#: messages dispatch to, and the state read the banner polls (returns 1 for an unknown id).
+LIVING_WORLD_BATTLE_SUMMON_ARMY = 0x0080FEB2
+LIVING_WORLD_BATTLE_CALL_IN_ARMY = 0x00812875
+LIVING_WORLD_BATTLE_ARMY_STATE = 0x0080FE9C
+#: The banner button. `AptBannerUI::OnBttnBanner` (`0x00616443`, registered under that name with
+#: `TheAptPlayer` at `0x00617026`) resolves its argument to a banner entry and calls
+#: `0x006163C9`, which sends `MSG_SUMMON_REINFORCEMENTS` for an entry in banner state 0, and for one
+#: in banner state 2 hands the roster's `+0x18` string to `TheScriptEngine` (`0x0061641C`) and
+#: sends `MSG_CALL_IN_REINFORCEMENTS`. The army id is the messages' one integer argument.
+APT_BANNER_UI_ON_BUTTON = 0x00616443
+APT_BANNER_UI_PRESS = 0x006163C9
+MSG_SUMMON_REINFORCEMENTS = 0x45E
+MSG_CALL_IN_REINFORCEMENTS = 0x45F
 #: `roster -> Team`, the lookup `LIVING_WORLD_ASSIGN_OBJECT_TO_ARMY` uses before `Object::setTeam`.
 LIVING_WORLD_ARMY_ROSTER_TEAM = 0x0080F45F
 #: Seed a live army's roster from its `PlayerArmy` template, and the assignment that does the copy.
@@ -759,6 +834,21 @@ SCENARIO_CTOR_HISTORICAL = 0x00901E6A
 SCENARIO_CTOR_HISTORICAL_BYTES = bytes.fromhex("889ec0000000")
 SCENARIO_CTOR_USE_MP_RULES = 0x00901E70
 SCENARIO_CTOR_USE_MP_RULES_BYTES = bytes.fromhex("c686c100000001")
+#: The last padding byte of `Scenario`, after `hide-selection-details`' `+0xC2`: where
+#: `wotr-battle-hero-pool` keeps its flag. The widened `HistoricalScenario` store zeroes it.
+SCENARIO_BATTLE_HERO_POOL_OFFSET = 0xC3
+#: The player's hero seeding (`0x006B16EC`, called from `0x006B1971`). Outside a campaign mode 3 it
+#: loads the player's world-map player id (`mov eax, [ebx+0x3CC]`), finds that world-map player,
+#: collects its off-map hero pool (`+0x1D4`, through `0x006E42DA`, which takes the entries out of
+#: the pool) and inserts every entry into the battle ledger at `Player+0x758` (`0x006B1777`).
+#: `SKIP` is the stock exit taken when there is no world-map player; the stack there is the
+#: one at the load. Docs: `docs/living-campaign/wotr-battle-hero-pool.md`.
+PLAYER_WOTR_HERO_POOL_SEED = 0x006B1711
+PLAYER_WOTR_HERO_POOL_SEED_BYTES = bytes.fromhex("8b83cc030000")
+PLAYER_WOTR_HERO_POOL_SEED_RESUME = 0x006B1717
+PLAYER_WOTR_HERO_POOL_SEED_RESUME_BYTES = bytes.fromhex("83f8ff")  # cmp eax, -1
+PLAYER_WOTR_HERO_POOL_SEED_SKIP = 0x006B17F7
+PLAYER_WOTR_HERO_POOL_SEED_SKIP_BYTES = bytes.fromhex("8b4df45f5e5b")
 #: The campaign manager's current campaign: an index at `+0x10` into the pointer vector at
 #: `+0x14..+0x18`. Read that way, bounds check included, by the manager method at this address and
 #: by `advanceAct` just above it.

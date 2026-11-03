@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     THE_GAME_LOGIC,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.gate_close_repath import (
+from sage_patch.patches.units.gate_close_repath import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,
@@ -525,8 +525,8 @@ class TestTheRealBinary:
     """The synthetic image proves the patch is self-consistent; only a real `game.dat` proves the
     addresses are right. Skipped where there is none."""
 
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

@@ -9,7 +9,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`, no ASLR
   instead, and the rest of the construction health curve is re-mapped so the change is a
   durability change and nothing else.
 - **Status: implemented as `construction-initial-health`**
-  ([`../patches/construction_initial_health.py`](../patches/construction_initial_health.py)),
+  ([`../patches/structures/construction_initial_health.py`](../patches/structures/construction_initial_health.py)),
   applying and verifying against the real `game.dat` and composing in either order with
   `production-split` — which needed its `DozerAIUpdate` anchor split; §6.
 

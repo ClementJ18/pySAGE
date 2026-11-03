@@ -66,7 +66,7 @@ from sage_patch.addresses import (
     TERRAIN_RESOURCE_PAY_RESUME,
     UNICODE_STRING_DTOR,
 )
-from sage_patch.patches import maintenance_cost as mc
+from sage_patch.patches.economy import maintenance_cost as mc
 from sage_patch.utils import find_section, va_to_offset
 
 IMAGE_BASE = 0x400000

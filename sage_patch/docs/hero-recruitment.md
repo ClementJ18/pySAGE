@@ -94,7 +94,7 @@ Haldir when it means Rumil — correct after all. Two are permanently-gated fill
 so does not line up at all; `Statics.check_revive_slots` reports that shape, and 9 of the tree's
 187 playable-faction producers trip it.
 
-The [`revive-object-binding`](../patches/revive_object_binding.py) patch removes the need for the
+The [`revive-object-binding`](../patches/commandbar/revive_object_binding.py) patch removes the need for the
 block. A `REVIVE` button that sets `Object` is bound to that hero instead of to its position. See
 [`revive-object-binding.md`](revive-object-binding.md).
 
@@ -108,7 +108,7 @@ identifies the button. Only the hero names carry information.
 consumer reaches, the control bar and `ProductionUpdate::queueCreateUnit` included. Its revive
 branch, at `CAN_MAKE_UNIT_REVIVE_BRANCH`, **tests only `Command == REVIVE` and a positional
 count**, accepting when the count reaches `reviveIndex`. It never reads `Options` or
-`NeededUpgrade` — the defect [`ai_revive_gate.py`](../patches/ai_revive_gate.py) repairs for the
+`NeededUpgrade` — the defect [`ai_revive_gate.py`](../patches/ai/ai_revive_gate.py) repairs for the
 AI, deliberately leaving every path a human touches alone.
 
 So a well-formed order naming any index the producer's slot block can *count to* is honoured,

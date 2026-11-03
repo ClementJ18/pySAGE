@@ -2,7 +2,7 @@
 
 RotWK 2.01 `game.dat`, ImageBase `0x400000`. Static recovery plus emulated tests of the cave -
 **nothing here has been run in a game yet**; §6 is what a first session should look at. Shipped as
-[`../patches/model_condition_images.py`](../patches/model_condition_images.py).
+[`../patches/ui/model_condition_images.py`](../patches/ui/model_condition_images.py).
 
 **The finding in one sentence.** Both fields parse into every `ConditionState`, but the two UI
 image resolvers only consult them through a Create-a-Hero hero's own record, so for any other

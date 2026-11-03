@@ -1,6 +1,6 @@
 # Writing the score screen into a replay — reverse-engineering notes
 
-The RE behind [`patches/replay_annotations.py`](../patches/replay_annotations.py). ROTWK
+The RE behind [`patches/multiplayer/replay_annotations.py`](../patches/multiplayer/replay_annotations.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-08-15.
 
 [`replay-outcome`](replay-outcome.md) proved a recording client can write facts the order stream

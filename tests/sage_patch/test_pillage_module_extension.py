@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import struct
-from pathlib import Path
 
 import pytest
 
@@ -26,11 +25,12 @@ from sage_patch.addresses import (
     PLAYER_MONEY,
     PLAYER_SCORE_KEEPER,
 )
-from sage_patch.patches import pillage_module_extension as module
+from sage_patch.patches.units import pillage_module_extension as module
 from sage_patch.patches.utils.field_tables import read_field_table, resolve_table
 from sage_patch.pe import image_sections
 from sage_patch.registry import PATCHES
 from sage_patch.utils import file_offset, find_section
+from tests.binaries import STOCK_GAME_DAT
 
 
 def synthetic_image() -> bytearray:
@@ -605,7 +605,7 @@ def test_unowned_object_with_unmet_gate_never_counts(image) -> None:
     assert world.trace == []
 
 
-_BINARY = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+_BINARY = STOCK_GAME_DAT
 
 
 @pytest.mark.full

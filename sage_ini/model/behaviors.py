@@ -15,6 +15,7 @@ from sage_ini.model.enums import (
     AModAuraCondition,
     ArmorSetFlags,
     CreateAtLocation,
+    DamageSubType,
     DamageType,
     EmotionTypes,
     FactionSide,
@@ -1983,8 +1984,8 @@ class CreateObjectDieIfEldestKindof(CreateObjectDie):
 
 
 class DamageFilteredCreateObjectDie(CreateObjectDieBehavior):
-    DamageTypeTriggersInstantly: DamageType
-    DamageTypeTriggersForDuration: DamageType
+    DamageTypeTriggersInstantly: DamageSubType
+    DamageTypeTriggersForDuration: DamageSubType
     PostFilterTriggeredDuration: Int
 
 

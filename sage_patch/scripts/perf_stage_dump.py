@@ -41,7 +41,7 @@ from dataclasses import dataclass
 
 from sage_live.backends.memory import MemorySource, ProcessMemory, find_game_processes
 from sage_patch.addresses import IMAGE_BASE
-from sage_patch.patches.perf_stage_readout import (
+from sage_patch.patches.diagnostics.perf_stage_readout import (
     BLOCK_MAGIC,
     OFF_DEPTH,
     OFF_OVERFLOW,

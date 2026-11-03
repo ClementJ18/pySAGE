@@ -135,3 +135,28 @@ def test_getting_started_dialog_is_reused_across_openings(window):
     action.trigger()
 
     assert window._help_dialog is first
+
+
+def test_the_theme_menu_item_switches_and_follows_the_shared_theme(qapp, tmp_path, monkeypatch):
+    from sage_utils.styles import DARK_STYLE, LIGHT_STYLE  # noqa: PLC0415
+    from sage_utils.widgets import ThemeAction, ThemeToggle, saved_dark_theme  # noqa: PLC0415
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    previous = qapp.styleSheet()
+    win = QMainWindow()
+    try:
+        action = ThemeAction(win)
+        assert action.isChecked()  # dark until something is saved
+
+        action.setChecked(False)
+        assert qapp.styleSheet() == LIGHT_STYLE
+        assert saved_dark_theme() is False
+
+        # A header toggle in the same app flips it back; the menu item follows.
+        toggle = ThemeToggle()
+        toggle.setChecked(True)
+        assert qapp.styleSheet() == DARK_STYLE
+        assert action.isChecked()
+    finally:
+        qapp.setStyleSheet(previous)
+        win.close()

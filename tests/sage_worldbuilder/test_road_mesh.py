@@ -56,8 +56,15 @@ def curves(pieces):
     return [piece for piece in pieces if piece.curve]
 
 
+def flat(value):
+    if isinstance(value, (int, float)):
+        return [value]
+    return [number for item in value for number in flat(item)]
+
+
 def close(a, b):
-    return a == pytest.approx(b, abs=1e-6)
+    # pytest.approx rejects nested sequences (lists of points), so compare them flattened.
+    return flat(a) == pytest.approx(flat(b), abs=1e-6)
 
 
 def test_a_strip_is_the_road_width_times_its_width_in_texture_across():

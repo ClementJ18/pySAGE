@@ -43,12 +43,7 @@ from sage_patch.addresses import (
 )
 from sage_patch.patches import SpecialPowerRefundUpgradePatch as Exported
 from sage_patch.patches import SpecialPowerRefundUpgradeWorldbuilderPatch as ExportedWorldbuilder
-from sage_patch.patches.grant_science_upgrade import (
-    GrantScienceUpgradePatch,
-    GrantScienceUpgradeWorldbuilderPatch,
-)
-from sage_patch.patches.object_image_upgrade import ObjectImageUpgradePatch
-from sage_patch.patches.special_power_refund_upgrade import (
+from sage_patch.patches.special_powers.special_power_refund_upgrade import (
     BLOCK_NAME,
     MODULEDATA_SIZE,
     POWER_FIELD,
@@ -58,6 +53,11 @@ from sage_patch.patches.special_power_refund_upgrade import (
     WORLDBUILDER_SECTION_NAME,
     SpecialPowerRefundUpgradePatch,
     SpecialPowerRefundUpgradeWorldbuilderPatch,
+)
+from sage_patch.patches.ui.object_image_upgrade import ObjectImageUpgradePatch
+from sage_patch.patches.upgrades.grant_science_upgrade import (
+    GrantScienceUpgradePatch,
+    GrantScienceUpgradeWorldbuilderPatch,
 )
 from sage_patch.patches.utils import tooltip_twin
 from sage_patch.registry import PATCHES

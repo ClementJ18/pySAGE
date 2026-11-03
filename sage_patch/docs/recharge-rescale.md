@@ -24,7 +24,7 @@ the remainder when it does.
 - **Risk:** low-medium. The failure mode is a wrong cooldown length, not a crash; the one
   crash-shaped risk is the sweep itself walking a module list every frame.
 - **Status: implemented as `recharge-rescale`**
-  ([`../patches/recharge_rescale.py`](../patches/recharge_rescale.py)) and **runtime-verified in
+  ([`../patches/special_powers/recharge_rescale.py`](../patches/special_powers/recharge_rescale.py)) and **runtime-verified in
   game**: an aura landing mid-cooldown rescales it, leaving the aura restores it, and the clock
   never jumps (§9). It composes in either order with `live-bridge`, `production-split`,
   `spawn-union` and `spell-recharge-targets`, whose targeted discount it follows too (§8).
@@ -249,13 +249,14 @@ function; the rescale form simply skips the frames on which the rate did not cha
 held for half a cooldown and then dropped produces the same finish frame either way, because the
 second rescale reverses exactly the fraction of work the first one did not consume.
 
-Worked, at 30 fps, `ReloadTime = 300` (10 s), no modifier at cast:
+Worked, at the 5 Hz logic rate, a 300-frame cooldown (`ReloadTime = 60000`, 60 s), no modifier
+at cast:
 
 | frame | event | duration | remaining | note |
 |---|---|---|---|---|
 | 0 | cast | 300 | 300 | `m = 1.0` |
-| 90 | aura arrives, `RECHARGE_TIME = 66%` | 198 | 138 | `210 * 198/300`; 7 s left becomes 4.6 s |
-| 190 | aura drops | 300 | 57 | `38 * 300/198`; 1.27 s left becomes 1.9 s |
+| 90 | aura arrives, `RECHARGE_TIME = 66%` | 198 | 138 | `210 * 198/300`; 42 s left becomes 27.6 s |
+| 190 | aura drops | 300 | 57 | `38 * 300/198`; 7.6 s left becomes 11.4 s |
 | 247 | ready | | | stock would have finished at 300 |
 
 The error is the two `ftol` truncations — **under one frame per change**, and not cumulative in the
@@ -343,7 +344,7 @@ is live and initialised on every path that reaches this instruction (`0x0062E550
 both under the `edi == 1` arm that leads here).
 
 `0x0062E577` itself is 3 bytes and is a fall-through target, which is why `live-bridge` does not
-take it either; see [`live-bridge`](../patches/experimental/live_bridge.py)'s docstring for the same finding.
+take it either; see [`live-bridge`](../patches/diagnostics/live_bridge.py)'s docstring for the same finding.
 
 **Alternative: `0x0062E6A4`** (`e8 60 21 e1 ff`, `call 0x440809`) — five bytes further down the
 unconditional main path, not a branch target, and simpler because it needs no flag reading. It sits

@@ -41,6 +41,7 @@ __all__ = [
     "set_stance",
     "stop",
     "toggle_formation",
+    "toggle_weapon_set",
     "unpack",
 ]
 
@@ -66,6 +67,7 @@ class OrderType(IntEnum):
     DO_STOP = 0x435
     CASTLE_UNPACK = 0x43D
     HORDE_TOGGLE_FORMATION = 0x453
+    TOGGLE_WEAPON_SET = 0x457
     CASTLE_UNPACK_EXPLICIT_OBJECT = 0x43F
     START_SELF_REPAIR = 0x45D
     CHANGE_STANCE = 0x468
@@ -316,6 +318,16 @@ def toggle_formation(player: int, horde_id: int) -> Order:
     decides. Name the horde, not its members.
     """
     return Order(player, OrderType.HORDE_TOGGLE_FORMATION, [_obj(horde_id)])
+
+
+def toggle_weapon_set(player: int, unit_id: int) -> Order:
+    """Press a unit's `TOGGLE_WEAPONSET` button: flip its `FlagsUsedForToggle` weapon-set flag
+    (a giant's or Ent's rock throwing, an archer's bow and sword).
+
+    A toggle, not a set, like `toggle_formation`. The argument layout is the replay's: one
+    `ObjectId`, the unit (`sage_replay/order_space_map.md`, `0x457`).
+    """
+    return Order(player, OrderType.TOGGLE_WEAPON_SET, [_obj(unit_id)])
 
 
 def set_stance(player: int, stance: int) -> Order:

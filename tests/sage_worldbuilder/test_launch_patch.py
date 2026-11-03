@@ -6,9 +6,9 @@ import re
 import pytest
 
 from sage_ini.engine import AppliedPatch, Engine
-from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
-from sage_patch.patches.mod_load_order import ModLoadOrderPatch
-from sage_patch.patches.multi_mod import MultiModPatch
+from sage_patch.patches.platform.command_line_skirmish import CommandLineSkirmishPatch
+from sage_patch.patches.platform.mod_load_order import ModLoadOrderPatch
+from sage_patch.patches.platform.multi_mod import MultiModPatch
 from sage_worldbuilder import launch_patch
 from sage_worldbuilder.launch_patch import (
     LAUNCH_PATCHES,

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.wotr_lobby_slots import JMP_SHORT, SITES, WotrLobbySlotsPatch
+from sage_patch.patches.campaign.wotr_lobby_slots import JMP_SHORT, SITES, WotrLobbySlotsPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
 from tests.sage_patch.synthetic import _sparse_image

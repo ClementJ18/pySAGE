@@ -32,7 +32,7 @@ from sage_patch.addresses import (
     QUERY_PERFORMANCE_COUNTER_IAT,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.perf_stage_readout import (
+from sage_patch.patches.diagnostics.perf_stage_readout import (
     ANCHORS,
     BLOCK_MAGIC,
     BLOCK_VERSION,

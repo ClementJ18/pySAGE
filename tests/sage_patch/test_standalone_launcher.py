@@ -16,13 +16,14 @@ the patch writes nothing else.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from sage_ini.engine import STOCK
-from sage_patch.patches.multi_instance import MultiInstanceLauncherPatch, MultiInstancePatch
-from sage_patch.patches.standalone_launcher import (
+from sage_patch.patches.platform.multi_instance import (
+    MultiInstanceLauncherPatch,
+    MultiInstancePatch,
+)
+from sage_patch.patches.platform.standalone_launcher import (
     ANCHORS,
     GI_DAT_G4_ACCESSOR,
     STRCPY,
@@ -34,9 +35,10 @@ from sage_patch.patches.standalone_launcher import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import va_to_offset
+from tests.binaries import ROTWK_INSTALL
 from tests.sage_patch.synthetic import instance_guard_image, standalone_launcher_image
 
-_INSTALL = Path(r"C:\Program Files (x86)\Games\bfme\rotwk")
+_INSTALL = ROTWK_INSTALL
 _LAUNCHER = _INSTALL / "lotrbfme2ep1.exe"
 
 #: The replacement exactly as `lotrbfme2ep1_manual.diff` states it, transcribed by hand. Not

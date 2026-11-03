@@ -39,7 +39,7 @@ from sage_patch.addresses import (
     OBJECT_STATUS_HORDE_MEMBER,
     OBJECT_THING_TEMPLATE,
 )
-from sage_patch.patches.horde_member_speed import (
+from sage_patch.patches.units.horde_member_speed import (
     AGGREGATES,
     ANCHORS,
     DEFAULT_AGGREGATE,
@@ -456,8 +456,8 @@ class TestTheRealBinary:
     """The synthetic image proves the patch is self-consistent; only a real `game.dat` proves the
     addresses are right. Skipped where there is none, which is every machine but the author's."""
 
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

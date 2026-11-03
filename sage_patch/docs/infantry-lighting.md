@@ -4,7 +4,7 @@ Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`), read s
 ROTWK `game.dat`. `.text` is untouched by every cave-adding patch in this package, so every address
 below is also a stock address.
 
-**Built.** This shipped as [`infantry-lighting`](../patches/infantry_lighting.py). The map-side
+**Built.** This shipped as [`infantry-lighting`](../patches/render/infantry_lighting.py). The map-side
 measurements at the end were taken with [`sage_map`](../../sage_map) over the shipped `Maps.big`
 and `____edain_maps.big`.
 

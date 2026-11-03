@@ -90,7 +90,7 @@ def test_panels_can_be_dragged_out_and_grouped_into_one_window(qapp, tmp_path, m
     install = tmp_path / "install"
     install.mkdir()
     monkeypatch.setattr("sage_worldbuilder.gamedata.user_data_dir", lambda game: tmp_path)
-    window = MainWindow(Settings(install=str(install)), load_game_data=False)
+    window = MainWindow(Settings(install=str(install), lock_layout=False), load_game_data=False)
     try:
         options = window.dockOptions()
         assert options & QMainWindow.DockOption.GroupedDragging
@@ -175,6 +175,15 @@ def editor(tmp_path, monkeypatch, settings=None):
     return MainWindow(settings or Settings(install=str(install)), load_game_data=False)
 
 
+def test_a_new_editor_starts_with_the_layout_locked(qapp, tmp_path, monkeypatch):
+    window = editor(tmp_path, monkeypatch)
+    try:
+        assert window.lock_layout_action.isChecked()
+        assert not window.dockOptions() & QMainWindow.DockOption.AllowTabbedDocks
+    finally:
+        window.close()
+
+
 def drag_title_bar(qapp, dock):
     """Drag a panel by its title bar: the gesture that pulls it out of its dock and drops it
     into whatever it lands on."""
@@ -239,7 +248,7 @@ def test_lock_layout_takes_every_drop_target_away(qapp, tmp_path, monkeypatch):
         assert not window.dockOptions() & options.GroupedDragging
         assert not window.dockOptions() & options.AllowTabbedDocks
         # Panels already tabbed together stay that way; the lock only stops new ones.
-        assert window.tabifiedDockWidgets(window.map_dock)
+        assert window.tabifiedDockWidgets(dock)
 
         window.lock_layout_action.setChecked(False)
         assert not window.settings.lock_layout
@@ -269,7 +278,9 @@ class QDockWidgetGroupWindow(QWidget):
 def test_a_locked_group_window_cannot_start_a_dock_drag(qapp, tmp_path, monkeypatch):
     """Qt lets a window of several panels dock anywhere, whatever their allowed areas; the lock
     keeps its title bar from starting that drag."""
-    window = editor(tmp_path, monkeypatch)
+    window = editor(
+        tmp_path, monkeypatch, Settings(install=str(tmp_path / "install"), lock_layout=False)
+    )
     group = QDockWidgetGroupWindow(window)
     try:
         group.show()

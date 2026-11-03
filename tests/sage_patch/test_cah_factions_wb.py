@@ -17,8 +17,8 @@ import struct
 
 import pytest
 
-from sage_patch.patches import cah_factions as cf
-from sage_patch.patches.cah_factions import (
+from sage_patch.patches.multiplayer import cah_factions as cf
+from sage_patch.patches.multiplayer.cah_factions import (
     ALL_INDEX,
     ALL_NAME,
     MAX_SIDES,

@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     WRITE_MINI_DUMP_CALL_FILTER,
     WRITE_MINI_DUMP_CALL_FILTER_BYTES,
 )
-from sage_patch.patches.quiet_exit import (
+from sage_patch.patches.diagnostics.quiet_exit import (
     SECTION_NAME,
     QuietExitPatch,
     build_code,

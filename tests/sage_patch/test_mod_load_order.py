@@ -40,7 +40,7 @@ from sage_patch.addresses import (
     GLOBAL_DATA,
     MOD_MOUNT_DIRECTORY,
 )
-from sage_patch.patches.mod_load_order import (
+from sage_patch.patches.platform.mod_load_order import (
     ANCHORS,
     EMPTY_STRING,
     GLOBAL_DATA_CALL,

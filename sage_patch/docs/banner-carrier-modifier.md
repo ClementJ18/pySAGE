@@ -19,7 +19,7 @@ inheritance problem rather than a code problem: `AODHordeContainModuleData` deri
   classes.
 - **Risk:** low, and opt-in — an unwritten keyword is a NULL `AsciiString` and every added path
   tests it before doing anything. It **is** simulation state, so peers must match; §7.
-- **Status:** **built** — see [`patches/banner_modifier.py`](../patches/banner_modifier.py).
+- **Status:** **built** — see [`patches/units/banner_modifier.py`](../patches/units/banner_modifier.py).
 
 ```
 sage-patch apply banner-modifier --in game.dat.backup --out game.dat

@@ -51,7 +51,7 @@ from sage_patch.addresses import (
     INI_PARSE_BOOL,
     THE_GAME_LOGIC,
 )
-from sage_patch.patches.fire_at_attacker import (
+from sage_patch.patches.combat.fire_at_attacker import (
     ANCHORS,
     DEFAULT_KEYWORD,
     FINGERPRINT,

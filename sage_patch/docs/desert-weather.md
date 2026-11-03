@@ -302,7 +302,18 @@ then `cmp +0x138, 1` for bit 8; also `0x00928EC8`, `0x0092952B`, `0x0064F953`, t
 `0x24F` = 591), so it would need its own model-condition table extension as well. That is cosmetic
 inside the editor only - the map data and the game are unaffected by it.
 
-## 10. Constraints
+## 10. Sharing the weather with other patches
+
+Everything above describes `desert-weather` on its own. The table, the two hook sites, the
+"any weather" value and Worldbuilder's dropdown bound are shared with every map-weather patch
+through [`../patches/utils/map_weather.py`](../patches/utils/map_weather.py), which reads them
+from the live image rather than the stock constants. `DESERT` owns slot **2** whatever else is
+applied. [`ash-weather`](ash-weather.md) owns slot 3, chains its own cave in front of this one at
+both hook sites, and raises the count-shaped immediates to the full table length. Applied alone,
+`desert-weather` writes exactly the bytes described above. See
+[`ash-weather.md`](ash-weather.md) for the fixed-slot and chaining rules.
+
+## 11. Constraints
 
 - **Determinism.** `Object+0x10C` is the logic-side mask and part of what the engine CRCs, so
   every peer must run the same patched binary. A patched and an unpatched client desync as soon as

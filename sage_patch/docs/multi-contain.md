@@ -19,7 +19,7 @@ passenger after it is inside still goes through the one stored contain.
   slaughter contain *before* the contain that keeps passengers is the opt-in.
 - **Risk:** moderate. Ten sites in the enter path, all logic-side but one (the hint). An object
   whose stored contain accepts the rider, and every horde, behaves exactly as stock.
-- **Status:** built ([`patches/multi_contain.py`](../patches/multi_contain.py)), statically
+- **Status:** built ([`patches/units/multi_contain.py`](../patches/units/multi_contain.py)), statically
   verified against the repo's `game.dat`, and every cave routine emulated
   (`tests/sage_patch/test_multi_contain.py`). **Not runtime-verified.**
 

@@ -4,8 +4,8 @@ A replay records inputs, not state: eliminations are computed by the simulation 
 written to the stream, so no stock chunk says who won.
 
 **Unless the recording client carried the `replay-outcome` patch.** That patch
-(`sage_patch.patches.replay_outcome`) writes one `0x7D0` chunk per player at the frame the
-recording ends - whether the game finished or somebody left - carrying that player's final
+(`sage_patch.patches.multiplayer.replay_outcome`) writes one `0x7D0` chunk per player at the
+frame the recording ends - whether the game finished or somebody left - carrying that player's final
 state as the engine's own `VictoryConditions` had it. `recorded_outcomes` reads them back and
 `infer_winner` prefers them outright: they are ground truth, not a heuristic, and they cover
 AI players and elimination endings that leave no trace in the input stream. Replays from

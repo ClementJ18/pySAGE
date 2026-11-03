@@ -16,7 +16,10 @@ The structural checks are the usual ones - the cave's layout, the edits, the rou
 * the seed shim puts back the flags **and** the register the instruction after it reads, neither of
   which a jump would have disturbed;
 * the member shim re-derives the message's upgrade from the argument slot rather than from `ebx`,
-  which it is about to overwrite; and
+  which it is about to overwrite;
+* a member whose own set has no button for the clicked upgrade, nor one in its group, is refused
+  rather than handed the upgrade - run in an emulator, since that is a question of what the
+  resolver answers, not of which bytes it contains; and
 * the routine's bytes say what they were meant to say - a wrong displacement assembles, applies
   and verifies, and then jumps into the middle of an instruction in a running game.
 """
@@ -33,6 +36,7 @@ from sage_patch.addresses import (
     AI_GROUP_UPGRADE_MEMBER,
     AI_GROUP_UPGRADE_MEMBER_BYTES,
     AI_GROUP_UPGRADE_MEMBER_RESUME,
+    AI_GROUP_UPGRADE_MEMBER_SKIP,
     COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY,
     COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES,
     COMMAND_BUTTON_FIELD_TABLE,
@@ -41,6 +45,7 @@ from sage_patch.addresses import (
     COMMAND_BUTTON_FREE_OFFSET,
     COMMAND_BUTTON_SIZE,
     COMMAND_BUTTON_TRIGGER_WHEN_READY,
+    COMMAND_SET_STORE_FIND_COMMAND_SET,
     CONTROL_BAR_MERGE_CLEAR_SLOTS,
     CONTROL_BAR_MERGE_HIDE,
     CONTROL_BAR_MERGE_INSTALL,
@@ -55,23 +60,27 @@ from sage_patch.addresses import (
     INI_PARSE_UNSIGNED_SHORT,
     OBJECT_HAS_UPGRADE,
 )
-from sage_patch.patches.command_point_cost import COMMAND_POINT_COST_OFFSET
-from sage_patch.patches.multi_select_group import (
+from sage_patch.patches.commandbar.multi_select_group import (
     ANCHORS,
     AVAILABILITY,
+    COMMAND_BUTTON_UPGRADE,
     DEFAULT_KEYWORD,
+    GET_COMMAND_BUTTON,
+    GET_COMMAND_SET_STRING,
     HOOK_CALL,
     HOOK_JMP,
     MULTI_SELECT_GROUP_OFFSET,
     ROUTINES,
     SECTION_NAME,
     SLOTS,
+    THE_CONTROL_BAR,
     _layout,
     build_code,
     build_table,
     entry_points,
     rewritten_default,
 )
+from sage_patch.patches.economy.command_point_cost import COMMAND_POINT_COST_OFFSET
 from sage_patch.patches.utils.field_tables import entries_before, read_field_table
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
@@ -424,6 +433,7 @@ def test_the_cave_jumps_only_where_the_engine_expects_it_back() -> None:
         CONTROL_BAR_MERGE_CLEAR_SLOTS,
         CONTROL_BAR_MERGE_INSTALL_FIRST_RESUME,
         AI_GROUP_UPGRADE_MEMBER_RESUME,
+        AI_GROUP_UPGRADE_MEMBER_SKIP,
     }
     code = _code()
     outside = {va for va in _targets(code, 0xE9) if not _CODE_VA <= va < _CODE_VA + len(code)}
@@ -495,6 +505,158 @@ def test_the_displaced_pushes_are_re_emitted_in_order() -> None:
     assert AI_GROUP_UPGRADE_MEMBER + len(AI_GROUP_UPGRADE_MEMBER_BYTES) == (
         AI_GROUP_UPGRADE_MEMBER_RESUME
     )
+
+
+class Selection:
+    """The member hook and the resolver behind it, running over a made-up selection.
+
+    The three engine calls the walk makes are stood in for by stubs that read a toy layout: an
+    object's first dword is its `CommandSet`, and a set is 33 button pointers. Buttons carry only
+    the two fields the cave reads, the upgrade and the group. The run starts at the member hook
+    with the loop's frame built by hand and stops at whichever of the two engine addresses it
+    leaves by."""
+
+    _STACK, _STACK_SIZE = 0x02000000, 0x10000
+    _HEAP = 0x01000000
+
+    def __init__(self) -> None:
+        unicorn = pytest.importorskip("unicorn")
+        self.regs = pytest.importorskip("unicorn.x86_const")
+        self.uc = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
+        code = _code()
+        self.uc.mem_map(_CODE_VA, (len(code) + 0xFFF) & ~0xFFF)
+        self.uc.mem_write(_CODE_VA, code)
+        self.uc.mem_map(self._STACK, self._STACK_SIZE)
+        self.uc.mem_map(self._HEAP, 0x100000)
+        stubs = {
+            GET_COMMAND_SET_STRING: bytes.fromhex("8bc1c3"),  # mov eax, ecx ; ret
+            # mov eax, [esp+4] ; mov eax, [eax] ; ret 4
+            COMMAND_SET_STORE_FIND_COMMAND_SET: bytes.fromhex("8b4424048b00c20400"),
+            # mov eax, [esp+4] ; mov eax, [ecx+eax*4] ; ret 4
+            GET_COMMAND_BUTTON: bytes.fromhex("8b4424048b0481c20400"),
+        }
+        pages = {va & ~0xFFF for va in (*stubs, THE_CONTROL_BAR, AI_GROUP_UPGRADE_MEMBER_RESUME)}
+        for page in pages:
+            self.uc.mem_map(page, 0x1000)
+        for va, blob in stubs.items():
+            self.uc.mem_write(va, blob)
+        self.uc.mem_write(THE_CONTROL_BAR, struct.pack("<I", 0x1))
+        self._next = self._HEAP
+        self.members: list[int] = []
+        self.left_by: int | None = None
+        for exit_va in (AI_GROUP_UPGRADE_MEMBER_RESUME, AI_GROUP_UPGRADE_MEMBER_SKIP):
+            self.uc.hook_add(unicorn.UC_HOOK_CODE, self._leave, begin=exit_va, end=exit_va)
+
+    def _leave(self, uc, address, size, user_data) -> None:  # noqa: ANN001, ARG002
+        self.left_by = address
+        uc.emu_stop()
+
+    def _alloc(self, size: int) -> int:
+        va, self._next = self._next, self._next + ((size + 0xF) & ~0xF)
+        return va
+
+    def upgrade(self) -> int:
+        return self._alloc(0x10)
+
+    def button(self, upgrade: int, group: int = 0) -> int:
+        va = self._alloc(MULTI_SELECT_GROUP_OFFSET + 2)
+        self.uc.mem_write(va + COMMAND_BUTTON_UPGRADE, struct.pack("<I", upgrade))
+        self.uc.mem_write(va + MULTI_SELECT_GROUP_OFFSET, struct.pack("<H", group))
+        return va
+
+    def unit(self, *buttons: int) -> int:
+        """A selected object whose set holds ``buttons`` from slot 0, then empty slots."""
+        command_set = self._alloc(SLOTS * 4)
+        slots = list(buttons) + [0] * (SLOTS - len(buttons))
+        self.uc.mem_write(command_set, struct.pack(f"<{SLOTS}I", *slots))
+        obj = self._alloc(4)
+        self.uc.mem_write(obj, struct.pack("<I", command_set))
+        self.members.append(obj)
+        return obj
+
+    def offered(self, member: int, clicked: int) -> int | None:
+        """What `ebx` the loop resumes with for ``member`` after a click on ``clicked``, or None
+        when the member is sent to the loop's step instead."""
+        sentinel = self._alloc(0xC)
+        nodes = [self._alloc(0xC) for _ in self.members]
+        ring = [sentinel, *nodes, sentinel]
+        for node, after in zip(ring, ring[1:], strict=False):
+            self.uc.mem_write(node, struct.pack("<I", after))
+        for node, obj in zip(nodes, self.members, strict=True):
+            self.uc.mem_write(node + AI_GROUP_MEMBER_OBJECT, struct.pack("<I", obj))
+        group = self._alloc(8)
+        self.uc.mem_write(group + 4, struct.pack("<I", sentinel))
+
+        ebp = self._STACK + self._STACK_SIZE - 0x100
+        self.uc.mem_write(ebp - 4, struct.pack("<I", group))
+        self.uc.mem_write(ebp + 8, struct.pack("<I", clicked))
+        r = self.regs
+        self.uc.reg_write(r.UC_X86_REG_EBP, ebp)
+        self.uc.reg_write(r.UC_X86_REG_ESP, ebp - 0x10)
+        self.uc.reg_write(r.UC_X86_REG_ESI, nodes[self.members.index(member)])
+        self.uc.reg_write(r.UC_X86_REG_EBX, clicked)
+        self.left_by = None
+        self.uc.emu_start(entry_points(_CODE_VA, _FLAGS_VA)["member"], 0, count=100_000)
+
+        assert self.uc.reg_read(r.UC_X86_REG_ESI) == nodes[self.members.index(member)]
+        if self.left_by == AI_GROUP_UPGRADE_MEMBER_SKIP:
+            assert self.uc.reg_read(r.UC_X86_REG_ESP) == ebp - 0x10
+            return None
+        assert self.left_by == AI_GROUP_UPGRADE_MEMBER_RESUME
+        assert self.uc.reg_read(r.UC_X86_REG_EDI) == member
+        assert self.uc.reg_read(r.UC_X86_REG_ESP) == ebp - 0x18  # push 0 ; push edi
+        return self.uc.reg_read(r.UC_X86_REG_EBX)
+
+
+def test_a_member_with_the_clicked_button_takes_its_upgrade() -> None:
+    sel = Selection()
+    training = sel.upgrade()
+    dwarf = sel.unit(sel.button(training, group=1))
+    assert sel.offered(dwarf, training) == training
+
+
+def test_a_member_at_another_stage_takes_its_own_stage() -> None:
+    sel = Selection()
+    first, second = sel.upgrade(), sel.upgrade()
+    sel.unit(sel.button(first, group=1))
+    ahead = sel.unit(sel.button(second, group=1))
+    assert sel.offered(ahead, first) == second
+
+
+def test_a_member_with_no_button_in_the_group_is_refused() -> None:
+    """The reported case: a dwarf selection's banner carrier button, grouped, shown over the
+    Veterans of Khazad-dum, whose set has nothing there but who carry a `LevelUpUpgrade` for it.
+    They must be skipped, not handed the upgrade for `canAcceptUpgrade` to accept."""
+    sel = Selection()
+    training = sel.upgrade()
+    sel.unit(sel.button(training, group=1))
+    veterans = sel.unit(sel.button(sel.upgrade()))
+    assert sel.offered(veterans, training) is None
+
+
+def test_a_member_without_an_ungrouped_button_others_have_is_refused() -> None:
+    """The union half shows ungrouped buttons too, so the refusal cannot hang off the group."""
+    sel = Selection()
+    training = sel.upgrade()
+    sel.unit(sel.button(training))
+    veterans = sel.unit()
+    assert sel.offered(veterans, training) is None
+
+
+def test_a_grouped_button_that_buys_nothing_is_refused() -> None:
+    sel = Selection()
+    first = sel.upgrade()
+    sel.unit(sel.button(first, group=1))
+    done = sel.unit(sel.button(0, group=1))
+    assert sel.offered(done, first) is None
+
+
+def test_an_upgrade_nobody_selected_names_passes_through() -> None:
+    """Nothing in the selection says where the click came from, so stock is all there is."""
+    sel = Selection()
+    orphan = sel.upgrade()
+    unit = sel.unit(sel.button(sel.upgrade(), group=1))
+    assert sel.offered(unit, orphan) == orphan
 
 
 def test_availability_is_asked_with_a_null_window() -> None:

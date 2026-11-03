@@ -37,7 +37,7 @@ from sage_patch.addresses import (
     OBJECT_STATUS,
     OBJECT_STATUS_HORDE_MEMBER,
 )
-from sage_patch.patches.multi_contain import (
+from sage_patch.patches.units.multi_contain import (
     ANCHORS,
     EAX,
     EBP,
@@ -55,6 +55,7 @@ from sage_patch.patches.multi_contain import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import multi_contain_image
 
 
@@ -468,7 +469,7 @@ class TestSites:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

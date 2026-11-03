@@ -232,7 +232,8 @@ shipped file is **6.3.0005.1**, and MSDN's cut-off for those two is *DbgHelp 6.1
 (`WithPrivateReadWriteMemory`, the whole SAGE heap without mapped images) belongs in the normal
 profile, not only the deep one: following a singleton to the object it names has to work on an
 ordinary crash. It carries the same information as `0x0002` for the debugging that matters, without
-the image pages.
+the image pages. *(Reversed 2026-11-01: a mid-game dump with `0x0200` was 1.46 GB, so the shipped
+default leaves it to the `fulldump` profile - [`crash-dump.md`](crash-dump.md) section 2.)*
 
 **Measure before settling on a default.** `0x40` over a 13 KB stack should add a few hundred KB; if
 it does not, the profile is wrong.

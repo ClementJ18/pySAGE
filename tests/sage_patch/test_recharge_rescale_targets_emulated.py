@@ -14,8 +14,11 @@ import struct
 
 import pytest
 
-from sage_patch.patches.recharge_rescale import build_asm
-from sage_patch.patches.spell_recharge_targets import GATE1_VA, SpellRechargeTargetsPatch
+from sage_patch.patches.special_powers.recharge_rescale import build_asm
+from sage_patch.patches.special_powers.spell_recharge_targets import (
+    GATE1_VA,
+    SpellRechargeTargetsPatch,
+)
 
 from .synthetic import spell_recharge_targets_image
 

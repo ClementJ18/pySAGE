@@ -20,7 +20,7 @@ from typing import NamedTuple
 
 import pytest
 
-from sage_patch.patches.worldbuilder_object_typeahead import (
+from sage_patch.patches.worldbuilder.worldbuilder_object_typeahead import (
     _CODE_OFF,
     _ENTRIES_OFF,
     _GET_BASE_MAP,

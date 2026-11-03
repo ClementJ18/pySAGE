@@ -17,7 +17,7 @@ from sage_patch.addresses import (
     MISSION_OBJECTIVE_LIST_OFFSET,
     MISSION_OBJECTIVE_TRACKER,
 )
-from sage_patch.patches.objectives_screen import (
+from sage_patch.patches.ui.objectives_screen import (
     ANCHORS,
     HOOKS,
     OBJECTIVE_ENTRY_SIZE,

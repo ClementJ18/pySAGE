@@ -10,7 +10,7 @@ Three options, in increasing order of usefulness:
 - **B — extend the enum wholesale.** Twenty dword repoints. Costly and buys little on its own.
 - **C — a `--sides` list plus an `All` token.** A new section, twenty-nine dword repoints and one
   byte. Mods declare their own sides in `UsableFactions`, and `All` means *every* side, present or
-  future. **Built** — see [`patches/cah_factions.py`](../patches/cah_factions.py).
+  future. **Built** — see [`patches/multiplayer/cah_factions.py`](../patches/multiplayer/cah_factions.py).
 
 The enum has 23 free bits, so up to 22 mod sides plus `All` fit with no structure growth. The
 ceiling is 32 and it is hard: the side index is used as a bit position in two independent 32-bit
@@ -351,7 +351,7 @@ not-found answer (`mov eax, 9` at `0x00bf30f0`) is left alone for the same reaso
 `push 9` is.
 
 Built as `cah-factions-wb`, in the same module — see
-[`patches/cah_factions.py`](../patches/cah_factions.py):
+[`patches/multiplayer/cah_factions.py`](../patches/multiplayer/cah_factions.py):
 
 ```sh
 sage-patch apply cah-factions-wb --sides Rohan,Lothlorien \
@@ -365,7 +365,7 @@ terminator check lands on the new NULL. **Static only — the patched editor has
 
 ## Status
 
-Option C is implemented as [`CahFactionsPatch`](../patches/cah_factions.py), registered as
+Option C is implemented as [`CahFactionsPatch`](../patches/multiplayer/cah_factions.py), registered as
 `cah-factions`:
 
 ```sh

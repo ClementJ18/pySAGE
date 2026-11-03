@@ -5,7 +5,7 @@ ROTWK `game.dat` (11,347,456 bytes — a stock 11,346,944-byte image with the `c
 section `.cahfac` already appended; `.text` is untouched by that patch, so every address below is
 also a stock address).
 
-The engine reference behind the [`herobar`](../patches/herobar.py) patch — `HEROBAR` for a slot per
+The engine reference behind the [`herobar`](../patches/ui/herobar.py) patch — `HEROBAR` for a slot per
 object and `HEROBAR_GROUP` for a slot shared by every instance of one template — and behind
 [`hero-bar-slots`](hero-bar-slots.md). What the patch does is in [`herobar.md`](herobar.md); this
 document is the hero bar as stock builds it: the bar class and its slot cache, the model and its

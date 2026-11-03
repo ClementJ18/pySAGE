@@ -34,9 +34,9 @@ from pathlib import Path
 
 from sage_ini.engine import Engine
 from sage_patch.patcher import Patch
-from sage_patch.patches.experimental.command_line_skirmish import CommandLineSkirmishPatch
-from sage_patch.patches.mod_load_order import ModLoadOrderPatch
-from sage_patch.patches.multi_mod import MultiModPatch
+from sage_patch.patches.platform.command_line_skirmish import CommandLineSkirmishPatch
+from sage_patch.patches.platform.mod_load_order import ModLoadOrderPatch
+from sage_patch.patches.platform.multi_mod import MultiModPatch
 from sage_patch.sagepatch import rebuild
 from sage_worldbuilder.safeio import atomic_write
 

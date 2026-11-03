@@ -57,88 +57,95 @@ from __future__ import annotations
 import struct
 
 from sage_patch import addresses as ad
-from sage_patch.patches import ai_command_null_target as acnt
-from sage_patch.patches import ai_farm_kill_gate as afk
-from sage_patch.patches import ai_flag_capture_gate as afc
-from sage_patch.patches import ai_hero_build_delay as ahbd
-from sage_patch.patches import banner_modifier as bm
-from sage_patch.patches import better_hud_toggle as bht
-from sage_patch.patches import cah_factions as cf
-from sage_patch.patches import castle_unpack_buttons as cubtn
-from sage_patch.patches import commandset_button_upgrade as cbu
-from sage_patch.patches import crash_dump as cd
-from sage_patch.patches import deploy_before_attack as dba
-from sage_patch.patches import description_timers as dt
-from sage_patch.patches import desert_weather as dw
-from sage_patch.patches import desert_weather as wb
-from sage_patch.patches import drain_life_fix as dlf
-from sage_patch.patches import experience_award as xa
-from sage_patch.patches import gate_close_repath as gcr
-from sage_patch.patches import give_upgrade_all as gua
-from sage_patch.patches import grant_science_upgrade as gsu
-from sage_patch.patches import healing_received as hr
-from sage_patch.patches import hero_bar_slots as hbs
-from sage_patch.patches import herobar as hb
-from sage_patch.patches import infantry_lighting as il
-from sage_patch.patches import interpolation_alpha as ia
-from sage_patch.patches import kill_count_tooltip as kct
-from sage_patch.patches import lobby_faction_byte as lfb
-from sage_patch.patches import mod_load_order as mlo
-from sage_patch.patches import model_condition_images as mci
-from sage_patch.patches import multi_contain as mcon
-from sage_patch.patches import multi_execute_cooldown as mxc
-from sage_patch.patches import multi_instance as mi
-from sage_patch.patches import multi_mod as mm
-from sage_patch.patches import object_image_upgrade as oi
-from sage_patch.patches import observer_command_range as ocr
-from sage_patch.patches import observer_switch as obs
-from sage_patch.patches import perf_scope_skip as pss
-from sage_patch.patches import perf_stage_readout as psr
-from sage_patch.patches import player_upgrade_discount as pud
-from sage_patch.patches import production_condition as pc
-from sage_patch.patches import production_death_no_refund as pdnr
-from sage_patch.patches import production_split as ps
-from sage_patch.patches import recharge_rescale as rr
-from sage_patch.patches import render_rate as rrate
-from sage_patch.patches import replace_self_rubble as rsr
-from sage_patch.patches import replacement_transfer as rpx
-from sage_patch.patches import revive_object_binding as rob
-from sage_patch.patches import save_temp_file as stf
-from sage_patch.patches import scenario_player_factions as spf
-from sage_patch.patches import score_keeper_dangling_keys as skdk
-from sage_patch.patches import script_debug_window as sdw
-from sage_patch.patches import skirmish_ai_fallback as saf
-from sage_patch.patches import special_power_refund_upgrade as spru
-from sage_patch.patches import spell_recharge_targets as srt
-from sage_patch.patches import spellbook_commandset_refresh as sbcsr
-from sage_patch.patches import standalone_launcher as sl
-from sage_patch.patches import summon_carryover as sc
-from sage_patch.patches import texture_any_extension as tae
-from sage_patch.patches import trigger_recharge_list as trl
-from sage_patch.patches import upgrade_alias as ua
-from sage_patch.patches import upgrade_complete_skip_unnamed as ucsu
-from sage_patch.patches import upgrade_description as ud
-from sage_patch.patches import upgrade_grant_lists as ugl
-from sage_patch.patches import wall_layer_promotion as wlp
-from sage_patch.patches import worldbuilder_mod as wbm
-from sage_patch.patches import worldbuilder_object_typeahead as wbt
-from sage_patch.patches.experimental import accel_module as accel
+from sage_patch.patches.ai import ai_farm_kill_gate as afk
+from sage_patch.patches.ai import ai_flag_capture_gate as afc
+from sage_patch.patches.ai import ai_hero_build_delay as ahbd
+from sage_patch.patches.ai import ai_tunnel_routing as atr
+from sage_patch.patches.ai import skirmish_ai_fallback as saf
+from sage_patch.patches.campaign import call_in_reinforcements as cir
+from sage_patch.patches.campaign import scenario_player_factions as spf
+from sage_patch.patches.campaign import summon_carryover as sc
+from sage_patch.patches.combat import deploy_before_attack as dba
+from sage_patch.patches.combat import drain_life_fix as dlf
+from sage_patch.patches.combat import experience_award as xa
+from sage_patch.patches.combat import healing_received as hr
+from sage_patch.patches.commandbar import commandset_button_upgrade as cbu
+from sage_patch.patches.commandbar import revive_object_binding as rob
+from sage_patch.patches.commandbar import spell_store_deferral as ssd
+from sage_patch.patches.commandbar import spellbook_commandset_refresh as sbcsr
+from sage_patch.patches.diagnostics import crash_dump as cd
+from sage_patch.patches.diagnostics import perf_scope_skip as pss
+from sage_patch.patches.diagnostics import perf_stage_readout as psr
+from sage_patch.patches.diagnostics import script_debug_window as sdw
+from sage_patch.patches.economy import player_upgrade_discount as pud
+from sage_patch.patches.economy import production_condition as pc
+from sage_patch.patches.economy import production_death_no_refund as pdnr
+from sage_patch.patches.economy import production_split as ps
 from sage_patch.patches.experimental import battle_school as bs
 from sage_patch.patches.experimental import campaign_select as cs
 from sage_patch.patches.experimental import capture_the_flag as ctf
-from sage_patch.patches.experimental import command_line_skirmish as cls
 from sage_patch.patches.experimental import map_transition as mtr
 from sage_patch.patches.experimental import observer_all_commands as oac
 from sage_patch.patches.experimental import ranged_stand_off as rso
 from sage_patch.patches.experimental import shared_control_on_leave as scl
 from sage_patch.patches.experimental import smart_rally as sr
 from sage_patch.patches.experimental import spellbook_hotkeys as sbhk
+from sage_patch.patches.multiplayer import better_hud_toggle as bht
+from sage_patch.patches.multiplayer import cah_factions as cf
+from sage_patch.patches.multiplayer import lobby_faction_byte as lfb
+from sage_patch.patches.multiplayer import observer_command_range as ocr
+from sage_patch.patches.multiplayer import observer_switch as obs
+from sage_patch.patches.platform import accel_module as accel
+from sage_patch.patches.platform import command_line_skirmish as cls
+from sage_patch.patches.platform import mod_load_order as mlo
+from sage_patch.patches.platform import multi_instance as mi
+from sage_patch.patches.platform import multi_mod as mm
+from sage_patch.patches.platform import null_guards as ng
+from sage_patch.patches.platform import save_temp_file as stf
+from sage_patch.patches.platform import score_keeper_dangling_keys as skdk
+from sage_patch.patches.platform import standalone_launcher as sl
+from sage_patch.patches.platform import texture_any_extension as tae
+from sage_patch.patches.render import infantry_lighting as il
+from sage_patch.patches.render import interpolation_alpha as ia
+from sage_patch.patches.render import render_only_frames as rof
+from sage_patch.patches.render import render_rate as rrate
+from sage_patch.patches.special_powers import multi_execute_cooldown as mxc
+from sage_patch.patches.special_powers import recharge_rescale as rr
+from sage_patch.patches.special_powers import special_power_object_cap as spoc
+from sage_patch.patches.special_powers import special_power_refund_upgrade as spru
+from sage_patch.patches.special_powers import spell_recharge_targets as srt
+from sage_patch.patches.special_powers import trigger_recharge_list as trl
+from sage_patch.patches.structures import castle_unpack_buttons as cubtn
+from sage_patch.patches.structures import replace_self_rubble as rsr
+from sage_patch.patches.ui import description_timers as dt
+from sage_patch.patches.ui import hero_bar_slots as hbs
+from sage_patch.patches.ui import herobar as hb
+from sage_patch.patches.ui import kill_count_tooltip as kct
+from sage_patch.patches.ui import model_condition_images as mci
+from sage_patch.patches.ui import object_image_upgrade as oi
+from sage_patch.patches.ui import upgrade_complete_skip_unnamed as ucsu
+from sage_patch.patches.ui import upgrade_description as ud
+from sage_patch.patches.units import banner_modifier as bm
+from sage_patch.patches.units import gate_close_repath as gcr
+from sage_patch.patches.units import horde_self_experience as hsx
+from sage_patch.patches.units import multi_contain as mcon
+from sage_patch.patches.units import pickup_stuff_enter as pse
+from sage_patch.patches.units import wall_layer_promotion as wlp
+from sage_patch.patches.upgrades import give_upgrade_all as gua
+from sage_patch.patches.upgrades import grant_science_upgrade as gsu
+from sage_patch.patches.upgrades import replacement_transfer as rpx
+from sage_patch.patches.upgrades import upgrade_alias as ua
+from sage_patch.patches.upgrades import upgrade_grant_lists as ugl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
+from sage_patch.patches.utils import map_weather as dw
+from sage_patch.patches.utils import map_weather as wb
 from sage_patch.patches.utils import model_conditions as mc
 from sage_patch.patches.utils import modifier_types as mt
 from sage_patch.patches.utils import token_lists as tl
 from sage_patch.patches.utils import weapon_set_flags as ws
+from sage_patch.patches.worldbuilder import worldbuilder_mod as wbm
+from sage_patch.patches.worldbuilder import worldbuilder_object_typeahead as wbt
 from sage_patch.utils import call_rel32
 
 IMAGE_BASE = 0x400000
@@ -292,6 +299,7 @@ def synthetic_image() -> bytearray:
         for va in ref_vas:
             u32(va, table_va)
     write(ws.BIT_COUNT_VA, ws.BIT_COUNT_BYTES)
+    write(ws.XFER_COUNT_CALL_VA, ws.XFER_COUNT_CALL_BYTES)
 
     # `ForcedLocomotorSet`'s descriptor is reached through `HordeContain`'s field-parse table
     # pointer rather than at a fixed address, because a patch that appends a field to
@@ -305,10 +313,15 @@ def synthetic_image() -> bytearray:
     for va in dw.WEATHER_TABLE_REF_VAS:
         u32(va, dw.WEATHER_TABLE_VA)
     write(dw._ANY_WEATHER_DEFAULT_VA, dw._ANY_WEATHER_DEFAULT_PREFIX)
-    u32(dw._ANY_WEATHER_DEFAULT_VA + len(dw._ANY_WEATHER_DEFAULT_PREFIX), dw.NEW_WEATHER_INDEX)
-    write(dw._ANY_WEATHER_TEST_VA, dw._ANY_WEATHER_TEST_PREFIX + bytes([dw.NEW_WEATHER_INDEX]))
-    write(dw._BIND_SITE_VA, dw._BIND_ORIGINAL)
-    write(dw._UPGRADE_SITE_VA, dw._UPGRADE_ORIGINAL)
+    u32(
+        dw._ANY_WEATHER_DEFAULT_VA + len(dw._ANY_WEATHER_DEFAULT_PREFIX),
+        len(dw.STOCK_WEATHER_NAMES),
+    )
+    write(
+        dw._ANY_WEATHER_TEST_VA, dw._ANY_WEATHER_TEST_PREFIX + bytes([len(dw.STOCK_WEATHER_NAMES)])
+    )
+    write(dw.BIND_SITE.site_va, dw.BIND_SITE.original)
+    write(dw.UPGRADE_SITE.site_va, dw.UPGRADE_SITE.original)
 
     for index, va in enumerate(kindof_vas):
         u32(ko.NAME_TABLE_VA + index * 4, va)
@@ -420,7 +433,7 @@ def worldbuilder_image() -> bytearray:
         wb.WORLDBUILDER_COMBO_BOUND_VA,
         bytes.fromhex("837de0") + bytes([len(wb.STOCK_WEATHER_NAMES)]),
     )
-    for va, expected in wb._WORLDBUILDER_DIALOG_FINGERPRINT.items():
+    for va, expected in wb.WORLDBUILDER_DIALOG_FINGERPRINT.items():
         write(va, expected)
 
     sections = [
@@ -570,6 +583,18 @@ def wall_layer_promotion_image() -> bytearray:
             **wlp.ANCHORS,
         }
     )
+
+
+def ai_tunnel_routing_image() -> bytearray:
+    """A stand-in carrying `aiDoCommand`'s dispatch, the vtable slots the routing takes over, and
+    every engine routine its cave calls.
+
+    Sparse: the dispatch is at `0x0066AA09`, the tunnel guard's helper 3 MB above it and the
+    vtables in `.rdata`. The six hooked bytes are planted against the switch they fall into, so a
+    hook one byte long or short overwrites an anchor and fails here.
+    """
+    slots = {va: struct.pack("<I", stock) for va, stock in atr.VTABLE_SLOTS.items()}
+    return _sparse_image({atr.HOOK_VA: atr.HOOK_ORIGINAL, **atr.ANCHORS, **slots})
 
 
 def gate_close_repath_image() -> bytearray:
@@ -770,16 +795,28 @@ def desync_debug_image() -> bytearray:
     )
 
 
-def ai_command_null_target_image() -> bytearray:
-    """A stand-in carrying the AI command transfer check's faulting instruction and every site the
-    null guard depends on.
+def null_guards_image() -> bytearray:
+    """A stand-in carrying both guarded windows and every site the null guards depend on.
 
-    Sparse for the usual reason: the check and its two jump targets share a page, and the two
-    `ToggleMountedSpecialAbilityUpdate` call sites are two megabytes away. Everything not planted
-    reads as zero, so a hook aimed one instruction to either side of the five-byte window - at the
-    `mov eax, [ebp+0x1c]` before it, say - would find nothing there.
+    Sparse for the usual reason: the transfer check and its two jump targets share a page, its two
+    `ToggleMountedSpecialAbilityUpdate` call sites are two megabytes away, and the enter state's
+    `onEnter` and its vtable slot sit apart again. Everything not planted reads as zero, so a hook
+    aimed one instruction to either side of a window would find nothing there.
     """
-    return _sparse_image({acnt.HOOK_VA: acnt.HOOK_ORIGINAL, **acnt.ANCHORS})
+    return _sparse_image(
+        {ng.TRANSFER_HOOK_VA: ng.TRANSFER_HOOK_ORIGINAL, ng.ENTER_HOOK_VA: ng.ENTER_HOOK_ORIGINAL}
+        | ng.ANCHORS
+    )
+
+
+def pickup_stuff_enter_image() -> bytearray:
+    """A stand-in carrying `PickupStuffUpdate`'s move order and the entries of the two AI orders
+    the cave chooses between.
+
+    Sparse because the module sits at `0x00895700`, `aiMoveToObject` at `0x007549D7` and `aiEnter`
+    at `0x00770EDE`.
+    """
+    return _sparse_image({pse.HOOK_VA: pse.HOOK_ORIGINAL, **pse.ANCHORS})
 
 
 def castle_unpack_buttons_image() -> bytearray:
@@ -857,9 +894,15 @@ def multi_execute_cooldown_image() -> bytearray:
     )
 
 
+def special_power_object_cap_image() -> bytearray:
+    """A stand-in carrying the two hook windows and every routine, exit and instruction the
+    `special-power-object-cap` cave relies on."""
+    return _sparse_image({**spoc.ANCHORS, **{va: stock for va, (stock, _r) in spoc.HOOKS.items()}})
+
+
 def drain_life_fix_image() -> bytearray:
     """A stand-in carrying the routines the drain cave calls, the stock drain it makes
-    unreachable, and the seven windows the patch rewrites."""
+    unreachable, and the eight windows the patch rewrites."""
     return _sparse_image({**dlf.ANCHORS, **dlf.STOCK_WINDOWS})
 
 
@@ -868,6 +911,16 @@ def upgrade_complete_skip_unnamed_image() -> bytearray:
     string destructor the cave calls."""
     return _sparse_image(
         {**ucsu.ANCHORS, ad.UPGRADE_COMPLETE_MESSAGE: ad.UPGRADE_COMPLETE_MESSAGE_BYTES}
+    )
+
+
+def horde_self_experience_image() -> bytearray:
+    """A stand-in carrying the kill scorer's horde branch around the hooked experience call."""
+    return _sparse_image(
+        {
+            **hsx.ANCHORS,
+            ad.KILL_SCORE_HORDE_EXPERIENCE_CALL: ad.KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES,
+        }
     )
 
 
@@ -1981,6 +2034,19 @@ def render_rate_image() -> bytearray:
     return _sparse_image(dict(rrate.ANCHORS))
 
 
+def render_only_frames_image() -> bytearray:
+    """A stand-in carrying the physics call and its answer test, the five `DrawableLocoInfo`
+    allocations, and the camera rotation's conversions and step - nothing else, so an edit aimed
+    one instruction off finds zeroes."""
+    return _sparse_image(dict(rof.ANCHORS))
+
+
+def spell_store_deferral_image() -> bytearray:
+    """A stand-in carrying the spell store's two hook windows and the handler code each routine
+    rejoins - nothing else, so a hook aimed one instruction off finds zeroes."""
+    return _sparse_image(dict(ssd.ANCHORS))
+
+
 COMMAND_BUTTON_UPGRADE_STRINGS_VA = 0x00C6D000
 
 
@@ -2242,3 +2308,9 @@ def shared_control_on_leave_image() -> bytearray:
     ownership predicate, the `VictoryConditions` vtable slots and the entry of everything the cave
     calls. Sparse because they span five megabytes."""
     return _sparse_image(dict(scl.ANCHORS))
+
+
+def call_in_reinforcements_image() -> bytearray:
+    """A stand-in carrying action 543's jump-table slot, still a stub, the epilogue it dispatches
+    to, and the entry of both routines the cave calls. Sparse because they span 1.6 MB."""
+    return _sparse_image({**cir.ANCHORS, cir.TABLE_SLOT_VA: cir.TABLE_SLOT_STOCK})

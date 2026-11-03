@@ -154,16 +154,25 @@ class MapScene:
         return next((marker for marker in self.markers if marker.source is source), None)
 
     def area_at(
-        self, x: float, y: float, accept: Callable[[AreaOutline], bool] | None = None
+        self,
+        x: float,
+        y: float,
+        radius: float,
+        accept: Callable[[AreaOutline], bool] | None = None,
     ) -> AreaOutline | None:
-        """The area containing a world point, passing `accept` when given; where areas overlap,
-        the one the map stores last, which is drawn on top."""
-        for area in reversed(self.areas):
-            if accept is not None and not accept(area):
+        """The area whose outline - an edge or a corner - passes within `radius` of a world point,
+        passing `accept` when given. The inside does not count, so areas stacked over one another
+        can each be picked by their own outline. The nearest outline wins; a tie goes to the one
+        the map stores last, which is drawn on top."""
+        best: AreaOutline | None = None
+        best_distance = radius
+        for area in self.areas:
+            if len(area.points) < 2 or (accept is not None and not accept(area)):
                 continue
-            if len(area.points) >= 3 and area_contains(area.points, x, y):
-                return area
-        return None
+            distance = _outline_distance(area.points, x, y)
+            if distance <= best_distance:
+                best, best_distance = area, distance
+        return best
 
     def water_at(
         self,
@@ -185,14 +194,25 @@ class MapScene:
         return None
 
 
-def _near_path(points: tuple[tuple[float, float], ...], x: float, y: float, radius: float) -> bool:
-    if len(points) == 1:
-        return math.hypot(points[0][0] - x, points[0][1] - y) <= radius
-    (ax, ay), (bx, by) = points[0], points[1]
+def _segment_distance(a: tuple[float, float], b: tuple[float, float], x: float, y: float) -> float:
+    (ax, ay), (bx, by) = a, b
     dx, dy = bx - ax, by - ay
     length = dx * dx + dy * dy
     t = 0.0 if length == 0 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / length))
-    return math.hypot(x - (ax + t * dx), y - (ay + t * dy)) <= radius
+    return math.hypot(x - (ax + t * dx), y - (ay + t * dy))
+
+
+def _outline_distance(points: tuple[tuple[float, float], ...], x: float, y: float) -> float:
+    """How far a point is from a closed outline's nearest edge."""
+    return min(
+        _segment_distance(points[index - 1], points[index], x, y) for index in range(len(points))
+    )
+
+
+def _near_path(points: tuple[tuple[float, float], ...], x: float, y: float, radius: float) -> bool:
+    if len(points) == 1:
+        return math.hypot(points[0][0] - x, points[0][1] - y) <= radius
+    return _segment_distance(points[0], points[1], x, y) <= radius
 
 
 def _bucket(x: float, y: float) -> tuple[int, int]:

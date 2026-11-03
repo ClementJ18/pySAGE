@@ -11,8 +11,8 @@ from sage_patch.addresses import (
     OBJECT_IMAGE_UPGRADE_UPGRADE_VTABLE,
 )
 from sage_patch.patches import ObjectImageUpgradePatch as Exported
-from sage_patch.patches import object_image_upgrade as object_image_module
-from sage_patch.patches.object_image_upgrade import (
+from sage_patch.patches.ui import object_image_upgrade as object_image_module
+from sage_patch.patches.ui.object_image_upgrade import (
     BLOCK_NAME,
     FIELDS,
     SECTION_NAME,

@@ -22,7 +22,7 @@ from sage_patch.addresses import (
     LAN_UNPACK_NIBBLES,
     LAN_WRITE_BYTE,
 )
-from sage_patch.patches.lobby_faction_byte import (
+from sage_patch.patches.multiplayer.lobby_faction_byte import (
     ANCHORS,
     MISSING_TEMPLATE,
     READ_SITES,

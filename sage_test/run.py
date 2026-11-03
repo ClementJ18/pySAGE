@@ -51,11 +51,17 @@ class EngineUnavailable(RuntimeError):
 
 
 def read_template(install: Path, name: str) -> bytes:
-    """A shipped map, straight out of the install's `.big` archives.
+    """A shipped map, straight out of the install's `.big` archives - or, when `name` is a `.map`
+    file that exists, that file.
 
     Scenarios are compiled onto a map that already plays rather than generated from nothing - see
-    `sage_test.compile` - and this is where that map comes from.
+    `sage_test.compile` - and this is where that map comes from. A file lets a mod keep a template
+    of its own beside its tests (a flat, empty map that leaves only the scenario on it) without
+    shipping it in an archive. An archive name is relative, so it never names a file by accident.
     """
+    path = Path(name)
+    if path.suffix.lower() == ".map" and path.is_file():
+        return path.read_bytes()
     try:
         return read_archive_file(install, name)
     except ImportError as exc:  # pragma: no cover - depends on the install extra

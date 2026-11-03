@@ -32,7 +32,7 @@ from sage_live.backends.protocol import DiagnosticLog, Handshake
 from sage_live.utils import heroes as _heroes
 from sage_live.utils.heroes import ReviveLookup
 from sage_live.utils.naming import NameLookup, NoNameLookup
-from sage_patch.patches.experimental.live_bridge import MAX_ARGS
+from sage_patch.patches.diagnostics.live_bridge import MAX_ARGS
 from sage_replay.replay import Order
 
 __all__ = [
@@ -544,6 +544,12 @@ class Session:
         self._require_selection()
         return self.send(_orders.toggle_formation(self.player_index, horde_id))
 
+    def toggle_weapon_set(self, unit_id: int) -> Sent:
+        """Flip one unit's toggled weapon set, as its `TOGGLE_WEAPONSET` button does (see
+        `orders.toggle_weapon_set`). Requires it selected, as a click does."""
+        self._require_selection()
+        return self.send(_orders.toggle_weapon_set(self.player_index, unit_id))
+
     def attack(self, target_id: int, position: Vec3) -> Sent:
         """`position` is where the target is - the engine records one on every attack order,
         and the caller has it from the observation it picked the target out of."""
@@ -749,6 +755,24 @@ class Session:
         """
         reader = getattr(self.backend, "special_powers", None)
         return reader(object_id) if callable(reader) else ()
+
+    def kill_count(self, object_id: int) -> int | None:
+        """How many enemies one object has killed, by the engine's own count, or None where the
+        backend cannot say."""
+        reader = getattr(self.backend, "kill_count", None)
+        return reader(object_id) if callable(reader) else None
+
+    def replay_playback_path(self) -> str | None:
+        """The replay file the game is playing back, or None in a live match, at the menus, or
+        where the backend cannot say."""
+        reader = getattr(self.backend, "replay_playback_path", None)
+        return reader() if callable(reader) else None
+
+    def auto_cast_powers(self, object_id: int) -> frozenset[str]:
+        """The powers on one object with auto-cast switched on, by code name, or empty where the
+        backend cannot say. Their recharge restarts each time the engine casts them by itself."""
+        reader = getattr(self.backend, "auto_cast_powers", None)
+        return reader(object_id) if callable(reader) else frozenset()
 
     def power_button_names(self, object_id: int) -> dict[str, str]:
         """`{special power name -> in-game button text}` for the buttons one object offers, or

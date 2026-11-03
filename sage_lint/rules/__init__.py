@@ -13,6 +13,7 @@ from sage_lint.rules.commandset import (
     DuplicateReviveButtonRule,
     InitialVisibleLimitRule,
     PushCommandRangeOverflowRule,
+    RepeatedCommandSetSlotRule,
 )
 from sage_lint.rules.contains import UnreachableContainRule
 from sage_lint.rules.definitions import (
@@ -67,6 +68,7 @@ __all__ = [
     "OutOfRangeRule",
     "PatchedOutFieldRule",
     "PushCommandRangeOverflowRule",
+    "RepeatedCommandSetSlotRule",
     "RepeatedScalarFieldRule",
     "RespawnLevelRule",
     "RespawnOrderRule",

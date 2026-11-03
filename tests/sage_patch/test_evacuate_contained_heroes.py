@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     OBJECT_AI_UPDATE,
     OBJECT_CONTAIN,
 )
-from sage_patch.patches.evacuate_contained_heroes import (
+from sage_patch.patches.units.evacuate_contained_heroes import (
     HOOK_WIDTH,
     SECTION_NAME,
     STOCK_HOOK,
@@ -34,6 +34,7 @@ from sage_patch.patches.evacuate_contained_heroes import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, jmp_rel32, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import evacuate_contained_heroes_image
 
 #: `AIUpdateInterface::aiExit`-style helper the `aiExit` arm calls, on the `AIUpdate`'s `+0x20`.
@@ -266,7 +267,7 @@ class TestTheLoopRuns:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

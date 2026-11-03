@@ -1016,14 +1016,14 @@ def test_a_member_naming_no_unit_is_dropped(armies):
     assert all(m.unit for m in armies.army_plan("Mordor").members)
 
 
-def test_frames_per_second_defaults_to_the_engine_constant(armies):
-    """RotWK + Edain declares no `FramesPerSecondLimit`, so the fallback is the live path."""
-    assert armies.frames_per_second() == 30.0
+def test_frames_per_second_is_the_engine_logic_rate(armies):
+    assert armies.frames_per_second() == 5.0
 
 
-def test_a_declared_frame_rate_limit_wins_over_the_constant():
+def test_a_declared_frame_rate_limit_does_not_change_the_logic_rate():
+    """`FramesPerSecondLimit` caps the draw rate; the logic keeps its 5."""
     game = FakeGame({}, gamedatas={"GameData": FakeObject({"FramesPerSecondLimit": "24"})})
-    assert Statics(game).frames_per_second() == 24.0
+    assert Statics(game).frames_per_second() == 5.0
 
 
 #

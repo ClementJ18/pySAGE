@@ -1,7 +1,7 @@
 # A kill count in the object tooltip
 
 Engine build `2.01.2614.37001`. Addresses are VAs (ImageBase `0x400000`). This is the write-up for
-**`kill-count-tooltip`**, [`patches/kill_count_tooltip.py`](../patches/kill_count_tooltip.py), with
+**`kill-count-tooltip`**, [`patches/ui/kill_count_tooltip.py`](../patches/ui/kill_count_tooltip.py), with
 the tests in
 [`tests/sage_patch/test_kill_count_tooltip.py`](../../tests/sage_patch/test_kill_count_tooltip.py).
 

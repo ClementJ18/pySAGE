@@ -47,7 +47,7 @@ from sage_patch.addresses import (  # noqa: E402
     THE_SKIRMISH_GAME_INFO,
     UNICODE_STRING_FROM_WIDE,
 )
-from sage_patch.patches.skirmish_replay import (
+from sage_patch.patches.multiplayer.skirmish_replay import (
     DEFAULT_MODES,
     FORMAT,
     GATE_CODE_OFF,

@@ -30,11 +30,11 @@ from sage_ini.loader import load_game
 from sage_ini.model import enums as model_enums
 from sage_ini.model.objects import REGISTRY
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.commandset import CommandSetLimitPatch
-from sage_patch.patches.desert_weather import DesertWeatherPatch
+from sage_patch.patches.commandbar.commandset import CommandSetLimitPatch
+from sage_patch.patches.economy.production_condition import _UPDATE_VA, ProductionConditionPatch
+from sage_patch.patches.economy.terrain_resource_exp import TerrainResourceExpPatch
 from sage_patch.patches.experimental.hero_mana import HeroManaPatch
-from sage_patch.patches.production_condition import _UPDATE_VA, ProductionConditionPatch
-from sage_patch.patches.terrain_resource_exp import TerrainResourceExpPatch
+from sage_patch.patches.render.desert_weather import DesertWeatherPatch
 from sage_patch.registry import PATCHES
 from sage_patch.sagepatch import (
     detect_patches,
@@ -184,7 +184,7 @@ class TestDrift:
         rebuilt, _ = generate_from_patches(["crash-dump"])
 
         assert differences(committed.engine, rebuilt.engine) == [
-            "patch in the binary but not in the file: crash-dump (deep=7015, normal=7013)"
+            "patch in the binary but not in the file: crash-dump (deep=6503, normal=6501)"
         ]
 
     def test_the_same_patch_at_different_parameters_is_reported_as_such(self):

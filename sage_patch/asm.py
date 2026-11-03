@@ -137,14 +137,15 @@ class Asm:
         self.emit(b"\x00" * width)
         return self
 
+    # A 32-bit process wraps, so a cave allocated above 2 GB still reaches the engine with rel32.
     def call_absolute(self, va: int) -> Asm:
         """`call rel32` to a fixed virtual address - engine code outside the cave."""
-        self.emit(0xE8, struct.pack("<i", va - (self.va + 5)))
+        self.emit(0xE8, struct.pack("<I", (va - (self.va + 5)) & 0xFFFFFFFF))
         return self
 
     def jmp_absolute(self, va: int) -> Asm:
         """`jmp rel32` to a fixed virtual address - typically the hook's return point."""
-        self.emit(0xE9, struct.pack("<i", va - (self.va + 5)))
+        self.emit(0xE9, struct.pack("<I", (va - (self.va + 5)) & 0xFFFFFFFF))
         return self
 
     def finish(self) -> bytes:

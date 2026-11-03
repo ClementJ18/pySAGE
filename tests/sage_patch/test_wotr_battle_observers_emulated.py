@@ -26,7 +26,7 @@ from unicorn.x86_const import (  # noqa: E402
 
 from sage_patch import WotrBattleObserversPatch  # noqa: E402
 from sage_patch import addresses as ad  # noqa: E402
-from sage_patch.patches.wotr_battle_observers import (  # noqa: E402
+from sage_patch.patches.campaign.wotr_battle_observers import (  # noqa: E402
     FRAME_SLOT_INDEX,
     NAME_OFFSET,
     OBSERVER_SIDE_NAME,

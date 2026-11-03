@@ -1,6 +1,6 @@
 # Hero recruitment across two buildings — reverse-engineering notes
 
-The RE behind [`patches/unique_production_id.py`](../patches/unique_production_id.py). ROTWK
+The RE behind [`patches/economy/unique_production_id.py`](../patches/economy/unique_production_id.py). ROTWK
 `game.dat` build `2.01.2614.37001`, ImageBase `0x400000`, recovered statically 2026-07-30.
 
 ## The report

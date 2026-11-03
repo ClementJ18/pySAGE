@@ -16,10 +16,9 @@ import pytest
 
 from sage_replay import parse_replay_from_path
 from sage_replay.replay import ReplayMetadata, ReplaySlot, ReplaySlotType
+from tests.sage_replay.corpus import CORPUS, replay_id
 
 FIXTURES = sorted((Path(__file__).parent / "fixtures").rglob("*.BfME2Replay"))
-REPLAYS_DIR = Path(__file__).resolve().parents[2] / "Replays"
-CORPUS = sorted(REPLAYS_DIR.glob("*.BfME2Replay")) if REPLAYS_DIR.is_dir() else []
 
 
 @pytest.mark.parametrize("path", FIXTURES, ids=[p.stem[:40] for p in FIXTURES])
@@ -39,7 +38,7 @@ def test_every_slot_round_trips(path: Path):
 @pytest.mark.parametrize(
     "path",
     CORPUS or [pytest.param(None, marks=pytest.mark.skip(reason="no Replays corpus present"))],
-    ids=[p.name for p in CORPUS] or ["no-corpus"],
+    ids=[replay_id(p) for p in CORPUS] or ["no-corpus"],
 )
 def test_corpus_metadata_round_trips(path: Path):
     """The same gate over the gitignored corpus, where the odd formatting turns up: an

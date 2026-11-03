@@ -869,11 +869,12 @@ menu path performs an override reset the transition skips.
 
 ### Debugging a transition
 
-- **`crash-dump --dump-type 0x1b67`.** The default type (`0x1B65`) carries heap but **not module
-  data segments**, so `TheWritableGlobalData`, `TheGameLogic` and the patch's own `.maptran` state
-  are unreadable and which step failed has to be inferred. `normal = 0x1B67` adds
-  `MiniDumpWithFullMemory`; `deep` is only used by the engine's own `fulldump` command. A full-memory
-  dump is around 950 MB and does not always survive the crash that produced it.
+- **`crash-dump --dump-type 0x1b67`.** The default type (`0x1965`) carries no heap, and observed
+  heap-carrying dumps (`0x1B65`) lacked module data segments too, so `TheWritableGlobalData`,
+  `TheGameLogic` and the patch's own `.maptran` state are unreadable and which step failed has to
+  be inferred. `normal = 0x1B67` adds `MiniDumpWithFullMemory`; `deep` (`0x1967`, also full
+  memory) is only used by the engine's own `fulldump` command. A full-memory dump is around 1 GB
+  and does not always survive the crash that produced it.
 - **A stalled transition is still in memory.** `sage_live`'s `ProcessMemory` reads `.maptran`'s
   `pending`, `saved_mode` and name, `TheGameLogic+0x110` and the staged and active map names out of
   a running game with no dump at all.

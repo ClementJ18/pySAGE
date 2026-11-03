@@ -3,23 +3,21 @@
 from __future__ import annotations
 
 import itertools
-import os
 import struct
-from pathlib import Path
 from typing import Literal
 
 import pytest
 
-from sage_patch.patches.combo_horde_recruitment import (
+from sage_patch.patches.economy.combo_horde_recruitment import (
     ANCHORS as PAYLOAD_ANCHORS,
 )
-from sage_patch.patches.combo_horde_recruitment import (
+from sage_patch.patches.economy.combo_horde_recruitment import (
     HORDE_CONTAIN_PRODUCED_GATE,
     HORDE_CONTAIN_PRODUCED_GATE_BYTES,
     ComboHordeRecruitmentPatch,
 )
 from sage_patch.patches.experimental import hero_horde_death as death
-from sage_patch.patches.horde_herobar import (
+from sage_patch.patches.ui.horde_herobar import (
     ANCHORS,
     FIND_OBJECT_BY_ID,
     HOOK,
@@ -31,6 +29,7 @@ from sage_patch.patches.horde_herobar import (
     build_code,
 )
 from sage_patch.utils import file_offset, find_section
+from tests.binaries import STOCK_GAME_DAT
 
 from .synthetic import _sparse_image
 
@@ -84,10 +83,9 @@ def test_death_payload_and_ui_compose(order):
 
 @pytest.mark.full
 def test_real_backup():
-    configured = os.environ.get("PYSAGE_ROTWK_GAME_DAT")
-    if not configured:
-        pytest.skip("set PYSAGE_ROTWK_GAME_DAT to test a supplied original executable")
-    path = Path(configured)
+    path = STOCK_GAME_DAT
+    if not path.is_file():
+        pytest.skip("needs the unpatched game.dat (or set PYSAGE_ROTWK_GAME_DAT)")
     original = path.read_bytes()
     data = bytearray(original)
     patch = HordeHerobarPatch()

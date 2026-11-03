@@ -27,7 +27,7 @@ from sage_patch.addresses import (
     DEPLOY_STYLE_UPDATE_RESOLVED,
     WEAPON_TARGET_IN_RANGE,
 )
-from sage_patch.patches.deploy_before_attack import (
+from sage_patch.patches.combat.deploy_before_attack import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

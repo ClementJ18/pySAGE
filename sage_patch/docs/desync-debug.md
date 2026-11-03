@@ -11,7 +11,7 @@ of it unreachable, because every switch that arms it lives in the orphaned comma
 site and no pointer anywhere in the image.
 
 So the switches are `.data` bytes with initialisers and **no live writer**. Setting them in the PE
-image is the whole patch; see [`../patches/desync_debug.py`](../patches/desync_debug.py).
+image is the whole patch; see [`../patches/diagnostics/desync_debug.py`](../patches/diagnostics/desync_debug.py).
 
 Three of them do something. The rest are recorded here so the next reader does not spend the
 afternoon finding out they don't.

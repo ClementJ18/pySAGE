@@ -24,8 +24,8 @@ from sage_patch.addresses import (
     LEVEL_GRANT_SPECIAL_POWER_RELATIONSHIP_MASK_INSTRUCTION,
     UPGRADE_MODULE_REMOVAL_WINDOWS,
 )
-from sage_patch.patches import experience_level_down as xp
-from sage_patch.patches import level_grant_special_power as power
+from sage_patch.patches.combat import experience_level_down as xp
+from sage_patch.patches.special_powers import level_grant_special_power as power
 from sage_patch.registry import PATCHES
 from sage_patch.utils import file_offset, find_section
 from tests.sage_patch.test_experience_level_down import image

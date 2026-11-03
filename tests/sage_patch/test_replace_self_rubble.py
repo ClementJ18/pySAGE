@@ -26,8 +26,8 @@ from sage_patch.addresses import (
     REPLACE_SELF_BUILD_CALL,
     REPLACE_SELF_BUILD_RETURN,
 )
-from sage_patch.patches.foundation_rebind import FoundationRebindPatch
-from sage_patch.patches.replace_self_rubble import (
+from sage_patch.patches.structures.foundation_rebind import FoundationRebindPatch
+from sage_patch.patches.structures.replace_self_rubble import (
     ANCHORS,
     SECTION_NAME,
     ReplaceSelfRubblePatch,
@@ -35,6 +35,7 @@ from sage_patch.patches.replace_self_rubble import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import replace_self_rubble_image
 
 #: The instruction after the hooked `call`: `cmp al, 1`.
@@ -284,7 +285,7 @@ class TestTheLoopRuns:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.command_point_modes import (
+from sage_patch.patches.multiplayer.command_point_modes import (
     MAX_MODES,
     MAX_VALUE,
     SECTION_NAME,

@@ -2,7 +2,7 @@
 
 RotWK 2.01 `game.dat`, ImageBase `0x400000`. Static recovery only - **nothing here has been run in
 a game yet**; §8 is what a first session should look at. Shipped as
-[`../patches/draw_module_scale.py`](../patches/draw_module_scale.py).
+[`../patches/render/draw_module_scale.py`](../patches/render/draw_module_scale.py).
 
 **The finding in one sentence.** An object's `Scale` reaches its models through one getter the model
 draw modules call from 19 places, and every model draw positions what it draws through one helper

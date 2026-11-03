@@ -22,7 +22,7 @@ import pytest
 
 from sage_ini.model.objects import REGISTRY
 from sage_ini.model.types import _List
-from sage_patch.patches.trigger_recharge_list import (
+from sage_patch.patches.special_powers.trigger_recharge_list import (
     ANCHORS,
     ASCII_STRING_COMPARE,
     FIELD_ENTRY_SIZE,

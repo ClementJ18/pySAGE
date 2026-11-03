@@ -5,13 +5,14 @@ from __future__ import annotations
 import faulthandler
 import struct
 from itertools import permutations
-from pathlib import Path
 
 import pytest
 
 from sage_patch import addresses as addr
-from sage_patch.patches.command_point_cost import CommandPointCostPatch
-from sage_patch.patches.commandset import CommandSetLimitPatch
+from sage_patch.patches.commandbar.commandset import CommandSetLimitPatch
+from sage_patch.patches.commandbar.multi_select_group import MultiSelectGroupPatch
+from sage_patch.patches.economy.command_point_cost import CommandPointCostPatch
+from sage_patch.patches.economy.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.patches.experimental.command_range_flyout import (
     ANCHORS,
     FIXED_PATCHES,
@@ -20,10 +21,9 @@ from sage_patch.patches.experimental.command_range_flyout import (
     CommandRangeFlyoutPatch,
     build_code,
 )
-from sage_patch.patches.multi_select_group import MultiSelectGroupPatch
-from sage_patch.patches.queue_ignore_cp import QueueIgnoreCpPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import _sparse_image
 
 pytest.importorskip("unicorn")
@@ -441,7 +441,7 @@ def test_refuses_modified_dependencies_before_writing(site: int) -> None:
 @pytest.mark.parametrize("count", [33, 64, 127])
 @pytest.mark.parametrize("reverse", [False, True])
 def test_stock_image_composition(count: int, reverse: bool) -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = STOCK_GAME_DAT
     if not path.exists():
         pytest.skip("RotWK stock image not present")
     data = bytearray(path.read_bytes())
@@ -567,7 +567,7 @@ def test_padding_initialization_and_override_copy_preserve_neighbors() -> None:
 @pytest.mark.full
 @pytest.mark.parametrize("order", list(permutations(range(4))))
 def test_composes_with_commandbutton_field_patches(order: tuple[int, ...]) -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = STOCK_GAME_DAT
     if not path.exists():
         pytest.skip("RotWK stock image not present")
     data = bytearray(path.read_bytes())
@@ -679,7 +679,7 @@ def test_missing_special_power_template_is_disabled(command: int) -> None:
 def test_stock_dispatch_enters_or_cancels_real_target_mode(
     target_flags: int, already_active: bool
 ) -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = STOCK_GAME_DAT
     if not path.exists():
         pytest.skip("RotWK stock image not present")
     data = path.read_bytes()
@@ -705,7 +705,7 @@ def test_stock_dispatch_enters_or_cancels_real_target_mode(
 
 @pytest.mark.full
 def test_supported_command_ids_match_stock_names_and_dispatch_cases() -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = STOCK_GAME_DAT
     if not path.exists():
         pytest.skip("RotWK stock image not present")
     data = path.read_bytes()
@@ -739,7 +739,7 @@ def test_supported_command_ids_match_stock_names_and_dispatch_cases() -> None:
 def test_stock_immediate_dispatch_payloads(
     command: int, message: int, integers: list[int], objects: list[int]
 ) -> None:
-    path = Path(__file__).resolve().parents[2] / "tools/BFME-FILES/game.dat.backup"
+    path = STOCK_GAME_DAT
     if not path.exists():
         pytest.skip("RotWK stock image not present")
     data = path.read_bytes()

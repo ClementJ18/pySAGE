@@ -90,6 +90,20 @@ class TestBinding:
         with pytest.raises(BindingError, match="Hero"):
             bind_handles(scenario, _observation(_obj(1, "Villain", 0.0, 0.0)))
 
+    def test_expect_at_binds_where_the_engine_moved_it(self):
+        """Castle wall pieces are stored at the keep and moved out by their anchor offset, so
+        three of them stored at one spot come back 375 apart - none near where they were put."""
+        scenario = _scenario()
+        pieces = [
+            scenario.place("Wall", at=(0.0, 0.0, 0.0), expect_at=(375.0 * dx, 375.0 * dy, 0.0))
+            for dx, dy in ((1, 0), (0, 1), (-1, 0))
+        ]
+        observation = _observation(
+            _obj(1, "Wall", -375.0, 0.0), _obj(2, "Wall", 375.0, 0.0), _obj(3, "Wall", 0.0, 375.0)
+        )
+        bindings = bind_handles(scenario, observation)
+        assert [bindings[piece.index] for piece in pieces] == [2, 3, 1]
+
     def test_an_object_beyond_the_tolerance_is_not_it(self):
         scenario = _scenario()
         scenario.place("Hero", at=(0.0, 0.0, 0.0))

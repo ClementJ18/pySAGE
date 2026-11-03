@@ -32,7 +32,7 @@ from sage_patch.addresses import (
     THING_FACTORY_FIND_TEMPLATE,
     THING_TEMPLATE_IS_EQUIVALENT,
 )
-from sage_patch.patches.horde_exit_absorption import (
+from sage_patch.patches.economy.horde_exit_absorption import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

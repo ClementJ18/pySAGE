@@ -12,7 +12,7 @@ This is that inspection.
 
 **Status.** Solved, and shipped as a patch. A `-file` start runs a real skirmish — map loaded,
 both seats created with the right factions, bases unpacked, income flowing, frames advancing — and
-`command-line-skirmish` (`patches/experimental/command_line_skirmish.py`) does it in the binary.
+`command-line-skirmish` (`patches/platform/command_line_skirmish.py`) does it in the binary.
 §6 records the procedure the patch implements, which is also how it was worked out: by writing the
 five things into a running process with `ProcessMemory(writable=True)` before any byte was patched.
 §7 is the engine's own lobby-string parser, which the patch hands a `-gameInfo` switch to so the

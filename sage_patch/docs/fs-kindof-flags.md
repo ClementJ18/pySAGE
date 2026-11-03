@@ -421,8 +421,9 @@ Behavior = ObjectCreationUpgrade ModuleTag_RealAI
 End
 ```
 
-So an AI-owned object gains `Upgrade_ObjectUnderAIControl` **500 logic frames (~16 s) after
-creation**. That delay is a plain, tunable cause of "the AI does nothing for a while".
+So an AI-owned object gains `Upgrade_ObjectUnderAIControl` **500 ms after creation** (an
+`ObjectCreationUpgrade` `Delay` is milliseconds). Seen live 2026-10-23: the Dunedain plots held it
+by frame 10, two seconds into the match. It is not a cause of slow building.
 
 **2. Plots swap to an AI-only CommandSet on that upgrade.** One numbered ChildObject per slot in
 the `.bse` layout:
@@ -484,18 +485,17 @@ exactly the numbered ones:
 1 x BaseCenterGeneric
 ```
 
-So this outpost is **fully wired**, and it has no base-defence plots at all —
-`DunedainBaseDefenceFoundation` (and the empty `BauplatzKICommandSet` it swaps to under AI control)
-belong to other layouts and are not part of `dunedain_outpost`.
+This outpost has no base-defence plots at all — `DunedainBaseDefenceFoundation` (and the empty
+`BauplatzKICommandSet` it swaps to under AI control) belong to other layouts and are not part of
+`dunedain_outpost`.
 
-That matters for diagnosis: where the pattern is wired, the remaining latency is not the wiring.
-It is the inherited `Delay = 500` before the AI CommandSet appears at all, plus whatever cadence
-makes the AI press the button — the scheduler §5.4 could not locate.
-
-**What this means for §5.** The foundation-side `ALWAYS_BUILD` patch solves a problem the data
-layer already solves better: per-plot control, per-faction control, no engine change, and the
-"which building" decision stays in INI where a modder can see it. Treat §5 as the fallback for
-cases the data pattern genuinely cannot express, not as the plan.
+**The wiring is not enough: nothing presses the button.** Seen live 2026-10-23, a Brutal Imladris
+AI left all three plots empty for 228 game seconds with 4,000-6,000 in the bank, and its request
+queue never held a `_ForAI` building. The AI only builds what a build list names (an `AIBase`
+layout, a library script); an unpacked outpost has none. See
+[`ai-plot-autobuild.md`](ai-plot-autobuild.md), which implements §5's foundation-side design as
+three `FoundationAIUpdate` fields, with a rebuild delay, and keeps the "which building" decision
+in the plot's INI command set as above.
 
 
 

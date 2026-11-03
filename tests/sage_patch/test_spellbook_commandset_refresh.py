@@ -10,9 +10,9 @@ import pytest
 
 from sage_patch import addresses as ad
 from sage_patch.patches import SpellbookCommandSetRefreshPatch as Exported
-from sage_patch.patches import commandset_button_upgrade as buttons
-from sage_patch.patches import spellbook_commandset_refresh as refresh
-from sage_patch.patches.commandset_button_upgrade import CommandSetButtonUpgradePatch
+from sage_patch.patches.commandbar import commandset_button_upgrade as buttons
+from sage_patch.patches.commandbar import spellbook_commandset_refresh as refresh
+from sage_patch.patches.commandbar.commandset_button_upgrade import CommandSetButtonUpgradePatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import allocate_section, find_section, va_to_offset
 

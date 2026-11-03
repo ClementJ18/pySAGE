@@ -15,8 +15,8 @@ from sage_patch.addresses import (
     LEVEL_GRANT_SPECIAL_POWER_HORDE_ANCHORS,
 )
 from sage_patch.asm import JE, Asm
-from sage_patch.patches import experience_level_down as xp
-from sage_patch.patches import level_grant_special_power as power
+from sage_patch.patches.combat import experience_level_down as xp
+from sage_patch.patches.special_powers import level_grant_special_power as power
 from sage_patch.utils import find_section
 from tests.sage_patch.test_experience_level_down import World, float_bits, image
 

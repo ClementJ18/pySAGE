@@ -145,7 +145,7 @@ there and callable from a mission script today.
 | 557 | `LIVING_WORLD_SET_PLAYER_REF_BY_TEMPLATE` | live |
 | 430 | `REINFORCEMENTS_DISPLAY_BANNER` | **STUB** |
 | 539 | `REMOVE_REINFORCEMENT_ARMY` | **STUB** |
-| 543 | `CALL_IN_REINFORCEMENTS_WITHOUT_MOVIE` | **STUB** |
+| 543 | `CALL_IN_REINFORCEMENTS_WITHOUT_MOVIE` | **STUB** (given a body by [`call-in-reinforcements`](reinforcements.md)) |
 | 34 | `CREATE_REINFORCEMENT_TEAM` | live |
 | 444 | `CREATE_REINFORCEMENT_TEAM_AT_UNIT_POSITION` | live |
 

@@ -31,7 +31,7 @@ from sage_patch.addresses import (
     THE_GAME_LOGIC,
     THE_NAME_KEY_GENERATOR,
 )
-from sage_patch.patches.castle_unpack_buttons import (
+from sage_patch.patches.structures.castle_unpack_buttons import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,
@@ -41,6 +41,7 @@ from sage_patch.patches.castle_unpack_buttons import (
 )
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import castle_unpack_buttons_image
 
 
@@ -301,7 +302,7 @@ class TestTheCaveAnswers:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

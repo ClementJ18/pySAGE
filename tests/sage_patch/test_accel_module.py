@@ -27,7 +27,9 @@ from sage_patch.addresses import (
     LOAD_LIBRARY_A_IAT,
 )
 from sage_patch.patcher import apply_patches
-from sage_patch.patches.experimental.accel_module import (
+from sage_patch.patches.diagnostics.perf_scope_skip import PerfScopeSkipPatch
+from sage_patch.patches.diagnostics.perf_stage_readout import PerfStageReadoutPatch
+from sage_patch.patches.platform.accel_module import (
     ANCHORS,
     BLOCK_MAGIC,
     CODE_OFFSET,
@@ -42,8 +44,6 @@ from sage_patch.patches.experimental.accel_module import (
     build_code,
     hook_va,
 )
-from sage_patch.patches.perf_scope_skip import PerfScopeSkipPatch
-from sage_patch.patches.perf_stage_readout import PerfStageReadoutPatch
 from sage_patch.registry import PATCHES
 from sage_patch.utils import find_section, va_to_offset
 
@@ -69,10 +69,10 @@ def patched(image: bytearray) -> bytearray:
 
 
 class TestRegistration:
-    def test_registered_as_experimental(self) -> None:
+    def test_registered_and_not_experimental(self) -> None:
         assert PATCHES["accel-module"] is AccelModulePatch
-        assert AccelModulePatch.experimental is True
-        assert ".experimental." in AccelModulePatch.__module__
+        assert AccelModulePatch.experimental is False
+        assert ".experimental." not in AccelModulePatch.__module__
 
     def test_credits_both_authors(self) -> None:
         assert AccelModulePatch.author == "officialNecro"

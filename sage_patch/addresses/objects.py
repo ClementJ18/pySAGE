@@ -94,6 +94,8 @@ __all__ = [
     "ATTRIBUTE_MODIFIER_AURA_THIS_EBP_OFFSET",
     "ATTRIBUTE_MODIFIER_AURA_UPDATE",
     "ATTRIBUTE_MODIFIER_AURA_UPDATE_VTABLE",
+    "AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON",
+    "AUTO_ABILITY_BEHAVIOR_VTABLE",
     "AUTO_HEAL_AFFECTS_CONTAINED",
     "AUTO_HEAL_ANCHORS",
     "AUTO_HEAL_CONTAINED_EXIT",
@@ -635,6 +637,19 @@ __all__ = [
     "HORDE_IFACE_REMOVE_MEMBER_SLOT",
     "HORDE_IFACE_VTABLE",
     "OBJECT_GET_HORDE_IFACE_ENTRY",
+    "DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE",
+    "DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES",
+    "HORDE_IFACE_EXPERIENCE_ADD_SLOT",
+    "HORDE_IFACE_OWNER",
+    "KILL_SCORE_HORDE_EXPERIENCE_CALL",
+    "KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES",
+    "HORDE_IFACE_EXIT",
+    "HORDE_IFACE_EXIT_BYTES",
+    "HORDE_IFACE_EXIT_SLOT",
+    "HORDE_IFACE_EXIT_VTABLE_SLOT",
+    "TUNNEL_CONTAIN_UPDATE",
+    "TUNNEL_CONTAIN_UPDATE_ENTRY",
+    "TUNNEL_CONTAIN_UPDATE_VTABLE_SLOT",
 ]
 
 # `ThePartitionManager` and `TheShroudManager`, the two subsystems holding visibility state
@@ -813,6 +828,13 @@ DIE_MUX_IS_APPLICABLE_ENTRY = bytes.fromhex("558bec83ec0c5657")
 # `esi` in steps of 4 until it loads NULL. Three interface getters in a row share the idiom,
 # so the offset is corroborated three times over rather than inferred from one.
 OBJECT_MODULE_LIST = 0x24C
+# `AutoAbilityBehavior`'s primary vtable, set by its constructor (`0x0085D7FD`).
+AUTO_ABILITY_BEHAVIOR_VTABLE = 0x00C57F8C
+# The AsciiString naming the button whose auto-cast is on, empty while it is off. Turning it on
+# (`0x0085D48F`) copies the button's name in and wakes the module; turning it off (`0x0085D481`)
+# empties it and puts the module to sleep. The readiness test (`0x0085D5EA`) finds the button by
+# this name, so an empty one never casts. `StartsActive = Yes` turns it on at creation.
+AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON = 0x20
 THING_TEMPLATE_COMMAND_POINT_BONUS = 0x62C
 MODIFIER_TYPE_COMMAND_POINT_BONUS = 24
 #: `Object::applyModifierList`, the door for all 32 attribute-modifier sites. A refused apply
@@ -2318,7 +2340,7 @@ DELETION_UPDATE_UPDATE = 0x0088B84F
 
 
 # Confirmed RotWK Pillage layout and full native fingerprints; docs/pillage-module.md.
-# The patch-owned ModuleData tail is defined in patches/pillage_module_extension.py.
+# The patch-owned ModuleData tail is defined in patches/units/pillage_module_extension.py.
 PILLAGE_DATA_SIZE = 0x14
 PILLAGE_MODULEDATA_CTOR = 0x00653593
 PILLAGE_MODULEDATA_FACTORY = 0x006535ED
@@ -2589,14 +2611,19 @@ DAMAGE_INFO_DAMAGE_TYPE = 0x10
 DAMAGE_INFO_DAMAGE_DEALT = 0x70
 DAMAGE_TYPE_HEALING = 7
 #: The input's Bool at input `+0x4C` (`DamageInfo+0x50`) is followed by three bytes of padding
-#: that the input constructor leaves unset and the memberwise copy constructor doesn't copy. Each
-#: of its two byte moves, widened to a dword move of the same length, makes them a field that is
-#: zeroed and copied: the constructor's `mov byte [eax+0x4c], cl` (`ecx` zero) and the copy's
-#: `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl`.
+#: that the input constructor leaves unset and the memberwise copy constructor and assignment
+#: don't copy. Each of their three byte moves, widened to a dword move of the same length, makes
+#: them a field that is zeroed and copied: the constructor's `mov byte [eax+0x4c], cl` (`ecx`
+#: zero), and the copy's and the assignment's `mov dl, [ecx+0x4c]` / `mov [eax+0x4c], dl`. The
+#: assignment (`DamageInfoInput::operator=`, `0x00740B38`) is what the DOT manager stores an entry
+#: through: `add` (`0x00821073`) assigns on both its branches (`0x0082092E` -> `DamageInfo::
+#: operator=` `0x007441E0`), and never copy-constructs.
 DAMAGE_INFO_INPUT_CTOR_BYTE_STORE = 0x00663492
 DAMAGE_INFO_INPUT_CTOR_BYTE_STORE_BYTES = bytes.fromhex("88484c")
 DAMAGE_INFO_INPUT_COPY_BYTE_MOVE = 0x00662ADA
 DAMAGE_INFO_INPUT_COPY_BYTE_MOVE_BYTES = bytes.fromhex("8a514c88504c")
+DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE = 0x00740BA9
+DAMAGE_INFO_INPUT_ASSIGN_BYTE_MOVE_BYTES = bytes.fromhex("8a514c88504c")
 DAMAGE_INFO_PAD_DWORD = 0x50
 #: `KINDOF_PROJECTILE` (bit 25): `ThingTemplate+0x10B` bit 1; the drain never heals one.
 KINDOF_PROJECTILE_BYTE = 0x10B
@@ -2626,6 +2653,33 @@ HORDE_EXPERIENCE_ADD_ENTRY = bytes.fromhex("558bec51518b450885c0568bf1")
 HORDE_EXPERIENCE_GROUP_LOOKUP_OR_INSERT_ENTRY = bytes.fromhex("558bec5151568b750857568b")
 OBJECT_GET_HORDE_IFACE_ENTRY = bytes.fromhex("8b895802000085c97503")
 GAME_LOGIC_DESTROY_OBJECT_ENTRY = bytes.fromhex("53578b7c240c85ff")
+# Horde self experience (`docs/horde-self-experience.md`). The kill scorer `0x00695475` credits a
+# killer inside a horde through `HORDE_EXPERIENCE_ADD(killer, xp)` - the horde interface's slot
+# `+0xC0`, reached as `call [eax+0xC0]` with `ecx` the interface and `esi` the killer. When the
+# killer is the horde object itself (`BloodthirstyUpdate`'s sacrifice credits the eating horde),
+# the account it fills is keyed by the horde's own template, which no member has, so only the
+# horde object's tracker rises.
+KILL_SCORE_HORDE_EXPERIENCE_CALL = 0x0069554B
+KILL_SCORE_HORDE_EXPERIENCE_CALL_BYTES = bytes.fromhex("ff90c0000000")
+HORDE_IFACE_EXPERIENCE_ADD_SLOT = 0xC0
+#: The horde object, as a horde-interface offset: the module's owning object at module `+0x08`.
+HORDE_IFACE_OWNER = MODULE_OWNING_OBJECT - HORDE_CONTAIN_IFACE
+
+# The tunnel network, for order-time routing; see docs/ai-tunnel-routing.md.
+#: `TunnelContain::update`, the update-module slot 0 at `0x00C5DE58` and reached through nothing
+#: else. `__thiscall` on the module's `+0x10` sub-object, no arguments, the sleep in `eax`: 1 (every
+#: frame) once the owner has a `TunnelTracker`, forever before that.
+TUNNEL_CONTAIN_UPDATE = 0x008812B0
+TUNNEL_CONTAIN_UPDATE_ENTRY = bytes.fromhex("5156578bf1e825b6ffff8b7ef885ff74")
+TUNNEL_CONTAIN_UPDATE_VTABLE_SLOT = 0x00C5DE58
+#: Horde-interface slot `+0x84`, `(Object *container, CommandSourceType)`, `ret 8`: give the horde's
+#: own `AIUpdate` command 0x3E against `container`. It is the exit-all loop's arm for a horde
+#: passenger, so it is what brings a whole battalion out of the tunnel it names.
+HORDE_IFACE_EXIT_SLOT = 0x84
+HORDE_IFACE_EXIT = 0x00875EFD
+HORDE_IFACE_EXIT_BYTES = bytes.fromhex("8b81ecfeffff8b806002000085c074088d4820e9e6fbefffc20800")
+#: The slot itself, in `HordeContain`'s horde-interface vtable (`0x00C5B1F8`).
+HORDE_IFACE_EXIT_VTABLE_SLOT = 0x00C5B27C
 
 
 # RotWK 2.01.2614.37001; docs/attribute-modifier-aura-conflicts.md.

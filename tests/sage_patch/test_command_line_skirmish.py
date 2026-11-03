@@ -49,7 +49,7 @@ from sage_patch.addresses import (
     THE_GAME_INFO,
     THE_SKIRMISH_GAME_INFO,
 )
-from sage_patch.patches.experimental.command_line_skirmish import (
+from sage_patch.patches.platform.command_line_skirmish import (
     MAGIC,
     OPTION,
     SECTION_NAME,
@@ -410,6 +410,6 @@ class TestRegistration:
     def test_it_is_reachable_from_the_cli(self):
         assert PATCHES[CommandLineSkirmishPatch.name] is CommandLineSkirmishPatch
 
-    def test_it_declares_itself_experimental(self):
-        assert CommandLineSkirmishPatch().experimental is True
-        assert "experimental" in CommandLineSkirmishPatch.__module__
+    def test_it_is_not_experimental(self):
+        assert CommandLineSkirmishPatch().experimental is False
+        assert "experimental" not in CommandLineSkirmishPatch.__module__

@@ -38,9 +38,10 @@ from sage_patch.addresses import (
     RADAR_PRIORITY_STRUCTURE,
     SURFACE_DRAW_PIXEL,
 )
-from sage_patch.patches.radar_structure_discs import MAX_MIN_RADIUS, SECTION_NAME, build_cave
+from sage_patch.patches.ui.radar_structure_discs import MAX_MIN_RADIUS, SECTION_NAME, build_cave
 from sage_patch.registry import PATCHES
 from sage_patch.utils import call_rel32, find_section, read_cstring, va_to_offset
+from tests.binaries import STOCK_GAME_DAT
 from tests.sage_patch.synthetic import radar_structure_discs_image
 
 #: Where the KindOf test ends: the `call` it sets up, which the emulation stops before.
@@ -363,7 +364,7 @@ class TestTheCircleRuns:
 #: Both copies a checkout can hold; neither is committed, so each check skips when absent.
 _BINARIES = {
     "repo": Path(__file__).resolve().parents[2] / "game.dat",
-    "clean": Path(__file__).resolve().parents[2] / "sage_patch" / "engine" / "game.dat.backup",
+    "clean": STOCK_GAME_DAT,
 }
 
 

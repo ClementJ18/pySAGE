@@ -25,7 +25,7 @@ from sage_patch.addresses import (
     PRODUCTION_UPDATE_PICK_REVIVE_SCAN,
     REVIVE_MGR_PROGRESS,
 )
-from sage_patch.patches.hero_recruit_parallel import (
+from sage_patch.patches.economy.hero_recruit_parallel import (
     ANCHORS,
     HOOK_ORIGINAL,
     HOOK_VA,

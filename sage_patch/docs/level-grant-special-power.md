@@ -35,7 +35,7 @@ python -m sage_patch verify level-grant-special-power game.dat
 
 Python callers pass `sage_patch.LevelGrantSpecialPowerPatch()` to `apply_patches`.
 There is one registration, no options, and no separate activation for these fixes.
-The module is `sage_patch.patches.level_grant_special_power`.
+The module is `sage_patch.patches.special_powers.level_grant_special_power`.
 
 The former `LevelGrantSpecialPowerNegativeExperiencePatch` class,
 `level_grant_special_power_negative_experience` module and

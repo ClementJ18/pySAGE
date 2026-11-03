@@ -49,7 +49,7 @@ from sage_live.backends.memory import (
     MemoryBackend,
     find_game_processes,
 )
-from sage_patch.patches.experimental.live_bridge import SECTION_NAME
+from sage_patch.patches.diagnostics.live_bridge import SECTION_NAME
 from sage_utils.cli import existing_file, utf8_stdout
 
 __all__ = ["main"]

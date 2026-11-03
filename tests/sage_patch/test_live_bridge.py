@@ -7,6 +7,7 @@ does not raise - it crashes the game - so encoding errors have to be caught stat
 
 from __future__ import annotations
 
+import faulthandler
 import struct
 
 import pytest
@@ -17,7 +18,7 @@ from sage_patch.addresses import (
     VIEW_LOCATION_SIZE,
     VIEW_SET_LOCATION_VTABLE_SLOT,
 )
-from sage_patch.patches.experimental.live_bridge import (
+from sage_patch.patches.diagnostics.live_bridge import (
     ARG_APPENDERS,
     ARG_COUNT_OFF,
     ARG_STRIDE,
@@ -410,3 +411,55 @@ def test_apply_refuses_an_image_whose_hook_site_is_not_the_expected_bytes():
     image[HOOK_VA - IMAGE_BASE] = 0x90
     with pytest.raises(ValueError):
         LiveBridgePatch().apply(image)
+
+
+def _serve_one_frame(call_ready: int, camera: int = 0) -> tuple[int, int]:
+    """Run the cheat build's hook once, from its entry to the jump back into `GameLogic::update`,
+    with no order pending and a call to a stub that returns 42 queued behind `call_ready`.
+    Returns the call block's `ready` and `result` afterwards."""
+    unicorn = pytest.importorskip("unicorn")
+    x86 = pytest.importorskip("unicorn.x86_const")
+    section = bytearray(build_section(BASE, cheats=True))
+    off = cheat_offsets()
+    stub = BASE + 0x4000
+    struct.pack_into("<I", section, CAMERA_OFF, camera)
+    struct.pack_into("<IIIIII", section, off["ready"], call_ready, 0, 0, stub, 0, 0)
+
+    emu = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
+    stack = 0x00200000
+    # Unicorn 2.1.4's `mem_map` raises and catches an SEH fault on Windows; each map succeeds,
+    # but the fault handler would print a stack for it.
+    was_enabled = faulthandler.is_enabled()
+    faulthandler.disable()
+    try:
+        emu.mem_map(BASE, 0x5000)
+        emu.mem_map(stack - 0x1000, 0x2000)
+        emu.mem_map(HOOK_RETURN_VA & ~0xFFF, 0x1000)
+        emu.mem_map(THE_TACTICAL_VIEW & ~0xFFF, 0x1000)  # no view: the camera leaves it pending
+    finally:
+        if was_enabled:
+            faulthandler.enable()
+    emu.mem_write(BASE, bytes(section))
+    emu.mem_write(stub, b"\xb8\x2a\x00\x00\x00\xc3")  # mov eax, 42; ret
+    emu.reg_write(x86.UC_X86_REG_ESP, stack)
+    emu.emu_start(BASE + code_offset(True), HOOK_RETURN_VA)
+    assert emu.reg_read(x86.UC_X86_REG_ESP) == stack, "the hook left the stack unbalanced"
+    (ready,) = struct.unpack("<I", emu.mem_read(BASE + off["ready"], 4))
+    (result,) = struct.unpack("<I", emu.mem_read(BASE + off["result"], 4))
+    return ready, result
+
+
+def test_a_pending_call_is_served_on_a_frame_with_no_camera_command():
+    """The camera block's early exits once jumped to the hook's tail, past the call block, so a
+    call ran only on a frame that also served a camera command - in practice never (seen live
+    2026-10-31: a `GameState::saveGame` call sat pending while the match ran on)."""
+    assert _serve_one_frame(call_ready=1) == (0, 42)
+
+
+def test_a_call_is_served_beside_a_camera_command_that_has_no_view_yet():
+    ready, result = _serve_one_frame(call_ready=1, camera=1)
+    assert (ready, result) == (0, 42)
+
+
+def test_no_call_is_made_when_none_is_pending():
+    assert _serve_one_frame(call_ready=0) == (0, 0)

@@ -36,7 +36,7 @@ from sage_patch.addresses import (
     TRANSPORT_CONTAIN_CREATE_PAYLOAD,
     TRANSPORT_CONTAIN_INITIAL_PAYLOAD,
 )
-from sage_patch.patches.combo_horde_recruitment import (
+from sage_patch.patches.economy.combo_horde_recruitment import (
     ANCHORS,
     SECTION_NAME,
     ComboHordeRecruitmentPatch,
@@ -358,8 +358,8 @@ class TestTheRealBinary:
     """The synthetic image proves the patch is self-consistent; only a real `game.dat` proves the
     addresses are right. Skipped where there is none, which is every machine but the author's."""
 
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

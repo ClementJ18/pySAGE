@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from sage_worldbuilder.keymap import accelerators, shortcuts_for
+from tests.binaries import WORLDBUILDER
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UNDO, REDO, SAVE = 57643, 57644, 57603
@@ -28,9 +29,9 @@ def test_every_row_is_well_formed():
 
 @pytest.mark.full
 def test_keymap_matches_the_exe():
-    exe = REPO_ROOT / "worldbuilder.exe"
+    exe = WORLDBUILDER
     if not exe.is_file():
-        pytest.skip("worldbuilder.exe is not in the checkout")
+        pytest.skip("no worldbuilder.exe (set PYSAGE_WORLDBUILDER_EXE)")
     tool = pytest.importorskip("tools.extract_worldbuilder_keymap")
 
     shipped = (REPO_ROOT / "sage_worldbuilder" / "keymap.json").read_text(encoding="utf-8")

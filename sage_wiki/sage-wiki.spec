@@ -8,6 +8,15 @@ import os
 # This spec lives in sage_wiki/; anchor paths to the repo root so it builds from any cwd.
 ROOT = os.path.dirname(SPECPATH)
 
+# The shared theme's glyphs, every one: sage_utils.styles builds the stylesheet from their
+# paths, and an image it names that is missing from the bundle is silently not drawn.
+SHARED = os.path.join(ROOT, 'sage_utils', 'assets')
+THEME_GLYPHS = [
+    (os.path.join(SHARED, name), 'assets')
+    for name in sorted(os.listdir(SHARED))
+    if name.endswith('.svg')
+]
+
 a = Analysis(
     [os.path.join(ROOT, 'sage_wiki', 'app.py')],
     pathex=[ROOT],
@@ -15,12 +24,7 @@ a = Analysis(
     datas=[
         (os.path.join(ROOT, 'sage_wiki', 'icon.ico'), '.'),  # bundled beside the code, found via sys._MEIPASS
         (os.path.join(ROOT, 'sage_utils', 'assets', 'background.png'), 'assets'),  # parchment behind portraits
-        (os.path.join(ROOT, 'sage_utils', 'assets', 'check.svg'), 'assets'),  # checkbox check mark
-        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_close_dark.svg'), 'assets'),  # dock title bars
-        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_close_light.svg'), 'assets'),
-        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_float_dark.svg'), 'assets'),
-        (os.path.join(ROOT, 'sage_utils', 'assets', 'dock_float_light.svg'), 'assets'),
-    ],
+    ] + THEME_GLYPHS,
     # keyring loads its backend dynamically via entry points; name the Windows
     # Credential Manager backend (and its win32ctypes dependency) explicitly so the
     # frozen exe can still store the remembered password.

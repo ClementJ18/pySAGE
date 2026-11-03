@@ -13,7 +13,7 @@ relocated field-parse table and about 96 bytes of cave.
 
 - **Cost:** 4 bytes of allocation + 3 rel32/imm32 repoints + a 96-byte table copy + ~96 bytes of cave.
 - **Risk:** low. The filter is skipped unless explicitly specified, by construction.
-- **Status:** **built** — see [`patches/player_heal_filter.py`](../patches/player_heal_filter.py).
+- **Status:** **built** — see [`patches/combat/player_heal_filter.py`](../patches/combat/player_heal_filter.py).
 
 ```
 sage-patch apply player-heal-filter --in game.dat.backup --out game.dat
