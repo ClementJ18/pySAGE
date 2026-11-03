@@ -25,7 +25,8 @@ jobs:
       - name: Install tools
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          # mcp ships type hints, so mypy checks the MCP server against it rather than ignoring it.
+          pip install -e ".[worldbuilder-mcp]"
           pip install ruff==0.15.22 mypy==2.3.0  # pinned ruff matches .pre-commit-config.yaml
           # pytest's own type hints, for mypy's check of the `sage_test.plugin` pytest plugin.
           pip install pytest

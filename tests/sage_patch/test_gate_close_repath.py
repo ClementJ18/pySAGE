@@ -525,8 +525,8 @@ class TestTheRealBinary:
     """The synthetic image proves the patch is self-consistent; only a real `game.dat` proves the
     addresses are right. Skipped where there is none."""
 
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

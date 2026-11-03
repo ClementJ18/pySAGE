@@ -486,8 +486,8 @@ class TestTheRealBinary:
     last deployed to it, so the moment a patched build ships there these assertions would start
     failing on the patch's own success."""
 
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

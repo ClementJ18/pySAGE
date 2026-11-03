@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 
 from sage_utils.cli import existing_file
+from sage_utils.extras import require_extra
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
         help="drive the running editor (Tools > Allow Agent Connections) instead of a copy",
     )
     args = parser.parse_args(argv)
+    require_extra("worldbuilder-mcp", "sage-worldbuilder-mcp", "mcp", "numpy")
 
     from sage_worldbuilder.mcp_server.server import build_server  # noqa: PLC0415 - needs mcp
 

@@ -1,6 +1,6 @@
 """The agent's texturing tools over a real map: painting by rectangle, area, path and terrain,
-flood fill and blending, each as one undo entry, and which textures can be painted with and without game
-data."""
+flood fill and blending, each as one undo entry, and which textures can be painted with and
+without game data."""
 
 import shutil
 from pathlib import Path

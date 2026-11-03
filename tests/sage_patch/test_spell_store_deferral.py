@@ -256,8 +256,8 @@ class TestItComposesWithRenderRate:
 
 
 class TestTheRealBinary:
-    @staticmethod
     @pytest.fixture(scope="class")
+    @staticmethod
     def game_dat() -> bytes:
         if not _GAME_DAT.exists():
             pytest.skip(f"no {_GAME_DAT}")

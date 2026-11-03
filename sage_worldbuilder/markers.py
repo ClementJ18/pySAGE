@@ -317,12 +317,12 @@ class Markers:
                 marker, points=tuple(_round((x + dx, y + dy)) for x, y in marker.points)
             )
         elif isinstance(marker, PointMarker):
-            self._markers[marker.name] = replace(marker, **_xy(marker.x + dx, marker.y + dy))
+            self._markers[marker.name] = _shifted(marker, dx, dy)
         else:
             for stop in dict.fromkeys(marker.stops):
                 point = self._markers.get(stop)
                 if isinstance(point, PointMarker):
-                    self._markers[stop] = replace(point, **_xy(point.x + dx, point.y + dy))
+                    self._markers[stop] = _shifted(point, dx, dy)
         self._changed()
         return self._markers[marker.name]
 
@@ -392,9 +392,9 @@ def _a(kind: MarkerKind) -> str:
     return f"an {kind.value}" if kind is MarkerKind.AREA else f"a {kind.value}"
 
 
-def _xy(x: float, y: float) -> dict[str, float]:
-    rx, ry = _round((x, y))
-    return {"x": rx, "y": ry}
+def _shifted(point: PointMarker, dx: float, dy: float) -> PointMarker:
+    x, y = _round((point.x + dx, point.y + dy))
+    return replace(point, x=x, y=y)
 
 
 def _dedupe[T](items: list[T], closed: bool) -> list[T]:
