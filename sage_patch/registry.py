@@ -164,6 +164,10 @@ from sage_patch.patches.platform.save_temp_file import SaveTempFilePatch
 from sage_patch.patches.platform.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
 from sage_patch.patches.platform.standalone_launcher import StandaloneLauncherPatch
 from sage_patch.patches.platform.texture_any_extension import TextureAnyExtensionPatch
+from sage_patch.patches.render.ash_weather import (
+    AshWeatherPatch,
+    AshWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.render.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
@@ -280,6 +284,8 @@ _REGISTERED: tuple[type[Patch], ...] = (
     AiReviveGatePatch,
     AiTeamSizePatch,
     AiTunnelRoutingPatch,
+    AshWeatherPatch,
+    AshWeatherWorldbuilderPatch,
     AssetLoadProfilePatch,
     AttributeModifierAuraConflictsPatch,
     AttackRequiresDamagePatch,

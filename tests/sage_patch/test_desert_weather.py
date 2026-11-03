@@ -23,28 +23,37 @@ import pytest
 
 from sage_patch.patches.economy.production_condition import ProductionConditionPatch
 from sage_patch.patches.render.desert_weather import (
-    _ANY_WEATHER_DEFAULT_VA,
-    _ANY_WEATHER_TEST_VA,
-    _BIND_ORIGINAL,
-    _BIND_RETURN_VA,
-    _BIND_SITE_VA,
     _SECTION_NAME,
-    _UPGRADE_ORIGINAL,
-    _UPGRADE_RETURN_VA,
-    _UPGRADE_SITE_VA,
     NEW_WEATHER_INDEX,
     SNOW_BIT,
-    STOCK_WEATHER_NAMES,
-    WEATHER_OFFSET,
-    WEATHER_TABLE_REF_VAS,
-    WEATHER_TABLE_VA,
     DesertWeatherPatch,
     build_bind_code,
     build_upgrade_code,
 )
 from sage_patch.patches.utils import model_conditions
+from sage_patch.patches.utils.map_weather import (
+    _ANY_WEATHER_DEFAULT_VA,
+    _ANY_WEATHER_TEST_VA,
+    BIND_SITE,
+    STOCK_WEATHER_NAMES,
+    UPGRADE_SITE,
+    WEATHER_OFFSET,
+    WEATHER_TABLE_REF_VAS,
+    WEATHER_TABLE_VA,
+)
 from sage_patch.utils import find_section, va_to_offset
 from tests.sage_patch.synthetic import synthetic_image
+
+_BIND_SITE_VA, _BIND_ORIGINAL, _BIND_RETURN_VA = (
+    BIND_SITE.site_va,
+    BIND_SITE.original,
+    BIND_SITE.return_va,
+)
+_UPGRADE_SITE_VA, _UPGRADE_ORIGINAL, _UPGRADE_RETURN_VA = (
+    UPGRADE_SITE.site_va,
+    UPGRADE_SITE.original,
+    UPGRADE_SITE.return_va,
+)
 
 BASE = 0x00F00000
 

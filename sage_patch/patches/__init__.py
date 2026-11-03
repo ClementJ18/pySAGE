@@ -67,6 +67,10 @@ from sage_patch.patches.platform.null_guards import NullGuardsPatch
 from sage_patch.patches.platform.os_name_fallback import OsNameFallbackPatch
 from sage_patch.patches.platform.save_temp_file import SaveTempFilePatch
 from sage_patch.patches.platform.score_keeper_dangling_keys import ScoreKeeperDanglingKeysPatch
+from sage_patch.patches.render.ash_weather import (
+    AshWeatherPatch,
+    AshWeatherWorldbuilderPatch,
+)
 from sage_patch.patches.render.desert_weather import (
     DesertWeatherPatch,
     DesertWeatherWorldbuilderPatch,
@@ -132,6 +136,8 @@ __all__ = [
     "AiFlagCaptureGatePatch",
     "AiReviveGatePatch",
     "AiTeamSizePatch",
+    "AshWeatherPatch",
+    "AshWeatherWorldbuilderPatch",
     "AutoDepositInflationPatch",
     "BannerFilterPatch",
     "CahFactionsPatch",

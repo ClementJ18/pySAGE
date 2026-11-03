@@ -105,8 +105,6 @@ from sage_patch.patches.platform import save_temp_file as stf
 from sage_patch.patches.platform import score_keeper_dangling_keys as skdk
 from sage_patch.patches.platform import standalone_launcher as sl
 from sage_patch.patches.platform import texture_any_extension as tae
-from sage_patch.patches.render import desert_weather as dw
-from sage_patch.patches.render import desert_weather as wb
 from sage_patch.patches.render import infantry_lighting as il
 from sage_patch.patches.render import interpolation_alpha as ia
 from sage_patch.patches.render import render_only_frames as rof
@@ -140,6 +138,8 @@ from sage_patch.patches.upgrades import upgrade_alias as ua
 from sage_patch.patches.upgrades import upgrade_grant_lists as ugl
 from sage_patch.patches.utils import kind_of as ko
 from sage_patch.patches.utils import locomotor_sets as ls
+from sage_patch.patches.utils import map_weather as dw
+from sage_patch.patches.utils import map_weather as wb
 from sage_patch.patches.utils import model_conditions as mc
 from sage_patch.patches.utils import modifier_types as mt
 from sage_patch.patches.utils import token_lists as tl
@@ -313,10 +313,15 @@ def synthetic_image() -> bytearray:
     for va in dw.WEATHER_TABLE_REF_VAS:
         u32(va, dw.WEATHER_TABLE_VA)
     write(dw._ANY_WEATHER_DEFAULT_VA, dw._ANY_WEATHER_DEFAULT_PREFIX)
-    u32(dw._ANY_WEATHER_DEFAULT_VA + len(dw._ANY_WEATHER_DEFAULT_PREFIX), dw.NEW_WEATHER_INDEX)
-    write(dw._ANY_WEATHER_TEST_VA, dw._ANY_WEATHER_TEST_PREFIX + bytes([dw.NEW_WEATHER_INDEX]))
-    write(dw._BIND_SITE_VA, dw._BIND_ORIGINAL)
-    write(dw._UPGRADE_SITE_VA, dw._UPGRADE_ORIGINAL)
+    u32(
+        dw._ANY_WEATHER_DEFAULT_VA + len(dw._ANY_WEATHER_DEFAULT_PREFIX),
+        len(dw.STOCK_WEATHER_NAMES),
+    )
+    write(
+        dw._ANY_WEATHER_TEST_VA, dw._ANY_WEATHER_TEST_PREFIX + bytes([len(dw.STOCK_WEATHER_NAMES)])
+    )
+    write(dw.BIND_SITE.site_va, dw.BIND_SITE.original)
+    write(dw.UPGRADE_SITE.site_va, dw.UPGRADE_SITE.original)
 
     for index, va in enumerate(kindof_vas):
         u32(ko.NAME_TABLE_VA + index * 4, va)
@@ -428,7 +433,7 @@ def worldbuilder_image() -> bytearray:
         wb.WORLDBUILDER_COMBO_BOUND_VA,
         bytes.fromhex("837de0") + bytes([len(wb.STOCK_WEATHER_NAMES)]),
     )
-    for va, expected in wb._WORLDBUILDER_DIALOG_FINGERPRINT.items():
+    for va, expected in wb.WORLDBUILDER_DIALOG_FINGERPRINT.items():
         write(va, expected)
 
     sections = [

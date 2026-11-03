@@ -231,6 +231,22 @@ class TestApply:
         assert row is not None
         assert row[1:] == (ad.INI_PARSE_BOOL, 0, ad.SCENARIO_BATTLE_HERO_POOL_OFFSET)
 
+    def test_before_hide_selection_details_both_fields_are_live(self) -> None:
+        """The registry lists this settled patch ahead of the experimental one, so a regenerated
+        manifest applies them this way round. Both widen the same constructor store, and the
+        second must leave it alone rather than refuse it."""
+        data = stand_in()
+        WotrBattleHeroPoolPatch().apply(data)
+        HideSelectionDetailsPatch().apply(data)
+        assert HideSelectionDetailsPatch().verify(data) == []
+        assert WotrBattleHeroPoolPatch().verify(data) == []
+        assert _row(data, "HideSelectionDetails") is not None
+        assert _row(data, DEFAULT_KEYWORD) is not None
+        off = va_to_offset(data, ad.SCENARIO_CTOR_HISTORICAL)
+        assert off is not None
+        widened = bytes(data[off : off + len(ad.SCENARIO_CTOR_HISTORICAL_BYTES)])
+        assert widened == hsd.rewritten_default()
+
     def test_applying_twice_raises(self) -> None:
         data = applied()
         with pytest.raises(ValueError, match="already"):

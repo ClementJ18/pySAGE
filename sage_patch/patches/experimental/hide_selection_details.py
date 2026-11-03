@@ -309,10 +309,19 @@ class HideSelectionDetailsPatch(Patch):
         self, data: bytes | bytearray, pieces: _Layout, code: Asm
     ) -> list[tuple[int, bytes, bytes, str]]:
         """Every byte this patch writes outside its own cave, as
-        `(file offset, expected, replacement, note)`."""
+        `(file offset, expected, replacement, note)`.
+
+        The constructor store is shared with `wotr-battle-hero-pool`, which widens it the same way
+        to zero its own padding byte. Whichever patch comes second finds it already widened and
+        leaves it alone, so the two apply in either order."""
+        ctor = file_offset(data, SCENARIO_CTOR_HISTORICAL)
+        widened = bytes(data[ctor : ctor + len(SCENARIO_CTOR_HISTORICAL_BYTES)]) == (
+            rewritten_default()
+        )
         edits = [
             (file_offset(data, va), old, new, f"{what} -> {SECTION_NAME}")
             for va, old, new, what in self._hooks(code)
+            if not (widened and va == SCENARIO_CTOR_HISTORICAL)
         ]
         for ref_va, opcode in zip(
             SCENARIO_FIELD_TABLE_REFS, SCENARIO_FIELD_TABLE_REF_OPCODES, strict=True

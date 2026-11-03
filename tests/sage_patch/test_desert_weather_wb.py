@@ -18,14 +18,18 @@ import pytest
 
 from sage_patch.patches.render import desert_weather as dw
 from sage_patch.patches.render.desert_weather import (
-    _WORLDBUILDER_DIALOG_FINGERPRINT,
     DEFAULT_WEATHER,
+    WORLDBUILDER_SECTION_NAME,
+    DesertWeatherWorldbuilderPatch,
+)
+from sage_patch.patches.utils.map_weather import (
     STOCK_WEATHER_NAMES,
     WORLDBUILDER_COMBO_BOUND_VA,
-    WORLDBUILDER_SECTION_NAME,
     WORLDBUILDER_TABLE_REF_SITES,
     WORLDBUILDER_WEATHER_TABLE_VA,
-    DesertWeatherWorldbuilderPatch,
+)
+from sage_patch.patches.utils.map_weather import (
+    WORLDBUILDER_DIALOG_FINGERPRINT as _WORLDBUILDER_DIALOG_FINGERPRINT,
 )
 from sage_patch.patches.utils.model_conditions import read_cstring
 from sage_patch.utils import find_section, va_to_offset
@@ -63,7 +67,7 @@ class TestBuildInvariants:
         different index than `game.dat` resolves it to, every map authored here would come out as
         some other weather, silently."""
         assert len(STOCK_WEATHER_NAMES) == dw.NEW_WEATHER_INDEX
-        assert STOCK_WEATHER_NAMES == dw.STOCK_WEATHER_NAMES
+        assert dw.NEW_WEATHER_INDEX == 2
 
     def test_the_combo_bound_is_the_stock_member_count(self):
         """It is the same number as the `Sound`/`ViewShake` sentinel `game.dat` moves, and for the
