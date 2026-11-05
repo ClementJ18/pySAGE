@@ -18,6 +18,7 @@ Corpus roots:
   one `label=path` per line, `#` comments allowed.
 """
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,32 @@ import pytest
 from sage_ini.engine import revert
 from sage_ini.parser.io import iter_ini_files
 from sage_ini.paths import ini_root, root_files
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_git_repositories():
+    """Keep temporary test repositories out of the Git repository invoking a commit hook.
+
+    GUI/partial commits can export an absolute GIT_INDEX_FILE. Nested `git add` would then
+    write test blobs into that index while storing their objects in the temporary repository,
+    leaving the real commit with missing objects. Clear all repository-local Git variables,
+    using Git's own list so worktree and object-directory overrides are isolated as well.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--local-env-vars"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        # Git-free test environments can still run the suites that do not use Git.
+        yield
+        return
+    with pytest.MonkeyPatch.context() as environment:
+        for name in result.stdout.splitlines():
+            environment.delenv(name, raising=False)
+        yield
 
 
 @pytest.fixture(autouse=True)

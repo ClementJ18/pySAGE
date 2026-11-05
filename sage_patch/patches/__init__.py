@@ -34,6 +34,10 @@ from sage_patch.patches.diagnostics.live_bridge import LiveBridgePatch
 from sage_patch.patches.economy.auto_deposit_inflation import AutoDepositInflationPatch
 from sage_patch.patches.economy.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.economy.command_point_upkeep import CommandPointUpkeepPatch
+from sage_patch.patches.economy.cost_modifier_upgrade_groups import (
+    CostModifierUpgradeGroupsPatch,
+    CostModifierUpgradeGroupsWorldbuilderPatch,
+)
 from sage_patch.patches.economy.maintenance_cost import MaintenanceCostPatch
 from sage_patch.patches.economy.player_upgrade_discount import PlayerUpgradeDiscountPatch
 from sage_patch.patches.economy.production_condition import ProductionConditionPatch
@@ -131,6 +135,8 @@ from sage_patch.patches.upgrades.upgrade_module_conflicts import UpgradeModuleCo
 from sage_patch.patches.upgrades.upgrade_module_removal import UpgradeModuleRemovalPatch
 
 __all__ = [
+    "CostModifierUpgradeGroupsPatch",
+    "CostModifierUpgradeGroupsWorldbuilderPatch",
     "UpgradeModuleConflictsPatch",
     "SlavedUpdateIdlePatch",
     "TextEntryClipboardPatch",

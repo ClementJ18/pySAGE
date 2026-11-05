@@ -4,6 +4,8 @@
 is non-empty. The stock percentage and target vectors remain part of that key. The Palantir then
 shows the selected module's exact group record instead of querying the global empty-name sum.
 
+The Worldbuilder companion accepts the same keyword without storing it or running game logic.
+
 Derivation and compatibility notes: ``../../docs/cost-modifier-upgrade-groups.md``.
 """
 
@@ -47,6 +49,11 @@ from ...addresses import (
     UPGRADE_DISCOUNT_RECORD_SIZE,
     UPGRADE_DISCOUNT_RECORD_TARGETS,
     UPGRADE_DISCOUNT_RECORD_VALUE,
+    WORLDBUILDER_COST_MODIFIER_UPGRADE_ANCHORS,
+    WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL,
+    WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL_BYTES,
+    WORLDBUILDER_INI_GET_NEXT_TOKEN,
+    WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE,
 )
 from ...asm import JE, JNE, Asm
 from ...patcher import Patch
@@ -66,11 +73,14 @@ __all__ = [
     "KEYWORD",
     "PATCHED_MODULEDATA_SIZE",
     "SECTION_NAME",
+    "WORLDBUILDER_SECTION_NAME",
     "CostModifierUpgradeGroupsPatch",
+    "CostModifierUpgradeGroupsWorldbuilderPatch",
 ]
 
 KEYWORD = "DiscountGroup"
 SECTION_NAME = ".cmugrp"
+WORLDBUILDER_SECTION_NAME = ".wbcmug"
 SECTION_CHARACTERISTICS = 0x60000060
 FIELD_ENTRY_SIZE = 16
 DISCOUNT_GROUP_OFFSET = COST_MODIFIER_UPGRADE_MODULEDATA_SIZE
@@ -345,3 +355,97 @@ class CostModifierUpgradeGroupsPatch(Patch):
         problems = self._anchor_problems(data)
         if problems:
             raise ValueError("not the expected build: " + "; ".join(problems))
+
+
+class CostModifierUpgradeGroupsWorldbuilderPatch(Patch):
+    """Accept DiscountGroup in Worldbuilder without changing the native ModuleData layout."""
+
+    name = "cost-modifier-upgrade-groups-wb"
+    author = "Ostkannit"
+    description = (
+        "Worldbuilder.exe (not game.dat): accept CostModifierUpgrade's DiscountGroup keyword "
+        "for data using cost-modifier-upgrade-groups; read and discard the value without "
+        "changing ModuleData, discounts or Palantir behavior; parser-only"
+    )
+
+    @staticmethod
+    def _assemble(base: int) -> Asm:
+        # A keyword-only table and its terminator, then the name, then executable helpers.
+        a = Asm(base + 2 * FIELD_ENTRY_SIZE + len(_cstring(KEYWORD)))
+        a.label("append")
+        # thiscall(MultiIniFieldParse *, table *, extraOffset), ret 8. Preserve this across
+        # the native append, replaying its exact arguments before appending our own table.
+        a.emit(b"\x56\x8b\xf1\xff\x74\x24\x0c\xff\x74\x24\x0c")
+        a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
+        a.emit(b"\x6a\x00\x68", u32(base), b"\x8b\xce")
+        a.call_absolute(WORLDBUILDER_OBJECT_IMAGE_UPGRADE_APPEND_FIELD_TABLE)
+        a.emit(b"\x5e\xc2\x08\x00")
+
+        a.label("parse")
+        # cdecl(INI *, instance *, store *, userData). No stores through either object pointer
+        # and no owned string: getNextToken consumes the name, and readLine discards the rest.
+        # NULL separators select the INI object's native separator set. Caller pops all 4 args.
+        a.emit(b"\x8b\x4c\x24\x04\x6a\x00")
+        a.call_absolute(WORLDBUILDER_INI_GET_NEXT_TOKEN)
+        a.emit(b"\xc3")
+        return a
+
+    def _build(self, base: int) -> bytes:
+        code = self._assemble(base)
+        row = u32(base + 2 * FIELD_ENTRY_SIZE) + u32(code.label_va("parse")) + bytes(8)
+        return row + bytes(FIELD_ENTRY_SIZE) + _cstring(KEYWORD) + code.finish()
+
+    @staticmethod
+    def _anchor_problems(data: bytes | bytearray, call: bytes) -> list[str]:
+        problems = []
+        for va, expected in {
+            **WORLDBUILDER_COST_MODIFIER_UPGRADE_ANCHORS,
+            WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL: call,
+        }.items():
+            try:
+                off = file_offset(data, va)
+                got = bytes(data[off : off + len(expected)])
+            except ValueError as exc:
+                problems.append(str(exc))
+                continue
+            if got != expected:
+                problems.append(f"unexpected bytes at 0x{va:08x}: {got.hex()}")
+        return problems
+
+    def apply(self, data: bytearray) -> None:
+        if find_section(data, WORLDBUILDER_SECTION_NAME) is not None:
+            raise ValueError(f"the file already carries a {WORLDBUILDER_SECTION_NAME} section")
+        problems = self._anchor_problems(
+            data, WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL_BYTES
+        )
+        if problems:
+            raise ValueError("not the expected Worldbuilder build: " + "; ".join(problems))
+
+        out = bytearray(data)
+        base = allocate_section(
+            out, WORLDBUILDER_SECTION_NAME, self._build, SECTION_CHARACTERISTICS
+        )
+        site = WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL
+        apply_byte_patch(
+            out,
+            file_offset(out, site),
+            WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL_BYTES,
+            call_rel32(site, self._assemble(base).label_va("append")),
+            "Worldbuilder CostModifierUpgrade -> append DiscountGroup parser table",
+        )
+        data[:] = out
+
+    def verify(self, data: bytes | bytearray) -> list[str]:
+        section = find_section(data, WORLDBUILDER_SECTION_NAME)
+        if section is None:
+            return [f"no {WORLDBUILDER_SECTION_NAME} section"]
+        base, off, size = section
+        expected = self._build(base)
+        problems = []
+        if size != len(expected) or bytes(data[off : off + size]) != expected:
+            problems.append(f"unexpected {WORLDBUILDER_SECTION_NAME} table or helper body")
+        call = call_rel32(
+            WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL,
+            self._assemble(base).label_va("append"),
+        )
+        return problems + self._anchor_problems(data, call)

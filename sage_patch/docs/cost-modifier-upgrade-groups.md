@@ -78,6 +78,39 @@ record-layout constants live in the appropriate `sage_patch/addresses` modules.
 
 ## Compatibility
 
+### Worldbuilder
+
+Install `cost-modifier-upgrade-groups-wb` on `Worldbuilder.exe` when loading data that contains
+`DiscountGroup`. The game patch alone does not extend the editor's independent INI parser.
+Suppressing editor diagnostics with `worldbuilder-silent-errors` does not register the keyword.
+
+```bash
+python -m sage_patch apply cost-modifier-upgrade-groups-wb --in Worldbuilder.exe.backup --out Worldbuilder-grouped.exe
+python -m sage_patch verify cost-modifier-upgrade-groups-wb Worldbuilder-grouped.exe
+```
+
+The companion is parser-only. It consumes the value through the editor's native
+`INI::getNextToken` and discards it. It does not allocate a string, change the `0x15C` ModuleData
+layout, or install game discount and Palantir hooks. Original keywords retain their parsers,
+and unrelated unknown keywords still reach the editor's existing diagnostic path.
+
+The editor's private seven-row table is at `0x01F531D0`; its builder is at `0x01251CB0`.
+Only the five-byte table-append call at `0x01251CCD` changes. A wrapper first replays the native
+append with its original table and offset, then appends a separate `DiscountGroup` table. The
+base UpgradeModule table and the private CostModifierUpgrade table remain in place. The extra
+row and both helpers live in `.wbcmug`. The native append is `0x006CD090`, and the token reader
+is `0x006D20A0`. All editor addresses and stock fingerprints are in `addresses/worldbuilder.py`.
+
+The reference `Worldbuilder.exe.backup` has SHA-256
+`005971beb68d0485846ff5f62d6f043e9c9b89d6576525ee25b56e9d305ec65d`.
+Apply rejects mismatched hooks and dependencies before mutation, and verify checks the entire
+new section, the detour and unchanged anchors. Tests execute the patched native field builder
+and INI parser with modeled input, tokenizer and macro lookup services, and check companion-patch
+composition.
+The editor GUI has not been launched for acceptance testing.
+
+### Game
+
 The patch composes with `player-upgrade-discount` in either application order. That patch changes
 which upgrade types may consume the Player records; this patch changes how explicitly grouped
 records are formed. The stock final price calculation remains untouched.

@@ -24,6 +24,8 @@ from sage_patch.patches import (
     CommandPointCostPatch,
     CommandPointUpkeepPatch,
     CommandSetLimitPatch,
+    CostModifierUpgradeGroupsPatch,
+    CostModifierUpgradeGroupsWorldbuilderPatch,
     ExperienceLevelDownPatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
@@ -79,6 +81,8 @@ from sage_patch.patches.units.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.sagepatch import generate
 
 __all__ = [
+    "CostModifierUpgradeGroupsPatch",
+    "CostModifierUpgradeGroupsWorldbuilderPatch",
     "UpgradeModuleConflictsPatch",
     "SlavedUpdateIdlePatch",
     "TextEntryClipboardPatch",
