@@ -18,6 +18,10 @@ from sage_patch.addresses.runtime import (
 )
 
 __all__ = [
+    "OBJECT_CREATION_UPGRADE_CONFLICT_ANCHORS",
+    "OBJECT_CREATION_UPGRADE_CONFLICT_CALL",
+    "OBJECT_CREATION_UPGRADE_CONFLICT_CALL_BYTES",
+    "OBJECT_CREATION_UPGRADE_MUX_VTABLE",
     "OBJECT_DISPATCH_UPGRADES",
     "OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE",
     "OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES",
@@ -2708,7 +2712,7 @@ HORDE_IFACE_EXIT_BYTES = bytes.fromhex("8b81ecfeffff8b806002000085c074088d4820e9
 HORDE_IFACE_EXIT_VTABLE_SLOT = 0x00C5B27C
 
 
-# RotWK 2.01.2614.37001; docs/attribute-modifier-aura-conflicts.md.
+# RotWK 2.01.2614.37001; docs/upgrade-module-conflicts.md.
 #: Upgrade subobject callbacks are thiscall; added/evaluate/removal take one mask (ret 4).
 ATTRIBUTE_MODIFIER_AURA_UPGRADE_VTABLE = 0x00C67550
 UPGRADE_INTERFACE_GET_FLAG = 0x004986C4
@@ -2771,8 +2775,24 @@ UPGRADE_MODULE_CONFLICT_ANCHORS: dict[int, bytes] = {
     UPGRADE_MASK_TEST_ALL: ATTRIBUTE_MODIFIER_AURA_CONFLICT_ANCHORS[UPGRADE_MASK_TEST_ALL],
 }
 
+# ObjectCreationUpgrade owns a post-check that already invokes its native cleanup. Do not
+# also run the generic removal lifecycle for it. Its private evaluator ignores the all-of
+# conflict flag in stock; replace only its ANY call, retaining the incoming mask convention.
+OBJECT_CREATION_UPGRADE_MUX_VTABLE = 0x00C6E250
+OBJECT_CREATION_UPGRADE_CONFLICT_CALL = 0x008B8300
+OBJECT_CREATION_UPGRADE_CONFLICT_CALL_BYTES = bytes.fromhex("e8d114f5ff")
+OBJECT_CREATION_UPGRADE_CONFLICT_ANCHORS = {
+    OBJECT_CREATION_UPGRADE_MUX_VTABLE: bytes.fromhex(
+        "c4864900bf268d00ab828b008a278d00eb889100b3268d0029838b00eb889100"
+        "c5878b002d465b0081828b00b5818b00f0818b00dc818b00e6818b00f0818b00"
+    ),
+    0x008B82F7: bytes.fromhex("ff757c8d8d54ffffff"),
+    0x008B8305: bytes.fromhex("84c075e48b068bceff5034"),
+    0x008B81E6: bytes.fromhex("8b410c8a803d010000c3"),
+}
+
 # The dispatcher skips slot +04 entirely for active modules, before the shared evaluator.
-# docs/attribute-modifier-aura-conflicts.md records the contract-qualified exception.
+# docs/upgrade-module-conflicts.md records the contract-qualified exception.
 OBJECT_DISPATCH_UPGRADES = 0x006936FE
 OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE = 0x0069375B
 OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES = bytes.fromhex("8b038bcbff1084c07546")

@@ -182,7 +182,9 @@ def test_git_diff_names_the_changed_script_in_the_hunk_header(tmp_path, monkeypa
     script.actions_if_true.pop()
     target.write_bytes(write_map(m, compress=True))
 
-    diff = subprocess.run([*git, "diff"], capture_output=True, text=True, check=True).stdout
+    result = subprocess.run([*git, "diff"], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    diff = result.stdout
     hunks = [line for line in diff.splitlines() if line.startswith("@@")]
     assert hunks and all(f'script "{script.name}"' in h for h in hunks)
     assert "Binary files" not in diff

@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from sage_patch import addresses as ad
-from sage_patch.patches.combat.attribute_modifier_aura_conflicts import (
+from sage_patch.patches.upgrades.upgrade_module_conflicts import (
     SECTION_NAME,
-    AttributeModifierAuraConflictsPatch,
+    UpgradeModuleConflictsPatch,
     _assemble,
 )
 from sage_patch.patches.upgrades.upgrade_module_removal import UpgradeModuleRemovalPatch
@@ -18,11 +18,16 @@ from sage_patch.utils import file_offset, find_section
 
 from .synthetic import _sparse_image
 
+_CREATION_CALL = ad.OBJECT_CREATION_UPGRADE_CONFLICT_CALL
+_CREATION_BYTES = ad.OBJECT_CREATION_UPGRADE_CONFLICT_CALL_BYTES
+
 
 def image() -> bytearray:
     return _sparse_image(
         {
             **ad.UPGRADE_MODULE_CONFLICT_ANCHORS,
+            **ad.OBJECT_CREATION_UPGRADE_CONFLICT_ANCHORS,
+            _CREATION_CALL: _CREATION_BYTES,
             ad.OBJECT_DISPATCH_UPGRADES: ad.OBJECT_DISPATCH_UPGRADES_BYTES,
         }
     )
@@ -33,16 +38,18 @@ def composition_image() -> bytearray:
         {
             **ad.UPGRADE_MODULE_REMOVAL_ANCHORS,
             **ad.UPGRADE_MODULE_CONFLICT_ANCHORS,
+            **ad.OBJECT_CREATION_UPGRADE_CONFLICT_ANCHORS,
+            _CREATION_CALL: _CREATION_BYTES,
             ad.OBJECT_DISPATCH_UPGRADES: ad.OBJECT_DISPATCH_UPGRADES_BYTES,
         }
     )
 
 
 def test_registration_apply_verify_and_scope() -> None:
-    assert PATCHES[AttributeModifierAuraConflictsPatch.name] is AttributeModifierAuraConflictsPatch
+    assert PATCHES[UpgradeModuleConflictsPatch.name] is UpgradeModuleConflictsPatch
     data = image()
     before = bytes(data)
-    patch = AttributeModifierAuraConflictsPatch()
+    patch = UpgradeModuleConflictsPatch()
     patch.apply(data)
     assert patch.verify(data) == []
     located = find_section(data, SECTION_NAME)
@@ -77,14 +84,14 @@ def test_wrong_build_is_rejected_before_mutation(va: int) -> None:
     data[off] ^= 1
     before = bytes(data)
     with pytest.raises(ValueError, match="unexpected build"):
-        AttributeModifierAuraConflictsPatch().apply(data)
+        UpgradeModuleConflictsPatch().apply(data)
     assert data == before
 
 
 @pytest.mark.parametrize("damage", ["code", "gate", "callback", "anchor"])
 def test_verify_detects_corruption(damage: str) -> None:
     data = image()
-    patch = AttributeModifierAuraConflictsPatch()
+    patch = UpgradeModuleConflictsPatch()
     patch.apply(data)
     located = find_section(data, SECTION_NAME)
     assert located is not None
@@ -112,7 +119,7 @@ def test_active_helper_uses_virtual_triggeredby_removal(
     from .save_machine import Machine  # noqa: PLC0415
 
     data = image()
-    patch = AttributeModifierAuraConflictsPatch()
+    patch = UpgradeModuleConflictsPatch()
     patch.apply(data)
     located = find_section(data, SECTION_NAME)
     assert located is not None
@@ -177,7 +184,7 @@ def test_dispatch_gate_only_admits_the_standard_contract(
     from .save_machine import Machine  # noqa: PLC0415
 
     data = image()
-    AttributeModifierAuraConflictsPatch().apply(data)
+    UpgradeModuleConflictsPatch().apply(data)
     base = find_section(data, SECTION_NAME)
     assert base is not None
     gate = _assemble(base[0]).label_va("gate")
@@ -212,7 +219,7 @@ def test_callback_preserves_the_stock_inactive_virtual_call() -> None:
     from .save_machine import Machine  # noqa: PLC0415
 
     data = image()
-    AttributeModifierAuraConflictsPatch().apply(data)
+    UpgradeModuleConflictsPatch().apply(data)
     section = find_section(data, SECTION_NAME)
     assert section is not None
     callback = _assemble(section[0]).label_va("callback")
@@ -239,7 +246,7 @@ def test_callback_preserves_the_stock_inactive_virtual_call() -> None:
 def test_composes_with_upgrade_module_removal_in_both_orders(order: str) -> None:
     data = composition_image()
     removal = UpgradeModuleRemovalPatch()
-    conflicts = AttributeModifierAuraConflictsPatch()
+    conflicts = UpgradeModuleConflictsPatch()
     patches = [removal, conflicts] if order == "removal-first" else [conflicts, removal]
     for patch in patches:
         patch.apply(data)
@@ -253,6 +260,6 @@ def test_real_binary() -> None:
     if not path.exists():
         pytest.skip("repository game.dat fixture is absent")
     data = bytearray(path.read_bytes())
-    patch = AttributeModifierAuraConflictsPatch()
+    patch = UpgradeModuleConflictsPatch()
     patch.apply(data)
     assert patch.verify(data) == []

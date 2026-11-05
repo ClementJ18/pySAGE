@@ -82,6 +82,9 @@ from sage_patch.patches.special_powers.level_grant_special_power import (
 from sage_patch.patches.special_powers.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.special_powers.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.special_powers.special_power_object_cap import SpecialPowerObjectCapPatch
+from sage_patch.patches.special_powers.special_power_palantir_movie import (
+    SpecialPowerPalantirMoviePatch,
+)
 from sage_patch.patches.special_powers.special_power_pause_button import (
     SpecialPowerPauseButtonPatch,
 )
@@ -124,9 +127,11 @@ from sage_patch.patches.upgrades.lifetime_fields import LifetimeFieldsPatch
 from sage_patch.patches.upgrades.science_prereqs import SciencePrereqPatch
 from sage_patch.patches.upgrades.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrades.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.upgrades.upgrade_module_conflicts import UpgradeModuleConflictsPatch
 from sage_patch.patches.upgrades.upgrade_module_removal import UpgradeModuleRemovalPatch
 
 __all__ = [
+    "UpgradeModuleConflictsPatch",
     "SlavedUpdateIdlePatch",
     "TextEntryClipboardPatch",
     "AiBuildQueueSkipPatch",
@@ -155,6 +160,7 @@ __all__ = [
     "ExperienceLevelDownPatch",
     "UpgradeModuleRemovalPatch",
     "SpecialPowerObjectCapPatch",
+    "SpecialPowerPalantirMoviePatch",
     "SpecialPowerPauseButtonPatch",
     "FireAtAttackerPatch",
     "FoundationRebindPatch",

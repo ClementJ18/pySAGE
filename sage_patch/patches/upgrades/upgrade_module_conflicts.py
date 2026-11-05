@@ -2,16 +2,21 @@
 
 The stock Object dispatcher never calls an active module again. This patch admits interfaces
 that satisfy the common UpgradeModule vtable contract and makes a newly satisfied conflict take
-the same virtual removal path as losing a ``TriggeredBy`` upgrade. The historical patch name is
-kept because it is part of pySAGE's public CLI and manifest surface.
+the same virtual removal path as losing a ``TriggeredBy`` upgrade. ObjectCreationUpgrade keeps
+its native post-check cleanup; its conflict test is extended to honor
+RequiresAllConflictingTriggers without running cleanup twice per dispatch.
 
 Derivation and the deliberately conservative interface contract:
-``../../docs/attribute-modifier-aura-conflicts.md``.
+``../../docs/upgrade-module-conflicts.md``.
 """
 
 from __future__ import annotations
 
 from ...addresses import (
+    OBJECT_CREATION_UPGRADE_CONFLICT_ANCHORS,
+    OBJECT_CREATION_UPGRADE_CONFLICT_CALL,
+    OBJECT_CREATION_UPGRADE_CONFLICT_CALL_BYTES,
+    OBJECT_CREATION_UPGRADE_MUX_VTABLE,
     OBJECT_DISPATCH_UPGRADES,
     OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE,
     OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES,
@@ -34,11 +39,19 @@ from ...addresses import (
 )
 from ...asm import JE, JNE, Asm
 from ...patcher import Patch
-from ...utils import allocate_section, apply_byte_patch, file_offset, find_section, jmp_rel32, u32
+from ...utils import (
+    allocate_section,
+    apply_byte_patch,
+    call_rel32,
+    file_offset,
+    find_section,
+    jmp_rel32,
+    u32,
+)
 
-__all__ = ["SECTION_NAME", "AttributeModifierAuraConflictsPatch", "build_code"]
+__all__ = ["SECTION_NAME", "UpgradeModuleConflictsPatch", "build_code"]
 
-SECTION_NAME = ".aurconf"
+SECTION_NAME = ".upconf"
 
 
 def _assemble(base_va: int) -> Asm:
@@ -94,6 +107,8 @@ def _assemble(base_va: int) -> Asm:
     a.emit(OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES[:8])
     a.jcc(JE, "build_mask")
     a.emit(b"\x8b\x03")  # mov eax, [ebx] ; vtable
+    a.emit(b"\x3d", u32(OBJECT_CREATION_UPGRADE_MUX_VTABLE))
+    a.jcc(JE, "post_callback")  # native post-check already cancels/cleans up this module
     a.emit(b"\x81\x38", u32(UPGRADE_INTERFACE_GET_FLAG))
     a.jcc(JNE, "post_callback")
     a.emit(b"\x81\x78\x04", u32(UPGRADE_MODULE_ON_ADDED))
@@ -126,6 +141,26 @@ def _assemble(base_va: int) -> Asm:
     a.label("callback_stock")
     a.emit(OBJECT_DISPATCH_UPGRADES_CALLBACK_BYTES)
     a.jmp_absolute(OBJECT_DISPATCH_UPGRADES_POST_CALLBACK)
+
+    # ObjectCreationUpgrade's evaluator has ECX=&conflicts and heldMask on the stack;
+    # ESI is its UpgradeMux. Its own post-check remains authoritative for cleanup and arming.
+    a.label("creation_conflict")
+    a.emit(b"\x53\x57\x8b\xd9\x8b\xce\x8b\x06\xff\x50\x38")
+    a.emit(b"\x0f\xb6\xf8\x8b\xcb")  # movzx edi,al ; mov ecx,ebx
+    a.call_absolute(UPGRADE_MASK_ANY)
+    a.emit(b"\x84\xc0")
+    a.jcc(JE, "creation_empty")
+    a.emit(b"\x8b\x4c\x24\x0c\x53\x85\xff")  # held this; conflicts argument
+    a.jcc(JE, "creation_any")
+    a.call_absolute(UPGRADE_MASK_TEST_ALL)
+    a.jmp("creation_done")
+    a.label("creation_any")
+    a.call_absolute(UPGRADE_MASK_TEST_ANY)
+    a.jmp("creation_done")
+    a.label("creation_empty")
+    a.emit(b"\x32\xc0")
+    a.label("creation_done")
+    a.emit(b"\x5f\x5b\xc2\x04\x00")
     return a
 
 
@@ -147,6 +182,9 @@ def _windows(base_va: int) -> dict[int, bytes]:
             a.label_va("callback"),
             len(OBJECT_DISPATCH_UPGRADES_CALLBACK_BYTES),
         ),
+        OBJECT_CREATION_UPGRADE_CONFLICT_CALL: call_rel32(
+            OBJECT_CREATION_UPGRADE_CONFLICT_CALL, a.label_va("creation_conflict")
+        ),
     }
 
 
@@ -154,9 +192,15 @@ def _dispatcher(base_va: int | None = None) -> bytes:
     blob = bytearray(OBJECT_DISPATCH_UPGRADES_BYTES)
     if base_va is not None:
         for va, replacement in _windows(base_va).items():
+            if va == OBJECT_CREATION_UPGRADE_CONFLICT_CALL:
+                continue
             start = va - OBJECT_DISPATCH_UPGRADES
             blob[start : start + len(replacement)] = replacement
     return bytes(blob)
+
+
+def _anchors() -> dict[int, bytes]:
+    return {**UPGRADE_MODULE_CONFLICT_ANCHORS, **OBJECT_CREATION_UPGRADE_CONFLICT_ANCHORS}
 
 
 def _companion_removal_is_valid(data: bytes | bytearray) -> bool:
@@ -169,22 +213,26 @@ def _companion_removal_is_valid(data: bytes | bytearray) -> bool:
     return not UpgradeModuleRemovalPatch().verify(data)
 
 
-class AttributeModifierAuraConflictsPatch(Patch):
+class UpgradeModuleConflictsPatch(Patch):
     """Make later ConflictsWith grants remove active standard UpgradeModule effects."""
 
-    name = "attribute-modifier-aura-conflicts"
+    name = "upgrade-module-conflicts"
     author = "Ostkannit"
     runtime_verified = "partly"
     description = (
         "Deactivate active standard UpgradeModules when ConflictsWith becomes satisfied, using "
-        "the same removal lifecycle as loss of TriggeredBy. Uses existing INI fields; no new tokens"
+        "native cleanup; preserve ObjectCreationUpgrade post-checks and all/any conflicts. "
+        "Uses existing INI fields"
     )
 
     def apply(self, data: bytearray) -> None:
         if find_section(data, SECTION_NAME) is not None:
             raise ValueError(f"the file already carries a {SECTION_NAME} section")
         companion = _companion_removal_is_valid(data)
-        for va, expected in UPGRADE_MODULE_CONFLICT_ANCHORS.items():
+        for va, expected in {
+            **_anchors(),
+            OBJECT_CREATION_UPGRADE_CONFLICT_CALL: OBJECT_CREATION_UPGRADE_CONFLICT_CALL_BYTES,
+        }.items():
             if companion and va in {UPGRADE_MODULE_REMOVE_EFFECTS, UPGRADE_MODULE_REMOVAL}:
                 continue
             off = file_offset(data, va)
@@ -201,13 +249,16 @@ class AttributeModifierAuraConflictsPatch(Patch):
                 f"expected {OBJECT_DISPATCH_UPGRADES_BYTES.hex()} got {got.hex()}"
             )
 
-        base = allocate_section(data, SECTION_NAME, build_code, 0x60000020)
+        out = bytearray(data)
+        base = allocate_section(out, SECTION_NAME, build_code, 0x60000020)
         for va, replacement in _windows(base).items():
             stock = {
                 OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE: OBJECT_DISPATCH_UPGRADES_ACTIVE_GATE_BYTES,
                 OBJECT_DISPATCH_UPGRADES_CALLBACK: OBJECT_DISPATCH_UPGRADES_CALLBACK_BYTES,
+                OBJECT_CREATION_UPGRADE_CONFLICT_CALL: OBJECT_CREATION_UPGRADE_CONFLICT_CALL_BYTES,
             }[va]
-            apply_byte_patch(data, file_offset(data, va), stock, replacement, self.name)
+            apply_byte_patch(out, file_offset(out, va), stock, replacement, self.name)
+        data[:] = out
 
     def verify(self, data: bytes | bytearray) -> list[str]:
         located = find_section(data, SECTION_NAME)
@@ -227,7 +278,12 @@ class AttributeModifierAuraConflictsPatch(Patch):
             problems.append(str(exc))
 
         companion = _companion_removal_is_valid(data)
-        for va, expected in UPGRADE_MODULE_CONFLICT_ANCHORS.items():
+        for va, expected in {
+            **_anchors(),
+            OBJECT_CREATION_UPGRADE_CONFLICT_CALL: _windows(base)[
+                OBJECT_CREATION_UPGRADE_CONFLICT_CALL
+            ],
+        }.items():
             if companion and va in {UPGRADE_MODULE_REMOVE_EFFECTS, UPGRADE_MODULE_REMOVAL}:
                 continue
             try:

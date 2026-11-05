@@ -3,6 +3,15 @@
 from __future__ import annotations
 
 __all__ = [
+    "SPECIAL_POWER_PALANTIR_ANCHORS",
+    "SPECIAL_POWER_PALANTIR_CLIENT",
+    "SPECIAL_POWER_PALANTIR_GLOBAL",
+    "SPECIAL_POWER_PALANTIR_INTENT_GATE",
+    "SPECIAL_POWER_PALANTIR_INTENT_DONE",
+    "SPECIAL_POWER_PALANTIR_INTENT_FOUND",
+    "SPECIAL_POWER_PALANTIR_PLAYER_UPGRADE_CALL",
+    "SPECIAL_POWER_PALANTIR_WINDOWS",
+    "SPECIAL_POWER_TRIGGER",
     "COMMAND_BUTTON_SIDECAR_CTOR",
     "COMMAND_BUTTON_SIDECAR_CTOR_BYTES",
     "COMMAND_BUTTON_CTOR_BYTES",
@@ -386,6 +395,35 @@ DO_SPECIAL_POWER_SITES = (
 # RotWK 2.01 addresses for `special-power-music`. The call returns the final template in `eax`; the
 # `push 0` at `0x0089718B` belongs to the later `AudioEvent` constructor, not to this call.
 SPECIAL_POWER_NOTIFY_TRIGGERED_AND_PLAY_INITIATE_AUDIO = 0x0089713F
+# PalantirMovie-only fallback; docs/special-power-palantir-movie.md. These are module-base
+# addresses, not SpecialPowerModuleInterface (+0x10) entry contracts.
+SPECIAL_POWER_TRIGGER = 0x00897987
+SPECIAL_POWER_PALANTIR_CLIENT = 0x006D5397  # thiscall(AsciiString*, int), ret 8
+SPECIAL_POWER_PALANTIR_GLOBAL = 0x00DE4A70
+SPECIAL_POWER_PALANTIR_INTENT_GATE = 0x00897FA0
+SPECIAL_POWER_PALANTIR_INTENT_FOUND = 0x00897FA6
+SPECIAL_POWER_PALANTIR_INTENT_DONE = 0x00898092
+SPECIAL_POWER_PALANTIR_PLAYER_UPGRADE_CALL = 0x008CC165
+SPECIAL_POWER_PALANTIR_WINDOWS = {
+    SPECIAL_POWER_PALANTIR_INTENT_GATE: bytes.fromhex("0f84ec000000"),
+    SPECIAL_POWER_PALANTIR_PLAYER_UPGRADE_CALL: bytes.fromhex("e81db8fcff"),
+}
+SPECIAL_POWER_PALANTIR_ANCHORS = {
+    GET_FINAL_OVERRIDE: bytes.fromhex("8bc18b500485d2740e"),
+    0x00897F9C: bytes.fromhex("837df000"),  # flags consumed by the displaced JE
+    SPECIAL_POWER_PALANTIR_INTENT_FOUND: bytes.fromhex(
+        "8b46048b78088d4514508bcfe8f0eaffff8b451433db3bc3895dfc7416663958047410"
+        "8b0d704ade00538d451450e8bed3e3ff"
+    ),
+    0x008CC160: bytes.fromhex("6a008d4ef0"),  # original NULL trigger argument and base this
+    SPECIAL_POWER_TRIGGER: bytes.fromhex("b8a514ba00e85f551a00"),
+    SPECIAL_POWER_PALANTIR_CLIENT: bytes.fromhex(
+        "568bf1e86af2ffff84c0744fe861f2ffff8b4e10f6d81ac0fec0888150010000"
+        "8b46108b4c240c89884c0100008bcee83ef2ffff84c075076a00e8a8feffff"
+        "8b46108b48788b01ff50248b46108b48786a40ff74240ce8e36325005ec20800"
+    ),
+    0x006D4609: bytes.fromhex("8b4110f6406007750433c040c333c0c3"),
+}
 SPM_TRIGGER_HOOK = 0x0089718C
 SPM_TRIGGER_HOOK_BYTES = bytes.fromhex("e8ab1bdfff")
 # After the application frame and profiling end, before frame pacing. +0x0C of
