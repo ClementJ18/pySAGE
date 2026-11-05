@@ -73,6 +73,7 @@ __all__ = [
     "DICT_SET_ASCII_STRING",
     "DICT_SET_ASCII_STRING_BYTES",
     "EMPTY_STRING",
+    "EMPTY_ASCII_STRING",
     "FIELD_PARSE_STRIDE",
     "FILE_SYSTEM",
     "FILE_SYSTEM_CREATE_CALL",
@@ -420,6 +421,8 @@ STRICMP = 0x00A3CF40
 #: The two string literals the boolean accessors compare against and fall back to.
 YES_STRING = 0x00BD3D80
 EMPTY_STRING = 0x00BD0C3F
+#: Address of the engine's empty `AsciiString` value (a one-dword object), not the C string above.
+EMPTY_ASCII_STRING = 0x00DC62B8
 COMMAND_LINE_PARSE_AND_MOUNT_MODS = 0x007BAA44
 COMMAND_LINE_PARSE = 0x007BA7E1
 COMMAND_LINE_STARTUP_TABLE = 0x00C35DA8

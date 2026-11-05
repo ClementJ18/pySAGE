@@ -24,6 +24,8 @@ from sage_patch.patches import (
     CommandPointCostPatch,
     CommandPointUpkeepPatch,
     CommandSetLimitPatch,
+    CostModifierUpgradeGroupsPatch,
+    CostModifierUpgradeGroupsWorldbuilderPatch,
     ExperienceLevelDownPatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
@@ -59,6 +61,7 @@ from sage_patch.patches import (
     SpawnUnionPatch,
     SpecialPowerMusicPatch,
     SpecialPowerObjectCapPatch,
+    SpecialPowerPalantirMoviePatch,
     SpecialPowerPauseButtonPatch,
     SpellStoreUpgradePatch,
     TerrainResourceExpPatch,
@@ -68,6 +71,7 @@ from sage_patch.patches import (
     UpgradeAliasPatch,
     UpgradeDescriptionPatch,
     UpgradeGrantListsPatch,
+    UpgradeModuleConflictsPatch,
     UpgradeModuleRemovalPatch,
     WotrBattleObserversPatch,
     WotrLobbySlotsPatch,
@@ -77,6 +81,9 @@ from sage_patch.patches.units.slaved_update_idle import SlavedUpdateIdlePatch
 from sage_patch.sagepatch import generate
 
 __all__ = [
+    "CostModifierUpgradeGroupsPatch",
+    "CostModifierUpgradeGroupsWorldbuilderPatch",
+    "UpgradeModuleConflictsPatch",
     "SlavedUpdateIdlePatch",
     "TextEntryClipboardPatch",
     "EXPERIMENTAL_WARNING",
@@ -91,6 +98,7 @@ __all__ = [
     "ExperienceLevelDownPatch",
     "UpgradeModuleRemovalPatch",
     "SpecialPowerObjectCapPatch",
+    "SpecialPowerPalantirMoviePatch",
     "SpecialPowerPauseButtonPatch",
     "FoundationRebindPatch",
     "HeadlessPatch",

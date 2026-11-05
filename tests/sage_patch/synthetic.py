@@ -77,6 +77,7 @@ from sage_patch.patches.diagnostics import crash_dump as cd
 from sage_patch.patches.diagnostics import perf_scope_skip as pss
 from sage_patch.patches.diagnostics import perf_stage_readout as psr
 from sage_patch.patches.diagnostics import script_debug_window as sdw
+from sage_patch.patches.economy import cost_modifier_upgrade_groups as cmug
 from sage_patch.patches.economy import player_upgrade_discount as pud
 from sage_patch.patches.economy import production_condition as pc
 from sage_patch.patches.economy import production_death_no_refund as pdnr
@@ -1045,6 +1046,49 @@ def spell_recharge_targets_image() -> bytearray:
         planted[name_va] = name.encode("ascii") + b"\x00"
     for va, blob, _what in srt.ANCHORS:
         planted[va] = blob
+    return _sparse_image(planted)
+
+
+def cost_modifier_upgrade_groups_image(extra: dict[int, bytes] | None = None) -> bytearray:
+    """A stand-in for the CMU ModuleData table, Player key helpers and Palantir query."""
+    names = (
+        (0x00BF2B7C, "ObjectFilter", 0x0076392F, 0x138),
+        (0x00C5EF1C, "Percentage", 0x008BA26F, 0x13C),
+        (0x00C6EF38, "UpgradeDiscount", 0x0042E558, 0x148),
+        (0x00C6EF20, "ApplyToTheseUpgrades", 0x0042EED6, 0x150),
+        (0x00C06684, "StartsActive", 0x0042E558, 0x149),
+        (0x00C6EF14, "Slaughter", 0x0042E558, 0x14A),
+        (0x00C6EEFC, "LabelForPalantirString", 0x0042EE5E, 0x14C),
+    )
+    table = b"".join(
+        struct.pack("<4I", va, parser, 0, offset) for va, _name, parser, offset in names
+    )
+    planted = {
+        **{va: name.encode("ascii") + b"\0" for va, name, _parser, _offset in names},
+        cmug.COST_MODIFIER_UPGRADE_FIELD_TABLE: table + bytes(cmug.FIELD_ENTRY_SIZE),
+        cmug.COST_MODIFIER_UPGRADE_MODULEDATA_SIZE_SITE: (
+            cmug.COST_MODIFIER_UPGRADE_MODULEDATA_SIZE_SITE_BYTES
+        ),
+        cmug.COST_MODIFIER_UPGRADE_MODULEDATA_CTOR_CALL: (
+            cmug.COST_MODIFIER_UPGRADE_MODULEDATA_CTOR_CALL_BYTES
+        ),
+        cmug.COST_MODIFIER_UPGRADE_MODULEDATA_DTOR: (
+            cmug.COST_MODIFIER_UPGRADE_MODULEDATA_DTOR_BYTES
+        ),
+        cmug.COST_MODIFIER_UPGRADE_FIELD_TABLE_REF: (
+            cmug.COST_MODIFIER_UPGRADE_FIELD_TABLE_REF_BYTES
+        ),
+        cmug.PLAYER_ADD_UPGRADE_DISCOUNT_RECORD: cmug.PLAYER_ADD_UPGRADE_DISCOUNT_RECORD_BYTES,
+        cmug.PLAYER_REMOVE_UPGRADE_DISCOUNT_RECORD: (
+            cmug.PLAYER_REMOVE_UPGRADE_DISCOUNT_RECORD_BYTES
+        ),
+        cmug.COST_MODIFIER_PALANTIR_UPGRADE_QUERY: (
+            cmug.COST_MODIFIER_PALANTIR_UPGRADE_QUERY_BYTES
+        ),
+        **{va: blob for va, blob, _what in cmug._ANCHORS},
+    }
+    if extra:
+        planted.update(extra)
     return _sparse_image(planted)
 
 
