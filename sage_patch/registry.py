@@ -39,9 +39,6 @@ from sage_patch.patches.campaign.wotr_battle_hero_pool import WotrBattleHeroPool
 from sage_patch.patches.campaign.wotr_battle_observers import WotrBattleObserversPatch
 from sage_patch.patches.campaign.wotr_lobby_slots import WotrLobbySlotsPatch
 from sage_patch.patches.combat.attack_requires_damage import AttackRequiresDamagePatch
-from sage_patch.patches.combat.attribute_modifier_aura_conflicts import (
-    AttributeModifierAuraConflictsPatch,
-)
 from sage_patch.patches.combat.damage_subtypes import (
     DamageSubtypesPatch,
     DamageSubtypesWorldbuilderPatch,
@@ -86,6 +83,10 @@ from sage_patch.patches.economy.combo_horde_recruitment import ComboHordeRecruit
 from sage_patch.patches.economy.command_point_cost import CommandPointCostPatch
 from sage_patch.patches.economy.command_point_override import CommandPointOverridePatch
 from sage_patch.patches.economy.command_point_upkeep import CommandPointUpkeepPatch
+from sage_patch.patches.economy.cost_modifier_upgrade_groups import (
+    CostModifierUpgradeGroupsPatch,
+    CostModifierUpgradeGroupsWorldbuilderPatch,
+)
 from sage_patch.patches.economy.hero_recruit_parallel import HeroRecruitParallelPatch
 from sage_patch.patches.economy.horde_exit_absorption import HordeExitAbsorptionPatch
 from sage_patch.patches.economy.maintenance_cost import MaintenanceCostPatch
@@ -185,6 +186,9 @@ from sage_patch.patches.special_powers.multi_execute_cooldown import MultiExecut
 from sage_patch.patches.special_powers.multi_execute_gate import MultiExecuteGatePatch
 from sage_patch.patches.special_powers.recharge_rescale import RechargeRescalePatch
 from sage_patch.patches.special_powers.special_power_object_cap import SpecialPowerObjectCapPatch
+from sage_patch.patches.special_powers.special_power_palantir_movie import (
+    SpecialPowerPalantirMoviePatch,
+)
 from sage_patch.patches.special_powers.special_power_pause_button import (
     SpecialPowerPauseButtonPatch,
 )
@@ -252,6 +256,7 @@ from sage_patch.patches.upgrades.science_prereqs import (
 )
 from sage_patch.patches.upgrades.upgrade_alias import UpgradeAliasPatch
 from sage_patch.patches.upgrades.upgrade_grant_lists import UpgradeGrantListsPatch
+from sage_patch.patches.upgrades.upgrade_module_conflicts import UpgradeModuleConflictsPatch
 from sage_patch.patches.upgrades.upgrade_module_removal import UpgradeModuleRemovalPatch
 from sage_patch.patches.worldbuilder.worldbuilder_label_assert import WorldbuilderLabelAssertPatch
 from sage_patch.patches.worldbuilder.worldbuilder_mod import WorldbuilderModPatch
@@ -287,7 +292,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     AshWeatherPatch,
     AshWeatherWorldbuilderPatch,
     AssetLoadProfilePatch,
-    AttributeModifierAuraConflictsPatch,
+    UpgradeModuleConflictsPatch,
     AttackRequiresDamagePatch,
     AutoDepositInflationPatch,
     BannerFilterPatch,
@@ -320,6 +325,8 @@ _REGISTERED: tuple[type[Patch], ...] = (
     CommandRangeFlyoutPatch,
     CooldownThroughDeathPatch,
     ContainedHordeRespawnPatch,
+    CostModifierUpgradeGroupsPatch,
+    CostModifierUpgradeGroupsWorldbuilderPatch,
     CrashDumpPatch,
     DamageSubtypesPatch,
     DamageSubtypesWorldbuilderPatch,
@@ -339,6 +346,7 @@ _REGISTERED: tuple[type[Patch], ...] = (
     UpgradeModuleRemovalPatch,
     SpecialPowerPauseButtonPatch,
     SpecialPowerObjectCapPatch,
+    SpecialPowerPalantirMoviePatch,
     FireAtAttackerPatch,
     FoundationRebindPatch,
     GateCloseRepathPatch,

@@ -84,10 +84,12 @@ def _run_diff(args: argparse.Namespace) -> int:
 def _textconv_command() -> str:
     """The command git runs, with the map path appended. Absolute, since git runs it through a
     shell where neither a venv's scripts nor a frozen exe need be on PATH; quoted, since an
-    install path can contain spaces."""
+    install path can contain spaces. Keep interpreter symlinks: resolving a venv's Python
+    would select its base interpreter and lose the environment's installed packages."""
+    executable = Path(sys.executable).absolute().as_posix()
     if getattr(sys, "frozen", False):
-        return f'"{Path(sys.executable).resolve().as_posix()}" textconv'
-    return f'"{Path(sys.executable).resolve().as_posix()}" -m sage_map textconv'
+        return f'"{executable}" textconv'
+    return f'"{executable}" -m sage_map textconv'
 
 
 def _install_textconv(global_: bool) -> int:
