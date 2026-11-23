@@ -1,7 +1,7 @@
 # Engine module reference - fields and compiled-in defaults
 
 Generated from `game.dat` by [`../scripts/module_defaults.py`](../scripts/module_defaults.py);
-regenerate rather than edit. **330 modules, 6563 fields, 5231 with a recovered default (80%).**
+regenerate rather than edit. **330 modules, 6817 fields, 5658 with a recovered default (83%).**
 
 A listed default is what the ModuleData constructor writes, so it is the value in
 force whenever an INI block omits that keyword. Field names and offsets come from
@@ -13,7 +13,7 @@ constant-tracking through each constructor.
 - `-` in the default column means the constructor's write was not resolvable by
   constant-tracking - typically a container or string built by a member
   constructor, which is to say "empty". It does not mean the field is unset.
-- `type` is derived from the field's parse function. 165 fields (3%) use a
+- `type` is derived from the field's parse function. 179 fields (3%) use a
   parse function that has not been identified and show its raw address instead.
 - Offsets are into ModuleData, not into the module instance.
 - Types are checked for internal consistency: no `Bool` resolves to a non-boolean.
@@ -181,12 +181,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## AnimalAIUpdate
 
@@ -286,9 +286,9 @@ constant-tracking through each constructor.
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `CowerRadius` | Real | `0x1f0` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
@@ -296,7 +296,7 @@ constant-tracking through each constructor.
 | `EnterFadeTime` | Real | `0x170` | `0` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EvaEventLastMemberDeath` | EvaEvent | `0x250` | `-1` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
@@ -334,11 +334,11 @@ constant-tracking through each constructor.
 | `MachineAllowed` | Bool | `0x240` | `No` |
 | `MachineType` | AsciiString | `0x244` | `0` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
 | `MeleeAttackLeashDistance` | Real | `0x24c` | `60` |
 | `MeleeBehavior` | MeleeBehavior | `0x260` | `0` |
 | `MinimumHordeSize` | Int | `0x270` | `0` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NotComboFormation` | Bool | `0x25c` | `No` |
@@ -357,7 +357,7 @@ constant-tracking through each constructor.
 | `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
 | `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ScatterRandomness` | Real | `0x2c8` | `0.4` |
@@ -390,15 +390,15 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ArmorSetFlag` | Enum | `0x0` | - |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ArmorSetFlag` | Enum | `0x13c` | `3` |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `IgnoreArmorUpgrade` | Bool | `0x139` | `No` |
 | `KillArmorUpgrade` | Bool | `0x138` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## ArrowStormUpdate
 
@@ -546,20 +546,20 @@ constant-tracking through each constructor.
 | `AntiCategory` | 0x0089f32d | `0x160` | - |
 | `AntiFX` | FXList | `0x164` | `0` |
 | `BonusName` | AsciiString | `0x8` | - |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0xb8` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x148` | - |
 | `MaxActiveRank` | Int | `0x170` | `0` |
 | `ObjectFilter` | KindOfFilter | `0x24` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x156` | `No` |
 | `Range` | Real | `0x1c` | `0` |
 | `RefreshDelay` | Duration | `0x18` | `1` |
 | `RequiredConditions` | BitFlags | `0x15c` | `0` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x155` | `No` |
+| `RequiresAllTriggers` | Bool | `0x154` | `No` |
 | `RunWhileDead` | Bool | `0x16a` | `No` |
 | `StartsActive` | Bool | `0x158` | `No` |
 | `TargetEnemy` | Bool | `0x21` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x28` | `0` |
 
 ## AttributeModifierUpgrade
 
@@ -568,12 +568,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AttributeModifier` | AsciiString | `0x138` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## AudioLoopUpgrade
 
@@ -581,21 +581,21 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ConflictsWith` | UpgradeMask | `0xa4` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x134` | - |
+| `DamageAmountRequired` | Real | `0x168` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x144` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0x148` | - |
 | `KillAfterMS` | Duration | `0xc` | `0` |
 | `KillOnDeath` | Bool | `0x10` | `Yes` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | - |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
+| `MaxKillerAngle` | AngleReal | `0x170` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x16c` | `1` |
+| `Permanent` | Bool | `0x142` | `No` |
+| `RequiredStatus` | ObjectStatusFlags | `0x158` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x141` | `No` |
+| `RequiresAllTriggers` | Bool | `0x140` | `No` |
 | `SoundToPlay` | AudioEventRTS | `0x8` | `0` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x14` | - |
 
 ## AutoAbilityBehavior
 
@@ -650,8 +650,8 @@ constant-tracking through each constructor.
 | `AffectsContained` | Bool | `0x14d` | `No` |
 | `AffectsWholePlayer` | Bool | `0x14c` | `No` |
 | `ButtonTriggered` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `HealingAmount` | Int | `0x13c` | `0` |
 | `HealingDelay` | Duration | `0x140` | `-1` |
 | `HealOnlyIfNotInCombat` | Bool | `0x14f` | `No` |
@@ -659,17 +659,17 @@ constant-tracking through each constructor.
 | `HealOnlyOthers` | Bool | `0x16c` | `No` |
 | `KindOf` | KindOfFlags | `0x150` | - |
 | `NonStackable` | Bool | `0x174` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `Radius` | Int | `0x148` | `0` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `RespawnFXList` | FXList | `0x178` | `0` |
 | `RespawnMinimumDelay` | Int | `0x17c` | `0` |
 | `RespawnNearbyHordeMembers` | Bool | `0x175` | `No` |
 | `SingleBurst` | Bool | `0x13a` | `No` |
 | `StartHealingDelay` | Duration | `0x144` | `0` |
 | `StartsActive` | Bool | `0x138` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `UnitHealPulseFX` | FXList | `0x170` | `0` |
 
 ## AutoPickUpUpdate
@@ -713,14 +713,14 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `BuildingTemplateName` | AsciiString | `0x138` | `""` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `PlacementIndex` | Int | `0x140` | `0` |
 | `PlacementPrefix` | AsciiString | `0x13c` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | `0` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## BattlePlanUpdate
 
@@ -956,15 +956,15 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AllowKindOf` | KindOfFlags | `0x8` | - |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0xc0` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x150` | - |
 | `DelayBetweenUpdates` | Int | `0x28` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x15e` | `No` |
 | `PersistantConditions` | BitFlags | `0x160` | `0` |
 | `Radius` | Real | `0x24` | `100` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x15d` | `No` |
+| `RequiresAllTriggers` | Bool | `0x15c` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x30` | - |
 
 ## BuildableHeroListUpgrade
 
@@ -972,12 +972,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## BuildingBehavior
 
@@ -1097,12 +1097,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `Upgrade` | AsciiString | `0x138` | `0` |
 | `WallUpgradeRadius` | Real | `0x13c` | `0` |
 
@@ -1120,19 +1120,19 @@ constant-tracking through each constructor.
 | `CaveIndex` | Int | `0x98` | `0` |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NumberOfExitPaths` | Int | `0x74` | `0` |
@@ -1141,7 +1141,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 
 ## CitadelSlaughterHordeContain
@@ -1159,16 +1159,16 @@ constant-tracking through each constructor.
 | `CashBackPercent` | Percent | `0xd4` | `0.5` |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EntryOffset` | Coord3D | `0xb0` | - |
 | `EntryPosition` | Coord3D | `0xbc` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitOffset` | Coord3D | `0xc8` | `1` |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
@@ -1178,8 +1178,8 @@ constant-tracking through each constructor.
 | `InitialRoster` | 0x00653381 | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
@@ -1190,7 +1190,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `StatusForRingEntry` | ObjectStatusFlags | `0xec` | - |
 | `StatusRequiredForCanAlwaysEnter` | ObjectStatusFlags | `0xdc` | - |
@@ -1233,14 +1233,14 @@ constant-tracking through each constructor.
 | `ClearanceMaxHeightFraction` | NonNegativeReal | `0x1fc` | `1.1` |
 | `ClearanceMinHeight` | NonPositiveReal | `0x200` | `-20` |
 | `ClearanceMinHeightFraction` | NonNegativeReal | `0x204` | `1.1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathFlags` | 0x008612e7 | `0x0` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FadeDelay` | Duration | `0x188` | `4207599104` |
 | `FadeTime` | Duration | `0x184` | `6` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -1248,12 +1248,12 @@ constant-tracking through each constructor.
 | `FlingPitch` | AngleReal | `0x120` | `0` |
 | `FlingPitchVariance` | AngleReal | `0x124` | `0` |
 | `FX` | MomentFXList | `0x0` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -1379,13 +1379,13 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CommandPoints` | Int | `0x138` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `RequiredObject` | KindOfFilter | `0x13c` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## CommandSetUpgrade
 
@@ -1394,12 +1394,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CommandSet` | AsciiString | `0x138` | `""` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | `0` |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## CostModifierUpgrade
 
@@ -1408,17 +1408,17 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `ApplyToTheseUpgrades` | AsciiStringList | `0x150` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LabelForPalantirString` | AsciiString | `0x14c` | - |
 | `ObjectFilter` | KindOfFilter | `0x138` | - |
 | `Percentage` | 0x008ba26f | `0x13c` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `Slaughter` | Bool | `0x14a` | `No` |
 | `StartsActive` | Bool | `0x149` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `UpgradeDiscount` | Bool | `0x148` | `No` |
 
 ## CreateCrateDie
@@ -1428,12 +1428,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CrateData` | 0x00888b65 | `0x0` | - |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 
 ## CreateObjectDie
 
@@ -1442,13 +1442,13 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CreationList` | ObjectCreationList | `0x38` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DebrisPortionOfSelf` | AsciiString | `0x3c` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `UpgradeRequired` | AsciiStringList | `0x40` | `0` |
 
 ## CreateObjectDieIfEldestKindof
@@ -1458,14 +1458,14 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CreationList` | ObjectCreationList | `0x38` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DebrisPortionOfSelf` | AsciiString | `0x3c` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ObjectFilter` | KindOfFilter | `0x4c` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `UpgradeRequired` | AsciiStringList | `0x40` | `0` |
 
 ## CritterEmitterUpdate
@@ -1486,14 +1486,14 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `BackEndCrushSound` | AudioEventRTS | `0x3c` | - |
 | `BackEndCrushSoundPercent` | Int | `0x4c` | - |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FrontEndCrushSound` | AudioEventRTS | `0x40` | - |
 | `FrontEndCrushSoundPercent` | Int | `0x50` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `TotalCrushSound` | AudioEventRTS | `0x38` | - |
 | `TotalCrushSoundPercent` | Int | `0x48` | - |
 
@@ -1588,15 +1588,15 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CreationList` | ObjectCreationList | `0x38` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamageTypeTriggersForDuration` | Enum | `0x40` | - |
 | `DamageTypeTriggersInstantly` | Enum | `0x3c` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `PostFilterTriggeredDuration` | Duration | `0x44` | `0` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 
 ## DarknessSpecialPower
 
@@ -1745,13 +1745,13 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `DelayTime` | Duration | `0x138` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## DeletionUpdate
 
@@ -1818,12 +1818,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 
 ## DestroyEnvironmentUpdate
 
@@ -1843,8 +1843,8 @@ constant-tracking through each constructor.
 | `BurningDeathBehavior` | Bool | `0x51` | `No` |
 | `BurningDeathFX` | FXList | `0x54` | `0` |
 | `CheerRadius` | Real | `0x4c` | `200` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0xf4` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x184` | - |
 | `DamageCreationList` | DamageCreationList | `0x0` | - |
 | `DamagedAttributeModifier` | AsciiString | `0x30` | `0` |
 | `DodgePercent` | Percent | `0x18` | `0` |
@@ -1860,15 +1860,15 @@ constant-tracking through each constructor.
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
 | `MaxHealthReallyDamaged` | Real | `0x14` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x192` | `No` |
 | `ReallyDamagedAttributeModifier` | AsciiString | `0x34` | `0` |
 | `RecoveryTime` | Duration | `0x24` | `0` |
 | `RemoveUpgradesOnDeath` | Bool | `0x50` | `No` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x191` | `No` |
+| `RequiresAllTriggers` | Bool | `0x190` | `No` |
 | `RiderlessDeathChance` | Percent | `0x19c` | `0` |
 | `StartsActive` | Bool | `0x198` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x64` | - |
 | `UseDefaultDamageSettings` | Bool | `0x28` | `Yes` |
 
 ## DetachableRiderUpdate
@@ -1936,14 +1936,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `GetUpgradeCommandButtonName` | AsciiString | `0x138` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `RemoveUpgradeCommandButtonName` | AsciiString | `0x13c` | `0` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## DominateEnemySpecialPower
 
@@ -2068,18 +2068,18 @@ constant-tracking through each constructor.
 | `ActivationDelaySeconds` | Real | `0x174` | `0` |
 | `AllowEnemies` | Bool | `0x15d` | `No` |
 | `BonePrefix` | AsciiString | `0x13c` | - |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `GenerateNow` | Bool | `0x15c` | `No` |
 | `Link` | Link | `0x14c` | `0` |
 | `NumberOfBones` | Int | `0x138` | `0` |
 | `ObjectFilter` | KindOfFilter | `0x178` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `TopAttackPos` | Coord3D | `0x164` | - |
 | `TopAttackRadius` | Real | `0x170` | `5` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `WallBoundsMesh` | AsciiString | `0x158` | `""` |
 | `WayPoint` | WayPoint | `0x140` | - |
 
@@ -2299,12 +2299,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AddXPScalar` | Real | `0x138` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## FadeAndDieOrnamentUpdate
 
@@ -2324,12 +2324,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AllowEnemies` | Bool | `0x138` | `No` |
 | `AllowNonSkirmishAIUnits` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## FellBeastSwoopPower
 
@@ -2439,23 +2439,23 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
 | `ContinuousWeaponDamaged` | WeaponTemplate | `0x158` | `0` |
 | `ContinuousWeaponPristine` | WeaponTemplate | `0x154` | `0` |
 | `ContinuousWeaponReallyDamaged` | WeaponTemplate | `0x15c` | `0` |
 | `ContinuousWeaponRubble` | WeaponTemplate | `0x160` | `0` |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `DamageAmount` | Real | `0x140` | `0` |
 | `DamageTypes` | DamageTypeFlags | `0x13c` | `-1` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `ReactionWeaponDamaged` | WeaponTemplate | `0x148` | `0` |
 | `ReactionWeaponPristine` | WeaponTemplate | `0x144` | `0` |
 | `ReactionWeaponReallyDamaged` | WeaponTemplate | `0x14c` | `0` |
 | `ReactionWeaponRubble` | WeaponTemplate | `0x150` | `0` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x138` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## FireWeaponWhenDeadBehavior
 
@@ -2464,21 +2464,21 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `ActiveDuringConstruction` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `DamageAmountRequired` | Real | `0x170` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x14c` | `-1` |
 | `DeathWeapon` | WeaponTemplate | `0x17c` | `0` |
 | `DelayTime` | Duration | `0x13c` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | - |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `ExemptStatus` | ObjectStatusFlags | `0x150` | - |
+| `MaxKillerAngle` | AngleReal | `0x178` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x174` | `1` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiredStatus` | ObjectStatusFlags | `0x160` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x138` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `WeaponOffset` | Coord3D | `0x140` | - |
 
 ## FlammableUpdate
@@ -2691,14 +2691,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathFX` | FXList | `0x38` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `OrientToObject` | Bool | `0x3c` | `Yes` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 
 ## GarrisonContain
 
@@ -2713,22 +2713,22 @@ constant-tracking through each constructor.
 | `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
 | `InitialRoster` | 0x00653381 | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
@@ -2738,7 +2738,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
@@ -2748,12 +2748,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## GateOpenAndCloseBehavior
 
@@ -2801,16 +2801,16 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `HideGeometry` | AsciiStringList | `0x144` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `RampMesh1` | AsciiString | `0x154` | - |
 | `RampMesh2` | AsciiString | `0x158` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `ShowGeometry` | AsciiStringList | `0x138` | `0` |
-| `TriggeredBy` | UpgradeMask | `0x0` | `0` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `WallBoundsMesh` | AsciiString | `0x150` | - |
 
 ## GettingBuiltBehavior
@@ -2880,15 +2880,15 @@ constant-tracking through each constructor.
 | `CrashAvoidKindOfs` | KindOfFlags | `0x19c` | - |
 | `CrashAvoidRadius` | Real | `0x1b8` | `800` |
 | `CrashAvoidStrength` | Real | `0x1bc` | `0.1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathFlags` | 0x008612e7 | `0x0` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DelayFromGroundToFinalDeath` | DurationReal | `0x198` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FadeDelay` | Duration | `0x188` | `4207599104` |
 | `FadeTime` | Duration | `0x184` | `6` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -2897,14 +2897,14 @@ constant-tracking through each constructor.
 | `FlingPitchVariance` | AngleReal | `0x124` | `0` |
 | `FX` | MomentFXList | `0x0` | - |
 | `FXHitGround` | FXList | `0x190` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
 | `NeedToMaintainFlailingHeight` | Bool | `0x1c0` | `No` |
 | `OCL` | MomentOCL | `0x0` | - |
 | `OCLHitGround` | ObjectCreationList | `0x194` | `0` |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -3190,19 +3190,19 @@ constant-tracking through each constructor.
 | `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NumberOfExitPaths` | Int | `0x74` | `0` |
@@ -3211,7 +3211,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | Duration | `0x98` | `0` |
 
@@ -3252,12 +3252,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
 
 ## HeroModeSpecialAbilityUpdate
@@ -3438,9 +3438,9 @@ constant-tracking through each constructor.
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `CowerRadius` | Real | `0x1f0` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
@@ -3448,7 +3448,7 @@ constant-tracking through each constructor.
 | `EnterFadeTime` | Real | `0x170` | `0` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EvaEventLastMemberDeath` | EvaEvent | `0x250` | `-1` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
@@ -3477,11 +3477,11 @@ constant-tracking through each constructor.
 | `MachineAllowed` | Bool | `0x240` | `No` |
 | `MachineType` | AsciiString | `0x244` | `0` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
 | `MeleeAttackLeashDistance` | Real | `0x24c` | `60` |
 | `MeleeBehavior` | MeleeBehavior | `0x260` | `0` |
 | `MinimumHordeSize` | Int | `0x270` | `0` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NotComboFormation` | Bool | `0x25c` | `No` |
@@ -3499,7 +3499,7 @@ constant-tracking through each constructor.
 | `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
 | `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
@@ -3577,16 +3577,16 @@ constant-tracking through each constructor.
 | `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EntryOffset` | Coord3D | `0xb0` | - |
 | `EntryPosition` | Coord3D | `0xbc` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitOffset` | Coord3D | `0xc8` | `1` |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
@@ -3595,8 +3595,8 @@ constant-tracking through each constructor.
 | `InitialRoster` | 0x00653381 | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
@@ -3606,7 +3606,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
@@ -3616,23 +3616,156 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ScanAheadTimeMS` | Duration | `0x4` | - |
-| `ScanHeight` | Real | `0x8` | - |
-| `ScanWidth` | Real | `0xc` | - |
-| `TimeBetweenUpdatesMS` | Duration | `0x0` | - |
+| `ScanAheadTimeMS` | Duration | `0xc` | - |
+| `ScanHeight` | Real | `0x10` | `-1` |
+| `ScanWidth` | Real | `0x14` | `-1` |
+| `TimeBetweenUpdatesMS` | Duration | `0x8` | - |
 
 ## HordeSiegeEngineContain
 
-`sizeof(ModuleData)` = 0x1b4, 6 fields
+`sizeof(ModuleData)` = 0x1b4, 69 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
 | `CrewAllowedToFire` | Bool | `0x1a0` | `No` |
 | `CrewFilter` | KindOfFilter | `0x18c` | `0` |
 | `CrewMax` | Int | `0x190` | `0` |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
 | `InitialCrew` | 0x0087ec0b | `0x0` | - |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
 | `ObjectStatusOfCrew` | ObjectStatusFlags | `0x1a4` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
 | `SpeedPercentPerCrew` | Percent | `0x19c` | `1` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+
+## HordeTransportContain
+
+`sizeof(ModuleData)` = 0x18c, 63 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AllowAlliesInside` | Bool | `0x7d` | `No` |
+| `AllowEnemiesInside` | Bool | `0x7e` | `No` |
+| `AllowNeutralInside` | Bool | `0x7f` | `No` |
+| `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
+| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `CanGrabStructure` | Bool | `0x13d` | `No` |
+| `CollidePickup` | Bool | `0x81` | `No` |
+| `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
+| `ContainMax` | Int | `0x70` | `-1` |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DamagePercentToUnits` | Percent | `0x6c` | `0` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
+| `DoorOpenTime` | Duration | `0x78` | `0` |
+| `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
+| `Enabled` | Bool | `0x84` | `No` |
+| `EnterFadeTime` | Real | `0x170` | `0` |
+| `EnterSound` | AudioEventRTS | `0x38` | `0` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExitBone` | AsciiString | `0xa0` | `0` |
+| `ExitDelay` | Duration | `0xac` | `0` |
+| `ExitFadeTime` | Real | `0x174` | `0` |
+| `ExitPitchRate` | AngularVelocityReal | `0x9c` | `0` |
+| `ExitSound` | AudioEventRTS | `0x3c` | `0` |
+| `FadeFilter` | KindOfFilter | `0x168` | - |
+| `FadePassengerOnEnter` | Bool | `0x16c` | `No` |
+| `FadePassengerOnExit` | Bool | `0x16d` | `No` |
+| `FadeReverse` | Bool | `0x178` | `No` |
+| `FireGrabWeaponOnVictim` | Bool | `0x148` | `Yes` |
+| `ForceOrientationContainer` | Bool | `0x13c` | `Yes` |
+| `GoAggressiveOnExit` | Bool | `0x140` | `No` |
+| `GrabWeapon` | WeaponTemplate | `0x144` | `0` |
+| `HealthRegen%PerSec` | Real | `0xa8` | `0` |
+| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `ModifierRequiredTime` | Duration | `0x94` | `100` |
+| `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
+| `NumberOfExitPaths` | Int | `0x74` | `0` |
+| `ObjectStatusOfContained` | ObjectStatusFlags | `0x58` | `0` |
+| `OrientLikeContainerOnExit` | Bool | `0x13f` | `No` |
+| `PassengerBonePrefix` | PassengerBonePrefix | `0x0` | - |
+| `PassengerFilter` | KindOfFilter | `0x40` | - |
+| `PassengersInTurret` | Bool | `0x85` | `No` |
+| `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
+| `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
+| `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
+| `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
+| `ShowPips` | Bool | `0x80` | `No` |
+| `Slots` | Int | `0x98` | `0` |
+| `ThrowOutPassengersDelay` | Duration | `0x154` | `0` |
+| `ThrowOutPassengersLandingWarhead` | WeaponTemplate | `0x164` | `0` |
+| `ThrowOutPassengersVelocity` | Coord3D | `0x158` | - |
+| `TypeOneForWeaponSet` | KindOfFlags | `0xb0` | - |
+| `TypeOneForWeaponState` | KindOfFlags | `0xe8` | - |
+| `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
+| `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | `0` |
+| `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
+| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
 
 ## HordeWorkerAIUpdate
 
@@ -3689,9 +3822,9 @@ constant-tracking through each constructor.
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `CowerRadius` | Real | `0x1f0` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
@@ -3699,7 +3832,7 @@ constant-tracking through each constructor.
 | `EnterFadeTime` | Real | `0x170` | `0` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EvaEventLastMemberDeath` | EvaEvent | `0x250` | `-1` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
@@ -3728,11 +3861,11 @@ constant-tracking through each constructor.
 | `MachineAllowed` | Bool | `0x240` | `No` |
 | `MachineType` | AsciiString | `0x244` | `0` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
 | `MeleeAttackLeashDistance` | Real | `0x24c` | `60` |
 | `MeleeBehavior` | MeleeBehavior | `0x260` | `0` |
 | `MinimumHordeSize` | Int | `0x270` | `0` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NotComboFormation` | Bool | `0x25c` | `No` |
@@ -3750,7 +3883,7 @@ constant-tracking through each constructor.
 | `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
 | `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
@@ -3817,14 +3950,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FX` | FXList | `0x38` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `OCL` | 0x008601eb | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `Sound` | 0x00860324 | `0x0` | - |
 | `Weapon` | 0x0086022e | `0x0` | - |
 
@@ -3898,12 +4031,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CollapsingTime` | Duration | `0x38` | `25` |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `StayOnRadar` | Bool | `0x3c` | `No` |
 
 ## LargeGroupAudioUpdate
@@ -4021,14 +4154,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LevelCap` | Int | `0x13c` | `0` |
 | `LevelsToGain` | Int | `0x138` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## LifetimeUpdate
 
@@ -4056,13 +4189,55 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `KillLocomotorUpgrade` | Bool | `0x138` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
+
+## ManTheWallsSpecialPower
+
+`sizeof(ModuleData)` = 0x7c, 35 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## MaxHealthUpgrade
 
@@ -4072,12 +4247,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AddMaxHealth` | Real | `0x138` | `0` |
 | `ChangeType` | Enum | `0x13c` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## MineshaftPortalBehaviour
 
@@ -4087,12 +4262,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AllowEnemies` | Bool | `0x138` | `No` |
 | `AllowNonSkirmishAIUnits` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## MissileUpdate
 
@@ -4241,15 +4416,15 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AddConditionFlags` | ModelConditionFlags | `0x138` | - |
 | `AddTempConditionFlag` | ModelConditionFlag | `0x1d0` | `-1` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `RemoveConditionFlags` | ModelConditionFlags | `0x184` | - |
 | `RemoveConditionFlagsInRange` | ModelConditionFlagRange | `0x184` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `TempConditionTime` | Real | `0x1d4` | `0` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## MoneyCrateCollide
 
@@ -4298,10 +4473,10 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ScanAheadTimeMS` | Duration | `0x4` | - |
-| `ScanHeight` | Real | `0x8` | - |
-| `ScanWidth` | Real | `0xc` | - |
-| `TimeBetweenUpdatesMS` | Duration | `0x0` | - |
+| `ScanAheadTimeMS` | Duration | `0xc` | - |
+| `ScanHeight` | Real | `0x10` | `-1` |
+| `ScanWidth` | Real | `0x14` | `-1` |
+| `TimeBetweenUpdatesMS` | Duration | `0x8` | - |
 
 ## OathbreakerBody
 
@@ -4346,20 +4521,20 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `Angle` | AngleReal | `0x158` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0xa0` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x130` | - |
 | `DeathAnimAndDuration` | AnimAndDuration | `0x160` | - |
 | `Delay` | Duration | `0xc` | `0` |
 | `DestroyWhenSold` | Bool | `0x15c` | `No` |
 | `FadeInTime` | Int | `0x16c` | `0` |
 | `GrantUpgrade` | AsciiString | `0x144` | `0` |
 | `Offset` | Coord3D | `0x14c` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x13e` | `No` |
 | `RemoveUpgrade` | AsciiString | `0x140` | `0` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x13d` | `No` |
+| `RequiresAllTriggers` | Bool | `0x13c` | `No` |
 | `ThingToSpawn` | AsciiString | `0x148` | `0` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x10` | - |
 | `UpgradeObject` | ObjectCreationList | `0x8` | `0` |
 | `UseBuildingProduction` | Bool | `0x170` | `No` |
 
@@ -4464,19 +4639,19 @@ constant-tracking through each constructor.
 | `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NumberOfExitPaths` | Int | `0x74` | `0` |
@@ -4485,7 +4660,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 
 ## PartTheHeavensUpdate
@@ -4712,9 +4887,9 @@ constant-tracking through each constructor.
 | `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestinationTemplate` | 0x0088494c | `0xd4` | `0` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
@@ -4722,7 +4897,7 @@ constant-tracking through each constructor.
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EntryOffset` | Coord3D | `0xb0` | - |
 | `EntryPosition` | Coord3D | `0xbc` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitOffset` | Coord3D | `0xc8` | `1` |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
@@ -4731,8 +4906,8 @@ constant-tracking through each constructor.
 | `InitialRoster` | 0x00653381 | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
@@ -4742,7 +4917,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
@@ -4875,13 +5050,13 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `DisableProof` | Bool | `0x138` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## RadiateFearUpdate
 
@@ -4889,18 +5064,18 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0xb0` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x140` | - |
 | `EmotionPulseInterval` | Duration | `0x18` | `0` |
 | `EmotionPulseRadius` | Real | `0x14` | `0` |
 | `GenerateFear` | Bool | `0x11` | `No` |
 | `GenerateTerror` | Bool | `0x10` | `No` |
 | `GenerateUncontrollableFear` | Bool | `0x12` | `No` |
 | `InitiallyActive` | Bool | `0x8` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `Permanent` | Bool | `0x14e` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x14d` | `No` |
+| `RequiresAllTriggers` | Bool | `0x14c` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x20` | - |
 | `VictimFilter` | KindOfFilter | `0x1c` | - |
 | `WhichSpecialPower` | Int | `0xc` | `-1` |
 
@@ -4942,64 +5117,64 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `Chance` | Percent | `0x1d4` | `0.5` |
 | `RerollOnEveryFrame` | Bool | `0x1dd` | `Yes` |
-| `SoundAmbient` | AudioEventRTS | `0x128` | - |
-| `SoundAmbientBattle` | AudioEventRTS | `0x148` | - |
-| `SoundAmbientDamaged` | AudioEventRTS | `0x130` | - |
-| `SoundAmbientReallyDamaged` | AudioEventRTS | `0x138` | - |
-| `SoundAmbientRubble` | AudioEventRTS | `0x140` | - |
-| `SoundCreated` | AudioEventRTS | `0x160` | - |
-| `SoundCrushing` | AudioEventRTS | `0x1b8` | - |
-| `SoundEnter` | AudioEventRTS | `0x178` | - |
-| `SoundExit` | AudioEventRTS | `0x180` | - |
-| `SoundFallingFromPlane` | AudioEventRTS | `0x1a0` | - |
-| `SoundImpact` | AudioEventRTS | `0x1a8` | - |
-| `SoundImpactCyclonic` | AudioEventRTS | `0x1b0` | - |
-| `SoundMoveLoop` | AudioEventRTS | `0x118` | - |
-| `SoundMoveLoopDamaged` | AudioEventRTS | `0x120` | - |
-| `SoundMoveStart` | AudioEventRTS | `0x108` | - |
-| `SoundMoveStartDamaged` | AudioEventRTS | `0x110` | - |
-| `SoundOnDamaged` | AudioEventRTS | `0x168` | - |
-| `SoundOnReallyDamaged` | AudioEventRTS | `0x170` | - |
-| `SoundPromotedElite` | AudioEventRTS | `0x190` | - |
-| `SoundPromotedHero` | AudioEventRTS | `0x198` | - |
-| `SoundPromotedVeteran` | AudioEventRTS | `0x188` | - |
-| `SoundStealthOff` | AudioEventRTS | `0x158` | - |
-| `SoundStealthOn` | AudioEventRTS | `0x150` | - |
+| `SoundAmbient` | AudioEventRTS | `0x130` | - |
+| `SoundAmbientBattle` | AudioEventRTS | `0x150` | - |
+| `SoundAmbientDamaged` | AudioEventRTS | `0x138` | - |
+| `SoundAmbientReallyDamaged` | AudioEventRTS | `0x140` | - |
+| `SoundAmbientRubble` | AudioEventRTS | `0x148` | - |
+| `SoundCreated` | AudioEventRTS | `0x168` | - |
+| `SoundCrushing` | AudioEventRTS | `0x1c0` | - |
+| `SoundEnter` | AudioEventRTS | `0x180` | - |
+| `SoundExit` | AudioEventRTS | `0x188` | - |
+| `SoundFallingFromPlane` | AudioEventRTS | `0x1a8` | - |
+| `SoundImpact` | AudioEventRTS | `0x1b0` | - |
+| `SoundImpactCyclonic` | AudioEventRTS | `0x1b8` | - |
+| `SoundMoveLoop` | AudioEventRTS | `0x120` | - |
+| `SoundMoveLoopDamaged` | AudioEventRTS | `0x128` | - |
+| `SoundMoveStart` | AudioEventRTS | `0x110` | - |
+| `SoundMoveStartDamaged` | AudioEventRTS | `0x118` | - |
+| `SoundOnDamaged` | AudioEventRTS | `0x170` | - |
+| `SoundOnReallyDamaged` | AudioEventRTS | `0x178` | - |
+| `SoundPromotedElite` | AudioEventRTS | `0x198` | - |
+| `SoundPromotedHero` | AudioEventRTS | `0x1a0` | - |
+| `SoundPromotedVeteran` | AudioEventRTS | `0x190` | - |
+| `SoundStealthOff` | AudioEventRTS | `0x160` | - |
+| `SoundStealthOn` | AudioEventRTS | `0x158` | - |
 | `UnitSpecificSounds` | 0x0073f684 | `0x1c8` | - |
-| `VoiceAlert` | AudioEventRTS | `0x70` | - |
-| `VoiceAttack` | AudioEventRTS | `0x30` | - |
-| `VoiceAttackAir` | AudioEventRTS | `0x60` | - |
-| `VoiceAttackCharge` | AudioEventRTS | `0x38` | - |
-| `VoiceAttackMachine` | AudioEventRTS | `0x98` | - |
-| `VoiceAttackStructure` | AudioEventRTS | `0x90` | - |
-| `VoiceCombineWithHorde` | AudioEventRTS | `0xa8` | - |
-| `VoiceCreated` | AudioEventRTS | `0x48` | - |
-| `VoiceDefect` | AudioEventRTS | `0x58` | - |
-| `VoiceEnterStateAttack` | AudioEventRTS | `0xb0` | - |
-| `VoiceEnterStateAttackAir` | AudioEventRTS | `0xc0` | - |
-| `VoiceEnterStateAttackCharge` | AudioEventRTS | `0xb8` | - |
-| `VoiceEnterStateAttackMachine` | AudioEventRTS | `0xd0` | - |
-| `VoiceEnterStateAttackStructure` | AudioEventRTS | `0xc8` | - |
-| `VoiceEnterStateMove` | AudioEventRTS | `0xd8` | - |
-| `VoiceEnterStateMoveOverWalls` | AudioEventRTS | `0xe8` | - |
-| `VoiceEnterStateMoveToCamp` | AudioEventRTS | `0xf8` | - |
-| `VoiceEnterStateMoveToHigherGround` | AudioEventRTS | `0xe0` | - |
-| `VoiceEnterStateMoveWhileAttacking` | AudioEventRTS | `0x100` | - |
-| `VoiceEnterStateRetreatToCastle` | AudioEventRTS | `0xf0` | - |
-| `VoiceFear` | AudioEventRTS | `0x40` | - |
-| `VoiceFullyCreated` | AudioEventRTS | `0x78` | - |
-| `VoiceGuard` | AudioEventRTS | `0x68` | - |
-| `VoiceMove` | AudioEventRTS | `0x18` | - |
-| `VoiceMoveOverWalls` | AudioEventRTS | `0x28` | - |
-| `VoiceMoveToCamp` | AudioEventRTS | `0x88` | - |
-| `VoiceMoveToHigherGround` | AudioEventRTS | `0x20` | - |
-| `VoiceMoveWhileAttacking` | AudioEventRTS | `0xa0` | - |
+| `VoiceAlert` | AudioEventRTS | `0x78` | - |
+| `VoiceAttack` | AudioEventRTS | `0x38` | - |
+| `VoiceAttackAir` | AudioEventRTS | `0x68` | - |
+| `VoiceAttackCharge` | AudioEventRTS | `0x40` | - |
+| `VoiceAttackMachine` | AudioEventRTS | `0xa0` | - |
+| `VoiceAttackStructure` | AudioEventRTS | `0x98` | - |
+| `VoiceCombineWithHorde` | AudioEventRTS | `0xb0` | - |
+| `VoiceCreated` | AudioEventRTS | `0x50` | - |
+| `VoiceDefect` | AudioEventRTS | `0x60` | - |
+| `VoiceEnterStateAttack` | AudioEventRTS | `0xb8` | - |
+| `VoiceEnterStateAttackAir` | AudioEventRTS | `0xc8` | - |
+| `VoiceEnterStateAttackCharge` | AudioEventRTS | `0xc0` | - |
+| `VoiceEnterStateAttackMachine` | AudioEventRTS | `0xd8` | - |
+| `VoiceEnterStateAttackStructure` | AudioEventRTS | `0xd0` | - |
+| `VoiceEnterStateMove` | AudioEventRTS | `0xe0` | - |
+| `VoiceEnterStateMoveOverWalls` | AudioEventRTS | `0xf0` | - |
+| `VoiceEnterStateMoveToCamp` | AudioEventRTS | `0x100` | - |
+| `VoiceEnterStateMoveToHigherGround` | AudioEventRTS | `0xe8` | - |
+| `VoiceEnterStateMoveWhileAttacking` | AudioEventRTS | `0x108` | - |
+| `VoiceEnterStateRetreatToCastle` | AudioEventRTS | `0xf8` | - |
+| `VoiceFear` | AudioEventRTS | `0x48` | - |
+| `VoiceFullyCreated` | AudioEventRTS | `0x80` | - |
+| `VoiceGuard` | AudioEventRTS | `0x70` | - |
+| `VoiceMove` | AudioEventRTS | `0x20` | - |
+| `VoiceMoveOverWalls` | AudioEventRTS | `0x30` | - |
+| `VoiceMoveToCamp` | AudioEventRTS | `0x90` | - |
+| `VoiceMoveToHigherGround` | AudioEventRTS | `0x28` | - |
+| `VoiceMoveWhileAttacking` | AudioEventRTS | `0xa8` | - |
 | `VoicePriority` | 0x008d000e | `0x1d8` | `0` |
-| `VoiceRetreatToCastle` | AudioEventRTS | `0x80` | - |
-| `VoiceSelect` | AudioEventRTS | `0x0` | - |
-| `VoiceSelectBattle` | AudioEventRTS | `0x10` | - |
-| `VoiceSelectUnderConstruction` | AudioEventRTS | `0x8` | - |
-| `VoiceTaskComplete` | AudioEventRTS | `0x50` | - |
+| `VoiceRetreatToCastle` | AudioEventRTS | `0x88` | - |
+| `VoiceSelect` | AudioEventRTS | `0x8` | - |
+| `VoiceSelectBattle` | AudioEventRTS | `0x18` | - |
+| `VoiceSelectUnderConstruction` | AudioEventRTS | `0x10` | - |
+| `VoiceTaskComplete` | AudioEventRTS | `0x58` | - |
 
 ## RebuildHoleBehavior
 
@@ -5017,15 +5192,15 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FadeInTimeSeconds` | Real | `0x40` | `0` |
 | `HoleMaxHealth` | Real | `0x3c` | `0` |
 | `HoleName` | AsciiString | `0x38` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `TransferAttackers` | Bool | `0x44` | `Yes` |
 
 ## ReflectDamage
@@ -5045,13 +5220,13 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `BuildingRequired` | KindOfFilter | `0x40` | - |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `RefundPercent` | Percent | `0x3c` | `0` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `UpgradeRequired` | UpgradeTemplate | `0x38` | `0` |
 
 ## RemoveUpgradeUpgrade
@@ -5060,14 +5235,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `RemoveFromAllPlayerObjects` | Bool | `0x151` | `No` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `SuppressEvaEventForRemoval` | Bool | `0x150` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `UpgradeGroupsToRemove` | AsciiStringList | `0x144` | `0` |
 | `UpgradeToRemove` | AsciiStringList | `0x138` | `0` |
 
@@ -5201,13 +5376,13 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AndThenAddA` | AsciiStringList | `0x138` | - |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `ReplaceWith` | AsciiStringList | `0x138` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## ReplenishUnitsBehavior
 
@@ -5215,19 +5390,19 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `NoReplenishIfEnemyWithinRadius` | Real | `0x13c` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `ReplenishDelay` | Duration | `0x154` | - |
 | `ReplenishFXList` | FXList | `0x140` | `0` |
 | `ReplenishHordeMembersOnly` | Bool | `0x159` | `No` |
 | `ReplenishRadius` | Real | `0x138` | `100` |
 | `ReplenishStatii` | ObjectStatusFlags | `0x144` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x158` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## RespawnBody
 
@@ -5282,7 +5457,7 @@ constant-tracking through each constructor.
 
 ## RiderChangeContain
 
-`sizeof(ModuleData)` = 0x284, 80 fields
+`sizeof(ModuleData)` = 0x284, 81 fields
 
 | field | type | offset | default |
 |---|---|---|---|
@@ -5298,16 +5473,16 @@ constant-tracking through each constructor.
 | `CrewAllowedToFire` | Bool | `0x1a0` | `No` |
 | `CrewFilter` | KindOfFilter | `0x18c` | `0` |
 | `CrewMax` | Int | `0x190` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterFadeTime` | Real | `0x170` | `0` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
@@ -5325,9 +5500,10 @@ constant-tracking through each constructor.
 | `InitialCrew` | 0x0087ec0b | `0x0` | - |
 | `InitialPayload` | 0x0086af0a | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
+| `KillRiderWhenVehicleDies` | Bool | `0x280` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NumberOfExitPaths` | Int | `0x74` | `0` |
@@ -5339,7 +5515,7 @@ constant-tracking through each constructor.
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `Rider1` | RiderInfo | `0x1b8` | - |
 | `Rider2` | RiderInfo | `0x1d0` | - |
@@ -5351,7 +5527,7 @@ constant-tracking through each constructor.
 | `Rider8` | RiderInfo | `0x260` | - |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ScuttleDelay` | Duration | `0x278` | `0` |
-| `ScuttleStatus` | Enum | `0x0` | - |
+| `ScuttleStatus` | Enum | `0x27c` | `0` |
 | `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `Slots` | Int | `0x98` | `0` |
@@ -5451,19 +5627,19 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `BigBurstFrequency` | Int | `0x48` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FXList` | MomentFXList | `0x0` | - |
 | `MaxBurstDelay` | Duration | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
 | `MaxRubbleRiseDelay` | Duration | `0x3c` | `0` |
 | `MaxShudder` | Real | `0x54` | `0` |
 | `MinBurstDelay` | Duration | `0x40` | `9999` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MinRubbleRiseDelay` | Duration | `0x38` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `RubbleHeight` | Real | `0x50` | `0` |
 | `RubbleRiseDamping` | Real | `0x4c` | `0` |
 
@@ -5633,14 +5809,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathFlags` | 0x008612e7 | `0x0` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FadeDelay` | Duration | `0x188` | `4207599104` |
 | `FadeTime` | Duration | `0x184` | `6` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -5648,12 +5824,12 @@ constant-tracking through each constructor.
 | `FlingPitch` | AngleReal | `0x120` | `0` |
 | `FlingPitchVariance` | AngleReal | `0x124` | `0` |
 | `FX` | MomentFXList | `0x0` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -5760,16 +5936,16 @@ constant-tracking through each constructor.
 | `CrewAllowedToFire` | Bool | `0x1a0` | `No` |
 | `CrewFilter` | KindOfFilter | `0x18c` | `0` |
 | `CrewMax` | Int | `0x190` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterFadeTime` | Real | `0x170` | `0` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
@@ -5788,8 +5964,8 @@ constant-tracking through each constructor.
 | `InitialPayload` | 0x0086af0a | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NumberOfExitPaths` | Int | `0x74` | `0` |
@@ -5801,7 +5977,7 @@ constant-tracking through each constructor.
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
@@ -5834,16 +6010,16 @@ constant-tracking through each constructor.
 | `CashBackPercent` | Percent | `0xd4` | `0.5` |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EntryOffset` | Coord3D | `0xb0` | - |
 | `EntryPosition` | Coord3D | `0xbc` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitOffset` | Coord3D | `0xc8` | `1` |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
@@ -5852,8 +6028,8 @@ constant-tracking through each constructor.
 | `InitialRoster` | 0x00653381 | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
@@ -5863,7 +6039,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `StatusRequiredForCanAlwaysEnter` | ObjectStatusFlags | `0xdc` | - |
 | `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
@@ -5918,14 +6094,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathFlags` | 0x008612e7 | `0x0` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FadeDelay` | Duration | `0x188` | `4207599104` |
 | `FadeTime` | Duration | `0x184` | `6` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -5933,12 +6109,12 @@ constant-tracking through each constructor.
 | `FlingPitch` | AngleReal | `0x120` | `0` |
 | `FlingPitchVariance` | AngleReal | `0x124` | `0` |
 | `FX` | MomentFXList | `0x0` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -5954,23 +6130,23 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AggregateHealth` | Bool | `0x16` | `No` |
 | `CanReclaimOrphans` | Bool | `0x15` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ConflictsWith` | UpgradeMask | `0xec` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x17c` | - |
+| `DamageAmountRequired` | Real | `0x50` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x2c` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0x30` | - |
 | `ExitByBudding` | Bool | `0x17` | `No` |
 | `FadeInTime` | Int | `0x18c` | `0` |
 | `InitialBurst` | Int | `0x10` | `0` |
 | `KillSpawnsBasedOnModelConditionState` | Bool | `0x190` | `No` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x58` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x54` | `1` |
 | `OneShot` | Bool | `0x14` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x18a` | `No` |
 | `PropagateDamageTypesToSlavesWhenExisting` | DamageTypeFlags | `0x1c` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | `0` |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x40` | - |
+| `RequiresAllConflictingTriggers` | Bool | `0x189` | `No` |
+| `RequiresAllTriggers` | Bool | `0x188` | `No` |
 | `RespectCommandLimit` | Bool | `0x19` | `No` |
 | `ShareUpgrades` | Bool | `0x191` | `No` |
 | `SpawnedRequireSpawner` | Bool | `0x18` | `No` |
@@ -5978,7 +6154,7 @@ constant-tracking through each constructor.
 | `SpawnNumber` | Int | `0x8` | `0` |
 | `SpawnReplaceDelay` | Duration | `0xc` | `0` |
 | `SpawnTemplateName` | AsciiStringList | `0x20` | - |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x5c` | - |
 
 ## SpawnedModelConditionCreate
 
@@ -6162,12 +6338,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `0` |
 
 ## SpecialPowerModule
@@ -6260,15 +6436,57 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LabelForPalantirString` | AsciiString | `0x148` | `">UNSPECIFIED<"` |
 | `Percentage` | 0x008ba26f | `0x138` | `0` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x144` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | `0` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
+
+## SplitHordeSpecialPower
+
+`sizeof(ModuleData)` = 0x7c, 35 fields
+
+| field | type | offset | default |
+|---|---|---|---|
+| `AdjustVictim` | Bool | `0x68` | `No` |
+| `AffectAllies` | Bool | `0x60` | `Yes` |
+| `AffectEvil` | Bool | `0x5f` | `No` |
+| `AffectGood` | Bool | `0x5e` | `No` |
+| `AntiCategory` | 0x0089f32d | `0x34` | `0` |
+| `AntiFX` | FXList | `0x4c` | `0` |
+| `AttributeModifier` | AsciiString | `0x18` | `""` |
+| `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
+| `AttributeModifierAffectsSelf` | Bool | `0x20` | `No` |
+| `AttributeModifierFX` | FXList | `0x28` | `0` |
+| `AttributeModifierRange` | Real | `0x1c` | `0` |
+| `AttributeModifierWeatherBased` | Bool | `0x2c` | `No` |
+| `AvailableAtStart` | Bool | `0x61` | `Yes` |
+| `BurnDecayModifier` | Int | `0x70` | `0` |
+| `ChangeWeather` | WeatherType | `0x64` | `5` |
+| `DisableDuringAnimDuration` | Bool | `0x5c` | `No` |
+| `DistanceFromCommandCenter` | Real | `0x78` | `0` |
+| `GiveLevels` | Int | `0x58` | `0` |
+| `IdleWhenStartingPower` | Bool | `0x5d` | `No` |
+| `InitiateFX` | FXList | `0x44` | `0` |
+| `InitiateSound` | AudioEventRTS | `0x10` | `-1` |
+| `OnTriggerRechargeSpecialPower` | AsciiString | `0x6c` | `""` |
+| `ReEnableAntiCategory` | Bool | `0x42` | `No` |
+| `RequirementsFilterMPSkirmish` | KindOfFilter | `0x38` | - |
+| `RequirementsFilterStrategic` | KindOfFilter | `0x3c` | `0` |
+| `SetModelCondition` | ModelConditionFlag | `0x50` | `-1` |
+| `SetModelConditionTime` | Real | `0x54` | `1` |
+| `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `0` |
+| `StartsPaused` | Bool | `0xd` | `No` |
+| `TargetAllSides` | Bool | `0x41` | `No` |
+| `TargetEnemy` | Bool | `0x40` | `No` |
+| `TriggerFX` | FXList | `0x48` | `0` |
+| `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
+| `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
+| `WeatherDuration` | Duration | `0x30` | `0` |
 
 ## StancesBehavior
 
@@ -6284,14 +6502,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StatusToClear` | ObjectStatusFlags | `0x148` | - |
 | `StatusToSet` | ObjectStatusFlags | `0x138` | - |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## StatusBitsUpgradeIfEldestKindof
 
@@ -6299,15 +6517,15 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `ObjectFilter` | KindOfFilter | `0x158` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StatusToClear` | ObjectStatusFlags | `0x148` | - |
 | `StatusToSet` | ObjectStatusFlags | `0x138` | - |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## StealthDetectorUpdate
 
@@ -6381,12 +6599,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## StopSpecialPower
 
@@ -6549,20 +6767,20 @@ constant-tracking through each constructor.
 | `BigBurstFrequency` | Int | `0x48` | `0` |
 | `CollapseDamping` | Real | `0x4c` | `0` |
 | `CollapseHeight` | Real | `0xf8` | `0` |
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyObjectWhenDone` | Bool | `0xf4` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `FXList` | MomentFXList | `0x0` | - |
 | `MaxBurstDelay` | Duration | `0x44` | - |
 | `MaxCollapseDelay` | Duration | `0x3c` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
 | `MaxShudder` | Real | `0x50` | `0` |
 | `MinBurstDelay` | Duration | `0x40` | `9999` |
 | `MinCollapseDelay` | Duration | `0x38` | `0` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `OCL` | MomentOCL | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 
 ## StructureToppleUpdate
 
@@ -6573,19 +6791,19 @@ constant-tracking through each constructor.
 | `AngleFX` | AngleFXList | `0x0` | - |
 | `CrushingFX` | FXList | `0x60` | `0` |
 | `CrushingWeaponName` | AsciiString | `0x64` | `""` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamageFXTypes` | DamageTypeFlags | `0x4c` | `-1` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ForceToppleAngle` | Real | `0xb8` | `-9.87654` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
 | `MaxToppleBurstDelay` | Duration | `0x6c` | `0` |
 | `MaxToppleDelay` | Duration | `0x3c` | `0` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MinToppleBurstDelay` | Duration | `0x68` | `0` |
 | `MinToppleDelay` | Duration | `0x38` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `StructuralDecay` | Real | `0x44` | `0` |
 | `StructuralIntegrity` | Real | `0x40` | `0.1` |
 | `ToppleAccelerationFactor` | Real | `0x48` | `0.06` |
@@ -6600,19 +6818,19 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `ExcludeSubobjects` | AsciiStringList | `0x150` | `0` |
 | `FadeTimeInSeconds` | Real | `0x168` | `0.5` |
 | `HideSubObjects` | AsciiStringList | `0x144` | `0` |
 | `HideSubObjectsOnRemove` | Bool | `0x172` | - |
-| `Permanent` | Bool | `0x12e` | - |
+| `Permanent` | Bool | `0x136` | `No` |
 | `RecolorHouse` | Bool | `0x170` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `ShowSubObjects` | AsciiStringList | `0x138` | `0` |
 | `SkipFadeOnCreate` | Bool | `0x171` | - |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `UnHideSubObjectsOnRemove` | Bool | `0x173` | - |
 | `UpgradeTexture` | 0x008b9420 | `0x15c` | `0` |
 | `WaitBeforeFadeInSeconds` | Real | `0x16c` | `0` |
@@ -7234,14 +7452,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Description` | AsciiString | `0x13c` | - |
 | `DisplayName` | AsciiString | `0x138` | `""` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | `0` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## ToppleUpdate
 
@@ -7430,16 +7648,16 @@ constant-tracking through each constructor.
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `-1` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DestroyRidersWhoAreNotFreeToExit` | Bool | `0x142` | `No` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterFadeTime` | Real | `0x170` | `0` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitBone` | AsciiString | `0xa0` | `0` |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitFadeTime` | Real | `0x174` | `0` |
@@ -7457,8 +7675,8 @@ constant-tracking through each constructor.
 | `InitialPayload` | 0x0086af0a | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `0` |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
 | `NumberOfExitPaths` | Int | `0x74` | `0` |
@@ -7469,7 +7687,7 @@ constant-tracking through each constructor.
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
 | `ScatterNearbyOnExit` | Bool | `0x13e` | `Yes` |
 | `ShouldThrowOutPassengers` | Bool | `0x150` | `No` |
@@ -7498,16 +7716,16 @@ constant-tracking through each constructor.
 | `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `No` |
 | `ContainMax` | Int | `0x70` | `-1` |
-| `DamageAmountRequired` | Real | `0x24` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0` |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
 | `DoorOpenTime` | Duration | `0x78` | `0` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `No` |
 | `Enabled` | Bool | `0x84` | `No` |
 | `EnterSound` | AudioEventRTS | `0x38` | `0` |
 | `EntryOffset` | Coord3D | `0xb0` | - |
 | `EntryPosition` | Coord3D | `0xbc` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
 | `ExitDelay` | Duration | `0xac` | `0` |
 | `ExitOffset` | Coord3D | `0xc8` | `1` |
 | `ExitSound` | AudioEventRTS | `0x3c` | `0` |
@@ -7516,8 +7734,8 @@ constant-tracking through each constructor.
 | `InitialRoster` | 0x00653381 | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
 | `MobileGarrison` | Bool | `0xa0` | `No` |
 | `ModifierRequiredTime` | Duration | `0x94` | `100` |
 | `ModifierToGiveOnExit` | AsciiStringList | `0x88` | - |
@@ -7527,7 +7745,7 @@ constant-tracking through each constructor.
 | `PassengerFilter` | KindOfFilter | `0x40` | - |
 | `PassengersInTurret` | Bool | `0x85` | `No` |
 | `PassengersTestCollisionHeight` | Real | `0x68` | `-1000` |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ShowPips` | Bool | `0x80` | `No` |
 | `TimeForFullHeal` | DurationReal | `0x9c` | `1` |
 
@@ -7624,14 +7842,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `ObeyRechageOnTrigger` | Bool | `0x13c` | `No` |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x138` | `0` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## UntamedAllegianceSpecialPower
 
@@ -7681,12 +7899,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamageAmountRequired` | Real | `0x24` | - |
-| `DeathTypes` | DeathTypeFlags | `0x0` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0x4` | - |
-| `MaxKillerAngle` | AngleReal | `0x2c` | `-1` |
-| `MinKillerAngle` | AngleReal | `0x28` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x14` | - |
+| `DamageAmountRequired` | Real | `0x2c` | `-1` |
+| `DeathTypes` | DeathTypeFlags | `0x8` | `-1` |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `MaxKillerAngle` | AngleReal | `0x34` | `-1` |
+| `MinKillerAngle` | AngleReal | `0x30` | `1` |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `UpgradeToRemove` | AsciiString | `0x38` | `0` |
 
 ## UpgradeSoundSelectorClientBehavior
@@ -7754,11 +7972,68 @@ constant-tracking through each constructor.
 
 ## W3DHordeModelDraw
 
-`sizeof(ModuleData)` = 0x1c4, 1 field
+`sizeof(ModuleData)` = 0x1c4, 58 fields
 
 | field | type | offset | default |
 |---|---|---|---|
+| `AffectedByStealth` | Bool | `0x15e` | `Yes` |
+| `AlphaCameraAtInnerRadius` | Percent | `0x14c` | `1` |
+| `AlphaCameraFadeInnerRadius` | PositiveReal | `0x148` | `0` |
+| `AlphaCameraFadeOuterRadius` | PositiveReal | `0x144` | `0` |
+| `AlphaRefAnimated` | Bool | `0x139` | `No` |
+| `AlphaRefRange` | IntRange | `0x13c` | - |
+| `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
+| `AnimationState` | AnimationState | `0x0` | - |
+| `AttachModel` | AttachModel | `0x0` | - |
+| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | `0` |
+| `BirthFadeAdditive` | Bool | `0x154` | `No` |
+| `BirthFadeTime` | Duration | `0x150` | `0` |
+| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
+| `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
+| `EmbedPortal` | 0x004c30bd | `0x11c` | `0` |
+| `ExtraPublicBone` | AsciiStringList | `0x30` | `0` |
+| `GlowEmissive` | Bool | `0x129` | `No` |
+| `GlowEnabled` | Bool | `0x128` | `No` |
+| `HighDetailLODThreshold` | Real | `0x12c` | `0` |
+| `HighDetailOnly` | Bool | `0x15f` | `No` |
+| `IdleAnimationState` | AnimationState | `0x0` | - |
+| `InitialRecoilSpeed` | VelocityReal | `0x54` | `2` |
 | `LodOptions` | LodOptions | `0x0` | - |
+| `LowDetailLODThreshold` | Real | `0x130` | `0` |
+| `MaxRecoilDistance` | Real | `0x58` | `3` |
+| `MinLODRequired` | Enum | `0x64` | `0` |
+| `ModelConditionState` | ModelConditionState | `0x0` | - |
+| `MultiPlayerOnly` | Bool | `0x15d` | `No` |
+| `NoRotate` | Bool | `0x69` | `No` |
+| `OkToChangeModelColor` | Bool | `0x68` | `No` |
+| `ParticleBonesCheckDrawable` | Bool | `0x12a` | `No` |
+| `ParticlesAttachedToAnimatedBones` | Bool | `0x108` | `No` |
+| `ProjectileBoneFeedbackEnabledSlots` | BitFlags | `0x50` | `0` |
+| `RaisedWallMesh` | AsciiString | `0x110` | `0` |
+| `RampMesh1` | AsciiString | `0x114` | `0` |
+| `RampMesh2` | AsciiString | `0x118` | `0` |
+| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
+| `RecoilDamping` | Real | `0x5c` | `0.4` |
+| `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.065` |
+| `ShadowForceDisable` | Bool | `0x12b` | `No` |
+| `ShowShadowWhileContained` | Bool | `0x136` | `No` |
+| `StaticModelLODMode` | Bool | `0x135` | `No` |
+| `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
+| `SwitchModelLODMode` | Bool | `0x134` | `No` |
+| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
+| `TrackMarks` | 0x004b65ba | `0x3c` | `0` |
+| `TrackMarksLeftBone` | AsciiString | `0x44` | `0` |
+| `TrackMarksRightBone` | AsciiString | `0x48` | `0` |
+| `TransitionState` | AnimationState | `0x0` | - |
+| `UseDefaultAnimation` | Bool | `0x138` | `No` |
+| `UseFiringArcRotation` | Bool | `0x6a` | `No` |
+| `UseProducerTexture` | Bool | `0xb8` | `No` |
+| `UseStandardModelNames` | Bool | `0x137` | `No` |
+| `WadingParticleSys` | AsciiString | `0x14` | `0` |
+| `WallBoundsMesh` | AsciiString | `0x10c` | `0` |
+| `ZWriteDisableOverride` | Bool | `0x15c` | `No` |
 
 ## W3DLaserDraw
 
@@ -8353,12 +8628,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## WeaponBonusUpgrade
 
@@ -8366,12 +8641,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 
 ## WeaponChangeSpecialPowerModule
 
@@ -8582,12 +8857,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x90` | - |
-| `CustomAnimAndDuration` | AnimAndDuration | `0x120` | - |
-| `Permanent` | Bool | `0x12e` | - |
-| `RequiresAllConflictingTriggers` | Bool | `0x12d` | - |
-| `RequiresAllTriggers` | Bool | `0x12c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x0` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
+| `Permanent` | Bool | `0x136` | `No` |
+| `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
+| `RequiresAllTriggers` | Bool | `0x134` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | - |
 | `WeaponCondition` | WeaponSetFlags | `0x138` | - |
 
 ## WorkerAIUpdate

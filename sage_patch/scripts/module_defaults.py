@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import re
 import struct
@@ -286,6 +287,8 @@ class Image:
         text = next(s for s in self.sections if s[0] == ".text")
         self.text_va = text[1]
         self.text = self.data[text[3]:text[3] + text[2]]
+        self._writes = self._static_init_writes()
+        self._write_vas = [va for va, _ in self._writes]
 
     def section_of(self, va: int) -> Optional[str]:
         for name, va0, size, _ in self.sections:
@@ -294,6 +297,72 @@ class Image:
         return None
 
     def read(self, va: int, n: int) -> bytes:
+        """Bytes at `va` as the engine sees them once its static initialisers have run."""
+        raw = self._raw(va, n)
+        k = bisect.bisect_left(self._write_vas, va - 3)
+        if k == len(self._write_vas) or self._write_vas[k] >= va + len(raw):
+            return raw
+        out = bytearray(raw)
+        while k < len(self._writes) and self._writes[k][0] < va + len(raw):
+            at, value = self._writes[k]
+            for j, byte in enumerate(value):
+                if 0 <= at + j - va < len(out):
+                    out[at + j - va] = byte
+            k += 1
+        return bytes(out)
+
+    def _static_init_writes(self) -> list[tuple[int, bytes]]:
+        """Stores the engine's guarded static initialisers make into the data sections.
+
+        A field table whose rows hold something the compiler cannot fold into a constant -
+        another table's address, an `offsetof` through a base - is written at runtime the
+        first time its `buildFieldParse` runs: `test byte [guard], 1 / jne done /
+        or dword [guard], 1` and then a run of absolute stores. On disk those slots are
+        zero, which reads as a missing userData, an offset of 0, or a table that ends a
+        row early. The stores are constants or registers zeroed just before the guard,
+        so they can be replayed here and the tables read as the running engine sees them.
+        """
+        td, base = self.text, self.text_va
+        writes: dict[int, bytes] = {}
+        at = td.find(b"\x83\x0d")
+        while at != -1:
+            guard = struct.unpack_from("<I", td, at + 2)[0]
+            test = td.rfind(b"\xf6\x05" + struct.pack("<I", guard), max(0, at - 0x30), at)
+            if test != -1 and self.section_of(guard) not in (None, ".text"):
+                writes.update(self._replay_init(base + test, base + at))
+            at = td.find(b"\x83\x0d", at + 1)
+        return sorted(writes.items())
+
+    def _replay_init(self, test: int, guard_or: int) -> dict[int, bytes]:
+        regs: dict[str, int] = {}
+        start = test
+        for s in range(test - 0x18, test):
+            if any(i.address == test for i in self.md.disasm(self._raw(s, test - s + 8), s)):
+                start = s
+                break
+        out: dict[int, bytes] = {}
+        for i in self.md.disasm(self._raw(start, 0x400), start):
+            m, o = i.mnemonic, i.op_str
+            dst, _, src = o.partition(", ")
+            if i.address > guard_or and (m in ("call", "ret", "jmp", "int3") or m.startswith("j")):
+                break
+            if m == "xor" and dst == src and dst in R32:
+                regs[dst] = 0
+            elif m == "mov" and dst in R32:
+                if src.startswith("0x") or src.isdigit():
+                    regs[dst] = int(src, 0)
+                else:
+                    regs.pop(dst, None)
+            elif (i.address > guard_or and m == "mov" and dst.startswith("dword ptr [0x")
+                    and dst.endswith("]")):
+                va = int(dst[dst.index("[") + 1:-1], 16)
+                value = (int(src, 0) if src.startswith("0x") or src.isdigit()
+                         else regs.get(src))
+                if value is not None and self.section_of(va) not in (None, ".text"):
+                    out[va] = struct.pack("<I", value & 0xFFFFFFFF)
+        return out
+
+    def _raw(self, va: int, n: int) -> bytes:
         for _, va0, size, fo in self.sections:
             if va0 <= va < va0 + size:
                 off = fo + (va - va0)
@@ -582,40 +651,78 @@ def const_return(img: Image, fn: int) -> Optional[int]:
 
 
 def field_tables(img: Image, bfp: Optional[int], depth: int = 0,
-                 seen: Optional[set[int]] = None) -> list[tuple[int, int]]:
-    """(field table, the `buildFieldParse` that appended it) for one module.
+                 seen: Optional[set[int]] = None) -> list[tuple[int, int, int]]:
+    """(field table, the `buildFieldParse` that appended it, extra offset) for one module.
 
-    A table is either pushed directly, fetched from a base class through a trivial
-    constant-returning accessor and then pushed from `eax`, or appended by the base
-    class's own `buildFieldParse`, which a derived one calls before adding its own.
-    That call is where inheritance lives: `OCLSpecialPower` declares five keywords
-    itself and takes the other thirty-five from `SpecialPowerModule` through it, so a
-    walk that does not follow it reports a module as accepting a fraction of what it
-    really accepts. Following it in place keeps the engine's own order, in which the
-    base's table is searched first and therefore wins a keyword declared in both.
+    Every table reaches the module through `MultiIniFieldParse::add(table, extraOffset)`,
+    either pushed directly or fetched from a base class through a trivial
+    constant-returning accessor and then pushed from `eax`. The extra offset is where
+    the struct the table describes sits inside the ModuleData: the shared die and
+    upgrade conditions (`DieMuxData`, `UpgradeMuxData`) are embedded members, so their
+    table's own offsets only become ModuleData offsets once it is added. The compiler
+    often pushes that offset before calling the accessor, so the call's arguments are
+    read off a small emulated stack rather than from the instructions next to it.
 
-    The second element of each pair names the class the table belongs to, which is
-    what lets an inherited field say where it came from.
+    A base class's own `buildFieldParse`, which a derived one calls before adding its
+    own, is where inheritance lives: `OCLSpecialPower` declares five keywords itself
+    and takes the other thirty-five from `SpecialPowerModule` through it. A derived
+    class that adds nothing of its own tail-jumps to its base instead of calling it.
+    Following either in place keeps the engine's own order, in which the base's table
+    is searched first and therefore wins a keyword declared in both.
+
+    The second element of each triple names the class the table belongs to, which is
+    what lets an inherited field name where it came from.
     """
-    tabs: list[tuple[int, int]] = []
+    tabs: list[tuple[int, int, int]] = []
     if not bfp or depth > MAX_BASE_DEPTH:
         return tabs
     seen = seen if seen is not None else set()
     if bfp in seen:
         return tabs
     seen.add(bfp)
-    for i in img.disasm(bfp, 0x120):
-        if i.mnemonic == "push" and i.op_str.startswith("0x"):
-            a = int(i.op_str, 16)
-            if _looks_like_table(img, a):
-                tabs.append((a, bfp))
-        elif i.mnemonic == "call" and i.op_str.startswith("0x"):
-            target = int(i.op_str, 16)
-            a = const_return(img, target)
-            if a is not None and _looks_like_table(img, a):
-                tabs.append((a, bfp))
-            elif target not in HELPERS and target != MULTI_FIELD_ADD and img.is_text(target):
-                tabs.extend(field_tables(img, target, depth + 1, seen))
+    regs: dict[str, int] = {}
+    stack: list[Optional[int]] = []
+    for i in img.disasm(bfp, 0x300):
+        m, o = i.mnemonic, i.op_str
+        dst, _, src = o.partition(", ")
+        if m == "push":
+            stack.append(int(o, 16) if o.startswith("0x") else
+                         int(o) if o.isdigit() else regs.get(o))
+        elif m == "pop":
+            if stack:
+                stack.pop()
+            regs.pop(o, None)
+        elif m == "add" and dst == "esp" and (src.startswith("0x") or src.isdigit()):
+            del stack[len(stack) - int(src, 0) // 4:]
+        elif m == "xor" and dst == src and dst in R32:
+            regs[dst] = 0
+        elif m == "mov" and dst in R32:
+            if src.startswith("0x") or src.isdigit():
+                regs[dst] = int(src, 0)
+            else:
+                regs.pop(dst, None)
+        elif m in ("call", "jmp") and o.startswith("0x"):
+            target = int(o, 16)
+            if m == "jmp" and bfp <= target < i.address + 0x100:
+                continue
+            if target == MULTI_FIELD_ADD:
+                tab = stack[-1] if stack else None
+                extra = stack[-2] if len(stack) > 1 else None
+                del stack[-2:]
+                if tab is not None and _looks_like_table(img, tab):
+                    if extra is None:
+                        raise ValueError("0x%08x: no extra offset for table 0x%08x at 0x%08x"
+                                         % (bfp, tab, i.address))
+                    tabs.append((tab, bfp, extra))
+            else:
+                a = const_return(img, target)
+                if a is not None:
+                    regs["eax"] = a
+                elif target not in HELPERS and img.is_text(target):
+                    tabs.extend(field_tables(img, target, depth + 1, seen))
+                    regs.pop("eax", None)
+            if m == "jmp":
+                break
     return tabs
 
 
@@ -915,12 +1022,12 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
         defaults = ctor_defaults(img, ctor)
         fields: list[FieldInfo] = []
         seen: set[str] = set()
-        for tab, source in field_tables(img, bfp):
-            for row in parse_table(img, tab):
-                if row[0] in seen:
+        for tab, source, extra in field_tables(img, bfp):
+            for keyword, parse, ud, off in parse_table(img, tab):
+                if keyword in seen:
                     continue
-                seen.add(row[0])
-                field = cat.field(img, row, defaults)
+                seen.add(keyword)
+                field = cat.field(img, (keyword, parse, ud, off + extra), defaults)
                 if source != bfp:
                     field["inherited"] = True
                     if source in declared_by:

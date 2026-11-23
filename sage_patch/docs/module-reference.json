@@ -1079,7 +1079,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -1087,7 +1087,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -1095,23 +1095,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -1119,7 +1119,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -1825,11 +1825,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -1845,11 +1845,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -1925,7 +1925,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -2287,7 +2287,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -2327,11 +2327,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -2515,7 +2515,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -2775,15 +2775,15 @@
   "fields": [
    {
     "name": "ArmorSetFlag",
-    "offset": 0,
+    "offset": 316,
     "type": "Enum",
     "parse_fn": 4385110,
-    "userdata": null,
-    "default": null
+    "userdata": "0x00d9fa80",
+    "default": "3"
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -2791,7 +2791,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -2815,23 +2815,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -2839,7 +2839,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -3941,7 +3941,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 184,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -3949,7 +3949,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 328,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -3973,11 +3973,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 342,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "Range",
@@ -4005,19 +4005,19 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 341,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 340,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RunWhileDead",
@@ -4045,11 +4045,11 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 40,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "0"
    }
   ]
  },
@@ -4076,7 +4076,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4084,7 +4084,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -4092,23 +4092,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -4116,7 +4116,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4132,7 +4132,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 164,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4140,7 +4140,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 308,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -4148,23 +4148,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 360,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 324,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 328,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -4188,31 +4188,31 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 368,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 364,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 322,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 344,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -4220,19 +4220,19 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 321,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 320,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "SoundToPlay",
@@ -4244,7 +4244,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 20,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4492,7 +4492,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4500,7 +4500,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -4564,11 +4564,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "Radius",
@@ -4580,15 +4580,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -4644,7 +4644,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4852,7 +4852,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -4860,7 +4860,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -4868,11 +4868,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "PlacementIndex",
@@ -4892,15 +4892,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -4908,11 +4908,11 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": "0"
+    "default": null
    }
   ]
  },
@@ -6433,7 +6433,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 192,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -6441,7 +6441,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 336,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -6457,11 +6457,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 350,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "PersistantConditions",
@@ -6481,23 +6481,23 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 349,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 348,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 48,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -6513,7 +6513,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -6521,7 +6521,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -6529,23 +6529,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -6553,7 +6553,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -7295,7 +7295,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -7303,7 +7303,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -7311,23 +7311,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -7335,7 +7335,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -7445,11 +7445,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -7465,11 +7465,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -7515,7 +7515,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -7555,7 +7555,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -7565,11 +7565,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -7655,7 +7655,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -7773,11 +7773,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -7793,11 +7793,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -7863,7 +7863,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -7961,7 +7961,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -7971,11 +7971,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -8079,7 +8079,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -8287,11 +8287,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -8307,11 +8307,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -8357,7 +8357,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -8437,7 +8437,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -8447,11 +8447,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -8487,7 +8487,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9409,7 +9409,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -9417,7 +9417,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -9425,11 +9425,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiredObject",
@@ -9441,15 +9441,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -9457,7 +9457,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -9481,7 +9481,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -9489,7 +9489,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -9497,23 +9497,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -9521,11 +9521,11 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": "0"
+    "default": null
    }
   ]
  },
@@ -9545,7 +9545,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -9553,7 +9553,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -9585,23 +9585,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -9625,7 +9625,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -9657,23 +9657,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9681,7 +9681,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -9689,15 +9689,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9721,19 +9721,19 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DebrisPortionOfSelf",
@@ -9745,7 +9745,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9753,7 +9753,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -9761,15 +9761,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9803,21 +9803,21 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "CreateObjectDie"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "CreateObjectDie"
    },
@@ -9833,7 +9833,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9843,7 +9843,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -9853,11 +9853,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "CreateObjectDie"
    },
@@ -9871,7 +9871,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9947,23 +9947,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -9987,7 +9987,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -9995,15 +9995,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -10747,11 +10747,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DamageTypeTriggersForDuration",
@@ -10771,15 +10771,15 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -10787,7 +10787,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -10795,11 +10795,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "PostFilterTriggeredDuration",
@@ -10811,7 +10811,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -11911,7 +11911,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -11919,7 +11919,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -11935,23 +11935,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -11959,7 +11959,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -12348,23 +12348,23 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -12372,7 +12372,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -12380,15 +12380,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -12458,7 +12458,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 244,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -12466,7 +12466,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 388,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -12622,11 +12622,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 402,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "ReallyDamagedAttributeModifier",
@@ -12660,19 +12660,19 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 401,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 400,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RiderlessDeathChance",
@@ -12692,7 +12692,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 100,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -13164,7 +13164,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -13172,7 +13172,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -13188,11 +13188,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RemoveUpgradeCommandButtonName",
@@ -13204,15 +13204,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -13220,7 +13220,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -14186,7 +14186,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -14194,7 +14194,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -14234,23 +14234,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -14274,7 +14274,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -15744,7 +15744,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -15752,7 +15752,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -15760,23 +15760,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -15784,7 +15784,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -15848,7 +15848,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -15856,7 +15856,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -15864,23 +15864,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -15888,7 +15888,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -16648,7 +16648,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -16688,7 +16688,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -16712,11 +16712,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "ReactionWeaponDamaged",
@@ -16752,15 +16752,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -16776,7 +16776,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -16800,7 +16800,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -16808,7 +16808,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -16816,19 +16816,19 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 368,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 332,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathWeapon",
@@ -16848,7 +16848,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 336,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -16856,31 +16856,31 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 376,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 372,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 352,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -16888,15 +16888,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -16912,7 +16912,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -18468,11 +18468,11 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathFX",
@@ -18484,15 +18484,15 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -18500,7 +18500,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -18508,11 +18508,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "OrientToObject",
@@ -18524,7 +18524,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -18610,11 +18610,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -18630,11 +18630,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -18680,7 +18680,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -18744,7 +18744,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -18754,11 +18754,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -18852,7 +18852,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -18888,7 +18888,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -18896,7 +18896,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -18904,23 +18904,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -18928,7 +18928,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -19168,7 +19168,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -19176,7 +19176,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -19192,11 +19192,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RampMesh1",
@@ -19216,15 +19216,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -19240,11 +19240,11 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": "0"
+    "default": null
    },
    {
     "name": "WallBoundsMesh",
@@ -19694,11 +19694,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -19714,11 +19714,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -19772,7 +19772,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -19860,7 +19860,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -19870,11 +19870,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -19926,7 +19926,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -22384,11 +22384,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -22404,11 +22404,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -22454,7 +22454,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -22494,7 +22494,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -22504,11 +22504,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -22594,7 +22594,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -22782,23 +22782,23 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -22806,7 +22806,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -22814,15 +22814,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -24120,11 +24120,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -24140,11 +24140,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -24218,7 +24218,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -24486,7 +24486,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -24520,11 +24520,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -24686,7 +24686,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -25328,11 +25328,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -25348,11 +25348,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -25414,7 +25414,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -25500,7 +25500,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -25510,11 +25510,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -25610,7 +25610,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -25655,7 +25655,7 @@
   "fields": [
    {
     "name": "ScanAheadTimeMS",
-    "offset": 4,
+    "offset": 12,
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
@@ -25663,23 +25663,23 @@
    },
    {
     "name": "ScanHeight",
-    "offset": 8,
+    "offset": 16,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ScanWidth",
-    "offset": 12,
+    "offset": 20,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "TimeBetweenUpdatesMS",
-    "offset": 0,
+    "offset": 8,
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
@@ -25693,6 +25693,96 @@
   "moduledata_size": 436,
   "moduledata_ctor": 8916120,
   "fields": [
+   {
+    "name": "AllowAlliesInside",
+    "offset": 125,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "AllowEnemiesInside",
+    "offset": 126,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "AllowNeutralInside",
+    "offset": 127,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "AllowOwnPlayerInsideOverride",
+    "offset": 124,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "BoneSpecificConditionState",
+    "offset": 0,
+    "type": "0x008678eb",
+    "parse_fn": 8812779,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "CanGrabStructure",
+    "offset": 317,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "CollidePickup",
+    "offset": 129,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ConditionForEntry",
+    "offset": 332,
+    "type": "ModelConditionFlag",
+    "parse_fn": 8822562,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ContainMax",
+    "offset": 112,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
    {
     "name": "CrewAllowedToFire",
     "offset": 416,
@@ -25718,12 +25808,342 @@
     "default": "0"
    },
    {
+    "name": "DamageAmountRequired",
+    "offset": 44,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DamagePercentToUnits",
+    "offset": 108,
+    "type": "Percent",
+    "parse_fn": 4386554,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DeathTypes",
+    "offset": 8,
+    "type": "DeathTypeFlags",
+    "parse_fn": 7579274,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DestroyRidersWhoAreNotFreeToExit",
+    "offset": 322,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "DoorOpenTime",
+    "offset": 120,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "EjectPassengersOnDeath",
+    "offset": 130,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "Enabled",
+    "offset": 132,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "EnterFadeTime",
+    "offset": 368,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "EnterSound",
+    "offset": 56,
+    "type": "AudioEventRTS",
+    "parse_fn": 7582231,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ExemptStatus",
+    "offset": 12,
+    "type": "ObjectStatusFlags",
+    "parse_fn": 8068700,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ExitBone",
+    "offset": 160,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitDelay",
+    "offset": 172,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitFadeTime",
+    "offset": 372,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitPitchRate",
+    "offset": 156,
+    "type": "AngularVelocityReal",
+    "parse_fn": 7578326,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitSound",
+    "offset": 60,
+    "type": "AudioEventRTS",
+    "parse_fn": 7582231,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "FadeFilter",
+    "offset": 360,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FadePassengerOnEnter",
+    "offset": 364,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FadePassengerOnExit",
+    "offset": 365,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FadeReverse",
+    "offset": 376,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FireGrabWeaponOnVictim",
+    "offset": 328,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ForceOrientationContainer",
+    "offset": 316,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "GoAggressiveOnExit",
+    "offset": 320,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "GrabWeapon",
+    "offset": 324,
+    "type": "WeaponTemplate",
+    "parse_fn": 7581305,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "HealthRegen%PerSec",
+    "offset": 168,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
     "name": "InitialCrew",
     "offset": 0,
     "type": "0x0087ec0b",
     "parse_fn": 8907787,
     "userdata": null,
     "default": null
+   },
+   {
+    "name": "InitialPayload",
+    "offset": 0,
+    "type": "0x0086af0a",
+    "parse_fn": 8826634,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "KillPassengersOnDeath",
+    "offset": 131,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ManualPickUpFilter",
+    "offset": 68,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "MaxKillerAngle",
+    "offset": 52,
+    "type": "AngleReal",
+    "parse_fn": 4386325,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "MinKillerAngle",
+    "offset": 48,
+    "type": "AngleReal",
+    "parse_fn": 4386325,
+    "userdata": null,
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ModifierRequiredTime",
+    "offset": 148,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "100",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ModifierToGiveOnExit",
+    "offset": 136,
+    "type": "AsciiStringList",
+    "parse_fn": 4384158,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "NumberOfExitPaths",
+    "offset": 116,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ObjectStatusOfContained",
+    "offset": 88,
+    "type": "ObjectStatusFlags",
+    "parse_fn": 8810480,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
    },
    {
     "name": "ObjectStatusOfCrew",
@@ -25734,12 +26154,222 @@
     "default": "0"
    },
    {
+    "name": "OrientLikeContainerOnExit",
+    "offset": 319,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "PassengerBonePrefix",
+    "offset": 0,
+    "type": "PassengerBonePrefix",
+    "parse_fn": 8812498,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "PassengerFilter",
+    "offset": 64,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "PassengersInTurret",
+    "offset": 133,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "PassengersTestCollisionHeight",
+    "offset": 104,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "-1000",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ReleaseSnappyness",
+    "offset": 380,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0.7",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "RequiredStatus",
+    "offset": 28,
+    "type": "ObjectStatusFlags",
+    "parse_fn": 8068700,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ResetMoodCheckTimeOnExit",
+    "offset": 321,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ScatterNearbyOnExit",
+    "offset": 318,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ShouldThrowOutPassengers",
+    "offset": 336,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ShowPips",
+    "offset": 128,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "Slots",
+    "offset": 152,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
     "name": "SpeedPercentPerCrew",
     "offset": 412,
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
     "default": "1"
+   },
+   {
+    "name": "ThrowOutPassengersDelay",
+    "offset": 340,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ThrowOutPassengersLandingWarhead",
+    "offset": 356,
+    "type": "WeaponTemplate",
+    "parse_fn": 7581305,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ThrowOutPassengersVelocity",
+    "offset": 344,
+    "type": "Coord3D",
+    "parse_fn": 4387399,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeOneForWeaponSet",
+    "offset": 176,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeOneForWeaponState",
+    "offset": 232,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeThreeForWeaponState",
+    "offset": 288,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeTwoForWeaponSet",
+    "offset": 204,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeTwoForWeaponState",
+    "offset": 260,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "UpgradeCreationTrigger",
+    "offset": 0,
+    "type": "0x0086ba2c",
+    "parse_fn": 8829484,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
    }
   ]
  },
@@ -25748,7 +26378,638 @@
   "interface_mask": "0x5f",
   "moduledata_size": 396,
   "moduledata_ctor": 8892418,
-  "fields": []
+  "fields": [
+   {
+    "name": "AllowAlliesInside",
+    "offset": 125,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "AllowEnemiesInside",
+    "offset": 126,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "AllowNeutralInside",
+    "offset": 127,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "AllowOwnPlayerInsideOverride",
+    "offset": 124,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "BoneSpecificConditionState",
+    "offset": 0,
+    "type": "0x008678eb",
+    "parse_fn": 8812779,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "CanGrabStructure",
+    "offset": 317,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "CollidePickup",
+    "offset": 129,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ConditionForEntry",
+    "offset": 332,
+    "type": "ModelConditionFlag",
+    "parse_fn": 8822562,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ContainMax",
+    "offset": 112,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DamageAmountRequired",
+    "offset": 44,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DamagePercentToUnits",
+    "offset": 108,
+    "type": "Percent",
+    "parse_fn": 4386554,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DeathTypes",
+    "offset": 8,
+    "type": "DeathTypeFlags",
+    "parse_fn": 7579274,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "DestroyRidersWhoAreNotFreeToExit",
+    "offset": 322,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "DoorOpenTime",
+    "offset": 120,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "EjectPassengersOnDeath",
+    "offset": 130,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "Enabled",
+    "offset": 132,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "EnterFadeTime",
+    "offset": 368,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "EnterSound",
+    "offset": 56,
+    "type": "AudioEventRTS",
+    "parse_fn": 7582231,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ExemptStatus",
+    "offset": 12,
+    "type": "ObjectStatusFlags",
+    "parse_fn": 8068700,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ExitBone",
+    "offset": 160,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitDelay",
+    "offset": 172,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitFadeTime",
+    "offset": 372,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitPitchRate",
+    "offset": 156,
+    "type": "AngularVelocityReal",
+    "parse_fn": 7578326,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ExitSound",
+    "offset": 60,
+    "type": "AudioEventRTS",
+    "parse_fn": 7582231,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "FadeFilter",
+    "offset": 360,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FadePassengerOnEnter",
+    "offset": 364,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FadePassengerOnExit",
+    "offset": 365,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FadeReverse",
+    "offset": 376,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "FireGrabWeaponOnVictim",
+    "offset": 328,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ForceOrientationContainer",
+    "offset": 316,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "GoAggressiveOnExit",
+    "offset": 320,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "GrabWeapon",
+    "offset": 324,
+    "type": "WeaponTemplate",
+    "parse_fn": 7581305,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "HealthRegen%PerSec",
+    "offset": 168,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "InitialPayload",
+    "offset": 0,
+    "type": "0x0086af0a",
+    "parse_fn": 8826634,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "KillPassengersOnDeath",
+    "offset": 131,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ManualPickUpFilter",
+    "offset": 68,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "MaxKillerAngle",
+    "offset": 52,
+    "type": "AngleReal",
+    "parse_fn": 4386325,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "MinKillerAngle",
+    "offset": 48,
+    "type": "AngleReal",
+    "parse_fn": 4386325,
+    "userdata": null,
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ModifierRequiredTime",
+    "offset": 148,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "100",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ModifierToGiveOnExit",
+    "offset": 136,
+    "type": "AsciiStringList",
+    "parse_fn": 4384158,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "NumberOfExitPaths",
+    "offset": 116,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ObjectStatusOfContained",
+    "offset": 88,
+    "type": "ObjectStatusFlags",
+    "parse_fn": 8810480,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "OrientLikeContainerOnExit",
+    "offset": 319,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "PassengerBonePrefix",
+    "offset": 0,
+    "type": "PassengerBonePrefix",
+    "parse_fn": 8812498,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "PassengerFilter",
+    "offset": 64,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "PassengersInTurret",
+    "offset": 133,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "PassengersTestCollisionHeight",
+    "offset": 104,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "-1000",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ReleaseSnappyness",
+    "offset": 380,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0.7",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "RequiredStatus",
+    "offset": 28,
+    "type": "ObjectStatusFlags",
+    "parse_fn": 8068700,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "ResetMoodCheckTimeOnExit",
+    "offset": 321,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ScatterNearbyOnExit",
+    "offset": 318,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ShouldThrowOutPassengers",
+    "offset": 336,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ShowPips",
+    "offset": 128,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "OpenContain"
+   },
+   {
+    "name": "Slots",
+    "offset": 152,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ThrowOutPassengersDelay",
+    "offset": 340,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ThrowOutPassengersLandingWarhead",
+    "offset": 356,
+    "type": "WeaponTemplate",
+    "parse_fn": 7581305,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "ThrowOutPassengersVelocity",
+    "offset": 344,
+    "type": "Coord3D",
+    "parse_fn": 4387399,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeOneForWeaponSet",
+    "offset": 176,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeOneForWeaponState",
+    "offset": 232,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeThreeForWeaponState",
+    "offset": 288,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeTwoForWeaponSet",
+    "offset": 204,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "TypeTwoForWeaponState",
+    "offset": 260,
+    "type": "KindOfFlags",
+    "parse_fn": 6644967,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   },
+   {
+    "name": "UpgradeCreationTrigger",
+    "offset": 0,
+    "type": "0x0086ba2c",
+    "parse_fn": 8829484,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "TransportContain"
+   }
+  ]
  },
  {
   "name": "HordeTransportContainDamage",
@@ -26127,11 +27388,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -26147,11 +27408,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -26225,7 +27486,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -26493,7 +27754,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -26527,11 +27788,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -26693,7 +27954,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -27122,23 +28383,23 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -27154,7 +28415,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -27162,11 +28423,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "OCL",
@@ -27178,7 +28439,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -27696,23 +28957,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -27720,7 +28981,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -27728,15 +28989,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -28560,7 +29821,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28568,7 +29829,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -28592,23 +29853,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -28616,7 +29877,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28696,7 +29957,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28704,7 +29965,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -28720,23 +29981,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -28744,7 +30005,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28757,7 +30018,358 @@
   "interface_mask": "0x100",
   "moduledata_size": 124,
   "moduledata_ctor": 9227959,
-  "fields": []
+  "fields": [
+   {
+    "name": "AdjustVictim",
+    "offset": 104,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AffectAllies",
+    "offset": 96,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AffectEvil",
+    "offset": 95,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AffectGood",
+    "offset": 94,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AntiCategory",
+    "offset": 52,
+    "type": "0x0089f32d",
+    "parse_fn": 9040685,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AntiFX",
+    "offset": 76,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifier",
+    "offset": 24,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierAffects",
+    "offset": 36,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierAffectsSelf",
+    "offset": 32,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierFX",
+    "offset": 40,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierRange",
+    "offset": 28,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierWeatherBased",
+    "offset": 44,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AvailableAtStart",
+    "offset": 97,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "BurnDecayModifier",
+    "offset": 112,
+    "type": "Int",
+    "parse_fn": 4385970,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "ChangeWeather",
+    "offset": 100,
+    "type": "WeatherType",
+    "parse_fn": 9004793,
+    "userdata": null,
+    "default": "5",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "DisableDuringAnimDuration",
+    "offset": 92,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "DistanceFromCommandCenter",
+    "offset": 120,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "GiveLevels",
+    "offset": 88,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "IdleWhenStartingPower",
+    "offset": 93,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "InitiateFX",
+    "offset": 68,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "InitiateSound",
+    "offset": 16,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "OnTriggerRechargeSpecialPower",
+    "offset": 108,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "ReEnableAntiCategory",
+    "offset": 66,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "RequirementsFilterMPSkirmish",
+    "offset": 56,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "RequirementsFilterStrategic",
+    "offset": 60,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "SetModelCondition",
+    "offset": 80,
+    "type": "ModelConditionFlag",
+    "parse_fn": 8822562,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "SetModelConditionTime",
+    "offset": 84,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "SpecialPowerTemplate",
+    "offset": 8,
+    "type": "SpecialPowerTemplate",
+    "parse_fn": 7582255,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "StartsPaused",
+    "offset": 13,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "TargetAllSides",
+    "offset": 65,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "TargetEnemy",
+    "offset": 64,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "TriggerFX",
+    "offset": 72,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "UpdateModuleStartsAttack",
+    "offset": 12,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "UseDistanceFromCommandCenter",
+    "offset": 116,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "WeatherDuration",
+    "offset": 48,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   }
+  ]
  },
  {
   "name": "MaxHealthUpgrade",
@@ -28783,7 +30395,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28791,7 +30403,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -28799,23 +30411,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -28823,7 +30435,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28855,7 +30467,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -28863,7 +30475,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -28871,23 +30483,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -28895,7 +30507,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -30041,7 +31653,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -30049,7 +31661,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -30057,11 +31669,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RemoveConditionFlags",
@@ -30081,15 +31693,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -30105,7 +31717,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -30329,7 +31941,7 @@
   "fields": [
    {
     "name": "ScanAheadTimeMS",
-    "offset": 4,
+    "offset": 12,
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
@@ -30337,23 +31949,23 @@
    },
    {
     "name": "ScanHeight",
-    "offset": 8,
+    "offset": 16,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ScanWidth",
-    "offset": 12,
+    "offset": 20,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "TimeBetweenUpdatesMS",
-    "offset": 0,
+    "offset": 8,
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
@@ -30569,7 +32181,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 160,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -30577,7 +32189,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 304,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -30633,11 +32245,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 318,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RemoveUpgrade",
@@ -30649,19 +32261,19 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 317,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 316,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "ThingToSpawn",
@@ -30673,7 +32285,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 16,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -31351,11 +32963,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DamagePercentToUnits",
@@ -31367,11 +32979,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DoorOpenTime",
@@ -31407,7 +33019,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -31439,7 +33051,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -31447,11 +33059,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "ModifierRequiredTime",
@@ -31519,7 +33131,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -33058,11 +34670,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -33078,11 +34690,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -33156,7 +34768,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -33246,7 +34858,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -33256,11 +34868,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -33356,7 +34968,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -34119,7 +35731,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -34127,7 +35739,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -34143,23 +35755,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -34167,7 +35779,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -34183,7 +35795,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 176,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -34191,7 +35803,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 320,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -34247,31 +35859,31 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 334,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 333,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 332,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 32,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -34470,22 +36082,6 @@
    },
    {
     "name": "SoundAmbient",
-    "offset": 296,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundAmbientBattle",
-    "offset": 328,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundAmbientDamaged",
     "offset": 304,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
@@ -34493,7 +36089,15 @@
     "default": null
    },
    {
-    "name": "SoundAmbientReallyDamaged",
+    "name": "SoundAmbientBattle",
+    "offset": 336,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundAmbientDamaged",
     "offset": 312,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
@@ -34501,7 +36105,7 @@
     "default": null
    },
    {
-    "name": "SoundAmbientRubble",
+    "name": "SoundAmbientReallyDamaged",
     "offset": 320,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
@@ -34509,95 +36113,15 @@
     "default": null
    },
    {
+    "name": "SoundAmbientRubble",
+    "offset": 328,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
     "name": "SoundCreated",
-    "offset": 352,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundCrushing",
-    "offset": 440,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundEnter",
-    "offset": 376,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundExit",
-    "offset": 384,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundFallingFromPlane",
-    "offset": 416,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundImpact",
-    "offset": 424,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundImpactCyclonic",
-    "offset": 432,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundMoveLoop",
-    "offset": 280,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundMoveLoopDamaged",
-    "offset": 288,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundMoveStart",
-    "offset": 264,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundMoveStartDamaged",
-    "offset": 272,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundOnDamaged",
     "offset": 360,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
@@ -34605,31 +36129,23 @@
     "default": null
    },
    {
-    "name": "SoundOnReallyDamaged",
-    "offset": 368,
+    "name": "SoundCrushing",
+    "offset": 448,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
     "userdata": null,
     "default": null
    },
    {
-    "name": "SoundPromotedElite",
-    "offset": 400,
+    "name": "SoundEnter",
+    "offset": 384,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
     "userdata": null,
     "default": null
    },
    {
-    "name": "SoundPromotedHero",
-    "offset": 408,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580935,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "SoundPromotedVeteran",
+    "name": "SoundExit",
     "offset": 392,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
@@ -34637,8 +36153,104 @@
     "default": null
    },
    {
+    "name": "SoundFallingFromPlane",
+    "offset": 424,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundImpact",
+    "offset": 432,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundImpactCyclonic",
+    "offset": 440,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundMoveLoop",
+    "offset": 288,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundMoveLoopDamaged",
+    "offset": 296,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundMoveStart",
+    "offset": 272,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundMoveStartDamaged",
+    "offset": 280,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundOnDamaged",
+    "offset": 368,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundOnReallyDamaged",
+    "offset": 376,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundPromotedElite",
+    "offset": 408,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundPromotedHero",
+    "offset": 416,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "SoundPromotedVeteran",
+    "offset": 400,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580935,
+    "userdata": null,
+    "default": null
+   },
+   {
     "name": "SoundStealthOff",
-    "offset": 344,
+    "offset": 352,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
     "userdata": null,
@@ -34646,7 +36258,7 @@
    },
    {
     "name": "SoundStealthOn",
-    "offset": 336,
+    "offset": 344,
     "type": "AudioEventRTS",
     "parse_fn": 7580935,
     "userdata": null,
@@ -34662,174 +36274,6 @@
    },
    {
     "name": "VoiceAlert",
-    "offset": 112,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceAttack",
-    "offset": 48,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceAttackAir",
-    "offset": 96,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceAttackCharge",
-    "offset": 56,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceAttackMachine",
-    "offset": 152,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceAttackStructure",
-    "offset": 144,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceCombineWithHorde",
-    "offset": 168,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceCreated",
-    "offset": 72,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceDefect",
-    "offset": 88,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateAttack",
-    "offset": 176,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateAttackAir",
-    "offset": 192,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateAttackCharge",
-    "offset": 184,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateAttackMachine",
-    "offset": 208,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateAttackStructure",
-    "offset": 200,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateMove",
-    "offset": 216,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateMoveOverWalls",
-    "offset": 232,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateMoveToCamp",
-    "offset": 248,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateMoveToHigherGround",
-    "offset": 224,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateMoveWhileAttacking",
-    "offset": 256,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceEnterStateRetreatToCastle",
-    "offset": 240,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceFear",
-    "offset": 64,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceFullyCreated",
     "offset": 120,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
@@ -34837,7 +36281,15 @@
     "default": null
    },
    {
-    "name": "VoiceGuard",
+    "name": "VoiceAttack",
+    "offset": 56,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceAttackAir",
     "offset": 104,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
@@ -34845,31 +36297,167 @@
     "default": null
    },
    {
+    "name": "VoiceAttackCharge",
+    "offset": 64,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceAttackMachine",
+    "offset": 160,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceAttackStructure",
+    "offset": 152,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceCombineWithHorde",
+    "offset": 176,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceCreated",
+    "offset": 80,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceDefect",
+    "offset": 96,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateAttack",
+    "offset": 184,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateAttackAir",
+    "offset": 200,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateAttackCharge",
+    "offset": 192,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateAttackMachine",
+    "offset": 216,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateAttackStructure",
+    "offset": 208,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateMove",
+    "offset": 224,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateMoveOverWalls",
+    "offset": 240,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateMoveToCamp",
+    "offset": 256,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateMoveToHigherGround",
+    "offset": 232,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateMoveWhileAttacking",
+    "offset": 264,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceEnterStateRetreatToCastle",
+    "offset": 248,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceFear",
+    "offset": 72,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceFullyCreated",
+    "offset": 128,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceGuard",
+    "offset": 112,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
     "name": "VoiceMove",
-    "offset": 24,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceMoveOverWalls",
-    "offset": 40,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceMoveToCamp",
-    "offset": 136,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceMoveToHigherGround",
     "offset": 32,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
@@ -34877,8 +36465,32 @@
     "default": null
    },
    {
+    "name": "VoiceMoveOverWalls",
+    "offset": 48,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceMoveToCamp",
+    "offset": 144,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceMoveToHigherGround",
+    "offset": 40,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
     "name": "VoiceMoveWhileAttacking",
-    "offset": 160,
+    "offset": 168,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
     "userdata": null,
@@ -34894,7 +36506,7 @@
    },
    {
     "name": "VoiceRetreatToCastle",
-    "offset": 128,
+    "offset": 136,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
     "userdata": null,
@@ -34902,22 +36514,6 @@
    },
    {
     "name": "VoiceSelect",
-    "offset": 0,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceSelectBattle",
-    "offset": 16,
-    "type": "AudioEventRTS",
-    "parse_fn": 7580911,
-    "userdata": null,
-    "default": null
-   },
-   {
-    "name": "VoiceSelectUnderConstruction",
     "offset": 8,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
@@ -34925,8 +36521,24 @@
     "default": null
    },
    {
+    "name": "VoiceSelectBattle",
+    "offset": 24,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
+    "name": "VoiceSelectUnderConstruction",
+    "offset": 16,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": null
+   },
+   {
     "name": "VoiceTaskComplete",
-    "offset": 80,
+    "offset": 88,
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
     "userdata": null,
@@ -34974,23 +36586,23 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -35022,7 +36634,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -35030,15 +36642,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -35102,23 +36714,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -35126,7 +36738,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -35134,11 +36746,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RefundPercent",
@@ -35150,7 +36762,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -35174,7 +36786,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -35182,7 +36794,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -35190,11 +36802,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RemoveFromAllPlayerObjects",
@@ -35206,15 +36818,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -35230,7 +36842,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -36302,7 +37914,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -36310,7 +37922,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -36318,11 +37930,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "ReplaceWith",
@@ -36334,15 +37946,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -36350,7 +37962,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -36366,7 +37978,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -36374,7 +37986,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -36390,11 +38002,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "ReplenishDelay",
@@ -36438,15 +38050,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -36462,7 +38074,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -36952,11 +38564,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -36972,11 +38584,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -37042,7 +38654,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -37221,6 +38833,14 @@
     "inherited_from": "OpenContain"
    },
    {
+    "name": "KillRiderWhenVehicleDies",
+    "offset": 640,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No"
+   },
+   {
     "name": "ManualPickUpFilter",
     "offset": 68,
     "type": "KindOfFilter",
@@ -37232,7 +38852,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -37242,11 +38862,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -37362,7 +38982,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -37464,11 +39084,11 @@
    },
    {
     "name": "ScuttleStatus",
-    "offset": 0,
+    "offset": 636,
     "type": "Enum",
     "parse_fn": 4385110,
-    "userdata": null,
-    "default": null
+    "userdata": "0x00d9fad8",
+    "default": "0"
    },
    {
     "name": "ShouldThrowOutPassengers",
@@ -38316,23 +39936,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -38356,7 +39976,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -38388,11 +40008,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "MinRubbleRiseDelay",
@@ -38412,7 +40032,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -39696,11 +41316,11 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -39716,11 +41336,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -39766,7 +41386,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -39846,7 +41466,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -39856,11 +41476,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -39896,7 +41516,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -40540,11 +42160,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -40560,11 +42180,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -40630,7 +42250,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -40818,7 +42438,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -40828,11 +42448,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -40946,7 +42566,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -41206,11 +42826,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -41226,11 +42846,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -41296,7 +42916,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -41386,7 +43006,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -41396,11 +43016,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -41496,7 +43116,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -41798,11 +43418,11 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathFlags",
@@ -41814,11 +43434,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DecayBeginTime",
@@ -41854,7 +43474,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -41918,7 +43538,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -41926,11 +43546,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "ModifierBonusPerOverkillPercent",
@@ -41958,7 +43578,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -42038,7 +43658,7 @@
    },
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 236,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -42046,7 +43666,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 380,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -42054,23 +43674,23 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 80,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 44,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 48,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -42110,7 +43730,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 88,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -42118,11 +43738,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 84,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "OneShot",
@@ -42134,11 +43754,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 394,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "PropagateDamageTypesToSlavesWhenExisting",
@@ -42150,27 +43770,27 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 64,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": "0"
+    "default": null
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 393,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 392,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RespectCommandLimit",
@@ -42230,7 +43850,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 92,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -43486,23 +45106,23 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -43510,7 +45130,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -43518,15 +45138,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -44133,7 +45753,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -44141,7 +45761,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -44165,23 +45785,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -44197,11 +45817,11 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": "0"
+    "default": null
    }
   ]
  },
@@ -44210,7 +45830,358 @@
   "interface_mask": "0x100",
   "moduledata_size": 124,
   "moduledata_ctor": 9227959,
-  "fields": []
+  "fields": [
+   {
+    "name": "AdjustVictim",
+    "offset": 104,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AffectAllies",
+    "offset": 96,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AffectEvil",
+    "offset": 95,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AffectGood",
+    "offset": 94,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AntiCategory",
+    "offset": 52,
+    "type": "0x0089f32d",
+    "parse_fn": 9040685,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AntiFX",
+    "offset": 76,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifier",
+    "offset": 24,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierAffects",
+    "offset": 36,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierAffectsSelf",
+    "offset": 32,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierFX",
+    "offset": 40,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierRange",
+    "offset": 28,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AttributeModifierWeatherBased",
+    "offset": 44,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "AvailableAtStart",
+    "offset": 97,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "BurnDecayModifier",
+    "offset": 112,
+    "type": "Int",
+    "parse_fn": 4385970,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "ChangeWeather",
+    "offset": 100,
+    "type": "WeatherType",
+    "parse_fn": 9004793,
+    "userdata": null,
+    "default": "5",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "DisableDuringAnimDuration",
+    "offset": 92,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "DistanceFromCommandCenter",
+    "offset": 120,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "GiveLevels",
+    "offset": 88,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "IdleWhenStartingPower",
+    "offset": 93,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "InitiateFX",
+    "offset": 68,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "InitiateSound",
+    "offset": 16,
+    "type": "AudioEventRTS",
+    "parse_fn": 7580911,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "OnTriggerRechargeSpecialPower",
+    "offset": 108,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "ReEnableAntiCategory",
+    "offset": 66,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "RequirementsFilterMPSkirmish",
+    "offset": 56,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "RequirementsFilterStrategic",
+    "offset": 60,
+    "type": "KindOfFilter",
+    "parse_fn": 7747887,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "SetModelCondition",
+    "offset": 80,
+    "type": "ModelConditionFlag",
+    "parse_fn": 8822562,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "SetModelConditionTime",
+    "offset": 84,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "SpecialPowerTemplate",
+    "offset": 8,
+    "type": "SpecialPowerTemplate",
+    "parse_fn": 7582255,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "StartsPaused",
+    "offset": 13,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "TargetAllSides",
+    "offset": 65,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "TargetEnemy",
+    "offset": 64,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "TriggerFX",
+    "offset": 72,
+    "type": "FXList",
+    "parse_fn": 7578370,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "UpdateModuleStartsAttack",
+    "offset": 12,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "UseDistanceFromCommandCenter",
+    "offset": 116,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   },
+   {
+    "name": "WeatherDuration",
+    "offset": 48,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
+   }
+  ]
  },
  {
   "name": "SquishCollide",
@@ -44243,7 +46214,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -44251,7 +46222,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -44259,23 +46230,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -44299,7 +46270,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -44315,7 +46286,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -44325,7 +46296,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -44343,27 +46314,27 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null,
+    "default": "No",
     "inherited": true,
     "inherited_from": "StatusBitsUpgrade"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null,
+    "default": "No",
     "inherited": true,
     "inherited_from": "StatusBitsUpgrade"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -44393,7 +46364,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -44843,7 +46814,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -44851,7 +46822,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -44859,23 +46830,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -44883,7 +46854,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -46179,19 +48150,19 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DestroyObjectWhenDone",
@@ -46203,7 +48174,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -46235,7 +48206,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -46267,11 +48238,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "OCL",
@@ -46283,7 +48254,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -46323,11 +48294,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DamageFXTypes",
@@ -46339,15 +48310,15 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -46363,7 +48334,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -46387,11 +48358,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "MinToppleBurstDelay",
@@ -46419,7 +48390,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -46491,7 +48462,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -46499,7 +48470,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -46539,11 +48510,11 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RecolorHouse",
@@ -46555,15 +48526,15 @@
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -46587,7 +48558,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -51649,7 +53620,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -51657,7 +53628,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -51681,23 +53652,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -51705,11 +53676,11 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": "0"
+    "default": null
    }
   ]
  },
@@ -53039,11 +55010,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -53059,11 +55030,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -53125,7 +55096,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -53277,7 +55248,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -53287,11 +55258,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -53393,7 +55364,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -53595,11 +55566,11 @@
    },
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -53615,11 +55586,11 @@
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null,
+    "default": "-1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -53685,7 +55656,7 @@
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -53775,7 +55746,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -53785,11 +55756,11 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null,
+    "default": "1",
     "inherited": true,
     "inherited_from": "OpenContain"
    },
@@ -53885,7 +55856,7 @@
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -54665,7 +56636,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -54673,7 +56644,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -54689,23 +56660,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -54721,7 +56692,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -55095,23 +57066,23 @@
   "fields": [
    {
     "name": "DamageAmountRequired",
-    "offset": 36,
+    "offset": 44,
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "DeathTypes",
-    "offset": 0,
+    "offset": 8,
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": null
+    "default": "-1"
    },
    {
     "name": "ExemptStatus",
-    "offset": 4,
+    "offset": 12,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -55119,7 +57090,7 @@
    },
    {
     "name": "MaxKillerAngle",
-    "offset": 44,
+    "offset": 52,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
@@ -55127,15 +57098,15 @@
    },
    {
     "name": "MinKillerAngle",
-    "offset": 40,
+    "offset": 48,
     "type": "AngleReal",
     "parse_fn": 4386325,
     "userdata": null,
-    "default": null
+    "default": "1"
    },
    {
     "name": "RequiredStatus",
-    "offset": 20,
+    "offset": 28,
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
@@ -55462,12 +57433,582 @@
   "moduledata_ctor": 4686473,
   "fields": [
    {
+    "name": "AffectedByStealth",
+    "offset": 350,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AlphaCameraAtInnerRadius",
+    "offset": 332,
+    "type": "Percent",
+    "parse_fn": 4386554,
+    "userdata": null,
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AlphaCameraFadeInnerRadius",
+    "offset": 328,
+    "type": "PositiveReal",
+    "parse_fn": 4386076,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AlphaCameraFadeOuterRadius",
+    "offset": 324,
+    "type": "PositiveReal",
+    "parse_fn": 4386076,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AlphaRefAnimated",
+    "offset": 313,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AlphaRefRange",
+    "offset": 316,
+    "type": "IntRange",
+    "parse_fn": 4387578,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AnimationsRequirePower",
+    "offset": 107,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AnimationState",
+    "offset": 0,
+    "type": "AnimationState",
+    "parse_fn": 5015616,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AttachModel",
+    "offset": 0,
+    "type": "AttachModel",
+    "parse_fn": 5013058,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "AttachToBoneInAnotherModule",
+    "offset": 64,
+    "type": "0x004b65ba",
+    "parse_fn": 4941242,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "BirthFadeAdditive",
+    "offset": 340,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "BirthFadeTime",
+    "offset": 336,
+    "type": "Duration",
+    "parse_fn": 7578665,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "BurntTexture",
+    "offset": 0,
+    "type": "0x004c3321",
+    "parse_fn": 4993825,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "DefaultModelConditionState",
+    "offset": 0,
+    "type": "ModelConditionState",
+    "parse_fn": 5013518,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "DependencySharedModelFlags",
+    "offset": 188,
+    "type": "ModelConditionFlags",
+    "parse_fn": 4951073,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "EmbedPortal",
+    "offset": 284,
+    "type": "0x004c30bd",
+    "parse_fn": 4993213,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ExtraPublicBone",
+    "offset": 48,
+    "type": "AsciiStringList",
+    "parse_fn": 4384158,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "GlowEmissive",
+    "offset": 297,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "GlowEnabled",
+    "offset": 296,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "HighDetailLODThreshold",
+    "offset": 300,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "HighDetailOnly",
+    "offset": 351,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "IdleAnimationState",
+    "offset": 0,
+    "type": "AnimationState",
+    "parse_fn": 5015616,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "InitialRecoilSpeed",
+    "offset": 84,
+    "type": "VelocityReal",
+    "parse_fn": 7578806,
+    "userdata": null,
+    "default": "2",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
     "name": "LodOptions",
     "offset": 0,
     "type": "LodOptions",
     "parse_fn": 4688788,
     "userdata": null,
     "default": null
+   },
+   {
+    "name": "LowDetailLODThreshold",
+    "offset": 304,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "MaxRecoilDistance",
+    "offset": 88,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "3",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "MinLODRequired",
+    "offset": 100,
+    "type": "Enum",
+    "parse_fn": 4385110,
+    "userdata": "0x00d9e6bc",
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ModelConditionState",
+    "offset": 0,
+    "type": "ModelConditionState",
+    "parse_fn": 5013518,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "MultiPlayerOnly",
+    "offset": 349,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "NoRotate",
+    "offset": 105,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "OkToChangeModelColor",
+    "offset": 104,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ParticleBonesCheckDrawable",
+    "offset": 298,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ParticlesAttachedToAnimatedBones",
+    "offset": 264,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ProjectileBoneFeedbackEnabledSlots",
+    "offset": 80,
+    "type": "BitFlags",
+    "parse_fn": 4384832,
+    "userdata": "0x00da12e4",
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RaisedWallMesh",
+    "offset": 272,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RampMesh1",
+    "offset": 276,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RampMesh2",
+    "offset": 280,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RandomTexture",
+    "offset": 0,
+    "type": "0x004c7c56",
+    "parse_fn": 5012566,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RandomTextureFixedRandomIndex",
+    "offset": 136,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RecoilDamping",
+    "offset": 92,
+    "type": "Real",
+    "parse_fn": 4386048,
+    "userdata": null,
+    "default": "0.4",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "RecoilSettleSpeed",
+    "offset": 96,
+    "type": "VelocityReal",
+    "parse_fn": 7578806,
+    "userdata": null,
+    "default": "0.065",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ShadowForceDisable",
+    "offset": 299,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ShowShadowWhileContained",
+    "offset": 310,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "StaticModelLODMode",
+    "offset": 309,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "StaticSortLevelWhileFading",
+    "offset": 344,
+    "type": "Int",
+    "parse_fn": 4385886,
+    "userdata": null,
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "SwitchModelLODMode",
+    "offset": 308,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "TimeOfDayTexture",
+    "offset": 0,
+    "type": "0x004c42a8",
+    "parse_fn": 4997800,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "TrackMarks",
+    "offset": 60,
+    "type": "0x004b65ba",
+    "parse_fn": 4941242,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "TrackMarksLeftBone",
+    "offset": 68,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "TrackMarksRightBone",
+    "offset": 72,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "TransitionState",
+    "offset": 0,
+    "type": "AnimationState",
+    "parse_fn": 5015616,
+    "userdata": null,
+    "default": null,
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "UseDefaultAnimation",
+    "offset": 312,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "UseFiringArcRotation",
+    "offset": 106,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "UseProducerTexture",
+    "offset": 184,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "UseStandardModelNames",
+    "offset": 311,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "WadingParticleSys",
+    "offset": 20,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "WallBoundsMesh",
+    "offset": 268,
+    "type": "AsciiString",
+    "parse_fn": 4386398,
+    "userdata": null,
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
+   },
+   {
+    "name": "ZWriteDisableOverride",
+    "offset": 348,
+    "type": "Bool",
+    "parse_fn": 4384088,
+    "userdata": null,
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "W3DScriptedModelDraw"
    }
   ]
  },
@@ -60084,7 +62625,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -60092,7 +62633,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -60100,23 +62641,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -60124,7 +62665,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -60140,7 +62681,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -60148,7 +62689,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -60156,23 +62697,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -60180,7 +62721,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -61941,7 +64482,7 @@
   "fields": [
    {
     "name": "ConflictsWith",
-    "offset": 144,
+    "offset": 152,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
@@ -61949,7 +64490,7 @@
    },
    {
     "name": "CustomAnimAndDuration",
-    "offset": 288,
+    "offset": 296,
     "type": "AnimAndDuration",
     "parse_fn": 8721426,
     "userdata": null,
@@ -61957,23 +64498,23 @@
    },
    {
     "name": "Permanent",
-    "offset": 302,
+    "offset": 310,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
-    "offset": 301,
+    "offset": 309,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllTriggers",
-    "offset": 300,
+    "offset": 308,
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
@@ -61981,7 +64522,7 @@
    },
    {
     "name": "TriggeredBy",
-    "offset": 0,
+    "offset": 8,
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,

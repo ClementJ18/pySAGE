@@ -79,162 +79,6 @@
    "HoldGround",
    "Amoeba"
   ],
-  "0x00dc1c38": [
-   "SPHERE",
-   "CYLINDER",
-   "BOX"
-  ],
-  "0x00daf5cc": [
-   "NORMAL",
-   "BECOME_UNDEAD",
-   "SELF",
-   "BECOME_UNDEAD_ONCE"
-  ],
-  "0x00db0d6c": [
-   "ATTACKING",
-   "MOVING",
-   "USING_ABILITY",
-   "FIRING_PRIMARY",
-   "FIRING_SECONDARY",
-   "FIRING_TERTIARY",
-   "FIRING_QUATERNARY",
-   "FIRING_QUINARY",
-   "MOUNTED",
-   "AWAY_FROM_TREES",
-   "HORDEBRAIN_NOT_STEALTHED",
-   "PRIMARY_FORMATION",
-   "TAKING_DAMAGE"
-  ],
-  "0x00da5524": [
-   "ATTACKING",
-   "MOVING",
-   "USING_ABILITY",
-   "FIRING_PRIMARY",
-   "FIRING_SECONDARY",
-   "FIRING_TERTIARY",
-   "FIRING_QUATERNARY",
-   "FIRING_QUINARY",
-   "MOUNTED",
-   "AWAY_FROM_TREES",
-   "HORDEBRAIN_NOT_STEALTHED",
-   "PRIMARY_FORMATION",
-   "TAKING_DAMAGE"
-  ],
-  "0x00da0504": [
-   "YES",
-   "STEALTHED",
-   "NO",
-   "NOTWHILEATTACKING",
-   "ATTACK_BUILDINGS"
-  ],
-  "0x00da5b38": [
-   "NORMAL",
-   "NONE",
-   "CRUSHED",
-   "BURNED",
-   "EXPLODED",
-   "POISONED",
-   "TOPPLED",
-   "FLOODED",
-   "SUICIDED",
-   "LASERED",
-   "DETONATED",
-   "SPLATTED",
-   "POISONED_BETA",
-   "EXTRA_2",
-   "EXTRA_3",
-   "EXTRA_4",
-   "EXTRA_5",
-   "EXTRA_6",
-   "EXTRA_7",
-   "EXTRA_8",
-   "KNOCKBACK",
-   "SUPERNATURAL",
-   "FADED",
-   "SLAUGHTERED"
-  ],
-  "0x00daf9e8": [
-   "FORCE",
-   "CRUSH",
-   "SLASH",
-   "PIERCE",
-   "SIEGE",
-   "STRUCTURAL",
-   "FLAME",
-   "HEALING",
-   "UNRESISTABLE",
-   "WATER",
-   "PENALTY",
-   "FALLING",
-   "TOPPLING",
-   "REFLECTED",
-   "PASSENGER",
-   "MAGIC",
-   "CHOP",
-   "HERO",
-   "SPECIALIST",
-   "URUK",
-   "HERO_RANGED",
-   "FLY_INTO",
-   "UNDEFINED",
-   "LOGICAL_FIRE",
-   "CAVALRY",
-   "CAVALRY_RANGED",
-   "POISON",
-   "FROST"
-  ],
-  "0x00db05ec": [
-   "SAME_CURRENTHEALTH",
-   "PRESERVE_RATIO",
-   "ADD_CURRENT_HEALTH_TOO"
-  ],
-  "0x00dae0e0": [
-   "MOUNTED",
-   "WEAPON_TOGGLE",
-   "MOVING"
-  ],
-  "0x00db094c": [
-   "MOUNTED",
-   "TAINT",
-   "ELVEN_WOOD"
-  ],
-  "0x00dad904": [
-   "DEFAULT",
-   "DISABLED_USER_PARALYZED",
-   "DISABLED_EMP",
-   "DISABLED_HELD",
-   "DISABLED_PARALYZED",
-   "DISABLED_UNMANNED",
-   "DISABLED_UNDERPOWERED",
-   "DISABLED_FREEFALL",
-   "DISABLED_TEMPORARILY_BUSY",
-   "DISABLED_SCRIPT_DISABLED",
-   "DISABLED_SCRIPT_UNDERPOWERED",
-   "DISABLED_USER_FROZEN"
-  ],
-  "0x00db0f20": [
-   "INITIAL",
-   "DELAY",
-   "FINAL"
-  ],
-  "0x00db0e7c": [
-   "INITIAL",
-   "DELAY",
-   "BURST",
-   "ALMOST_FINAL",
-   "FINAL"
-  ],
-  "0x00db0ed0": [
-   "INITIAL",
-   "DELAY",
-   "BURST",
-   "FINAL"
-  ],
-  "0x00db1ffc": [
-   "SAME_CURRENTHEALTH",
-   "PRESERVE_RATIO",
-   "ADD_CURRENT_HEALTH_TOO"
-  ],
   "0x00d9fad8": [
    "TOPPLED",
    "FRONTCRUSHED",
@@ -827,6 +671,185 @@
    "SPECIAL_WEAPON_FOUR",
    "SPECIAL_WEAPON_FIVE",
    "SPECIAL_WEAPON_SIX"
+  ],
+  "0x00dc1c38": [
+   "SPHERE",
+   "CYLINDER",
+   "BOX"
+  ],
+  "0x00daf5cc": [
+   "NORMAL",
+   "BECOME_UNDEAD",
+   "SELF",
+   "BECOME_UNDEAD_ONCE"
+  ],
+  "0x00db0d6c": [
+   "ATTACKING",
+   "MOVING",
+   "USING_ABILITY",
+   "FIRING_PRIMARY",
+   "FIRING_SECONDARY",
+   "FIRING_TERTIARY",
+   "FIRING_QUATERNARY",
+   "FIRING_QUINARY",
+   "MOUNTED",
+   "AWAY_FROM_TREES",
+   "HORDEBRAIN_NOT_STEALTHED",
+   "PRIMARY_FORMATION",
+   "TAKING_DAMAGE"
+  ],
+  "0x00da5524": [
+   "ATTACKING",
+   "MOVING",
+   "USING_ABILITY",
+   "FIRING_PRIMARY",
+   "FIRING_SECONDARY",
+   "FIRING_TERTIARY",
+   "FIRING_QUATERNARY",
+   "FIRING_QUINARY",
+   "MOUNTED",
+   "AWAY_FROM_TREES",
+   "HORDEBRAIN_NOT_STEALTHED",
+   "PRIMARY_FORMATION",
+   "TAKING_DAMAGE"
+  ],
+  "0x00da0504": [
+   "YES",
+   "STEALTHED",
+   "NO",
+   "NOTWHILEATTACKING",
+   "ATTACK_BUILDINGS"
+  ],
+  "0x00da5b38": [
+   "NORMAL",
+   "NONE",
+   "CRUSHED",
+   "BURNED",
+   "EXPLODED",
+   "POISONED",
+   "TOPPLED",
+   "FLOODED",
+   "SUICIDED",
+   "LASERED",
+   "DETONATED",
+   "SPLATTED",
+   "POISONED_BETA",
+   "EXTRA_2",
+   "EXTRA_3",
+   "EXTRA_4",
+   "EXTRA_5",
+   "EXTRA_6",
+   "EXTRA_7",
+   "EXTRA_8",
+   "KNOCKBACK",
+   "SUPERNATURAL",
+   "FADED",
+   "SLAUGHTERED"
+  ],
+  "0x00daf9e8": [
+   "FORCE",
+   "CRUSH",
+   "SLASH",
+   "PIERCE",
+   "SIEGE",
+   "STRUCTURAL",
+   "FLAME",
+   "HEALING",
+   "UNRESISTABLE",
+   "WATER",
+   "PENALTY",
+   "FALLING",
+   "TOPPLING",
+   "REFLECTED",
+   "PASSENGER",
+   "MAGIC",
+   "CHOP",
+   "HERO",
+   "SPECIALIST",
+   "URUK",
+   "HERO_RANGED",
+   "FLY_INTO",
+   "UNDEFINED",
+   "LOGICAL_FIRE",
+   "CAVALRY",
+   "CAVALRY_RANGED",
+   "POISON",
+   "FROST"
+  ],
+  "0x00db05ec": [
+   "SAME_CURRENTHEALTH",
+   "PRESERVE_RATIO",
+   "ADD_CURRENT_HEALTH_TOO"
+  ],
+  "0x00dae0e0": [
+   "MOUNTED",
+   "WEAPON_TOGGLE",
+   "MOVING"
+  ],
+  "0x00db094c": [
+   "MOUNTED",
+   "TAINT",
+   "ELVEN_WOOD"
+  ],
+  "0x00dad904": [
+   "DEFAULT",
+   "DISABLED_USER_PARALYZED",
+   "DISABLED_EMP",
+   "DISABLED_HELD",
+   "DISABLED_PARALYZED",
+   "DISABLED_UNMANNED",
+   "DISABLED_UNDERPOWERED",
+   "DISABLED_FREEFALL",
+   "DISABLED_TEMPORARILY_BUSY",
+   "DISABLED_SCRIPT_DISABLED",
+   "DISABLED_SCRIPT_UNDERPOWERED",
+   "DISABLED_USER_FROZEN"
+  ],
+  "0x00db0f20": [
+   "INITIAL",
+   "DELAY",
+   "FINAL"
+  ],
+  "0x00db0e7c": [
+   "INITIAL",
+   "DELAY",
+   "BURST",
+   "ALMOST_FINAL",
+   "FINAL"
+  ],
+  "0x00db0ed0": [
+   "INITIAL",
+   "DELAY",
+   "BURST",
+   "FINAL"
+  ],
+  "0x00d9fa80": [
+   "VETERAN",
+   "ELITE",
+   "HERO",
+   "PLAYER_UPGRADE",
+   "WEAK_VERSUS_BASEDEFENSES",
+   "ALTERNATE_FORMATION",
+   "MOUNTED",
+   "PLAYER_UPGRADE_2",
+   "PLAYER_UPGRADE_3",
+   "UNBESIEGEABLE",
+   "AS_TOWER",
+   "CREATE_A_HERO_01",
+   "CREATE_A_HERO_02",
+   "CREATE_A_HERO_03",
+   "CREATE_A_HERO_04",
+   "CREATE_A_HERO_05",
+   "CREATE_A_HERO_06",
+   "CREATE_A_HERO_07",
+   "CREATE_A_HERO_08",
+   "CREATE_A_HERO_09",
+   "CREATE_A_HERO_10"
+  ],
+  "0x00db1ffc": [
+   "SAME_CURRENTHEALTH",
+   "PRESERVE_RATIO",
+   "ADD_CURRENT_HEALTH_TOO"
   ],
   "0x00db2590": [
    "FORCE",
@@ -1649,29 +1672,6 @@
    "AI_SPECIAL_POWER_RANGED_AOE_ATTACK_UNITS",
    "AI_SPECIAL_POWER_MORGUL_BLADE",
    "AI_SPECIAL_POWER_GOBLIN_POISON"
-  ],
-  "0x00d9fa80": [
-   "VETERAN",
-   "ELITE",
-   "HERO",
-   "PLAYER_UPGRADE",
-   "WEAK_VERSUS_BASEDEFENSES",
-   "ALTERNATE_FORMATION",
-   "MOUNTED",
-   "PLAYER_UPGRADE_2",
-   "PLAYER_UPGRADE_3",
-   "UNBESIEGEABLE",
-   "AS_TOWER",
-   "CREATE_A_HERO_01",
-   "CREATE_A_HERO_02",
-   "CREATE_A_HERO_03",
-   "CREATE_A_HERO_04",
-   "CREATE_A_HERO_05",
-   "CREATE_A_HERO_06",
-   "CREATE_A_HERO_07",
-   "CREATE_A_HERO_08",
-   "CREATE_A_HERO_09",
-   "CREATE_A_HERO_10"
   ],
   "0x00d9fa08": [
    "TAUNT",
@@ -7255,7 +7255,32 @@
     "Decay",
     "Resistance"
    ],
-   "fields": []
+   "fields": [
+    {
+     "name": "FuelFactor",
+     "type": "0x0073d0fd",
+     "parse_fn": 7590141,
+     "offset": 0
+    },
+    {
+     "name": "MaxBurnRate",
+     "type": "Int",
+     "parse_fn": 4385970,
+     "offset": 4
+    },
+    {
+     "name": "Decay",
+     "type": "Int",
+     "parse_fn": 4385970,
+     "offset": 8
+    },
+    {
+     "name": "Resistance",
+     "type": "Int",
+     "parse_fn": 4385970,
+     "offset": 12
+    }
+   ]
   },
   "FloodMember": {
    "parse_fn": 8984214,
@@ -13144,28 +13169,28 @@
   "TerrainCellType": {
    "parse_fn": 6842062,
    "keywords": [
-    "Color",
-    "Name",
-    "Fuel"
+    "MaxBurnRate",
+    "Decay",
+    "Resistance"
    ],
    "fields": [
     {
-     "name": "Color",
-     "type": "RGBAColor",
-     "parse_fn": 4387134,
-     "offset": 0
-    },
-    {
-     "name": "Name",
-     "type": "AsciiString",
-     "parse_fn": 4386398,
-     "offset": 4
-    },
-    {
-     "name": "Fuel",
+     "name": "MaxBurnRate",
      "type": "Int",
      "parse_fn": 4385970,
-     "offset": 0
+     "offset": 12
+    },
+    {
+     "name": "Decay",
+     "type": "Int",
+     "parse_fn": 4385970,
+     "offset": 16
+    },
+    {
+     "name": "Resistance",
+     "type": "Int",
+     "parse_fn": 4385970,
+     "offset": 20
     }
    ]
   },
@@ -25767,6 +25792,44 @@
      "offset": 0,
      "type": "AsciiString",
      "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "Flammability": {
+   "parse_fn": 7591697,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Decay",
+     "offset": 8,
+     "type": "Int",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FuelFactor",
+     "offset": 0,
+     "type": "0x0073d0fd",
+     "parse_fn": 7590141,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MaxBurnRate",
+     "offset": 4,
+     "type": "Int",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Resistance",
+     "offset": 12,
+     "type": "Int",
+     "parse_fn": 4385970,
      "userdata": null,
      "default": null
     }
@@ -45961,26 +46024,26 @@
    "moduledata_ctor": null,
    "fields": [
     {
-     "name": "Color",
-     "offset": 0,
-     "type": "RGBAColor",
-     "parse_fn": 4387134,
-     "userdata": null,
-     "default": null
-    },
-    {
-     "name": "Fuel",
-     "offset": 0,
+     "name": "Decay",
+     "offset": 16,
      "type": "Int",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
     },
     {
-     "name": "Name",
-     "offset": 4,
-     "type": "AsciiString",
-     "parse_fn": 4386398,
+     "name": "MaxBurnRate",
+     "offset": 12,
+     "type": "Int",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Resistance",
+     "offset": 20,
+     "type": "Int",
+     "parse_fn": 4385970,
      "userdata": null,
      "default": null
     }
