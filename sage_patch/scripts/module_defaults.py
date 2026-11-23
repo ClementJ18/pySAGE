@@ -67,7 +67,6 @@ MAX_BASE_DEPTH = 8
 PARSE_TYPES = {
     0x0042E558: "Bool",
     0x0042ED00: "Real",
-    0x0073A429: "DurationReal",
     0x0042EE5E: "AsciiString",
     0x0042EC5E: "Int",
     0x0073A302: "FXList",
@@ -80,6 +79,8 @@ PARSE_TYPES = {
     0x006564E7: "KindOfFlags",
     0x0073AE79: "WeaponTemplate",
     0x0042F247: "Coord3D",
+    0x0042F298: "Coord2D",
+    0x0042F2FA: "Coord2DInt",
     0x0066F603: "UpgradeMask",
     0x005DE588: "EvaEvent",
     0x008BDBB5: "FXList",
@@ -88,7 +89,7 @@ PARSE_TYPES = {
     0x0088A4AC: "FXList",
     0x0088A55B: "ObjectCreationList",
     0x0088A60A: "ParticleSystem",
-    0x0042ECB2: "Int",
+    0x0042ECB2: "UnsignedInt",
     0x0073A368: "ObjectCreationList",
     0x0042E840: "BitFlags",
     0x007B1E5C: "ObjectStatusFlags",
@@ -110,11 +111,9 @@ PARSE_TYPES = {
     0x0042EB2A: "Int8",
     0x0042EB75: "UInt8",
     0x0042EC11: "UInt16",
-    0x0042F2FA: "IntRange",
     # Colours: three or four channels scaled by 1/255 into floats.
     0x0042EF99: "RGBColor",
     0x0042F13E: "RGBAColor",
-    0x0042F298: "Coord3D",
     # Tokens resolved against a name array, either the field table's userData
     # (`LookupList`) or a static array owned by the flag type.
     0x0042E9B7: "LookupList",
@@ -124,7 +123,7 @@ PARSE_TYPES = {
     0x008514ED: "ModelConditionFlag",
     0x006C9951: "WeaponSetFlags",
     0x00866FF0: "ObjectStatusFlags",
-    0x008D239B: "SpecialPowerFlags",
+    0x008D239B: "SpecialPowerTrigger",
     0x00992693: "SpecialPowerAIType",
     0x008E09CE: "EmotionType",
     0x008966F9: "WeatherType",
@@ -173,6 +172,7 @@ PARSER_TABLES = {
     0x008BA71A: 0x00D9FAD8,
     0x0086C30A: 0x00DAEB2C,
     0x00AD4040: 0x00DC1C38,
+    0x008D239B: 0x00DB4B08,
 }
 
 # Sub-block parsers shared by more than one keyword, so the block's name cannot be
@@ -251,7 +251,6 @@ TYPE_TABLES = {
     "WeaponSetFlags": "WeaponSetFlags",
     "DamageTypeFlags": "DamageType",
     "DeathTypeFlags": "DeathType",
-    "SpecialPowerFlags": "SpecialPowerFlags",
     "SpecialPowerAIType": "SpecialPowerAIType",
     "EmotionType": "EmotionType",
     "WeatherType": "WeatherType",
@@ -259,6 +258,36 @@ TYPE_TABLES = {
 
 FLOATY = {"Real", "Percent", "DurationReal", "AngleReal", "VelocityReal",
           "AngularVelocityReal", "PositiveReal", "NonNegativeReal", "NonPositiveReal"}
+
+# The scale factors the parsers apply, as the engine holds them. Logic runs at five
+# frames a second, so a millisecond is 0.005 frames and a frame is 0.2 seconds.
+LOGIC_FRAMES_PER_SECOND = 0x00D9F608
+FRAMES_PER_MSEC = 0x00D9F610
+SECONDS_PER_FRAME = 0x00D9F61C
+RADIANS_PER_DEGREE = 0x00BD1900
+# Globals in .data that nothing writes after startup, so a constructor that loads one
+# (`mov eax, [LOGIC_FRAMES_PER_SECOND]; add eax, eax` is "two seconds") has a default.
+ENGINE_CONSTANTS = {LOGIC_FRAMES_PER_SECOND}
+
+# Values spread over consecutive dwords: (count, the labels the parser reads them by).
+COMPOSITE_TYPES = {
+    "Coord3D": (3, ("X", "Y", "Z")),
+    "Coord2D": (2, ("X", "Y")),
+    "RGBColor": (3, ("R", "G", "B")),
+    "RGBAColor": (1, ("",)),
+    "Coord2DInt": (2, ("X", "Y")),
+}
+
+# Names looked up in another store or table: the constructor can only leave them empty.
+REFERENCE_TYPES = {"AsciiString", "AsciiStringList", "AudioEventRTS", "FXList",
+                   "ObjectCreationList", "ParticleSystem", "WeaponTemplate", "UpgradeTemplate",
+                   "SpecialPowerTemplate", "ScienceType"}
+
+FLAG_TYPES = {"BitFlags", "KindOfFlags", "KindOfFilter", "ObjectStatusFlags", "DeathTypeFlags",
+              "DamageTypeFlags", "WeaponSetFlags", "ModelConditionFlags", "DisabledTypeFlags"}
+# The mask parsers that take a `NONE` or `ALL` token of their own.
+ACCEPTS_NONE = {"BitFlags", "DeathTypeFlags", "DamageTypeFlags"}
+ACCEPTS_ALL = {"DeathTypeFlags", "DamageTypeFlags"}
 
 # Words a sub-block parser mentions that are not keywords of the block: the
 # terminator, the empty-reference token and the C format specifiers.
@@ -268,6 +297,18 @@ R32 = ("eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi")
 R8OF = {"al": "eax", "cl": "ecx", "dl": "edx", "bl": "ebx",
         "ah": "eax", "ch": "ecx", "dh": "edx", "bh": "ebx"}
 R16OF = {"ax": "eax", "cx": "ecx", "dx": "edx", "bx": "ebx"}
+# Register arithmetic the constructors build constants with (`xor eax, eax; inc eax` is 1).
+REG_ARITH = {
+    "inc": lambda a, _b: a + 1,
+    "dec": lambda a, _b: a - 1,
+    "neg": lambda a, _b: -a,
+    "add": lambda a, b: a + b,
+    "sub": lambda a, b: a - b,
+    "or": lambda a, b: a | b,
+    "and": lambda a, b: a & b,
+    "shl": lambda a, b: a << b,
+    "imul": lambda a, b: a * b,
+}
 
 
 class Image:
@@ -741,29 +782,53 @@ def parse_table(img: Image, tab: int, limit: int = 200) -> list[tuple[str, int, 
     return out
 
 
-def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int = 5) -> dict[int, Any]:
+def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int = 5,
+                  bases: Optional[dict[int, int]] = None) -> dict[int, Any]:
     """{offset: value} written by a ModuleData constructor, by constant tracking.
 
     Handles the MSVC idioms the engine actually uses: immediate stores, stores of a
-    zeroed or constant-loaded register, `movss` from an .rdata float, `xorps`,
-    `or dword [x], -1`, `and dword [x], 0`, and AsciiString initialisation. A base
-    class constructor invoked with `ecx == this` is followed one level down.
+    zeroed or constant-loaded register (`push imm / pop reg` included), `movss` from an
+    .rdata float, `xorps`, `or dword [x], -1`, `and dword [x], 0`, loads of the logic
+    frame rate, and AsciiString initialisation. A base class constructor invoked with
+    `ecx == this` is followed in place. A call on a member (`lea ecx, [this+L]`) is
+    followed too, its writes rebased by L, and `bases` records L for each of them: that
+    call is a member's constructor only most of the time, and the caller uses it to
+    drop what an assignment or a setter wrote past the member's own end.
+
+    A register is only trusted while nothing has changed it since it was loaded: a call
+    clobbers `eax`, `ecx`, `edx` and the xmm registers, and any instruction the walk does
+    not model forgets the register it writes.
     """
     if not ctor or depth > maxdepth:
         return {}
     out: dict[int, Any] = {}
+    origin: dict[int, int] = {}
     ireg: dict[str, int] = {}
     freg: dict[str, float] = {}
     pushes: list[str] = []
     lea_off: Optional[int] = None
     this = {"ecx"}
+
+    def put(off: int, value: Any) -> None:
+        out[off] = value
+        origin.pop(off, None)
+
     for i in img.disasm(ctor, 0x1200):
         m, o = i.mnemonic, i.op_str
         dst, _, src = o.partition(", ")
         if m == "push":
             pushes.append(o)
             continue
-        if m == "xor" and dst == src and dst in R32:
+        if dst in ("ecx", "cx", "cl") and m not in ("lea", "cmp", "test"):
+            lea_off = None
+        if m == "pop" and dst in R32:
+            last = pushes.pop() if pushes else ""
+            if last.startswith("0x") or last.lstrip("-").isdigit():
+                ireg[dst] = int(last, 0)
+            else:
+                ireg.pop(dst, None)
+            this.discard(dst)
+        elif m == "xor" and dst == src and dst in R32:
             ireg[dst] = 0
             this.discard(dst)
         elif m == "xorps" and dst == src:
@@ -774,9 +839,17 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
             elif src.startswith("0x") or src.lstrip("-").isdigit():
                 ireg[dst] = int(src, 0)
                 this.discard(dst)
+            elif src.startswith("dword ptr [0x") and src.endswith("]") and (
+                    int(src[src.index("[") + 1:-1], 16) in ENGINE_CONSTANTS):
+                ireg[dst] = img.u32(int(src[src.index("[") + 1:-1], 16))
+                this.discard(dst)
             else:
                 ireg.pop(dst, None)
                 this.discard(dst)
+        elif m in REG_ARITH and dst in R32 and dst in ireg and (
+                not src or src in ireg or src.startswith("0x") or src.lstrip("-").isdigit()):
+            operand = ireg[src] if src in ireg else int(src, 0) if src else 0
+            ireg[dst] = REG_ARITH[m](ireg[dst], operand) & 0xFFFFFFFF
         elif m == "movss" and dst.startswith("xmm"):
             if src.startswith("dword ptr [0x"):
                 a = int(src[src.index("[") + 1:src.index("]")], 16)
@@ -785,6 +858,8 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
                     freg[dst] = struct.unpack("<f", raw)[0]
                 else:
                     freg.pop(dst, None)
+            elif src in freg:
+                freg[dst] = freg[src]
             else:
                 freg.pop(dst, None)
         elif m in ("mov", "movss", "or", "and") and "[" in dst:
@@ -794,9 +869,9 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
             off = mm[1]
             if m == "movss":
                 if src in freg:
-                    out[off] = freg[src]
+                    put(off, freg[src])
             elif m == "or" and src == "0xffffffff":
-                out[off] = 0xFFFFFFFF
+                put(off, 0xFFFFFFFF)
             elif m == "and" and src == "0":
                 # `and dword [this+off], 0` is the engine's idiom for zeroing a member, and it
                 # zeroes all four bytes - so a narrower field sharing the dword is defaulted by
@@ -804,24 +879,26 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
                 # later `out[off]` wins). Without this a `Bool` packed beside an `Int` reads as
                 # having no compiled-in default when it plainly has one.
                 for k in range(_width(dst)):
-                    out[off + k] = 0
+                    put(off + k, 0)
             elif m == "mov":
                 if src.startswith("0x") or src.lstrip("-").isdigit():
-                    out[off] = int(src, 0)
+                    put(off, int(src, 0))
                 elif src in ireg:
-                    out[off] = ireg[src]
-                elif src in R8OF and R8OF[src] in ireg:
-                    out[off] = ireg[R8OF[src]] & 0xFF
+                    put(off, ireg[src])
+                elif src in R8OF and R8OF[src] in ireg and not src.endswith("h"):
+                    put(off, ireg[R8OF[src]] & 0xFF)
                 elif src in R16OF and R16OF[src] in ireg:
-                    out[off] = ireg[R16OF[src]] & 0xFFFF
+                    put(off, ireg[R16OF[src]] & 0xFFFF)
         elif m == "lea" and dst in R32:
             mm = _memop(src)
             if mm and mm[0] in this and mm[1] == 0:
                 this.add(dst)
             elif dst == "ecx":
                 lea_off = mm[1] if mm and mm[0] in this else None
+                ireg.pop(dst, None)
             else:
                 this.discard(dst)
+                ireg.pop(dst, None)
         elif m == "call" and o.startswith("0x"):
             t = int(o, 16)
             if t in STR_ASSIGN and lea_off is not None:
@@ -830,42 +907,176 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
                     if p.startswith("0x") and img.is_str(int(p, 16)):
                         text = img.cstr(int(p, 16)) or ""
                         break
-                out[lea_off] = '"%s"' % text
+                put(lea_off, '"%s"' % text)
             elif t not in HELPERS and lea_off is None and "ecx" in this:
                 # base class constructor sharing `this`
-                for k, v in ctor_defaults(img, t, depth + 1, maxdepth).items():
+                for k, v in ctor_defaults(img, t, depth + 1, maxdepth, origin).items():
                     out.setdefault(k, v)
             elif t not in HELPERS and lea_off is not None:
-                # embedded sub-object constructor; its writes rebase onto our layout
                 for k, v in ctor_defaults(img, t, depth + 1, maxdepth).items():
-                    out.setdefault(k + lea_off, v)
+                    if k + lea_off not in out:
+                        out[k + lea_off] = v
+                        origin[k + lea_off] = lea_off
             lea_off = None
             pushes = []
+            for reg in ("eax", "ecx", "edx"):
+                ireg.pop(reg, None)
+            this.discard("eax")
+            this.discard("edx")
+            freg.clear()
+        else:
+            written = R8OF.get(dst) or R16OF.get(dst) or (dst if dst in R32 else None)
+            if written and m not in ("cmp", "test", "push"):
+                ireg.pop(written, None)
+                if written != dst or m != "mov":
+                    this.discard(written)
+    if bases is not None:
+        bases.update(origin)
     return out
 
 
-def render_default(img: Image, kind: str, raw: Any) -> Optional[str]:
-    """Format a recovered default according to the field's parsed type.
+def _drop_stray(defaults: dict[int, Any], bases: dict[int, int],
+                fields: list[tuple[int, int]]) -> dict[int, Any]:
+    """The defaults without what a call on a member wrote past that member's end.
 
-    A value that lands inside a mapped section is a pointer that leaked through the
-    tracker (a vtable, a string, a default object), not a field value; report it as
-    unresolved rather than as a wrong number.
+    `fields` is (offset, the extra offset its table was added at) per field. A value
+    that came from a call on the member at L is kept when L is where a table was added -
+    the shared die and upgrade conditions are embedded structs whose constructor writes
+    every field of theirs - or when no other field lies between L and the value, so it
+    can still be the member's own. Otherwise the call was an assignment or a setter whose
+    writes landed in someone else's field.
     """
+    offsets = sorted({off for off, _ in fields})
+    embedded = {extra for _, extra in fields}
+    return {off: value for off, value in defaults.items()
+            if bases.get(off) is None or bases[off] in embedded
+            or not any(bases[off] < other < off for other in offsets)}
+
+
+def render_default(img: Image, kind: str, defaults: dict[int, Any], off: int,
+                   members: list[str], pairs: list[tuple[str, int]]) -> Optional[str]:
+    """A recovered default as an INI author would write it, or None if it cannot be.
+
+    The constructor stores what the parser would have produced, so the parser's
+    conversion is undone here: frames back to milliseconds, radians to degrees,
+    per-frame rates to per-second ones, fractions to percentages, indices and masks to
+    the names they stand for. The scale factors are the engine's own constants, read
+    from the image. A null reference or an empty string comes out as `""`, which is a
+    real default with nothing to write for it. A value the parser could never produce -
+    `SlowDeathBehavior.FadeDelay`'s `0xFACADE00`, an unsigned `-1` - is a sentinel the
+    engine tests for, and is shown in hex. A pointer that leaked through the tracker (a
+    vtable, a string, a default object) is reported as unresolved rather than as a
+    wrong number.
+    """
+    raw = defaults.get(off)
     if raw is None:
         return None
     if isinstance(raw, str):
         return raw
-    if isinstance(raw, float):
-        return "%g" % raw
-    if raw == 0xFFFFFFFF:
-        return "-1"
-    if raw >= 0x400000 and img.section_of(raw):
+    if kind in REFERENCE_TYPES:
+        return '""' if raw == 0 else None
+    if isinstance(raw, int) and raw >= 0x400000 and img.section_of(raw) and kind not in FLOATY:
         return None
-    if kind in FLOATY and raw > 0x10000000:
-        return "%g" % struct.unpack("<f", struct.pack("<I", raw))[0]
+    if kind in FLOATY or kind in COMPOSITE_TYPES:
+        return _render_real(img, kind, defaults, off)
+    if not isinstance(raw, int):
+        return None
+    raw &= 0xFFFFFFFF
+    signed = raw - (1 << 32) if raw & 0x80000000 else raw
     if kind == "Bool":
-        return "Yes" if raw else "No"
-    return str(raw)
+        return "Yes" if raw & 0xFF else "No"
+    if kind == "Int":
+        return str(signed)
+    if kind == "Int8":
+        return str((raw & 0xFF) - 0x100 if raw & 0x80 else raw & 0xFF)
+    if kind == "UInt8":
+        return str(raw & 0xFF)
+    if kind == "UInt16":
+        return str(raw & 0xFFFF)
+    if kind == "UnsignedInt":
+        return str(raw)
+    if kind == "Duration":
+        if raw >= 0x80000000:
+            return "0x%08X" % raw
+        return _num(raw / _f32(img, FRAMES_PER_MSEC))
+    if kind == "Enum":
+        return members[raw] if raw < len(members) else ('""' if signed == -1 else None)
+    if kind == "LookupList":
+        return next((name for name, value in pairs if value == raw), None)
+    if kind in ("ModelConditionFlag", "EvaEvent"):
+        if signed == -1:
+            return '""'
+        return members[raw] if raw < len(members) else None
+    if kind in FLAG_TYPES:
+        if raw == 0:
+            return "NONE" if kind in ACCEPTS_NONE else '""'
+        if raw == 0xFFFFFFFF and kind in ACCEPTS_ALL:
+            return "ALL"
+        if len(members) > 32 or any(bit >= len(members) for bit in range(32) if raw >> bit & 1):
+            return None
+        return " ".join(members[bit] for bit in range(32) if raw >> bit & 1)
+    if kind in TYPE_TABLES:
+        if signed == -1:
+            return '""'
+        return members[raw] if raw < len(members) else None
+    if kind == "UpgradeMask":
+        return '""' if raw == 0 else None
+    return None
+
+
+def _f32(img: Image, va: int) -> float:
+    return struct.unpack("<f", img.read(va, 4))[0]
+
+
+def _num(value: float) -> str:
+    return "%.6g" % value
+
+
+def _real(raw: Any) -> Optional[float]:
+    """A tracked value as the float it is: a `movss` already is one, an immediate store
+    is its bit pattern."""
+    if isinstance(raw, float):
+        return raw
+    if not isinstance(raw, int):
+        return None
+    value = struct.unpack("<f", struct.pack("<I", raw & 0xFFFFFFFF))[0]
+    return None if value != value else value
+
+
+def _render_real(img: Image, kind: str, defaults: dict[int, Any], off: int) -> Optional[str]:
+    if kind == "RGBAColor":
+        raw = defaults.get(off)
+        if not isinstance(raw, int):
+            return None
+        argb = raw & 0xFFFFFFFF
+        return "R:%d G:%d B:%d A:%d" % (argb >> 16 & 0xFF, argb >> 8 & 0xFF, argb & 0xFF,
+                                        argb >> 24)
+    if kind == "Coord2DInt":
+        parts = [defaults.get(off + 4 * k) for k in range(2)]
+        if not all(isinstance(p, int) for p in parts):
+            return None
+        return "X:%d Y:%d" % tuple(p - (1 << 32) if p & 0x80000000 else p for p in parts)
+    count, labels = COMPOSITE_TYPES.get(kind, (1, ("",)))
+    values = [_real(defaults.get(off + 4 * k)) for k in range(count)]
+    if any(v is None for v in values):
+        return None
+    reals: list[float] = [v for v in values if v is not None]
+    if kind == "RGBColor":
+        return " ".join("%s:%d" % (label, round(v * 255)) for label, v in zip(labels, reals))
+    if count > 1:
+        return " ".join("%s:%s" % (label, _num(v)) for label, v in zip(labels, reals))
+    value = reals[0]
+    if kind == "Percent":
+        return _num(value * 100) + "%"
+    if kind == "AngleReal":
+        return _num(value / _f32(img, RADIANS_PER_DEGREE))
+    if kind == "DurationReal":
+        return _num(value / _f32(img, FRAMES_PER_MSEC))
+    if kind == "VelocityReal":
+        return _num(value / _f32(img, SECONDS_PER_FRAME))
+    if kind == "AngularVelocityReal":
+        return _num(value / (_f32(img, SECONDS_PER_FRAME) * _f32(img, RADIANS_PER_DEGREE)))
+    return _num(value)
 
 
 def field_type(img: Image, keyword: str, parse: int,
@@ -915,13 +1126,15 @@ class Catalogue:
             self.lookups.setdefault("0x%08x" % ud, pairs)
         else:
             ud = 0
+        if kind in TYPE_TABLES:
+            members = name_table(img, NAME_TABLES[TYPE_TABLES[kind]])
         return FieldInfo(
             name=keyword,
             offset=off,
             type=kind,
             parse_fn=parse,
             userdata="0x%08x" % ud if ud else None,
-            default=render_default(img, kind, defaults.get(off)),
+            default=render_default(img, kind, defaults, off, members, pairs),
         )
 
 
@@ -987,7 +1200,9 @@ def ini_blocks(img: Image, cat: Catalogue) -> dict[str, dict[str, Any]]:
         if len(best) < INI_BLOCK_MIN_FIELDS:
             continue
         ctor = alloc_ctor(img, chosen)
-        defaults = ctor_defaults(img, ctor) if ctor else {}
+        bases: dict[int, int] = {}
+        defaults = ctor_defaults(img, ctor, bases=bases) if ctor else {}
+        defaults = _drop_stray(defaults, bases, [(row[3], 0) for row in best])
         fields = [cat.field(img, row, defaults) for row in best]
         out[keyword] = {
             "parse_fn": chosen,
@@ -1019,20 +1234,24 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
         if bfp and name:
             declared_by.setdefault(bfp, name)
     for name, mask, size, ctor, bfp in reg:
-        defaults = ctor_defaults(img, ctor)
-        fields: list[FieldInfo] = []
+        bases: dict[int, int] = {}
+        defaults = ctor_defaults(img, ctor, bases=bases)
+        rows: list[tuple[tuple[str, int, int, int], int, int]] = []
         seen: set[str] = set()
         for tab, source, extra in field_tables(img, bfp):
             for keyword, parse, ud, off in parse_table(img, tab):
-                if keyword in seen:
-                    continue
-                seen.add(keyword)
-                field = cat.field(img, (keyword, parse, ud, off + extra), defaults)
-                if source != bfp:
-                    field["inherited"] = True
-                    if source in declared_by:
-                        field["inherited_from"] = declared_by[source]
-                fields.append(field)
+                if keyword not in seen:
+                    seen.add(keyword)
+                    rows.append(((keyword, parse, ud, off + extra), source, extra))
+        defaults = _drop_stray(defaults, bases, [(row[3], extra) for row, _, extra in rows])
+        fields: list[FieldInfo] = []
+        for row, source, _extra in rows:
+            field = cat.field(img, row, defaults)
+            if source != bfp:
+                field["inherited"] = True
+                if source in declared_by:
+                    field["inherited_from"] = declared_by[source]
+            fields.append(field)
         mods.append(ModuleInfo(
             name=name,
             interface_mask=mask,
@@ -1078,16 +1297,21 @@ def to_markdown(mods: list[ModuleInfo]) -> str:
         "",
         "## Reading this",
         "",
+        "- Defaults are written the way an INI author would write them: durations in",
+        "  milliseconds, angles in degrees, speeds and turn rates per second, percentages",
+        "  with `%`, enum and flag values by name. `\"\"` is an empty string, list or",
+        "  reference. A value in hex is a sentinel the engine tests for and no INI value",
+        "  produces it.",
         "- `-` in the default column means the constructor's write was not resolvable by",
-        "  constant-tracking - typically a container or string built by a member",
-        "  constructor, which is to say \"empty\". It does not mean the field is unset.",
+        "  constant-tracking - typically a container built by a member constructor, or a",
+        "  value computed at runtime. It does not mean the field is unset.",
         "- `type` is derived from the field's parse function. %d fields (%.0f%%) use a"
         % (unlabelled, 100.0 * unlabelled / total if total else 0),
         "  parse function that has not been identified and show its raw address instead.",
         "- Offsets are into ModuleData, not into the module instance.",
         "- Types are checked for internal consistency: no `Bool` resolves to a non-boolean.",
-        "  Two float fields carry implausible magnitudes - `AimWeaponBehavior.AimFarDistance`",
-        "  is a genuine `FLT_MAX`, `SlowDeathBehavior.FadeDelay` is a mis-tracked value.",
+        "  `AimWeaponBehavior.AimFarDistance` is a genuine `FLT_MAX`, and",
+        "  `SlowDeathBehavior.FadeDelay`'s `0xFACADE00` is the constructor's own \"not set\".",
         "",
     ]
     for m in mods:

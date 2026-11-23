@@ -851,6 +851,21 @@
    "PRESERVE_RATIO",
    "ADD_CURRENT_HEALTH_TOO"
   ],
+  "0x00db4b08": [
+   "TARGETPOS",
+   "OBJECTPOS",
+   "NEEDS_TARGET",
+   "WATER_OK",
+   "NEEDS_OBJECT_FILTER",
+   "LIMIT_DISTANCE",
+   "NO_FORBIDDEN_OBJECTS",
+   "RESPECT_RECHARGE_TIME_DISCOUNT",
+   "PATHABLE_ONLY",
+   "NONE",
+   "HOLD",
+   "KILL",
+   "SPAWN"
+  ],
   "0x00db2590": [
    "FORCE",
    "CRUSH",
@@ -1602,21 +1617,6 @@
    "SPECIAL_SPELL_BOOK_SNOWBIND",
    "SPECIAL_SPELL_BOOK_CHILL_WIND",
    "SPECIAL_AOE_ATTACK_HEAL"
-  ],
-  "0x00db4b08": [
-   "TARGETPOS",
-   "OBJECTPOS",
-   "NEEDS_TARGET",
-   "WATER_OK",
-   "NEEDS_OBJECT_FILTER",
-   "LIMIT_DISTANCE",
-   "NO_FORBIDDEN_OBJECTS",
-   "RESPECT_RECHARGE_TIME_DISCOUNT",
-   "PATHABLE_ONLY",
-   "NONE",
-   "HOLD",
-   "KILL",
-   "SPAWN"
   ],
   "0x00db84f8": [
    "AI_SPECIAL_POWER_BASIC_SELF_BUFF",
@@ -3032,7 +3032,6 @@
   "WeaponSetFlags": "0x00da1328",
   "DamageTypeFlags": "0x00da3960",
   "DeathTypeFlags": "0x00da39e8",
-  "SpecialPowerFlags": "0x00db4b08",
   "SpecialPowerAIType": "0x00db84f8",
   "EmotionType": "0x00d9fa08",
   "WeatherType": "0x00db0074"
@@ -3690,7 +3689,7 @@
     },
     {
      "name": "VisionBonusTestSegments",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1364
     },
@@ -4104,7 +4103,7 @@
     },
     {
      "name": "CampnessValue",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1508
     },
@@ -4266,7 +4265,7 @@
     },
     {
      "name": "ShadowOpacityStart",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1468
     },
@@ -4278,7 +4277,7 @@
     },
     {
      "name": "ShadowOpacityPeak",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1472
     },
@@ -4290,7 +4289,7 @@
     },
     {
      "name": "ShadowOpacityEnd",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1476
     },
@@ -4578,7 +4577,7 @@
     },
     {
      "name": "SlopeLimitIndex",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1404
     },
@@ -4799,7 +4798,7 @@
     },
     {
      "name": "FinalPos",
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "offset": 16
     },
@@ -5710,7 +5709,7 @@
     },
     {
      "name": "LookAtCenter",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 104
     },
@@ -5908,7 +5907,7 @@
     },
     {
      "name": "UISlot",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 12
     },
@@ -6571,7 +6570,7 @@
     },
     {
      "name": "BurstCount",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 332
     },
@@ -6737,7 +6736,7 @@
     },
     {
      "name": "MaxSelectedUnits",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 40
     },
@@ -6835,7 +6834,7 @@
     },
     {
      "name": "MaxSelectedUnits",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 40
     },
@@ -6934,7 +6933,7 @@
     },
     {
      "name": "Offset",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 352
     },
@@ -6946,7 +6945,7 @@
     },
     {
      "name": "OpacityStart",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 364
     },
@@ -6958,7 +6957,7 @@
     },
     {
      "name": "OpacityPeak",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 372
     },
@@ -6976,7 +6975,7 @@
     },
     {
      "name": "OpacityEnd",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 384
     },
@@ -7264,19 +7263,19 @@
     },
     {
      "name": "MaxBurnRate",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 4
     },
     {
      "name": "Decay",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 8
     },
     {
      "name": "Resistance",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 12
     }
@@ -7358,7 +7357,7 @@
     },
     {
      "name": "Position",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 16
     },
@@ -7388,7 +7387,7 @@
     },
     {
      "name": "ArmyAttackDirection",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 32
     }
@@ -7540,7 +7539,7 @@
     },
     {
      "name": "MaxSelectedUnits",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 40
     },
@@ -7599,13 +7598,13 @@
    "fields": [
     {
      "name": "Position",
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "offset": 4
     },
     {
      "name": "Size",
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "offset": 12
     },
@@ -7953,7 +7952,7 @@
     },
     {
      "name": "VisionBonusTestSegments",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1364
     },
@@ -8367,7 +8366,7 @@
     },
     {
      "name": "CampnessValue",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1508
     },
@@ -8529,7 +8528,7 @@
     },
     {
      "name": "ShadowOpacityStart",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1468
     },
@@ -8541,7 +8540,7 @@
     },
     {
      "name": "ShadowOpacityPeak",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1472
     },
@@ -8553,7 +8552,7 @@
     },
     {
      "name": "ShadowOpacityEnd",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1476
     },
@@ -8841,7 +8840,7 @@
     },
     {
      "name": "SlopeLimitIndex",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1404
     },
@@ -9564,7 +9563,7 @@
     },
     {
      "name": "ShadowOpacityStart",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 224
     },
@@ -9576,7 +9575,7 @@
     },
     {
      "name": "ShadowOpacityPeak",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 232
     },
@@ -9588,7 +9587,7 @@
     },
     {
      "name": "ShadowOpacityEnd",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 240
     },
@@ -9828,13 +9827,13 @@
     },
     {
      "name": "FadeInTime",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 68
     },
     {
      "name": "FadeOutTime",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 72
     },
@@ -10519,7 +10518,7 @@
     },
     {
      "name": "CenterPoint",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 128
     },
@@ -10597,7 +10596,7 @@
     },
     {
      "name": "UIPopupPoint",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 208
     },
@@ -11023,7 +11022,7 @@
     },
     {
      "name": "VisionBonusTestSegments",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1364
     },
@@ -11437,7 +11436,7 @@
     },
     {
      "name": "CampnessValue",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1508
     },
@@ -11599,7 +11598,7 @@
     },
     {
      "name": "ShadowOpacityStart",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1468
     },
@@ -11611,7 +11610,7 @@
     },
     {
      "name": "ShadowOpacityPeak",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1472
     },
@@ -11623,7 +11622,7 @@
     },
     {
      "name": "ShadowOpacityEnd",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1476
     },
@@ -11911,7 +11910,7 @@
     },
     {
      "name": "SlopeLimitIndex",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 1404
     },
@@ -12354,7 +12353,7 @@
     },
     {
      "name": "MaxSelectedUnits",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 40
     },
@@ -12718,7 +12717,7 @@
     },
     {
      "name": "Position",
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "offset": 32
     },
@@ -13176,19 +13175,19 @@
    "fields": [
     {
      "name": "MaxBurnRate",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 12
     },
     {
      "name": "Decay",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 16
     },
     {
      "name": "Resistance",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 20
     }
@@ -13216,7 +13215,7 @@
     },
     {
      "name": "RandomRange",
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "offset": 336
     }
@@ -13241,19 +13240,19 @@
     },
     {
      "name": "PreColorTime",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 340
     },
     {
      "name": "PostColorTime",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 344
     },
     {
      "name": "SustainedColorTime",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 348
     },
@@ -13308,7 +13307,7 @@
     },
     {
      "name": "Threshold",
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 12
     }
@@ -13745,7 +13744,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Map",
@@ -13753,7 +13752,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PlayerPositions",
@@ -13761,7 +13760,7 @@
      "type": "0x0042ec7a",
      "parse_fn": 4385914,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Side",
@@ -13769,7 +13768,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -14515,7 +14514,7 @@
      "type": "0x008e0a11",
      "parse_fn": 9308689,
      "userdata": null,
-     "default": "-1"
+     "default": null
     },
     {
      "name": "AttributeDuration",
@@ -14523,7 +14522,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": "-1"
+     "default": "0xFFFFFFFF"
     },
     {
      "name": "AttributeModifier",
@@ -14571,7 +14570,7 @@
      "type": "FXList",
      "parse_fn": 7578370,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "IgnoreIfAI",
@@ -14675,7 +14674,7 @@
      "type": "0x008e0906",
      "parse_fn": 9308422,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnlyIfEnemyThreatBelow",
@@ -14683,7 +14682,7 @@
      "type": "0x008e08dc",
      "parse_fn": 9308380,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnlyIfFriendThreatAbove",
@@ -14691,7 +14690,7 @@
      "type": "0x008e0906",
      "parse_fn": 9308422,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnlyIfFriendThreatBelow",
@@ -14699,7 +14698,7 @@
      "type": "0x008e08dc",
      "parse_fn": 9308380,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "PreventPlayerCommands",
@@ -14715,7 +14714,7 @@
      "type": "FXList",
      "parse_fn": 7578370,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Type",
@@ -14723,7 +14722,7 @@
      "type": "EmotionType",
      "parse_fn": 9308622,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "UpdateFXList",
@@ -14731,7 +14730,7 @@
      "type": "FXList",
      "parse_fn": 7578370,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -14926,7 +14925,7 @@
     {
      "name": "CampnessValue",
      "offset": 1508,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -15918,7 +15917,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 1476,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -15942,7 +15941,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 1472,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -15950,7 +15949,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 1468,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -16046,7 +16045,7 @@
     {
      "name": "SlopeLimitIndex",
      "offset": 1404,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -16206,7 +16205,7 @@
     {
      "name": "VisionBonusTestSegments",
      "offset": 1364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -16555,7 +16554,7 @@
      "type": "LookupList",
      "parse_fn": 4385207,
      "userdata": null,
-     "default": "0"
+     "default": "SLIDE_RIGHT"
     },
     {
      "name": "Duration",
@@ -16568,10 +16567,10 @@
     {
      "name": "FinalPos",
      "offset": 16,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "ImagePart",
@@ -16579,7 +16578,7 @@
      "type": "ImagePart",
      "parse_fn": 7476201,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Name",
@@ -16587,7 +16586,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -16835,7 +16834,7 @@
      "type": "0x005d86f1",
      "parse_fn": 6129393,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DamageScalar",
@@ -16843,7 +16842,7 @@
      "type": "0x005d875a",
      "parse_fn": 6129498,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "FlankedPenalty",
@@ -16851,7 +16850,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     }
    ]
   },
@@ -16895,7 +16894,7 @@
      "type": "0x0082fd19",
      "parse_fn": 8584473,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AIWallNodeAssignment",
@@ -16903,7 +16902,7 @@
      "type": "0x0082fd30",
      "parse_fn": 8584496,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ArmyMemberDefinition",
@@ -16911,7 +16910,7 @@
      "type": "ArmyMemberDefinition",
      "parse_fn": 8584958,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ChanceForTargetToExpire",
@@ -16919,7 +16918,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0.5"
+     "default": "50%"
     },
     {
      "name": "ChanceForUnitsToUpgrade",
@@ -16927,7 +16926,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "30"
+     "default": "3000%"
     },
     {
      "name": "ChanceToUseAllUnitsForDefenseTarget_Large",
@@ -17039,7 +17038,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "LowUnitPriorityModifier_EndGame",
@@ -17087,7 +17086,7 @@
      "type": "0x0042ec7a",
      "parse_fn": 4385914,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MaxThreatForOpportunityTargets",
@@ -17095,7 +17094,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MustUseCommandPointPercentage_Phase1",
@@ -17127,7 +17126,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PercentToSave_EndGame",
@@ -17175,7 +17174,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SecondsTillTargetsCanExpire",
@@ -17191,7 +17190,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "StructureRebuildPriorityModifier",
@@ -17199,7 +17198,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0.5"
+     "default": "50%"
     },
     {
      "name": "TacticalAITargets",
@@ -17207,7 +17206,7 @@
      "type": "0x006c6b0d",
      "parse_fn": 7105293,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "UnitUpgradePriorityHigh",
@@ -17416,7 +17415,7 @@
     {
      "name": "Position",
      "offset": 32,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -17495,7 +17494,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "40"
     },
     {
      "name": "Modelname",
@@ -17503,7 +17502,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RandomlyRotate",
@@ -17549,7 +17548,7 @@
      "type": "LookupList",
      "parse_fn": 4385207,
      "userdata": "0x00c16928",
-     "default": "0"
+     "default": "PRIMARY"
     }
    ]
   },
@@ -17601,7 +17600,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -17609,7 +17608,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -17880,7 +17879,7 @@
     {
      "name": "AudioFootprintInBytes",
      "offset": 128,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -18240,7 +18239,7 @@
     {
      "name": "LoopBufferCallbackCallsPerBufferLength",
      "offset": 144,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -18248,7 +18247,7 @@
     {
      "name": "LoopBufferLengthMS",
      "offset": 140,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -18312,7 +18311,7 @@
     {
      "name": "MixaheadLatency",
      "offset": 132,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -18320,7 +18319,7 @@
     {
      "name": "MixaheadLatencyDuringMovies",
      "offset": 136,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -19015,7 +19014,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00c2d5e0",
-     "default": "0"
+     "default": "DO_NOT_USE_THIS_TYPE"
     },
     {
      "name": "Color",
@@ -19023,7 +19022,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "0.2"
+     "default": "R:51 G:102 B:255"
     },
     {
      "name": "Extrusion",
@@ -19264,7 +19263,7 @@
     {
      "name": "CampnessValue",
      "offset": 1508,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -20256,7 +20255,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 1476,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -20280,7 +20279,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 1472,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -20288,7 +20287,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 1468,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -20384,7 +20383,7 @@
     {
      "name": "SlopeLimitIndex",
      "offset": 1404,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -20544,7 +20543,7 @@
     {
      "name": "VisionBonusTestSegments",
      "offset": 1364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -20774,7 +20773,7 @@
     {
      "name": "LightningLightPosition1",
      "offset": 124,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -20782,7 +20781,7 @@
     {
      "name": "LightningLightPosition2",
      "offset": 132,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -20790,7 +20789,7 @@
     {
      "name": "LightningLightPosition3",
      "offset": 140,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -21693,7 +21692,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AttackBonus",
@@ -21701,7 +21700,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "BuildingDiscountBonus",
@@ -21709,7 +21708,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DefenseBonus",
@@ -21717,7 +21716,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DiscountedBarracksUnitsBonus",
@@ -21725,7 +21724,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DiscountedHeroUnitsBonus",
@@ -21733,7 +21732,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DiscountedSeigeUnitsBonus",
@@ -21741,7 +21740,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "EffectName",
@@ -21749,7 +21748,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ExperienceBonus",
@@ -21757,7 +21756,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ExtraStartResourcesBonus",
@@ -21773,7 +21772,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "FreeInnUnitsBonus",
@@ -21781,7 +21780,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "LegendaryBonus",
@@ -21789,15 +21788,15 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "LookAtCenter",
      "offset": 104,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "LookAtHeading",
@@ -21821,7 +21820,7 @@
      "type": "EvaEvent",
      "parse_fn": 6153608,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "Regions",
@@ -21829,7 +21828,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ResourceBonus",
@@ -21845,7 +21844,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "UnifiedEvaEvent",
@@ -21853,7 +21852,7 @@
      "type": "EvaEvent",
      "parse_fn": 6153608,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     }
    ]
   },
@@ -21904,7 +21903,7 @@
     {
      "name": "BeaconLR",
      "offset": 312,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -21912,7 +21911,7 @@
     {
      "name": "BeaconUL",
      "offset": 304,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22000,7 +21999,7 @@
     {
      "name": "ChatLR",
      "offset": 296,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22008,7 +22007,7 @@
     {
      "name": "ChatUL",
      "offset": 288,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22096,7 +22095,7 @@
     {
      "name": "GeneralLR",
      "offset": 232,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22104,7 +22103,7 @@
     {
      "name": "GeneralUL",
      "offset": 224,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22176,7 +22175,7 @@
     {
      "name": "MinMaxLR",
      "offset": 216,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22184,7 +22183,7 @@
     {
      "name": "MinMaxUL",
      "offset": 208,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22192,7 +22191,7 @@
     {
      "name": "MoneyLR",
      "offset": 200,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22200,7 +22199,7 @@
     {
      "name": "MoneyUL",
      "offset": 192,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22240,7 +22239,7 @@
     {
      "name": "OptionsLR",
      "offset": 264,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22248,7 +22247,7 @@
     {
      "name": "OptionsUL",
      "offset": 256,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22256,7 +22255,7 @@
     {
      "name": "PowerBarLR",
      "offset": 328,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22264,7 +22263,7 @@
     {
      "name": "PowerBarUL",
      "offset": 320,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22288,7 +22287,7 @@
     {
      "name": "ScreenCreationRes",
      "offset": 4,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22376,7 +22375,7 @@
     {
      "name": "UAttackLR",
      "offset": 248,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22384,7 +22383,7 @@
     {
      "name": "UAttackUL",
      "offset": 240,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22392,7 +22391,7 @@
     {
      "name": "WorkerLR",
      "offset": 280,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22400,7 +22399,7 @@
     {
      "name": "WorkerUL",
      "offset": 272,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -22584,7 +22583,7 @@
     {
      "name": "UISlot",
      "offset": 12,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -22885,7 +22884,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "1"
     },
     {
      "name": "DestinationPlayer",
@@ -22893,7 +22892,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Disposition",
@@ -22901,7 +22900,7 @@
      "type": "BitFlags",
      "parse_fn": 4384832,
      "userdata": "0x00d9e3a8",
-     "default": "2"
+     "default": "ON_GROUND_ALIGNED"
     },
     {
      "name": "DispositionAngle",
@@ -22957,7 +22956,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "FadeTime",
@@ -22973,7 +22972,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "IgnoreAllObjects",
@@ -23093,7 +23092,7 @@
      "type": "Coord3D",
      "parse_fn": 4387399,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0 Z:0"
     },
     {
      "name": "OffsetInLocalSpace",
@@ -23149,7 +23148,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "PutInContainer",
@@ -23165,7 +23164,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpreadFormation",
@@ -23211,7 +23210,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "1"
     },
     {
      "name": "DestinationPlayer",
@@ -23219,7 +23218,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Disposition",
@@ -23227,7 +23226,7 @@
      "type": "BitFlags",
      "parse_fn": 4384832,
      "userdata": "0x00d9e3a8",
-     "default": "2"
+     "default": "ON_GROUND_ALIGNED"
     },
     {
      "name": "DispositionAngle",
@@ -23283,7 +23282,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "FadeTime",
@@ -23299,7 +23298,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "IgnoreAllObjects",
@@ -23419,7 +23418,7 @@
      "type": "Coord3D",
      "parse_fn": 4387399,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0 Z:0"
     },
     {
      "name": "OffsetInLocalSpace",
@@ -23475,7 +23474,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "PutInContainer",
@@ -23491,7 +23490,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpreadFormation",
@@ -23534,7 +23533,7 @@
     {
      "name": "BurstCount",
      "offset": 332,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "10"
@@ -23653,7 +23652,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -23661,7 +23660,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -23758,7 +23757,7 @@
     {
      "name": "MaxSelectedUnits",
      "offset": 40,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -23948,7 +23947,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 240,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -23972,7 +23971,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 232,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -23980,7 +23979,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 224,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -24130,7 +24129,7 @@
     {
      "name": "MaxSelectedUnits",
      "offset": 40,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -24597,7 +24596,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Lifetime",
@@ -24610,7 +24609,7 @@
     {
      "name": "Offset",
      "offset": 352,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -24618,7 +24617,7 @@
     {
      "name": "OpacityEnd",
      "offset": 384,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "0"
@@ -24642,7 +24641,7 @@
     {
      "name": "OpacityPeak",
      "offset": 372,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "0"
@@ -24658,7 +24657,7 @@
     {
      "name": "OpacityStart",
      "offset": 364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "0"
@@ -24677,7 +24676,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00d9de90",
-     "default": "0"
+     "default": "ALPHA"
     },
     {
      "name": "Size",
@@ -24847,7 +24846,7 @@
      "type": "0x008e0a11",
      "parse_fn": 9308689,
      "userdata": null,
-     "default": "-1"
+     "default": null
     },
     {
      "name": "AttributeDuration",
@@ -24855,7 +24854,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": "-1"
+     "default": "0xFFFFFFFF"
     },
     {
      "name": "AttributeModifier",
@@ -24903,7 +24902,7 @@
      "type": "FXList",
      "parse_fn": 7578370,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "IgnoreIfAI",
@@ -25007,7 +25006,7 @@
      "type": "0x008e0906",
      "parse_fn": 9308422,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnlyIfEnemyThreatBelow",
@@ -25015,7 +25014,7 @@
      "type": "0x008e08dc",
      "parse_fn": 9308380,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnlyIfFriendThreatAbove",
@@ -25023,7 +25022,7 @@
      "type": "0x008e0906",
      "parse_fn": 9308422,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnlyIfFriendThreatBelow",
@@ -25031,7 +25030,7 @@
      "type": "0x008e08dc",
      "parse_fn": 9308380,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "PreventPlayerCommands",
@@ -25047,7 +25046,7 @@
      "type": "FXList",
      "parse_fn": 7578370,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Type",
@@ -25055,7 +25054,7 @@
      "type": "EmotionType",
      "parse_fn": 9308622,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "UpdateFXList",
@@ -25063,7 +25062,7 @@
      "type": "FXList",
      "parse_fn": 7578370,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -25077,7 +25076,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -25085,7 +25084,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -25107,7 +25106,7 @@
      "type": "EvaEvent",
      "parse_fn": 6153608,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "EvaEventEnemy",
@@ -25115,7 +25114,7 @@
      "type": "EvaEvent",
      "parse_fn": 6153608,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "EvaEventOwner",
@@ -25123,7 +25122,7 @@
      "type": "EvaEvent",
      "parse_fn": 6153608,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     }
    ]
   },
@@ -25137,7 +25136,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "EmotionType",
@@ -25145,7 +25144,7 @@
      "type": "EmotionType",
      "parse_fn": 9308622,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "ExperienceAward",
@@ -25185,7 +25184,7 @@
      "type": "ObjectCreationList",
      "parse_fn": 7578472,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "LevelUpTintAmplitude",
@@ -25297,7 +25296,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Upgrades",
@@ -25319,7 +25318,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "EyeDecalBeamAnimObject",
@@ -25327,7 +25326,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PupilAnimObject",
@@ -25335,7 +25334,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PupilBeamAnimObject",
@@ -25343,7 +25342,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -25701,7 +25700,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00db6694",
-     "default": "0"
+     "default": "INCREASE_BURN_RATE"
     },
     {
      "name": "MaxResistance",
@@ -25804,7 +25803,7 @@
     {
      "name": "Decay",
      "offset": 8,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -25820,7 +25819,7 @@
     {
      "name": "MaxBurnRate",
      "offset": 4,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -25828,7 +25827,7 @@
     {
      "name": "Resistance",
      "offset": 12,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -25896,7 +25895,7 @@
     {
      "name": "ArmyAttackDirection",
      "offset": 32,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -25928,7 +25927,7 @@
     {
      "name": "Position",
      "offset": 16,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -25977,7 +25976,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AdvancedTutorialLoadScreenMusicTrack",
@@ -25985,7 +25984,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AdvancedTutorialLoadScreenStillImage",
@@ -25993,7 +25992,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AdvancedTutorialLoadScreenVoiceTrack",
@@ -26001,7 +26000,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AdvancedTutorialMap",
@@ -26009,7 +26008,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AdvancedTutorialMillisecondsAfterStartToStartFadeUp",
@@ -26025,7 +26024,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4384158,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AISoloPlayerHealthBonus_Easy",
@@ -26086,7 +26085,7 @@
     {
      "name": "AmmoPipScreenOffset",
      "offset": 244,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -26105,7 +26104,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "100"
     },
     {
      "name": "AnimationSharingDrasticThreshold",
@@ -26145,7 +26144,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "1"
+     "default": "100%"
     },
     {
      "name": "AudioOn",
@@ -26169,7 +26168,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoAflameParticleSystem",
@@ -26177,7 +26176,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoFireParticleLargeMax",
@@ -26193,7 +26192,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoFireParticleLargeSystem",
@@ -26201,7 +26200,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoFireParticleMediumMax",
@@ -26217,7 +26216,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoFireParticleMediumSystem",
@@ -26225,7 +26224,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoFireParticleSmallMax",
@@ -26241,7 +26240,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoFireParticleSmallSystem",
@@ -26249,7 +26248,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoSmokeParticleLargeMax",
@@ -26265,7 +26264,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoSmokeParticleLargeSystem",
@@ -26273,7 +26272,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoSmokeParticleMediumMax",
@@ -26289,7 +26288,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoSmokeParticleMediumSystem",
@@ -26297,7 +26296,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoSmokeParticleSmallMax",
@@ -26313,7 +26312,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AutoSmokeParticleSmallSystem",
@@ -26321,7 +26320,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "BaseRegenDelay",
@@ -26337,7 +26336,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     },
     {
      "name": "BasicTutorialLoadMovie",
@@ -26345,7 +26344,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "BasicTutorialLoadScreenMusicTrack",
@@ -26353,7 +26352,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "BasicTutorialLoadScreenStillImage",
@@ -26361,7 +26360,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "BasicTutorialLoadScreenVoiceTrack",
@@ -26369,7 +26368,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "BasicTutorialMap",
@@ -26377,7 +26376,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "BasicTutorialMillisecondsAfterStartToStartFadeUp",
@@ -26393,7 +26392,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4384158,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "BlockedByWallLeeway",
@@ -26409,7 +26408,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": "128"
+     "default": "1000"
     },
     {
      "name": "BuilderFadeOutTime",
@@ -26417,7 +26416,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": "128"
+     "default": "1000"
     },
     {
      "name": "BuilderMoveFromNewStructureDistance",
@@ -26481,7 +26480,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ClampedLOSHeightForCastleStructures",
@@ -26526,7 +26525,7 @@
     {
      "name": "ContainerPipScreenOffset",
      "offset": 252,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -26609,7 +26608,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": null
+     "default": "2000"
     },
     {
      "name": "DefaultMaxDistanceForEngaged",
@@ -26630,7 +26629,7 @@
     {
      "name": "DefaultStartingCash",
      "offset": 3000,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -26641,7 +26640,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DefaultStructureRubbleHeight",
@@ -26657,7 +26656,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DefaultVoiceAttackChargeTimeout",
@@ -26697,7 +26696,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DumpAssetUsage",
@@ -26729,7 +26728,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "EvilCommandPointLimit",
@@ -26921,7 +26920,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "GenericDamageWarningName",
@@ -26929,7 +26928,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "GetHealedAnimationName",
@@ -26937,7 +26936,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "GetHealedAnimationTime",
@@ -27065,7 +27064,7 @@
      "type": "0x0073a4dc",
      "parse_fn": 7578844,
      "userdata": null,
-     "default": "-1"
+     "default": null
     },
     {
      "name": "GroundStiffness",
@@ -27329,7 +27328,7 @@
      "type": "RGBAColor",
      "parse_fn": 4387134,
      "userdata": null,
-     "default": "4294967040"
+     "default": "R:255 G:255 B:0 A:255"
     },
     {
      "name": "HumanSoloPlayerHealthBonus_Easy",
@@ -27366,7 +27365,7 @@
     {
      "name": "InvisibilityOpacityCycleFrames",
      "offset": 4568,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "10"
@@ -27417,7 +27416,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "LevelGainAnimationTime",
@@ -27441,7 +27440,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "LivingWorldCampaignOverrride",
@@ -27481,7 +27480,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "MaxCastleRadius",
@@ -27494,7 +27493,7 @@
     {
      "name": "MaxCellsAdjustDestination",
      "offset": 4592,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "400"
@@ -27502,7 +27501,7 @@
     {
      "name": "MaxCellsAdjustHordeMeleeDestination",
      "offset": 4596,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "200"
@@ -27510,7 +27509,7 @@
     {
      "name": "MaxCellsAdjustTargetDestination",
      "offset": 4600,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "400"
@@ -27518,7 +27517,7 @@
     {
      "name": "MaxCellsAdjustToMeleeDestination",
      "offset": 4608,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "400"
@@ -27526,7 +27525,7 @@
     {
      "name": "MaxCellsAdjustToNearestGroundCell",
      "offset": 4612,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "400"
@@ -27534,7 +27533,7 @@
     {
      "name": "MaxCellsAdjustToNearestValidCell",
      "offset": 4616,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "400"
@@ -27542,7 +27541,7 @@
     {
      "name": "MaxCellsAdjustToPossibleDestination",
      "offset": 4604,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "400"
@@ -27550,7 +27549,7 @@
     {
      "name": "MaxCellsFindAttackPath",
      "offset": 4628,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "2500"
@@ -27558,7 +27557,7 @@
     {
      "name": "MaxCellsFindAttackPathSideways",
      "offset": 4632,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "2500"
@@ -27566,15 +27565,15 @@
     {
      "name": "MaxCellsFindMeleeEngagementLocation",
      "offset": 4588,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
-     "default": "0"
+     "default": "50"
     },
     {
      "name": "MaxCellsFindPathLimit",
      "offset": 4624,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "15000"
@@ -27582,7 +27581,7 @@
     {
      "name": "MaxCellsPatchPath",
      "offset": 4620,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "2000"
@@ -27590,7 +27589,7 @@
     {
      "name": "MaxCellsToExamineTowardsGoal",
      "offset": 4636,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "25000"
@@ -27609,7 +27608,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "100"
     },
     {
      "name": "MaxLowEnergyProductionSpeed",
@@ -27622,7 +27621,7 @@
     {
      "name": "MaxNumMembersToForceToImmediatelyEnter",
      "offset": 4656,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "1"
@@ -27638,7 +27637,7 @@
     {
      "name": "MaxPathfindCellsPerFrame",
      "offset": 4584,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "4000"
@@ -27753,7 +27752,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "MovementPenaltyDamageState",
@@ -27761,7 +27760,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00d9f568",
-     "default": "2"
+     "default": "REALLYDAMAGED"
     },
     {
      "name": "MultiPlayBuildingSpeedMult",
@@ -27769,7 +27768,7 @@
      "type": "0x00642674",
      "parse_fn": 6563444,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MultiPlayBuildingXPMult",
@@ -27777,7 +27776,7 @@
      "type": "0x00642408",
      "parse_fn": 6562824,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MultiPlayMoneyMult",
@@ -27785,7 +27784,7 @@
      "type": "0x00642182",
      "parse_fn": 6562178,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MultiPlayUnitSpeedMult",
@@ -27793,7 +27792,7 @@
      "type": "0x0064253e",
      "parse_fn": 6563134,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MultiPlayUnitXPMult",
@@ -27801,7 +27800,7 @@
      "type": "0x006422d2",
      "parse_fn": 6562514,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MultipleFactory",
@@ -27825,7 +27824,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "NetworkDisconnectScreenNotifyTime",
@@ -27889,7 +27888,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "NumberGlobalLights",
@@ -27905,7 +27904,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "128"
+     "default": "5"
     },
     {
      "name": "ObjectsThatScore",
@@ -27929,7 +27928,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0.3"
+     "default": "30%"
     },
     {
      "name": "ParticleCursorAlpha",
@@ -27945,12 +27944,12 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ParticleCursorBurstCount",
      "offset": 3408,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "10"
@@ -27966,7 +27965,7 @@
     {
      "name": "ParticleCursorBurstFrequency",
      "offset": 3428,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "5"
@@ -27990,7 +27989,7 @@
     {
      "name": "ParticleCursorOffset",
      "offset": 3512,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -28118,7 +28117,7 @@
     {
      "name": "ProgressMovieOffset",
      "offset": 3520,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -28126,7 +28125,7 @@
     {
      "name": "ProgressMovieSize",
      "offset": 3528,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -28145,7 +28144,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     },
     {
      "name": "ReinvisibityDelay",
@@ -28209,7 +28208,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_PlayerEliminatedMultiplier",
@@ -28225,7 +28224,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_RegionCommandPointsMultiplier",
@@ -28233,7 +28232,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_RegionPowerPointsMultiplier",
@@ -28241,7 +28240,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_RegionResourcesMultiplier",
@@ -28265,7 +28264,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_StructuresDestroyedMultiplier",
@@ -28273,7 +28272,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_SuppliesCollectedMultiplier",
@@ -28297,7 +28296,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_TimeTakenMultiplier",
@@ -28305,7 +28304,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_TotalVictoryRequiredScore",
@@ -28313,7 +28312,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreKeeper_UnitsBuiltMultiplier",
@@ -28337,7 +28336,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScreenEdgeScrollRampTime",
@@ -28345,7 +28344,7 @@
      "type": "0x0042ee37",
      "parse_fn": 4386359,
      "userdata": null,
-     "default": "300"
+     "default": null
     },
     {
      "name": "ScreenEdgeScrollSpeedFactor",
@@ -28393,7 +28392,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "1"
+     "default": "100%"
     },
     {
      "name": "ShakeCineExtremeIntensity",
@@ -28505,7 +28504,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "ShowSelectedUnitMarker",
@@ -28521,7 +28520,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "ShowTerrainNormals",
@@ -28545,7 +28544,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "ShowWater",
@@ -28553,7 +28552,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "ShroudAlpha",
@@ -28601,7 +28600,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpeechOn",
@@ -28617,7 +28616,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4384158,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "StealthFriendlyOpacity",
@@ -28625,7 +28624,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0.5"
+     "default": "50%"
     },
     {
      "name": "StretchTerrain",
@@ -28649,7 +28648,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "1"
     },
     {
      "name": "SupplyBuildBorder",
@@ -28985,7 +28984,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00d9f594",
-     "default": "8"
+     "default": "AUTOMATIC"
     },
     {
      "name": "TerrainLODTargetTimeMS",
@@ -29294,7 +29293,7 @@
     {
      "name": "TimeAfterDamageUntilRepairAllowed",
      "offset": 2696,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "10"
@@ -29305,7 +29304,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00da3a68",
-     "default": "2"
+     "default": "AFTERNOON"
     },
     {
      "name": "TintUnitIfPathingForMoreThan",
@@ -29345,7 +29344,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": "30"
+     "default": "6000"
     },
     {
      "name": "Use3WayTerrainBlends",
@@ -29353,7 +29352,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "1"
     },
     {
      "name": "UseBehindBuildingMarker",
@@ -29361,7 +29360,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": "Yes"
     },
     {
      "name": "UseCameraInReplay",
@@ -29425,7 +29424,7 @@
      "type": "0x0042ee9a",
      "parse_fn": 4386458,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "UseReverseMouseScroll",
@@ -29481,7 +29480,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "100"
     },
     {
      "name": "VerticalScrollSpeedFactor",
@@ -29497,7 +29496,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "VictoryConditionStructureObjectFilter",
@@ -29505,7 +29504,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "VictoryConditionUnitObjectFilter",
@@ -29513,7 +29512,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "VideoOn",
@@ -29526,10 +29525,10 @@
     {
      "name": "WaitToForceMemberToEnterDelay",
      "offset": 4660,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
-     "default": "128"
+     "default": "5"
     },
     {
      "name": "WaterExtentX",
@@ -29585,7 +29584,7 @@
      "type": "0x006cb559",
      "parse_fn": 7124313,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Weather",
@@ -29593,7 +29592,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00da3a84",
-     "default": "0"
+     "default": "NORMAL"
     },
     {
      "name": "Windowed",
@@ -29717,7 +29716,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -29725,7 +29724,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -29760,7 +29759,7 @@
     {
      "name": "MaxSelectedUnits",
      "offset": 40,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -29887,7 +29886,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -29895,7 +29894,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -30019,7 +30018,7 @@
      "type": "0x0073a9c2",
      "parse_fn": 7580098,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Layer",
@@ -30032,18 +30031,18 @@
     {
      "name": "Position",
      "offset": 4,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "Size",
      "offset": 12,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     }
    ]
   },
@@ -30276,7 +30275,7 @@
     {
      "name": "CampnessValue",
      "offset": 1508,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -31268,7 +31267,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 1476,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -31292,7 +31291,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 1472,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -31300,7 +31299,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 1468,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -31396,7 +31395,7 @@
     {
      "name": "SlopeLimitIndex",
      "offset": 1404,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -31556,7 +31555,7 @@
     {
      "name": "VisionBonusTestSegments",
      "offset": 1364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -32001,7 +32000,7 @@
      "type": "ModelConditionFlags",
      "parse_fn": 4951073,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredObjectStatusBits",
@@ -32025,7 +32024,7 @@
      "type": "0x007ef63f",
      "parse_fn": 8320575,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "StartThreshold",
@@ -32063,7 +32062,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "TargetPositionOffsetFallback",
@@ -32085,7 +32084,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "0"
+     "default": "R:0 G:0 B:0"
     },
     {
      "name": "DecreaseTime",
@@ -32117,7 +32116,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     }
    ]
   },
@@ -32131,23 +32130,23 @@
      "type": "RGBAColor",
      "parse_fn": 4387134,
      "userdata": null,
-     "default": "16777215"
+     "default": "R:255 G:255 B:255 A:0"
     },
     {
      "name": "EndPosition",
      "offset": 8,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "StartPosition",
      "offset": 0,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "Width",
@@ -32207,7 +32206,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BonusPreferenceAttack",
@@ -32215,7 +32214,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BonusPreferenceDefense",
@@ -32223,7 +32222,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BonusPreferenceExperience",
@@ -32231,7 +32230,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BonusPreferenceLegendary",
@@ -32239,7 +32238,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BonusPreferenceResource",
@@ -32247,7 +32246,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BonusPreferenceTreasury",
@@ -32255,7 +32254,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": "10"
     },
     {
      "name": "BuildingScoreArmory",
@@ -32763,7 +32762,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Scenario",
@@ -32779,7 +32778,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SecondsPerReinforcement",
@@ -32792,7 +32791,7 @@
     {
      "name": "StartingCashRTS",
      "offset": 72,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "7500"
@@ -32800,7 +32799,7 @@
     {
      "name": "StartingCashRTSWithFort",
      "offset": 76,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "2500"
@@ -32822,7 +32821,7 @@
     {
      "name": "Accent1Dir",
      "offset": 88,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -32838,7 +32837,7 @@
     {
      "name": "Accent2Dir",
      "offset": 108,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -32998,7 +32997,7 @@
     {
      "name": "AptCenter",
      "offset": 24,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -33206,7 +33205,7 @@
     {
      "name": "Center",
      "offset": 8,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -33342,7 +33341,7 @@
     {
      "name": "Extent",
      "offset": 16,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -33478,7 +33477,7 @@
     {
      "name": "NumPointsPerArmyLine",
      "offset": 236,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -33518,7 +33517,7 @@
     {
      "name": "SunDir",
      "offset": 68,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -33583,7 +33582,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00da3a90",
-     "default": "6"
+     "default": null
     }
    ]
   },
@@ -33651,7 +33650,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "BuildPlotIconName",
@@ -33659,7 +33658,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "BuildPlotSelectionPortraitName",
@@ -33667,7 +33666,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DefaultArmyIconName",
@@ -33683,7 +33682,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "FactionDozerTemplateName",
@@ -33699,7 +33698,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "FactionInnUnitTemplateName",
@@ -33715,7 +33714,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "GarrisonSelectionPortraitName",
@@ -33723,7 +33722,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "MaxHeroCP",
@@ -33755,7 +33754,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ScenarioMaxResources",
@@ -33809,7 +33808,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "50"
     },
     {
      "name": "ArmyPlacementPos",
@@ -33817,7 +33816,7 @@
      "type": "0x0042f2d2",
      "parse_fn": 4387538,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ArmyRetreatRounds",
@@ -33849,7 +33848,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "50"
     },
     {
      "name": "Region",
@@ -33865,7 +33864,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RegionBonusLegendary",
@@ -33873,7 +33872,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RegionBonusResource",
@@ -33881,7 +33880,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RegionConqueredSound",
@@ -33889,7 +33888,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RegionEffectsManagerName",
@@ -33897,7 +33896,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SmallArmyCommandPoints",
@@ -33919,7 +33918,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "1"
+     "default": "R:255 G:255 B:255"
     },
     {
      "name": "RegionBorderColor",
@@ -33927,7 +33926,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "1"
+     "default": "R:255 G:255 B:255"
     },
     {
      "name": "RegionObject",
@@ -33935,7 +33934,7 @@
      "type": "0x007efb84",
      "parse_fn": 8321924,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ShellStartPositionColor",
@@ -33943,7 +33942,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "0.95"
+     "default": "R:242 G:242 B:242"
     },
     {
      "name": "ShouldShowRegionBorders",
@@ -33986,7 +33985,7 @@
     {
      "name": "ZoomRegionHigh",
      "offset": 36,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -33994,7 +33993,7 @@
     {
      "name": "ZoomRegionLow",
      "offset": 28,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -34011,7 +34010,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayGameType",
@@ -34019,7 +34018,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayObjectives",
@@ -34027,7 +34026,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayVictoriousText",
@@ -34035,7 +34034,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PlayerDefeatCondition",
@@ -34143,7 +34142,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": null
+     "default": "1000"
     },
     {
      "name": "AccelerationPitchLimit",
@@ -34191,7 +34190,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00d9deec",
-     "default": "1"
+     "default": "FOUR_WHEELS"
     },
     {
      "name": "Apply2DFrictionWhenAirborne",
@@ -34231,7 +34230,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0.75"
+     "default": "75%"
     },
     {
      "name": "BackingUpStopWhenTurning",
@@ -34255,7 +34254,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": null
+     "default": "1000"
     },
     {
      "name": "BurningDeathIsCavalry",
@@ -34279,7 +34278,7 @@
      "type": "0x005e3183",
      "parse_fn": 6173059,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ChargeAvailable",
@@ -34303,7 +34302,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     },
     {
      "name": "CirclingRadius",
@@ -34383,7 +34382,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00d9dfcc",
-     "default": "7"
+     "default": "RANGED1"
     },
     {
      "name": "ForwardAccelerationPitchFactor",
@@ -34439,7 +34438,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     },
     {
      "name": "LiftDamaged",
@@ -34447,7 +34446,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "-1"
+     "default": "-100%"
     },
     {
      "name": "LocomotorWorksWhenDead",
@@ -34503,7 +34502,7 @@
      "type": "AngleReal",
      "parse_fn": 4386325,
      "userdata": null,
-     "default": "6.28319"
+     "default": "360"
     },
     {
      "name": "MinSpeed",
@@ -34511,7 +34510,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "0"
+     "default": "0%"
     },
     {
      "name": "MinTurnSpeed",
@@ -34519,7 +34518,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "99999"
+     "default": "9.9999e+06%"
     },
     {
      "name": "NonDirtyTransform",
@@ -34583,7 +34582,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "1"
+     "default": "100%"
     },
     {
      "name": "RollDamping",
@@ -34655,7 +34654,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": "1"
+     "default": "100%"
     },
     {
      "name": "SpeedLimitZ",
@@ -34663,7 +34662,7 @@
      "type": "VelocityReal",
      "parse_fn": 7578806,
      "userdata": null,
-     "default": "999999"
+     "default": "4.99999e+06"
     },
     {
      "name": "StickToGround",
@@ -34679,7 +34678,7 @@
      "type": "BitFlags",
      "parse_fn": 4384832,
      "userdata": "0x00d9e008",
-     "default": "0"
+     "default": "NONE"
     },
     {
      "name": "SwoopAccelerationRate",
@@ -34735,7 +34734,7 @@
      "type": "AngleReal",
      "parse_fn": 4386325,
      "userdata": null,
-     "default": "0.261799"
+     "default": "15"
     },
     {
      "name": "TurnThresholdHS",
@@ -34743,7 +34742,7 @@
      "type": "AngleReal",
      "parse_fn": 4386325,
      "userdata": null,
-     "default": "3.14159"
+     "default": "180"
     },
     {
      "name": "TurnTime",
@@ -34751,7 +34750,7 @@
      "type": "Duration",
      "parse_fn": 7578665,
      "userdata": null,
-     "default": null
+     "default": "1000"
     },
     {
      "name": "TurnTimeDamaged",
@@ -34831,7 +34830,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00d9df1c",
-     "default": "0"
+     "default": "NO_Z_MOTIVE_FORCE"
     }
    ]
   },
@@ -34921,7 +34920,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Radius",
@@ -34967,7 +34966,7 @@
      "type": "Coords",
      "parse_fn": 7184089,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Status",
@@ -34975,7 +34974,7 @@
      "type": "0x006d9fdc",
      "parse_fn": 7184348,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Texture",
@@ -35013,7 +35012,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -35021,7 +35020,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -35558,7 +35557,7 @@
     {
      "name": "MaxMillisecondsBeforeResettingLastJumpTo",
      "offset": 16,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -35738,7 +35737,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 240,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -35762,7 +35761,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 232,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -35770,7 +35769,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 224,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -35907,7 +35906,7 @@
      "type": "0x00804dea",
      "parse_fn": 8408554,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ClearModelCondition",
@@ -35995,7 +35994,7 @@
      "type": "0x00806264",
      "parse_fn": 8413796,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MultiLevelFX",
@@ -36019,7 +36018,7 @@
      "type": "0x008050d3",
      "parse_fn": 8409299,
      "userdata": null,
-     "default": "0"
+     "default": null
     }
    ]
   },
@@ -36046,7 +36045,7 @@
     {
      "name": "DragTolerance",
      "offset": 4840,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -36054,7 +36053,7 @@
     {
      "name": "DragTolerance3D",
      "offset": 4844,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -36062,7 +36061,7 @@
     {
      "name": "DragToleranceMS",
      "offset": 4848,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -36252,7 +36251,7 @@
     {
      "name": "DragTolerance",
      "offset": 4840,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -36260,7 +36259,7 @@
     {
      "name": "DragTolerance3D",
      "offset": 4844,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -36268,7 +36267,7 @@
     {
      "name": "DragToleranceMS",
      "offset": 4848,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -36292,7 +36291,7 @@
     {
      "name": "HotSpot",
      "offset": 64,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
      "default": null
@@ -36917,7 +36916,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Title",
@@ -37120,7 +37119,7 @@
     {
      "name": "CampnessValue",
      "offset": 1508,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -38112,7 +38111,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 1476,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -38136,7 +38135,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 1472,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -38144,7 +38143,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 1468,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -38240,7 +38239,7 @@
     {
      "name": "SlopeLimitIndex",
      "offset": 1404,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -38400,7 +38399,7 @@
     {
      "name": "VisionBonusTestSegments",
      "offset": 1364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -38754,7 +38753,7 @@
     {
      "name": "CampnessValue",
      "offset": 1508,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -39746,7 +39745,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 1476,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -39770,7 +39769,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 1472,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -39778,7 +39777,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 1468,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -39874,7 +39873,7 @@
     {
      "name": "SlopeLimitIndex",
      "offset": 1404,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -40034,7 +40033,7 @@
     {
      "name": "VisionBonusTestSegments",
      "offset": 1364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -40345,7 +40344,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -40353,7 +40352,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -40375,7 +40374,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpawnArmies",
@@ -40399,7 +40398,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -40413,7 +40412,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -40421,7 +40420,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -40443,7 +40442,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "AttachToObject",
@@ -40483,7 +40482,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Height",
@@ -40515,7 +40514,7 @@
      "type": "Coord3D",
      "parse_fn": 4387399,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0 Z:0"
     },
     {
      "name": "OnlyIfOnLand",
@@ -40603,7 +40602,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "TargetCoeff",
@@ -40619,7 +40618,7 @@
      "type": "Coord3D",
      "parse_fn": 4387399,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0 Z:0"
     },
     {
      "name": "UseTargetOffset",
@@ -40657,7 +40656,7 @@
      "type": "0x009015ce",
      "parse_fn": 9442766,
      "userdata": null,
-     "default": "0"
+     "default": null
     }
    ]
   },
@@ -40725,7 +40724,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "BuildableRingHeroesMP",
@@ -40733,7 +40732,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DefaultPlayerAIType",
@@ -40749,7 +40748,7 @@
      "type": "0x0073b192",
      "parse_fn": 7582098,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "EnabledImage",
@@ -40789,7 +40788,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "IntrinsicSciences",
@@ -40797,7 +40796,7 @@
      "type": "0x0073b4a0",
      "parse_fn": 7582880,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "IntrinsicSciencesMP",
@@ -40805,7 +40804,7 @@
      "type": "0x0073b4a0",
      "parse_fn": 7582880,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "IsObserver",
@@ -40821,7 +40820,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "LoadScreenImage",
@@ -40845,7 +40844,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ObjectiveAddedSound",
@@ -40853,7 +40852,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ObjectiveCompletedSound",
@@ -40861,7 +40860,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PlayableSide",
@@ -40877,7 +40876,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "0"
+     "default": "R:0 G:0 B:0"
     },
     {
      "name": "ProductionCostChange",
@@ -40933,7 +40932,7 @@
      "type": "0x005fd599",
      "parse_fn": 6280601,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ScoreScreenImage",
@@ -41005,7 +41004,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpellStoreMaximumPowerLabel",
@@ -41013,7 +41012,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "StartingBuilding",
@@ -41189,7 +41188,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4384158,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "StartMoney",
@@ -41224,7 +41223,7 @@
     {
      "name": "ExpirationTimeMS",
      "offset": 4,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -41248,7 +41247,7 @@
     {
      "name": "Priority",
      "offset": 16,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -41256,7 +41255,7 @@
     {
      "name": "QuietTimeMS",
      "offset": 8,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -41272,7 +41271,7 @@
     {
      "name": "TimeBetweenEventsMS",
      "offset": 0,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -41351,7 +41350,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "TimeMultiplier",
@@ -41373,7 +41372,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -41381,7 +41380,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -41416,7 +41415,7 @@
     {
      "name": "MaxSelectedUnits",
      "offset": 40,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -41513,12 +41512,12 @@
      "type": "0x0073b192",
      "parse_fn": 7582098,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SciencePurchasePointsGranted",
      "offset": 56,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "0"
@@ -41529,7 +41528,7 @@
      "type": "0x0073b4a0",
      "parse_fn": 7582880,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkillPointsNeededAngmar",
@@ -41623,7 +41622,7 @@
      "type": "Coord3D",
      "parse_fn": 4387399,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0 Z:0"
     },
     {
      "name": "SecondaryOffset",
@@ -41631,7 +41630,7 @@
      "type": "Coord3D",
      "parse_fn": 4387399,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0 Z:0"
     }
    ]
   },
@@ -41645,7 +41644,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "400"
+     "default": null
     },
     {
      "name": "ArmyBonus",
@@ -41653,7 +41652,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ArmyPlacementPos",
@@ -41661,7 +41660,7 @@
      "type": "0x0042f2d2",
      "parse_fn": 4387538,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "AttackBonus",
@@ -41669,7 +41668,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "BuildingSpot",
@@ -41677,15 +41676,15 @@
      "type": "0x0042f2d2",
      "parse_fn": 4387538,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "CenterPoint",
      "offset": 128,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Connection",
@@ -41709,7 +41708,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "\"APT:LivingWorldRegionConqueredNotice\""
+     "default": null
     },
     {
      "name": "CPLimit",
@@ -41717,7 +41716,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "1000"
+     "default": null
     },
     {
      "name": "CreateAutoFort",
@@ -41725,7 +41724,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": null
     },
     {
      "name": "CustomCenterPoint",
@@ -41733,7 +41732,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": null
     },
     {
      "name": "CustomUIPopupPoint",
@@ -41741,7 +41740,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": null
     },
     {
      "name": "DefenseBonus",
@@ -41749,7 +41748,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DelayCarryoverSpawningOf",
@@ -41757,7 +41756,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4384158,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DifficultyText",
@@ -41765,7 +41764,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DisplayActNum",
@@ -41773,7 +41772,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DisplayDescription",
@@ -41781,7 +41780,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DisplayName",
@@ -41789,7 +41788,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "EndOfCampaign",
@@ -41797,7 +41796,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": null
     },
     {
      "name": "ExperienceBonus",
@@ -41805,7 +41804,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "FertileTerritoryBonus",
@@ -41813,7 +41812,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "FortressDisplayDescription",
@@ -41821,7 +41820,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "FortressDisplayName",
@@ -41829,7 +41828,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "FortressPortrait",
@@ -41837,7 +41836,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "GarrisonArmySpot",
@@ -41845,7 +41844,7 @@
      "type": "0x0042f2d2",
      "parse_fn": 4387538,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "HeroArmySpot",
@@ -41853,7 +41852,7 @@
      "type": "0x0042f2d2",
      "parse_fn": 4387538,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "LegendaryBonus",
@@ -41861,7 +41860,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "LoseCampaignIfLoseMap",
@@ -41869,7 +41868,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": null
     },
     {
      "name": "MapIsCampaignMap",
@@ -41877,7 +41876,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "No"
+     "default": null
     },
     {
      "name": "MapMatchPlayerWorldToMap",
@@ -41885,7 +41884,7 @@
      "type": "0x007f3c5c",
      "parse_fn": 8338524,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MapName",
@@ -41893,7 +41892,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "MovieNameFirstTime",
@@ -41901,7 +41900,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "MovieNameRepeat",
@@ -41909,7 +41908,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnEnterGiveUpgrade",
@@ -41917,7 +41916,7 @@
      "type": "0x007f3646",
      "parse_fn": 8336966,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnVictoryGiveUpgrade",
@@ -41925,7 +41924,7 @@
      "type": "0x007f36a9",
      "parse_fn": 8337065,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnVictoryRemoveUpgrade",
@@ -41933,7 +41932,7 @@
      "type": "0x007f3646",
      "parse_fn": 8336966,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OnWinActSubroutine",
@@ -41941,7 +41940,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "OwnedByPlayer",
@@ -41949,7 +41948,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "RegionBonus",
@@ -41957,7 +41956,7 @@
      "type": "0x007f2a14",
      "parse_fn": 8333844,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "RegionPortrait",
@@ -41965,7 +41964,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ResourceBonus",
@@ -41973,7 +41972,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "RestrictBuildings",
@@ -41989,7 +41988,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkirmishStillImage",
@@ -41997,7 +41996,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkirmishVoiceTrack",
@@ -42005,7 +42004,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "StrategicValue",
@@ -42013,7 +42012,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": "20"
+     "default": null
     },
     {
      "name": "SubObject",
@@ -42021,12 +42020,12 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "UIPopupPoint",
      "offset": 208,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -42037,7 +42036,7 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "userdata": null,
-     "default": "Yes"
+     "default": null
     }
    ]
   },
@@ -42232,7 +42231,7 @@
     {
      "name": "CampnessValue",
      "offset": 1508,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -43224,7 +43223,7 @@
     {
      "name": "ShadowOpacityEnd",
      "offset": 1476,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -43248,7 +43247,7 @@
     {
      "name": "ShadowOpacityPeak",
      "offset": 1472,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -43256,7 +43255,7 @@
     {
      "name": "ShadowOpacityStart",
      "offset": 1468,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -43352,7 +43351,7 @@
     {
      "name": "SlopeLimitIndex",
      "offset": 1404,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -43512,7 +43511,7 @@
     {
      "name": "VisionBonusTestSegments",
      "offset": 1364,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -43709,7 +43708,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisabledFactions",
@@ -43717,7 +43716,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisableRegions",
@@ -43725,7 +43724,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisallowStartInRegions",
@@ -43733,7 +43732,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayDefeatedText",
@@ -43741,7 +43740,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DisplayDescription",
@@ -43749,7 +43748,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayFiction",
@@ -43757,7 +43756,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayGameType",
@@ -43765,7 +43764,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DisplayName",
@@ -43773,7 +43772,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayObjectives",
@@ -43781,7 +43780,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "DisplayVictoriousText",
@@ -43789,7 +43788,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "HistoricalScenario",
@@ -43837,7 +43836,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "StartingRestriction",
@@ -43883,7 +43882,7 @@
      "type": "0x0073b192",
      "parse_fn": 7582098,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "DisplayName",
@@ -43891,7 +43890,7 @@
      "type": "0x0073b192",
      "parse_fn": 7582098,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "IsGrantable",
@@ -43907,7 +43906,7 @@
      "type": "0x0073bcbf",
      "parse_fn": 7584959,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SciencePurchasePointCost",
@@ -43966,7 +43965,7 @@
     {
      "name": "MinimumCountForAnnouncement",
      "offset": 12,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -44080,7 +44079,7 @@
     {
      "name": "MaxSelectedUnits",
      "offset": 40,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -44177,7 +44176,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ClearPreviousText",
@@ -44201,7 +44200,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -44277,7 +44276,7 @@
      "type": "0x006ff6a7",
      "parse_fn": 7337639,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkillSet2",
@@ -44285,7 +44284,7 @@
      "type": "0x006ff6a7",
      "parse_fn": 7337639,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkillSet3",
@@ -44293,7 +44292,7 @@
      "type": "0x006ff6a7",
      "parse_fn": 7337639,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkillSet4",
@@ -44301,7 +44300,7 @@
      "type": "0x006ff6a7",
      "parse_fn": 7337639,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "SkillSet5",
@@ -44309,7 +44308,7 @@
      "type": "0x006ff6a7",
      "parse_fn": 7337639,
      "userdata": null,
-     "default": "0"
+     "default": null
     }
    ]
   },
@@ -44607,7 +44606,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -44615,7 +44614,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -44653,7 +44652,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredSecondaryModelConditions",
@@ -44669,7 +44668,7 @@
      "type": "ModelConditionFlags",
      "parse_fn": 4951073,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SourceObjectFilter",
@@ -44693,7 +44692,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00da3a84",
-     "default": "2"
+     "default": null
     }
    ]
   },
@@ -44753,7 +44752,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -44761,7 +44760,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -44884,7 +44883,7 @@
     {
      "name": "Position",
      "offset": 32,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -44971,7 +44970,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -44979,7 +44978,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -45009,7 +45008,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00da5c90",
-     "default": "0"
+     "default": "SPECIAL_INVALID"
     },
     {
      "name": "EvaEventToPlayOnSuccess",
@@ -45017,7 +45016,7 @@
      "type": "EvaEvent",
      "parse_fn": 6153608,
      "userdata": null,
-     "default": "-1"
+     "default": "\"\""
     },
     {
      "name": "Flags",
@@ -45025,7 +45024,7 @@
      "type": "BitFlags",
      "parse_fn": 4384832,
      "userdata": "0x00da5f34",
-     "default": "0"
+     "default": "NONE"
     },
     {
      "name": "ForbiddenObjectFilter",
@@ -45033,7 +45032,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "ForbiddenObjectRange",
@@ -45049,7 +45048,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "InitiateSound",
@@ -45057,7 +45056,7 @@
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "LightPointCost",
@@ -45089,7 +45088,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PreventActivationConditions",
@@ -45097,7 +45096,7 @@
      "type": "ObjectStatusFlags",
      "parse_fn": 8068700,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "PublicTimer",
@@ -45161,7 +45160,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "UnitSpecificSoundToUseAsInitiateIntendToDoVoice",
@@ -45169,7 +45168,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ViewObjectDuration",
@@ -45229,7 +45228,7 @@
      "type": "0x009a7cb8",
      "parse_fn": 10124472,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "Regions",
@@ -45237,7 +45236,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Teams",
@@ -45245,7 +45244,7 @@
      "type": "0x009015ce",
      "parse_fn": 9442766,
      "userdata": null,
-     "default": "0"
+     "default": null
     }
    ]
   },
@@ -45740,10 +45739,10 @@
     {
      "name": "Location",
      "offset": 12,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "Name",
@@ -45756,10 +45755,10 @@
     {
      "name": "RallyPointOffset",
      "offset": 24,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "Rebuilds",
@@ -45915,7 +45914,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "Task",
@@ -45923,7 +45922,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00c4d60c",
-     "default": "13"
+     "default": "INVALID"
     },
     {
      "name": "Text",
@@ -45931,7 +45930,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },
@@ -45945,7 +45944,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "ControlledRegionsHeldForTurns",
@@ -45969,7 +45968,7 @@
      "type": "0x009015ce",
      "parse_fn": 9442766,
      "userdata": null,
-     "default": "0"
+     "default": null
     }
    ]
   },
@@ -46026,7 +46025,7 @@
     {
      "name": "Decay",
      "offset": 16,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -46034,7 +46033,7 @@
     {
      "name": "MaxBurnRate",
      "offset": 12,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -46042,7 +46041,7 @@
     {
      "name": "Resistance",
      "offset": 20,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -46064,10 +46063,10 @@
     {
      "name": "RandomRange",
      "offset": 336,
-     "type": "IntRange",
+     "type": "Coord2DInt",
      "parse_fn": 4387578,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:3"
     },
     {
      "name": "Type",
@@ -46075,7 +46074,7 @@
      "type": "0x005df31d",
      "parse_fn": 6157085,
      "userdata": null,
-     "default": "-1"
+     "default": null
     }
    ]
   },
@@ -46650,7 +46649,7 @@
     {
      "name": "PostColorTime",
      "offset": 344,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "2000"
@@ -46658,7 +46657,7 @@
     {
      "name": "PreColorTime",
      "offset": 340,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "2000"
@@ -46666,7 +46665,7 @@
     {
      "name": "SustainedColorTime",
      "offset": 348,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": "1000"
@@ -46892,7 +46891,7 @@
     {
      "name": "GroupOrder",
      "offset": 136,
-     "type": "Int",
+     "type": "UnsignedInt",
      "parse_fn": 4385970,
      "userdata": null,
      "default": null
@@ -47273,7 +47272,7 @@
      "type": "KindOfFilter",
      "parse_fn": 7747887,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredSecondaryModelConditions",
@@ -47289,7 +47288,7 @@
      "type": "ModelConditionFlags",
      "parse_fn": 4951073,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SourceObjectFilter",
@@ -47313,7 +47312,7 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "userdata": "0x00da3a84",
-     "default": "2"
+     "default": null
     }
    ]
   },
@@ -47437,15 +47436,15 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "140"
+     "default": "R:35700 G:35700 B:65025"
     },
     {
      "name": "ReflectionGuard",
      "offset": 84,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "ReflectionOn",
@@ -47477,7 +47476,7 @@
      "type": "RGBColor",
      "parse_fn": 4386713,
      "userdata": null,
-     "default": "1"
+     "default": "R:255 G:255 B:255"
     },
     {
      "name": "StandingWaterTexture",
@@ -48513,7 +48512,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "RequiredUpgradeNames",
@@ -48521,7 +48520,7 @@
      "type": "AsciiStringList",
      "parse_fn": 4386518,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     },
     {
      "name": "SpecialObjectFilter",
@@ -48626,7 +48625,7 @@
     {
      "name": "CloudOffsetPerSecond",
      "offset": 172,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -48634,7 +48633,7 @@
     {
      "name": "CloudTextureSize",
      "offset": 164,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -48709,7 +48708,7 @@
      "type": "0x0073a396",
      "parse_fn": 7578518,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "NumberTiles",
@@ -48722,15 +48721,15 @@
     {
      "name": "RampControl",
      "offset": 116,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0.3"
+     "default": "X:0.3 Y:0.7"
     },
     {
      "name": "RampSpacing",
      "offset": 132,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -48738,7 +48737,7 @@
     {
      "name": "RampSpeed",
      "offset": 124,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
      "default": null
@@ -48850,10 +48849,10 @@
     {
      "name": "SnowXYSpeed",
      "offset": 76,
-     "type": "Coord3D",
+     "type": "Coord2D",
      "parse_fn": 4387480,
      "userdata": null,
-     "default": "0"
+     "default": "X:0 Y:0"
     },
     {
      "name": "SpellDuration",
@@ -48891,7 +48890,7 @@
      "type": "0x005dc241",
      "parse_fn": 6144577,
      "userdata": null,
-     "default": "0"
+     "default": null
     },
     {
      "name": "WinName",
@@ -48899,7 +48898,7 @@
      "type": "AsciiString",
      "parse_fn": 4386398,
      "userdata": null,
-     "default": "0"
+     "default": "\"\""
     }
    ]
   },

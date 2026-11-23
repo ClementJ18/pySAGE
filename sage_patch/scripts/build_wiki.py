@@ -48,6 +48,9 @@ DEFAULT_OUT = os.path.join(REPO, "build", "wiki")
 
 ENGINE_BUILD = "2.01.2614.37001"
 
+# How `module_defaults.py` writes a default that is known to be nothing at all.
+EMPTY = '""'
+
 # Modules are grouped by the interface their name ends in, which is also the INI
 # keyword that takes them: `Behavior = ...`, `Draw = ...`, `Body = ...`.
 CATEGORIES = [
@@ -121,40 +124,52 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Scalar",
         "a percentage, `50` meaning half",
         "Divided by 100 on the way in, so the stored value is a fraction. "
-        "A default shown as `0.5` is `50%` in INI.",
+        "Defaults are shown as you would write them, `50%`.",
     ),
     "AngleReal": (
         "Scalar",
         "an angle in degrees",
-        "Multiplied by pi/180, so the engine stores radians. A default of "
-        "`1.5708` is a right angle.",
+        "Multiplied by pi/180, so the engine stores radians. Defaults are shown "
+        "in degrees.",
     ),
     "Duration": (
         "Scalar",
         "a duration in milliseconds",
-        "Converted to whole logic frames and stored as an integer, so sub-frame "
-        "precision is lost. Defaults are shown in frames.",
+        "Converted to whole logic frames (five a second, rounded up) and stored as an "
+        "integer, so anything finer than 200 ms is lost. Defaults are shown in "
+        "milliseconds; a value in hex is a sentinel the engine tests for, not a duration.",
     ),
     "DurationReal": (
         "Scalar",
         "a duration in milliseconds",
-        "Converted to logic frames and kept fractional. Defaults are shown in frames.",
+        "Converted to logic frames and kept fractional. Defaults are shown in milliseconds.",
     ),
     "VelocityReal": (
         "Scalar",
         "a speed in world units per second",
-        "Converted to units per logic frame, so the stored default is the per-frame figure.",
+        "Converted to units per logic frame. Defaults are shown per second.",
     ),
     "AngularVelocityReal": (
         "Scalar",
         "a turn rate in degrees per second",
-        "Converted to radians per logic frame.",
+        "Converted to radians per logic frame. Defaults are shown in degrees per second.",
     ),
-    "IntRange": ("Scalar", "two whole numbers, low then high", "Stored as a pair."),
+    "UnsignedInt": (
+        "Scalar",
+        "a whole number, zero or greater",
+        "Unsigned 32-bit. Where the field table gives a maximum, a larger value is "
+        "rejected with `value out of range`.",
+    ),
     "Coord3D": (
         "Scalar",
         "`X:<real> Y:<real> Z:<real>`",
-        "Three floats. Omitted components stay zero.",
+        "Three floats, each with its label.",
+    ),
+    "Coord2D": ("Scalar", "`X:<real> Y:<real>`", "Two floats, each with its label."),
+    "Coord2DInt": (
+        "Scalar",
+        "`X:<int> Y:<int>`",
+        "Two whole numbers, each with its label.",
     ),
     "RGBColor": (
         "Scalar",
@@ -164,7 +179,7 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
     "RGBAColor": (
         "Scalar",
         "`R:<0-255> G:<0-255> B:<0-255> A:<0-255>`",
-        "Each channel is divided by 255 and stored as a float.",
+        "Packed into one 32-bit ARGB value. `A:` may be left out and then means 255.",
     ),
     "AsciiString": (
         "Text",
@@ -230,10 +245,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`DeathType` tokens, or `ALL` / `NONE`",
         "`ALL` and `NONE` set and clear every bit.",
     ),
-    "SpecialPowerFlags": (
-        "Flag set",
-        "any number of trigger tokens",
-        "How a special power may be aimed and what it needs first.",
+    "SpecialPowerTrigger": (
+        "Reference",
+        "a `SpecialPower` name, optionally followed by a trigger token",
+        "Each line adds one more power to trigger, up to eight. The token comes from "
+        "the special power flag list.",
     ),
     "SpecialPowerAIType": (
         "Enumeration",
@@ -342,8 +358,9 @@ VALUE_KINDS = {
     "Int8": "int8",
     "UInt8": "uint8",
     "UInt16": "uint16",
+    "UnsignedInt": "uint32",
     "Real": "real",
-    "Percent": "real",
+    "Percent": "percent",
     "Duration": "real",
     "DurationReal": "real",
     "AngleReal": "real",
@@ -352,8 +369,9 @@ VALUE_KINDS = {
     "PositiveReal": "positive",
     "NonNegativeReal": "nonneg",
     "NonPositiveReal": "nonpos",
-    "IntRange": "intrange",
     "Coord3D": "coord3",
+    "Coord2D": "coord2",
+    "Coord2DInt": "coord2int",
     "RGBColor": "rgb",
     "RGBAColor": "rgba",
     "ModelConditionFlagRange": "pair",
@@ -798,14 +816,16 @@ def field_rows(
         if enum:
             extra = f' <a class="enumref" href="{base}enums.html#{esc(slug(enum))}">{esc(enum)}</a>'
         extra += target_link(ref, owner, f, base)
-        default = (
-            f"<code>{esc(f['default'])}</code>"
-            if f["default"] is not None
-            else '<span class="none" title="not recoverable by constant tracking; '
-            'in practice an empty container or string">-</span>'
-        )
+        if f["default"] == EMPTY:
+            default = '<span class="none" title="no value: an empty string or list, or no reference">empty</span>'
+        elif f["default"] is not None:
+            default = f"<code>{esc(f['default'])}</code>"
+        else:
+            default = (
+                '<span class="none" title="not recoverable by constant tracking">-</span>'
+            )
         kind = field_kind(ref, f["type"])
-        control = value_control(ref, f, enum, kind, f["default"] or "")
+        control = value_control(ref, f, enum, kind, writable_default(f))
         rows.append(
             f'<tr id="{esc(slug(f["name"]))}">'
             f'<td class="fname"><code>{esc(f["name"])}</code></td>'
@@ -835,13 +855,19 @@ def origin_cell(field: dict) -> str:
     )
 
 
+def writable_default(field: dict) -> str:
+    """The default as a value you could write after the `=`, or "" when there is none."""
+    default = field["default"]
+    return "" if default is None or default == EMPTY else default
+
+
 def ini_skeleton(header: str, fields: list[dict]) -> str:
     """The block with every keyword at the value it holds when left out.
 
-    A keyword whose default could not be recovered is left out rather than written
-    blank, since a blank line is not something you could paste.
+    A keyword whose default could not be recovered, or is empty, is left out rather
+    than written blank, since a blank line is not something you could paste.
     """
-    written = [f for f in fields if f["default"] is not None]
+    written = [f for f in fields if writable_default(f)]
     width = max((len(f["name"]) for f in written), default=0)
     lines = [header]
     lines += [f"  {f['name']:<{width}} = {f['default']}" for f in written]
