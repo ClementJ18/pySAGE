@@ -5382,6 +5382,34 @@
    ],
    "fields": []
   },
+  "Bonus": {
+   "parse_fn": 8538372,
+   "keywords": [
+    "MinResourceBonus",
+    "WeaponMultiplier",
+    "ArmorMultiplier"
+   ],
+   "fields": [
+    {
+     "name": "MinResourceBonus",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 0
+    },
+    {
+     "name": "WeaponMultiplier",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 4
+    },
+    {
+     "name": "ArmorMultiplier",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 8
+    }
+   ]
+  },
   "BonusForLevel": {
    "parse_fn": 8554714,
    "keywords": [
@@ -9114,6 +9142,41 @@
     }
    ]
   },
+  "LinePart": {
+   "parse_fn": 6292005,
+   "keywords": [
+    "StartPosition",
+    "EndPosition",
+    "Color",
+    "Width"
+   ],
+   "fields": [
+    {
+     "name": "StartPosition",
+     "type": "Coord2DInt",
+     "parse_fn": 4387578,
+     "offset": 0
+    },
+    {
+     "name": "EndPosition",
+     "type": "Coord2DInt",
+     "parse_fn": 4387578,
+     "offset": 8
+    },
+    {
+     "name": "Color",
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "offset": 20
+    },
+    {
+     "name": "Width",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 16
+    }
+   ]
+  },
   "Link": {
    "parse_fn": 8800148,
    "keywords": [
@@ -9854,6 +9917,55 @@
      "type": "Bool",
      "parse_fn": 4384088,
      "offset": 86
+    }
+   ]
+  },
+  "ObjectAward": {
+   "parse_fn": 8448635,
+   "keywords": [
+    "AwardName",
+    "ImageName",
+    "NameTag",
+    "DescriptionTag",
+    "UpgradeAwards",
+    "Trigger"
+   ],
+   "fields": [
+    {
+     "name": "AwardName",
+     "type": "0x00548990",
+     "parse_fn": 5540240,
+     "offset": 0
+    },
+    {
+     "name": "ImageName",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 24
+    },
+    {
+     "name": "NameTag",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 16
+    },
+    {
+     "name": "DescriptionTag",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 20
+    },
+    {
+     "name": "UpgradeAwards",
+     "type": "0x005489d4",
+     "parse_fn": 5540308,
+     "offset": 4
+    },
+    {
+     "name": "Trigger",
+     "type": "0x0080e44d",
+     "parse_fn": 8447053,
+     "offset": 28
     }
    ]
   },
@@ -13221,6 +13333,482 @@
     }
    ]
   },
+  "ThingStat": {
+   "parse_fn": 8447442,
+   "keywords": [
+    "StatName",
+    "ThingTemplateNames",
+    "ExcludedThings",
+    "KindOf",
+    "ExcludedKindOf",
+    "NameTag",
+    "DescriptionTag",
+    "MultiPlayerOnly",
+    "PrimaryKey",
+    "SecondaryKey"
+   ],
+   "fields": [
+    {
+     "name": "StatName",
+     "type": "0x00548990",
+     "parse_fn": 5540240,
+     "offset": 0
+    },
+    {
+     "name": "ThingTemplateNames",
+     "type": "0x005489d4",
+     "parse_fn": 5540308,
+     "offset": 4
+    },
+    {
+     "name": "ExcludedThings",
+     "type": "0x005489d4",
+     "parse_fn": 5540308,
+     "offset": 16
+    },
+    {
+     "name": "KindOf",
+     "type": "KindOfFlags",
+     "parse_fn": 6644967,
+     "offset": 28
+    },
+    {
+     "name": "ExcludedKindOf",
+     "type": "KindOfFlags",
+     "parse_fn": 6644967,
+     "offset": 56
+    },
+    {
+     "name": "NameTag",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 84
+    },
+    {
+     "name": "DescriptionTag",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 88
+    },
+    {
+     "name": "MultiPlayerOnly",
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "offset": 100
+    },
+    {
+     "name": "PrimaryKey",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 92
+    },
+    {
+     "name": "SecondaryKey",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 96
+    }
+   ]
+  },
+  "Threshold": {
+   "parse_fn": 8545490,
+   "keywords": [
+    "VoiceSelect",
+    "VoiceSelectUnderConstruction",
+    "VoiceSelectBattle",
+    "VoiceMove",
+    "VoiceMoveToHigherGround",
+    "VoiceMoveOverWalls",
+    "VoiceAttack",
+    "VoiceAttackCharge",
+    "VoiceFear",
+    "VoiceCreated",
+    "VoiceTaskComplete",
+    "VoiceDefect",
+    "VoiceAttackAir",
+    "VoiceGuard",
+    "VoiceAlert",
+    "VoiceFullyCreated",
+    "VoiceRetreatToCastle",
+    "VoiceMoveToCamp",
+    "VoiceAttackStructure",
+    "VoiceAttackMachine",
+    "VoiceMoveWhileAttacking",
+    "VoiceCombineWithHorde",
+    "VoiceEnterStateAttack",
+    "VoiceEnterStateAttackCharge",
+    "VoiceEnterStateAttackAir",
+    "VoiceEnterStateAttackStructure",
+    "VoiceEnterStateAttackMachine",
+    "VoiceEnterStateMove",
+    "VoiceEnterStateMoveToHigherGround",
+    "VoiceEnterStateMoveOverWalls",
+    "VoiceEnterStateRetreatToCastle",
+    "VoiceEnterStateMoveToCamp",
+    "VoiceEnterStateMoveWhileAttacking",
+    "SoundMoveStart",
+    "SoundMoveStartDamaged",
+    "SoundMoveLoop",
+    "SoundMoveLoopDamaged",
+    "SoundAmbient",
+    "SoundAmbientDamaged",
+    "SoundAmbientReallyDamaged",
+    "SoundAmbientRubble",
+    "SoundAmbientBattle",
+    "SoundStealthOn",
+    "SoundStealthOff",
+    "SoundCreated",
+    "SoundOnDamaged",
+    "SoundOnReallyDamaged",
+    "SoundEnter",
+    "SoundExit",
+    "SoundPromotedVeteran",
+    "SoundPromotedElite",
+    "SoundPromotedHero",
+    "SoundFallingFromPlane",
+    "SoundImpact",
+    "SoundImpactCyclonic",
+    "SoundCrushing"
+   ],
+   "fields": [
+    {
+     "name": "VoiceSelect",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 0
+    },
+    {
+     "name": "VoiceSelectUnderConstruction",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 8
+    },
+    {
+     "name": "VoiceSelectBattle",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 16
+    },
+    {
+     "name": "VoiceMove",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 24
+    },
+    {
+     "name": "VoiceMoveToHigherGround",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 32
+    },
+    {
+     "name": "VoiceMoveOverWalls",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 40
+    },
+    {
+     "name": "VoiceAttack",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 48
+    },
+    {
+     "name": "VoiceAttackCharge",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 56
+    },
+    {
+     "name": "VoiceFear",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 64
+    },
+    {
+     "name": "VoiceCreated",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 72
+    },
+    {
+     "name": "VoiceTaskComplete",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 80
+    },
+    {
+     "name": "VoiceDefect",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 88
+    },
+    {
+     "name": "VoiceAttackAir",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 96
+    },
+    {
+     "name": "VoiceGuard",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 104
+    },
+    {
+     "name": "VoiceAlert",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 112
+    },
+    {
+     "name": "VoiceFullyCreated",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 120
+    },
+    {
+     "name": "VoiceRetreatToCastle",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 128
+    },
+    {
+     "name": "VoiceMoveToCamp",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 136
+    },
+    {
+     "name": "VoiceAttackStructure",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 144
+    },
+    {
+     "name": "VoiceAttackMachine",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 152
+    },
+    {
+     "name": "VoiceMoveWhileAttacking",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 160
+    },
+    {
+     "name": "VoiceCombineWithHorde",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 168
+    },
+    {
+     "name": "VoiceEnterStateAttack",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 176
+    },
+    {
+     "name": "VoiceEnterStateAttackCharge",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 184
+    },
+    {
+     "name": "VoiceEnterStateAttackAir",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 192
+    },
+    {
+     "name": "VoiceEnterStateAttackStructure",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 200
+    },
+    {
+     "name": "VoiceEnterStateAttackMachine",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 208
+    },
+    {
+     "name": "VoiceEnterStateMove",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 216
+    },
+    {
+     "name": "VoiceEnterStateMoveToHigherGround",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 224
+    },
+    {
+     "name": "VoiceEnterStateMoveOverWalls",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 232
+    },
+    {
+     "name": "VoiceEnterStateRetreatToCastle",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 240
+    },
+    {
+     "name": "VoiceEnterStateMoveToCamp",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 248
+    },
+    {
+     "name": "VoiceEnterStateMoveWhileAttacking",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580911,
+     "offset": 256
+    },
+    {
+     "name": "SoundMoveStart",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 264
+    },
+    {
+     "name": "SoundMoveStartDamaged",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 272
+    },
+    {
+     "name": "SoundMoveLoop",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 280
+    },
+    {
+     "name": "SoundMoveLoopDamaged",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 288
+    },
+    {
+     "name": "SoundAmbient",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 296
+    },
+    {
+     "name": "SoundAmbientDamaged",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 304
+    },
+    {
+     "name": "SoundAmbientReallyDamaged",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 312
+    },
+    {
+     "name": "SoundAmbientRubble",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 320
+    },
+    {
+     "name": "SoundAmbientBattle",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 328
+    },
+    {
+     "name": "SoundStealthOn",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 336
+    },
+    {
+     "name": "SoundStealthOff",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 344
+    },
+    {
+     "name": "SoundCreated",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 352
+    },
+    {
+     "name": "SoundOnDamaged",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 360
+    },
+    {
+     "name": "SoundOnReallyDamaged",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 368
+    },
+    {
+     "name": "SoundEnter",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 376
+    },
+    {
+     "name": "SoundExit",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 384
+    },
+    {
+     "name": "SoundPromotedVeteran",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 392
+    },
+    {
+     "name": "SoundPromotedElite",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 400
+    },
+    {
+     "name": "SoundPromotedHero",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 408
+    },
+    {
+     "name": "SoundFallingFromPlane",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 416
+    },
+    {
+     "name": "SoundImpact",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 424
+    },
+    {
+     "name": "SoundImpactCyclonic",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 432
+    },
+    {
+     "name": "SoundCrushing",
+     "type": "AudioEventRTS",
+     "parse_fn": 7580935,
+     "offset": 440
+    }
+   ]
+  },
   "TintDrawable": {
    "parse_fn": 6164512,
    "keywords": [
@@ -13310,6 +13898,34 @@
      "type": "UnsignedInt",
      "parse_fn": 4385970,
      "offset": 12
+    }
+   ]
+  },
+  "UnitCategory": {
+   "parse_fn": 6425854,
+   "keywords": [
+    "Name",
+    "PluralName",
+    "Filter"
+   ],
+   "fields": [
+    {
+     "name": "Name",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 0
+    },
+    {
+     "name": "PluralName",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 4
+    },
+    {
+     "name": "Filter",
+     "type": "KindOfFilter",
+     "parse_fn": 7747887,
+     "offset": 8
     }
    ]
   },
@@ -13686,6 +14302,34 @@
      "type": "Enum",
      "parse_fn": 4385110,
      "offset": 864
+    }
+   ]
+  },
+  "Window": {
+   "parse_fn": 6144643,
+   "keywords": [
+    "WinName",
+    "Transition",
+    "FrameDelay"
+   ],
+   "fields": [
+    {
+     "name": "WinName",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 0
+    },
+    {
+     "name": "Transition",
+     "type": "0x005dc241",
+     "parse_fn": 6144577,
+     "offset": 0
+    },
+    {
+     "name": "FrameDelay",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 4
     }
    ]
   },
@@ -14365,6 +15009,28 @@
      "offset": 12,
      "type": "Int",
      "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "AIDozerAssignment": {
+   "parse_fn": 6987049,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Side",
+     "offset": 0,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Unit",
+     "offset": 4,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
      "userdata": null,
      "default": null
     }
@@ -17266,6 +17932,28 @@
     }
    ]
   },
+  "ArmyEntry": {
+   "parse_fn": 8461561,
+   "moduledata_ctor": 8449191,
+   "fields": [
+    {
+     "name": "Quantity",
+     "offset": 160,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": "0"
+    },
+    {
+     "name": "ThingTemplate",
+     "offset": 4,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "ArmyMemberDefinition": {
    "parse_fn": 8584958,
    "moduledata_ctor": 4381568,
@@ -17299,6 +17987,28 @@
      "offset": 0,
      "type": "AsciiString",
      "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "ArmySummaryDescription": {
+   "parse_fn": 6425932,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "HeroFilter",
+     "offset": 12,
+     "type": "KindOfFilter",
+     "parse_fn": 7747887,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "UnitCategory",
+     "offset": 16,
+     "type": "UnitCategory",
+     "parse_fn": 6425854,
      "userdata": null,
      "default": null
     }
@@ -17549,6 +18259,28 @@
      "parse_fn": 4385207,
      "userdata": "0x00c16928",
      "default": "PRIMARY"
+    }
+   ]
+  },
+  "AttackPriority": {
+   "parse_fn": 7345467,
+   "moduledata_ctor": 4415280,
+   "fields": [
+    {
+     "name": "Default",
+     "offset": 8,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Target",
+     "offset": 12,
+     "type": "0x007013c2",
+     "parse_fn": 7345090,
+     "userdata": null,
+     "default": null
     }
    ]
   },
@@ -18636,6 +19368,28 @@
     }
    ]
   },
+  "AwardSystem": {
+   "parse_fn": 8449153,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "ObjectAward",
+     "offset": 0,
+     "type": "ObjectAward",
+     "parse_fn": 8448635,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ThingStat",
+     "offset": 0,
+     "type": "ThingStat",
+     "parse_fn": 8447442,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "BannerType": {
    "parse_fn": 6385375,
    "moduledata_ctor": null,
@@ -18927,6 +19681,28 @@
      "offset": 0,
      "type": "TransitionToOCL",
      "parse_fn": 7192882,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "BrutalDifficultyCheats": {
+   "parse_fn": 6984623,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "BuildCostReduction",
+     "offset": 0,
+     "type": "Percent",
+     "parse_fn": 4386554,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "BuildTimeReduction",
+     "offset": 4,
+     "type": "Percent",
+     "parse_fn": 4386554,
      "userdata": null,
      "default": null
     }
@@ -21856,6 +22632,28 @@
     }
    ]
   },
+  "Connection": {
+   "parse_fn": 8342286,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "DetourPoint",
+     "offset": 12,
+     "type": "0x0042f2d2",
+     "parse_fn": 4387538,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Region",
+     "offset": 4,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "ControlBarScheme": {
    "parse_fn": 6139440,
    "moduledata_ctor": null,
@@ -23515,6 +24313,28 @@
      "parse_fn": 4386048,
      "userdata": null,
      "default": "1"
+    }
+   ]
+  },
+  "CrowdResponse": {
+   "parse_fn": 8545908,
+   "moduledata_ctor": 8545429,
+   "fields": [
+    {
+     "name": "Threshold",
+     "offset": 8,
+     "type": "Threshold",
+     "parse_fn": 8545490,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Weight",
+     "offset": 4,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": "100"
     }
    ]
   },
@@ -25493,6 +26313,28 @@
      "parse_fn": 6164140,
      "userdata": null,
      "default": null
+    }
+   ]
+  },
+  "FXListAtBonePos": {
+   "parse_fn": 6164636,
+   "moduledata_ctor": 6160747,
+   "fields": [
+    {
+     "name": "BoneName",
+     "offset": 332,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FX",
+     "offset": 328,
+     "type": "FXList",
+     "parse_fn": 7578370,
+     "userdata": null,
+     "default": "\"\""
     }
    ]
   },
@@ -29906,6 +30748,28 @@
     }
    ]
   },
+  "HouseColor": {
+   "parse_fn": 8553317,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "BaseTexture",
+     "offset": 16,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HouseTexture",
+     "offset": 12,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "IdleAnimationState": {
    "parse_fn": 5015616,
    "moduledata_ctor": null,
@@ -32074,6 +32938,28 @@
     }
    ]
   },
+  "LightPointLevel": {
+   "parse_fn": 8588981,
+   "moduledata_ctor": 8588327,
+   "fields": [
+    {
+     "name": "Name",
+     "offset": 20,
+     "type": "0x0073b192",
+     "parse_fn": 7582098,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SpecialAbilities",
+     "offset": 24,
+     "type": "0x0073b4ff",
+     "parse_fn": 7582975,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "LightPulse": {
    "parse_fn": 6163625,
    "moduledata_ctor": 6158929,
@@ -32497,6 +33383,28 @@
      "offset": 28,
      "type": "AudioEventRTS",
      "parse_fn": 7582231,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "LivingWorldAutoResolveResourceBonus": {
+   "parse_fn": 8539018,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Bonus",
+     "offset": 12,
+     "type": "Bonus",
+     "parse_fn": 8538372,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Sides",
+     "offset": 0,
+     "type": "0x006e398a",
+     "parse_fn": 7223690,
      "userdata": null,
      "default": null
     }
@@ -35634,6 +36542,28 @@
     }
    ]
   },
+  "MissionObjectiveList": {
+   "parse_fn": 8610967,
+   "moduledata_ctor": 8610768,
+   "fields": [
+    {
+     "name": "BonusMissionObjectiveTag",
+     "offset": 4,
+     "type": "0x008367eb",
+     "parse_fn": 8611819,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MissionObjectiveTag",
+     "offset": 4,
+     "type": "0x00836792",
+     "parse_fn": 8611730,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "ModelConditionState": {
    "parse_fn": 5013518,
    "moduledata_ctor": null,
@@ -36474,6 +37404,28 @@
     }
    ]
   },
+  "MoveArmy": {
+   "parse_fn": 9330950,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "ArmyScriptingName",
+     "offset": 4,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TargetRegionName",
+     "offset": 8,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "MoveCamera": {
    "parse_fn": 9328796,
    "moduledata_ctor": null,
@@ -36665,6 +37617,28 @@
      "parse_fn": 4384088,
      "userdata": null,
      "default": "Yes"
+    }
+   ]
+  },
+  "Multisound": {
+   "parse_fn": 6134893,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Control",
+     "offset": 76,
+     "type": "BitFlags",
+     "parse_fn": 4384832,
+     "userdata": "0x00d9db70",
+     "default": null
+    },
+    {
+     "name": "Subsounds",
+     "offset": 128,
+     "type": "0x005da4f7",
+     "parse_fn": 6137079,
+     "userdata": null,
+     "default": null
     }
    ]
   },
@@ -43574,6 +44548,50 @@
     }
    ]
   },
+  "ReplaceObject": {
+   "parse_fn": 9137268,
+   "moduledata_ctor": 9137188,
+   "fields": [
+    {
+     "name": "ReplacementObjectName",
+     "offset": 4,
+     "type": "AsciiStringList",
+     "parse_fn": 4384158,
+     "userdata": null,
+     "default": "\"\""
+    },
+    {
+     "name": "TargetObjectFilter",
+     "offset": 0,
+     "type": "KindOfFilter",
+     "parse_fn": 7747887,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "RestrictBuildings": {
+   "parse_fn": 8338419,
+   "moduledata_ctor": 8336940,
+   "fields": [
+    {
+     "name": "Buildings",
+     "offset": 0,
+     "type": "0x0073b6d5",
+     "parse_fn": 7583445,
+     "userdata": "0x00c1a690",
+     "default": null
+    },
+    {
+     "name": "NumberAllowed",
+     "offset": 12,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": "1"
+    }
+   ]
+  },
   "RingEffect": {
    "parse_fn": 7387006,
    "moduledata_ctor": null,
@@ -44204,6 +45222,28 @@
     }
    ]
   },
+  "SetPlayerControlOfArmy": {
+   "parse_fn": 9331077,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "ArmyScriptingName",
+     "offset": 4,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "IsControllableByOwner",
+     "offset": 8,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "ShadowMap": {
    "parse_fn": 4699806,
    "moduledata_ctor": null,
@@ -44229,6 +45269,28 @@
      "offset": 8,
      "type": "Real",
      "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "ShellMenuScheme": {
+   "parse_fn": 6292246,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "ImagePart",
+     "offset": 0,
+     "type": "0x006001d4",
+     "parse_fn": 6291924,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "LinePart",
+     "offset": 0,
+     "type": "LinePart",
+     "parse_fn": 6292005,
      "userdata": null,
      "default": null
     }
@@ -44307,6 +45369,28 @@
      "offset": 356,
      "type": "0x006ff6a7",
      "parse_fn": 7337639,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "SideSound": {
+   "parse_fn": 6152327,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Side",
+     "offset": 0,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Sound",
+     "offset": 4,
+     "type": "AudioEventRTS",
+     "parse_fn": 7582231,
      "userdata": null,
      "default": null
     }
@@ -44696,6 +45780,28 @@
     }
    ]
   },
+  "SoundState": {
+   "parse_fn": 9237629,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "UnitSpecificSounds",
+     "offset": 524,
+     "type": "0x0073f684",
+     "parse_fn": 7599748,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "VoicePriority",
+     "offset": 536,
+     "type": "0x008cef70",
+     "parse_fn": 9236336,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "SoundUpgrade": {
    "parse_fn": 9240463,
    "moduledata_ctor": null,
@@ -44769,6 +45875,28 @@
      "parse_fn": 7747887,
      "userdata": null,
      "default": null
+    }
+   ]
+  },
+  "SpawnArmies": {
+   "parse_fn": 10123567,
+   "moduledata_ctor": 10123447,
+   "fields": [
+    {
+     "name": "Armies",
+     "offset": 4,
+     "type": "AsciiStringList",
+     "parse_fn": 4386518,
+     "userdata": null,
+     "default": "\"\""
+    },
+    {
+     "name": "Region",
+     "offset": 16,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": "\"\""
     }
    ]
   },
@@ -44957,6 +46085,28 @@
      "parse_fn": 4386398,
      "userdata": null,
      "default": null
+    }
+   ]
+  },
+  "SpawnBuildings": {
+   "parse_fn": 10123348,
+   "moduledata_ctor": 10123228,
+   "fields": [
+    {
+     "name": "Buildings",
+     "offset": 4,
+     "type": "AsciiStringList",
+     "parse_fn": 4386518,
+     "userdata": null,
+     "default": "\"\""
+    },
+    {
+     "name": "Region",
+     "offset": 16,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": "\"\""
     }
    ]
   },
@@ -45934,6 +47084,28 @@
     }
    ]
   },
+  "TeamDefeatCondition": {
+   "parse_fn": 9446463,
+   "moduledata_ctor": 9443320,
+   "fields": [
+    {
+     "name": "NumControlledRegionsLessOrEqualTo",
+     "offset": 16,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": "0"
+    },
+    {
+     "name": "Teams",
+     "offset": 4,
+     "type": "0x009015ce",
+     "parse_fn": 9442766,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "TeamVictoryCondition": {
    "parse_fn": 9446693,
    "moduledata_ctor": 9444147,
@@ -46774,6 +47946,28 @@
     }
    ]
   },
+  "Trigger": {
+   "parse_fn": 8447053,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Stat",
+     "offset": 0,
+     "type": "0x005489d4",
+     "parse_fn": 5540308,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Threshold",
+     "offset": 12,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "UnitCategory": {
    "parse_fn": 6425854,
    "moduledata_ctor": null,
@@ -46799,6 +47993,28 @@
      "offset": 4,
      "type": "AsciiString",
      "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "UpdateAnimObject": {
+   "parse_fn": 9330490,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "AnimObjectName",
+     "offset": 0,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "WorldPos",
+     "offset": 4,
+     "type": "Coord3D",
+     "parse_fn": 4387399,
      "userdata": null,
      "default": null
     }
@@ -48872,6 +50088,28 @@
     }
    ]
   },
+  "WeatherData": {
+   "parse_fn": 7445856,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "HasLightning",
+     "offset": 4,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "WeatherSound",
+     "offset": 0,
+     "type": "AudioEventRTS",
+     "parse_fn": 7582231,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "Window": {
    "parse_fn": 6144643,
    "moduledata_ctor": 6140925,
@@ -48899,6 +50137,28 @@
      "parse_fn": 4386398,
      "userdata": null,
      "default": "\"\""
+    }
+   ]
+  },
+  "WindowTransition": {
+   "parse_fn": 6143427,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "FireOnce",
+     "offset": 16,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Window",
+     "offset": 0,
+     "type": "Window",
+     "parse_fn": 6144643,
+     "userdata": null,
+     "default": null
     }
    ]
   },

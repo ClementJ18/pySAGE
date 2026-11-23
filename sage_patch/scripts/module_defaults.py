@@ -50,7 +50,7 @@ __all__ = [
 ADD_MODULE = 0x6570FE
 # A block keyword is CamelCase; the field table its parser owns is what really decides.
 INI_KEYWORD = re.compile(r"^[A-Z][A-Za-z0-9_]{2,40}$")
-INI_BLOCK_MIN_FIELDS = 3
+INI_BLOCK_MIN_FIELDS = 2
 EH_PROLOG = 0xA3CEF0
 OPERATOR_NEW = (0x42F6E0, 0x42F6A0)
 STR_ASSIGN = (0x4374E0, 0x4050E6, 0x436030, 0x40611E)
