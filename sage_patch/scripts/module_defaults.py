@@ -6,9 +6,12 @@ The ModuleData factory allocates the struct, runs its constructor and hands back
 `buildFieldParse` function, which appends one or more 16-byte-stride INI field
 tables of `{const char *name, parseFn, userData, offset}`.
 
-Field names and offsets come from those tables. Defaults come from linear
-constant-tracking through the ModuleData constructor: a field whose INI keyword is
-absent from a `.ini` block keeps whatever the constructor wrote at its offset.
+Field names and offsets come from those tables. A field whose INI keyword is absent
+from a `.ini` block keeps whatever the ModuleData constructor wrote at its offset, and
+that is read two ways: by running the constructor in unicorn, twice over differently
+poisoned uninitialised state so that only what does not depend on it is believed, and
+by linear constant-tracking through its instructions, which also reads the string
+literals emulation cannot build. The two are compared, and any disagreement printed.
 
 A field's type is its parse function. Those are identified from their bodies: the
 scaling constant a real parser applies, the range the engine checks and complains
@@ -30,6 +33,12 @@ from typing import Any, Iterator, Optional
 
 import pefile
 from capstone import CS_ARCH_X86, CS_MODE_32, Cs
+from unicorn import (UC_ARCH_X86, UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_UNMAPPED, UC_MODE_32,
+                     UC_PROT_READ, UC_PROT_WRITE, Uc, UcError)
+from unicorn.x86_const import (UC_X86_REG_DS, UC_X86_REG_EAX, UC_X86_REG_EBP,
+                               UC_X86_REG_ECX, UC_X86_REG_EIP, UC_X86_REG_ES,
+                               UC_X86_REG_ESP, UC_X86_REG_FS, UC_X86_REG_GDTR,
+                               UC_X86_REG_SS)
 
 __all__ = [
     "Image",
@@ -316,14 +325,18 @@ class Image:
 
     def __init__(self, path: str) -> None:
         pe = pefile.PE(path, fast_load=True)
+        self.path = path
         self.base = pe.OPTIONAL_HEADER.ImageBase
         self.data = open(path, "rb").read()
         self.sections: list[tuple[str, int, int, int]] = []
+        # bytes actually in the file per section; the rest of a section is zero when loaded
+        self.raw_sizes: dict[int, int] = {}
         for s in pe.sections:
             name = s.Name.rstrip(b"\x00").decode("latin1")
             size = max(s.Misc_VirtualSize, s.SizeOfRawData)
             self.sections.append((name, self.base + s.VirtualAddress, size,
                                   s.PointerToRawData))
+            self.raw_sizes[self.base + s.VirtualAddress] = s.SizeOfRawData
         self.md = Cs(CS_ARCH_X86, CS_MODE_32)
         text = next(s for s in self.sections if s[0] == ".text")
         self.text_va = text[1]
@@ -404,10 +417,15 @@ class Image:
         return out
 
     def _raw(self, va: int, n: int) -> bytes:
+        """Bytes at `va` as loaded, before static initialisers: past what the file holds
+        for the section - `.data`'s uninitialised tail - that is zeros."""
         for _, va0, size, fo in self.sections:
             if va0 <= va < va0 + size:
-                off = fo + (va - va0)
-                return self.data[off:off + n]
+                rel = va - va0
+                n = min(n, size - rel)
+                stored = self.raw_sizes[va0]
+                data = self.data[fo + rel:fo + min(rel + n, stored)] if rel < stored else b""
+                return data + bytes(n - len(data))
         return b""
 
     def u32(self, va: int) -> int:
@@ -813,6 +831,10 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
         out[off] = value
         origin.pop(off, None)
 
+    def forget(off: int) -> None:
+        out.pop(off, None)
+        origin.pop(off, None)
+
     for i in img.disasm(ctor, 0x1200):
         m, o = i.mnemonic, i.op_str
         dst, _, src = o.partition(", ")
@@ -870,8 +892,12 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
             if m == "movss":
                 if src in freg:
                     put(off, freg[src])
+                else:
+                    forget(off)
             elif m == "or" and src == "0xffffffff":
                 put(off, 0xFFFFFFFF)
+            elif m == "or":
+                forget(off)
             elif m == "and" and src == "0":
                 # `and dword [this+off], 0` is the engine's idiom for zeroing a member, and it
                 # zeroes all four bytes - so a narrower field sharing the dword is defaulted by
@@ -880,6 +906,8 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
                 # having no compiled-in default when it plainly has one.
                 for k in range(_width(dst)):
                     put(off + k, 0)
+            elif m == "and":
+                forget(off)
             elif m == "mov":
                 if src.startswith("0x") or src.lstrip("-").isdigit():
                     put(off, int(src, 0))
@@ -889,6 +917,10 @@ def ctor_defaults(img: Image, ctor: Optional[int], depth: int = 0, maxdepth: int
                     put(off, ireg[R8OF[src]] & 0xFF)
                 elif src in R16OF and R16OF[src] in ireg:
                     put(off, ireg[R16OF[src]] & 0xFFFF)
+                else:
+                    # a store of something not known here - a call's result, a value
+                    # loaded from elsewhere - overrides what an earlier store left
+                    forget(off)
         elif m == "lea" and dst in R32:
             mm = _memop(src)
             if mm and mm[0] in this and mm[1] == 0:
@@ -952,6 +984,274 @@ def _drop_stray(defaults: dict[int, Any], bases: dict[int, int],
             if bases.get(off) is None or bases[off] in embedded
             or not any(bases[off] < other < off for other in offsets)}
 
+
+
+class Emulator:
+    """Runs constructors in unicorn, to read the defaults they really write.
+
+    Constant tracking reads a constructor; this runs it, member constructors, loops,
+    x87 arithmetic and all. A constructor may also read globals the engine only fills
+    at startup - a lookup of an FXList by name, a pool allocator - which nothing here
+    initialises. So every constructor runs twice, once over zeroed uninitialised data
+    and heap and once over poisoned ones, and a value is only believed if both runs
+    agree on it: anything derived from a global the engine fills in later differs
+    between the runs and is dropped. An engine function that faults in this bare
+    process is stubbed to return zero in one run and poison in the other, so whatever
+    is computed from it fails the same test.
+
+    Engine strings live in a memory pool nothing initialises, so string-valued fields
+    are left to constant tracking, which reads the literal a constructor assigns.
+    """
+
+    POISON = 0xCD
+    UNSET = (0x00, 0x5A)
+    STACK, STACK_SIZE = 0x08000000, 0x100000
+    HEAP, HEAP_SIZE = 0x09000000, 0x400000
+    TEB, GDT, RET, BUF, BUF_SIZE = 0x07F00000, 0x07D00000, 0x07E00000, 0x0C000000, 0x10000
+    BUDGET = 400000
+
+    def __init__(self, img: Image, path: str) -> None:
+        self.img = img
+        self.stubs: dict[int, int] = {}
+        self.variant = 0
+        self.path_hash = 0
+        # the first reset fills the whole heap; later ones only what a run handed out
+        self.heap_top = self.HEAP + self.HEAP_SIZE
+        self.uc = uc = Uc(UC_ARCH_X86, UC_MODE_32)
+        lo = min(s[1] for s in img.sections) & ~0xFFF
+        hi = (max(s[1] + s[2] for s in img.sections) + 0xFFF) & ~0xFFF
+        uc.mem_map(lo, hi - lo)
+        # what a constructor can change, as each run starts it: the initialised part of
+        # .data as shipped, the uninitialised rest zeroed in one run and poisoned in the other
+        self.data: list[tuple[int, tuple[bytes, bytes]]] = []
+        for name, va, size, fo in img.sections:
+            raw = img.read(va, size)
+            uc.mem_write(va, raw)
+            if name == ".data":
+                # A dumped image claims the whole section as file data, its uninitialised
+                # tail included (as zeros), so the header cannot say where that tail
+                # starts. It starts no later than the trailing run of zeros, and poisoning
+                # from there errs towards distrusting a value, never towards believing one.
+                shipped = img._raw(va, img.raw_sizes[va]).rstrip(b"\0")
+                shipped += bytes(-len(shipped) % 4)
+                images = []
+                for fill in self.UNSET:
+                    data = bytearray(shipped + bytes([fill]) * (size - len(shipped)))
+                    # the static initialisers the image replays do run before any of this
+                    for at, value in img._writes:
+                        if va <= at < va + size:
+                            data[at - va:at - va + len(value)] = value
+                    images.append(bytes(data))
+                self.data.append((va, (images[0], images[1])))
+        for base, size in ((self.STACK, self.STACK_SIZE), (self.HEAP, self.HEAP_SIZE),
+                           (self.TEB, 0x1000), (self.GDT, 0x1000), (self.RET, 0x1000),
+                           (self.BUF, self.BUF_SIZE)):
+            uc.mem_map(base, size, UC_PROT_READ | UC_PROT_WRITE)
+        uc.mem_write(self.TEB, struct.pack("<I", 0xFFFFFFFF) + bytes(0x14)
+                     + struct.pack("<I", self.TEB))
+        # `__EH_prolog` links SEH frames through fs:[0], so FS needs a real segment
+        gdt = b"".join(_gdt_entry(*e) for e in ((0, 0, 0, 0), (0, 0xFFFFF, 0x9A, 0xC),
+                                                (0, 0xFFFFF, 0x92, 0xC),
+                                                (self.TEB, 0xFFF, 0x92, 0x4)))
+        uc.mem_write(self.GDT, gdt)
+        uc.reg_write(UC_X86_REG_GDTR, (0, self.GDT, len(gdt) - 1, 0))
+        for reg in (UC_X86_REG_DS, UC_X86_REG_ES, UC_X86_REG_SS):
+            uc.reg_write(reg, 2 << 3)
+        uc.reg_write(UC_X86_REG_FS, 3 << 3)
+        uc.hook_add(UC_HOOK_MEM_UNMAPPED, self._map_page)
+        uc.hook_add(UC_HOOK_BLOCK, self._block)
+        for fn in OPERATOR_NEW:
+            uc.hook_add(UC_HOOK_CODE, self._new, begin=fn, end=fn)
+        for thunk, name in _import_thunks(img, path).items():
+            uc.hook_add(UC_HOOK_CODE, self._crt, begin=thunk, end=thunk, user_data=name)
+
+    def run(self, ctor: int) -> Optional[tuple[bytes, bytes]]:
+        """The instance as each of the two runs leaves it, or None if they cannot be
+        believed: one never returns, or the two took different paths through the code.
+
+        Agreeing bytes alone are not enough. A constructor that looks a default up by a
+        name in global game data skips the lookup when the name reads as empty, and both
+        runs can reach "empty" by different routes and leave the field identical - zero
+        where the running game stores a pointer. A branch on something uninitialised
+        shows up as a difference in the path, so the paths have to match as well.
+        """
+        runs, paths = [], []
+        for variant in (0, 1):
+            mem = self._run(ctor, variant)
+            if mem is None:
+                return None
+            runs.append(mem)
+            paths.append(self.path_hash)
+        if paths[0] != paths[1]:
+            return None
+        return runs[0], runs[1]
+
+    def _run(self, ctor: int, variant: int) -> Optional[bytes]:
+        for _attempt in range(25):
+            self._reset(variant)
+            uc = self.uc
+            sp = self.STACK + self.STACK_SIZE - 0x100
+            uc.mem_write(sp, struct.pack("<I", self.RET))
+            uc.reg_write(UC_X86_REG_ESP, sp)
+            uc.reg_write(UC_X86_REG_EBP, sp + 0x80)
+            uc.reg_write(UC_X86_REG_ECX, self.BUF)
+            start = ctor
+            for _escape in range(50):
+                try:
+                    uc.emu_start(start, self.RET, count=self.BUDGET)
+                except UcError:
+                    pass
+                eip = uc.reg_read(UC_X86_REG_EIP)
+                if eip == self.RET:
+                    return bytes(uc.mem_read(self.BUF, self.BUF_SIZE))
+                # a call through a pointer nothing initialised lands outside the code:
+                # return to the caller with a value that fails the agreement test
+                esp = uc.reg_read(UC_X86_REG_ESP)
+                if not self.STACK <= esp < sp:
+                    break
+                back = struct.unpack("<I", uc.mem_read(esp, 4))[0]
+                if self.img.is_text(eip) or not self.img.is_text(back):
+                    break
+                uc.reg_write(UC_X86_REG_ESP, esp + 4)
+                uc.reg_write(UC_X86_REG_EAX, 0x5A5A5A5A if variant else 0)
+                start = back
+            culprit = self._innermost_callee(sp)
+            if culprit is None or culprit in self.stubs or culprit == ctor:
+                return None
+            self.stubs[culprit] = _ret_imm(self.img, culprit)
+            uc.hook_add(UC_HOOK_CODE, self._stub, begin=culprit, end=culprit)
+        return None
+
+    def _block(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
+        self.path_hash = hash((self.path_hash, address))
+
+    def _reset(self, variant: int) -> None:
+        self.variant = variant
+        self.path_hash = 0
+        fill = self.UNSET[variant]
+        for va, images in self.data:
+            self.uc.mem_write(va, images[variant])
+        self.uc.mem_write(self.HEAP, bytes([fill]) * (self.heap_top - self.HEAP))
+        self.uc.mem_write(self.BUF, bytes([self.POISON]) * self.BUF_SIZE)
+        self.heap_top = self.HEAP
+
+    def _innermost_callee(self, top: int) -> Optional[int]:
+        esp = self.uc.reg_read(UC_X86_REG_ESP)
+        if not self.STACK <= esp < top:
+            return None
+        for a in range(esp, top, 4):
+            back = struct.unpack("<I", self.uc.mem_read(a, 4))[0] - 5
+            if self.img.is_text(back) and self.img.read(back, 1) == b"\xe8":
+                return back + 5 + struct.unpack("<i", self.img.read(back + 1, 4))[0]
+        return None
+
+    def _map_page(self, uc: Any, _access: int, address: int, _size: int, _value: int,
+                  _data: Any) -> bool:
+        try:
+            # readable and writable, never executable: running into one is a call
+            # through a pointer the engine would have set up, which _run unwinds
+            uc.mem_map(address & ~0xFFF, 0x1000, UC_PROT_READ | UC_PROT_WRITE)
+            uc.mem_write(address & ~0xFFF, bytes([self.UNSET[self.variant]]) * 0x1000)
+        except UcError:
+            return False
+        return True
+
+    def _return(self, value: int, pop: int = 0) -> None:
+        uc = self.uc
+        esp = uc.reg_read(UC_X86_REG_ESP)
+        ret = struct.unpack("<I", uc.mem_read(esp, 4))[0]
+        uc.reg_write(UC_X86_REG_EAX, value & 0xFFFFFFFF)
+        uc.reg_write(UC_X86_REG_ESP, esp + 4 + pop)
+        uc.reg_write(UC_X86_REG_EIP, ret)
+
+    def _arg(self, k: int) -> int:
+        esp = self.uc.reg_read(UC_X86_REG_ESP)
+        return struct.unpack("<I", self.uc.mem_read(esp + 4 + 4 * k, 4))[0]
+
+    def _alloc(self, n: int) -> int:
+        p = self.heap_top
+        self.heap_top += (n + 15) & ~15
+        return p
+
+    def _new(self, _uc: Any, _address: int, _size: int, _data: Any) -> None:
+        self._return(self._alloc(self._arg(0)))
+
+    def _stub(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
+        self._return(0x5A5A5A5A if self.variant else 0, self.stubs[address])
+
+    def _crt(self, _uc: Any, _address: int, _size: int, name: str) -> None:
+        uc, value = self.uc, 0
+        if name == "memset":
+            p, byte, n = self._arg(0), self._arg(1), self._arg(2)
+            uc.mem_write(p, bytes([byte & 0xFF]) * n)
+            value = p
+        elif name in ("memcpy", "memmove"):
+            dst, src, n = self._arg(0), self._arg(1), self._arg(2)
+            uc.mem_write(dst, bytes(uc.mem_read(src, n)))
+            value = dst
+        elif name in ("malloc", "calloc"):
+            n = self._arg(0) * (self._arg(1) if name == "calloc" else 1)
+            value = self._alloc(n)
+            if name == "calloc":
+                uc.mem_write(value, bytes(n))
+        else:
+            # anything else the C runtime does is outside what a constructor's defaults
+            # can rest on, so make it fail the agreement test
+            value = 0x5A5A5A5A if self.variant else 0
+        self._return(value)
+
+
+def _gdt_entry(base: int, limit: int, access: int, flags: int) -> bytes:
+    return struct.pack("<Q", (limit & 0xFFFF) | ((base & 0xFFFFFF) << 16) | (access << 40)
+                       | (((limit >> 16) & 0xF) << 48) | (flags << 52)
+                       | (((base >> 24) & 0xFF) << 56))
+
+
+def _ret_imm(img: Image, fn: int) -> int:
+    for i in img.disasm(fn, 0x4000):
+        if i.mnemonic == "ret":
+            return int(i.op_str, 0) if i.op_str else 0
+    return 0
+
+
+def _import_thunks(img: Image, path: str) -> dict[int, str]:
+    """`jmp [IAT slot]` thunk address -> the import it jumps to."""
+    pe = pefile.PE(path, fast_load=True)
+    pe.parse_data_directories(
+        directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+    slots = {imp.address: (imp.name or b"#%d" % imp.ordinal).decode()
+             for dll in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []) for imp in dll.imports}
+    thunks: dict[int, str] = {}
+    at = img.text.find(b"\xff\x25")
+    while at != -1:
+        slot = struct.unpack_from("<I", img.text, at + 2)[0]
+        if slot in slots:
+            thunks[img.text_va + at] = slots[slot]
+        at = img.text.find(b"\xff\x25", at + 1)
+    return thunks
+
+
+def emulated_values(runs: Optional[tuple[bytes, bytes]], kind: str,
+                    off: int) -> dict[int, Any]:
+    """The dwords (or, for a narrow type, the bytes) a field's default is rendered from,
+    where both runs wrote the same thing; empty when they did not."""
+    if runs is None or kind in ("AsciiString", "AsciiStringList"):
+        return {}
+    a, b = runs
+    width = {"Bool": 1, "Int8": 1, "UInt8": 1, "UInt16": 2}.get(kind)
+    if width:
+        if off + width > len(a) or a[off:off + width] != b[off:off + width]:
+            return {}
+        if a[off:off + width] == bytes([Emulator.POISON]) * width:
+            return {}
+        return {off: int.from_bytes(a[off:off + width], "little")}
+    out: dict[int, Any] = {}
+    for k in range(COMPOSITE_TYPES.get(kind, (1,))[0]):
+        lo, hi = off + 4 * k, off + 4 * k + 4
+        if hi > len(a) or a[lo:hi] != b[lo:hi] or a[lo:hi] == bytes([Emulator.POISON]) * 4:
+            return {}
+        out[lo] = struct.unpack_from("<I", a, lo)[0]
+    return out
 
 def render_default(img: Image, kind: str, defaults: dict[int, Any], off: int,
                    members: list[str], pairs: list[tuple[str, int]]) -> Optional[str]:
@@ -1111,10 +1411,16 @@ class Catalogue:
         self.blocks: dict[str, dict[str, Any]] = {}
         self.tables: dict[str, list[str]] = {}
         self.lookups: dict[str, list[tuple[str, int]]] = {}
+        self.conflicts: list[str] = []
 
-    def field(self, img: Image, row: tuple[str, int, int, int],
-              defaults: dict[int, Any]) -> FieldInfo:
-        """One field-table row as a typed field, registering what it points at."""
+    def field(self, img: Image, row: tuple[str, int, int, int], defaults: dict[int, Any],
+              runs: Optional[tuple[bytes, bytes]] = None, owner: str = "") -> FieldInfo:
+        """One field-table row as a typed field, registering what it points at.
+
+        The default is the emulated constructor's where its two runs agree, and the
+        constant tracker's otherwise. Where both have one and they differ, the
+        emulator's stands - it ran the code - and the disagreement is recorded.
+        """
         keyword, parse, ud, off = row
         kind = field_type(img, keyword, parse, self.blocks)
         ud = ud or PARSER_TABLES.get(parse, 0)
@@ -1128,13 +1434,19 @@ class Catalogue:
             ud = 0
         if kind in TYPE_TABLES:
             members = name_table(img, NAME_TABLES[TYPE_TABLES[kind]])
+        tracked = render_default(img, kind, defaults, off, members, pairs)
+        emulated = render_default(img, kind, emulated_values(runs, kind, off), off,
+                                  members, pairs)
+        if tracked is not None and emulated is not None and tracked != emulated:
+            self.conflicts.append("%s.%s [%s]: tracked %s, emulated %s"
+                                  % (owner, keyword, kind, tracked, emulated))
         return FieldInfo(
             name=keyword,
             offset=off,
             type=kind,
             parse_fn=parse,
             userdata="0x%08x" % ud if ud else None,
-            default=render_default(img, kind, defaults, off, members, pairs),
+            default=emulated if emulated is not None else tracked,
         )
 
 
@@ -1161,7 +1473,7 @@ def alloc_ctor(img: Image, fn: int) -> Optional[int]:
     return None
 
 
-def ini_blocks(img: Image, cat: Catalogue) -> dict[str, dict[str, Any]]:
+def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str, Any]]:
     """Every INI block keyword whose parser owns a field table.
 
     The loader dispatches a block on `{keyword, parser}` pairs sitting in the data
@@ -1203,7 +1515,8 @@ def ini_blocks(img: Image, cat: Catalogue) -> dict[str, dict[str, Any]]:
         bases: dict[int, int] = {}
         defaults = ctor_defaults(img, ctor, bases=bases) if ctor else {}
         defaults = _drop_stray(defaults, bases, [(row[3], 0) for row in best])
-        fields = [cat.field(img, row, defaults) for row in best]
+        runs = emu.run(ctor) if ctor else None
+        fields = [cat.field(img, row, defaults, runs, keyword) for row in best]
         out[keyword] = {
             "parse_fn": chosen,
             "moduledata_ctor": ctor,
@@ -1212,15 +1525,17 @@ def ini_blocks(img: Image, cat: Catalogue) -> dict[str, dict[str, Any]]:
     return dict(sorted(out.items()))
 
 
-def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
+def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any], list[str]]:
     """Every registered module with its fields, plus the types those fields use.
 
     The second return value carries what a field's type alone cannot: the member
     names behind every enum and flag type, the keywords of every sub-block, and the
-    INI block types that are read the same way modules are.
+    INI block types that are read the same way modules are. The third lists every
+    default on which constant tracking and emulation disagree.
     """
     mods: list[ModuleInfo] = []
     cat = Catalogue()
+    emu = Emulator(img, img.path)
     blocks, tables, lookups = cat.blocks, cat.tables, cat.lookups
     reg = [(name, mask) + moduledata_info(img, md)
            for name, inst, md, mask in registrations(img)]
@@ -1244,9 +1559,10 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
                     seen.add(keyword)
                     rows.append(((keyword, parse, ud, off + extra), source, extra))
         defaults = _drop_stray(defaults, bases, [(row[3], extra) for row, _, extra in rows])
+        runs = emu.run(ctor) if ctor else None
         fields: list[FieldInfo] = []
         for row, source, _extra in rows:
-            field = cat.field(img, row, defaults)
+            field = cat.field(img, row, defaults, runs, name or "")
             if source != bfp:
                 field["inherited"] = True
                 if source in declared_by:
@@ -1271,11 +1587,12 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any]]:
         for type_name, target in TYPE_TABLES.items():
             if target == enum:
                 types[type_name] = "0x%08x" % va
-    ini = ini_blocks(img, cat)
+    ini = ini_blocks(img, cat, emu)
     return (sorted(mods, key=lambda m: (m["name"] or "").lower()),
             {"name_tables": tables, "lookup_tables": lookups, "enums": enums,
              "types": types, "blocks": dict(sorted(blocks.items())),
-             "ini_blocks": ini})
+             "ini_blocks": ini},
+            cat.conflicts)
 
 
 def to_markdown(mods: list[ModuleInfo]) -> str:
@@ -1292,8 +1609,9 @@ def to_markdown(mods: list[ModuleInfo]) -> str:
         "",
         "A listed default is what the ModuleData constructor writes, so it is the value in",
         "force whenever an INI block omits that keyword. Field names and offsets come from",
-        "the engine's own 16-byte-stride INI field-parse tables; defaults come from linear",
-        "constant-tracking through each constructor.",
+        "the engine's own 16-byte-stride INI field-parse tables; defaults come from running",
+        "each constructor in an emulator, and from constant-tracking through its",
+        "instructions where emulation cannot vouch for a value.",
         "",
         "## Reading this",
         "",
@@ -1302,9 +1620,9 @@ def to_markdown(mods: list[ModuleInfo]) -> str:
         "  with `%`, enum and flag values by name. `\"\"` is an empty string, list or",
         "  reference. A value in hex is a sentinel the engine tests for and no INI value",
         "  produces it.",
-        "- `-` in the default column means the constructor's write was not resolvable by",
-        "  constant-tracking - typically a container built by a member constructor, or a",
-        "  value computed at runtime. It does not mean the field is unset.",
+        "- `-` in the default column means neither method could vouch for the value -",
+        "  typically one the constructor looks up in game data loaded at startup. It does",
+        "  not mean the field is unset.",
         "- `type` is derived from the field's parse function. %d fields (%.0f%%) use a"
         % (unlabelled, 100.0 * unlabelled / total if total else 0),
         "  parse function that has not been identified and show its raw address instead.",
@@ -1343,11 +1661,14 @@ def main() -> None:
     args = ap.parse_args()
 
     img = Image(args.binary)
-    mods, types = extract(img)
+    mods, types, conflicts = extract(img)
     total = sum(len(m["fields"]) for m in mods)
     known = sum(1 for m in mods for f in m["fields"] if f["default"] is not None)
     print("modules: %d  fields: %d  defaults recovered: %d (%.0f%%)"
           % (len(mods), total, known, 100.0 * known / total if total else 0))
+    print("tracked and emulated defaults disagree on %d field(s)" % len(conflicts))
+    for line in conflicts:
+        print("  " + line)
     print("enums: %d  lookups: %d  sub-blocks: %d  INI block types: %d"
           % (len(types["name_tables"]), len(types["lookup_tables"]), len(types["blocks"]),
              len(types["ini_blocks"])))

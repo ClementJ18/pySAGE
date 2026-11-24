@@ -1,12 +1,13 @@
 # Engine module reference - fields and compiled-in defaults
 
 Generated from `game.dat` by [`../scripts/module_defaults.py`](../scripts/module_defaults.py);
-regenerate rather than edit. **330 modules, 6817 fields, 5413 with a recovered default (79%).**
+regenerate rather than edit. **330 modules, 6817 fields, 5785 with a recovered default (85%).**
 
 A listed default is what the ModuleData constructor writes, so it is the value in
 force whenever an INI block omits that keyword. Field names and offsets come from
-the engine's own 16-byte-stride INI field-parse tables; defaults come from linear
-constant-tracking through each constructor.
+the engine's own 16-byte-stride INI field-parse tables; defaults come from running
+each constructor in an emulator, and from constant-tracking through its
+instructions where emulation cannot vouch for a value.
 
 ## Reading this
 
@@ -15,9 +16,9 @@ constant-tracking through each constructor.
   with `%`, enum and flag values by name. `""` is an empty string, list or
   reference. A value in hex is a sentinel the engine tests for and no INI value
   produces it.
-- `-` in the default column means the constructor's write was not resolvable by
-  constant-tracking - typically a container built by a member constructor, or a
-  value computed at runtime. It does not mean the field is unset.
+- `-` in the default column means neither method could vouch for the value -
+  typically one the constructor looks up in game data loaded at startup. It does
+  not mean the field is unset.
 - `type` is derived from the field's parse function. 179 fields (3%) use a
   parse function that has not been identified and show its raw address instead.
 - Offsets are into ModuleData, not into the module instance.
@@ -111,7 +112,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -186,12 +187,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## AnimalAIUpdate
 
@@ -396,14 +397,14 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `ArmorSetFlag` | Enum | `0x13c` | `PLAYER_UPGRADE` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `IgnoreArmorUpgrade` | Bool | `0x139` | `No` |
 | `KillArmorUpgrade` | Bool | `0x138` | `No` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## ArrowStormUpdate
 
@@ -573,12 +574,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AttributeModifier` | AsciiString | `0x138` | `""` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## AudioLoopUpgrade
 
@@ -586,21 +587,21 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0xa4` | - |
+| `ConflictsWith` | UpgradeMask | `0xa4` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x134` | - |
 | `DamageAmountRequired` | Real | `0x168` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x144` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0x148` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x148` | `""` |
 | `KillAfterMS` | Duration | `0xc` | `0` |
 | `KillOnDeath` | Bool | `0x10` | `Yes` |
 | `MaxKillerAngle` | AngleReal | `0x170` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x16c` | `57.2958` |
 | `Permanent` | Bool | `0x142` | `No` |
-| `RequiredStatus` | ObjectStatusFlags | `0x158` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x158` | `""` |
 | `RequiresAllConflictingTriggers` | Bool | `0x141` | `No` |
 | `RequiresAllTriggers` | Bool | `0x140` | `No` |
 | `SoundToPlay` | AudioEventRTS | `0x8` | `""` |
-| `TriggeredBy` | UpgradeMask | `0x14` | - |
+| `TriggeredBy` | UpgradeMask | `0x14` | `""` |
 
 ## AutoAbilityBehavior
 
@@ -655,7 +656,7 @@ constant-tracking through each constructor.
 | `AffectsContained` | Bool | `0x14d` | `No` |
 | `AffectsWholePlayer` | Bool | `0x14c` | `No` |
 | `ButtonTriggered` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `HealingAmount` | Int | `0x13c` | `0` |
 | `HealingDelay` | Duration | `0x140` | `0xFFFFFFFF` |
@@ -674,7 +675,7 @@ constant-tracking through each constructor.
 | `SingleBurst` | Bool | `0x13a` | `No` |
 | `StartHealingDelay` | Duration | `0x144` | `0` |
 | `StartsActive` | Bool | `0x138` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 | `UnitHealPulseFX` | FXList | `0x170` | `""` |
 
 ## AutoPickUpUpdate
@@ -699,11 +700,11 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `BannerMorphFX` | FXList | `0x30` | `""` |
-| `DiedRespawnTime` | Duration | `0x10` | - |
+| `DiedRespawnTime` | Duration | `0x10` | `10000` |
 | `ExpLevelDraw` | ExpLevelDraw | `0x24` | - |
-| `IdleSpawnRate` | Duration | `0x8` | - |
-| `MeleeFreeBannerReSpawnTime` | Duration | `0x14` | - |
-| `MeleeFreeUnitSpawnTime` | Duration | `0xc` | - |
+| `IdleSpawnRate` | Duration | `0x8` | `15000` |
+| `MeleeFreeBannerReSpawnTime` | Duration | `0x14` | `10000` |
+| `MeleeFreeUnitSpawnTime` | Duration | `0xc` | `10000` |
 | `MorphCondition` | MorphCondition | `0x18` | - |
 | `ReplenishAllNearbyHordes` | Bool | `0x39` | `No` |
 | `ReplenishNearbyHorde` | Bool | `0x38` | `No` |
@@ -718,14 +719,14 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `BuildingTemplateName` | AsciiString | `0x138` | `""` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `PlacementIndex` | Int | `0x140` | `0` |
 | `PlacementPrefix` | AsciiString | `0x13c` | - |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## BattlePlanUpdate
 
@@ -745,7 +746,7 @@ constant-tracking through each constructor.
 | `HoldTheLinePlanArmorDamageScalar` | Real | `0x8c` | `1` |
 | `HoldTheLinePlanPackSoundName` | AudioEventRTS | `0x44` | `""` |
 | `HoldTheLinePlanUnpackSoundName` | AudioEventRTS | `0x40` | `""` |
-| `InvalidMemberKindOf` | KindOfFlags | `0x70` | - |
+| `InvalidMemberKindOf` | KindOfFlags | `0x70` | `""` |
 | `SearchAndDestroyAnnouncementName` | AudioEventRTS | `0x3c` | `""` |
 | `SearchAndDestroyMessageLabel` | AsciiString | `0x38` | `""` |
 | `SearchAndDestroyPlanAnimationTime` | Duration | `0x14` | `0` |
@@ -759,7 +760,7 @@ constant-tracking through each constructor.
 | `StrategyCenterSearchAndDestroyDetectsStealth` | Bool | `0x98` | `Yes` |
 | `StrategyCenterSearchAndDestroySightRangeScalar` | Real | `0x94` | `1` |
 | `TransitionIdleTime` | Duration | `0x18` | `0` |
-| `ValidMemberKindOf` | KindOfFlags | `0x54` | - |
+| `ValidMemberKindOf` | KindOfFlags | `0x54` | `""` |
 | `VisionObjectName` | AsciiString | `0xa4` | `""` |
 
 ## BeaconClientUpdate
@@ -794,9 +795,9 @@ constant-tracking through each constructor.
 | `FirstPercentIndent` | Percent | `0x10` | `0%` |
 | `FlightPathAdjustDistPerSecond` | VelocityReal | `0x8c` | `0` |
 | `GarrisonHitKillCount` | UnsignedInt | `0x4c` | `0` |
-| `GarrisonHitKillForbiddenKindOf` | KindOfFlags | `0x6c` | - |
+| `GarrisonHitKillForbiddenKindOf` | KindOfFlags | `0x6c` | `""` |
 | `GarrisonHitKillFX` | FXList | `0x88` | `""` |
-| `GarrisonHitKillRequiredKindOf` | KindOfFlags | `0x50` | - |
+| `GarrisonHitKillRequiredKindOf` | KindOfFlags | `0x50` | `""` |
 | `GroundBounceFX` | FXList | `0xa0` | `""` |
 | `GroundBounceWeapon` | WeaponTemplate | `0xa8` | `""` |
 | `GroundHitFX` | FXList | `0x9c` | `""` |
@@ -831,105 +832,105 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamagedFXList1` | FXList | `0x12c` | - |
-| `DamagedFXList2` | FXList | `0x150` | - |
-| `DamagedFXList3` | FXList | `0x174` | - |
-| `DamagedFXList4` | FXList | `0x198` | - |
-| `DamagedFXList5` | FXList | `0x1bc` | - |
-| `DamagedFXList6` | FXList | `0x1e0` | - |
-| `DamagedFXList7` | FXList | `0x204` | - |
-| `DamagedFXList8` | FXList | `0x228` | - |
-| `DamagedOCL1` | ObjectCreationList | `0x5b0` | - |
-| `DamagedOCL2` | ObjectCreationList | `0x5d4` | - |
-| `DamagedOCL3` | ObjectCreationList | `0x5f8` | - |
-| `DamagedOCL4` | ObjectCreationList | `0x61c` | - |
-| `DamagedOCL5` | ObjectCreationList | `0x640` | - |
-| `DamagedOCL6` | ObjectCreationList | `0x664` | - |
-| `DamagedOCL7` | ObjectCreationList | `0x688` | - |
-| `DamagedOCL8` | ObjectCreationList | `0x6ac` | - |
-| `DamagedParticleSystem1` | ParticleSystem | `0xa34` | - |
-| `DamagedParticleSystem2` | ParticleSystem | `0xa58` | - |
-| `DamagedParticleSystem3` | ParticleSystem | `0xa7c` | - |
-| `DamagedParticleSystem4` | ParticleSystem | `0xaa0` | - |
-| `DamagedParticleSystem5` | ParticleSystem | `0xac4` | - |
-| `DamagedParticleSystem6` | ParticleSystem | `0xae8` | - |
-| `DamagedParticleSystem7` | ParticleSystem | `0xb0c` | - |
-| `DamagedParticleSystem8` | ParticleSystem | `0xb30` | - |
+| `DamagedFXList1` | FXList | `0x12c` | `""` |
+| `DamagedFXList2` | FXList | `0x150` | `""` |
+| `DamagedFXList3` | FXList | `0x174` | `""` |
+| `DamagedFXList4` | FXList | `0x198` | `""` |
+| `DamagedFXList5` | FXList | `0x1bc` | `""` |
+| `DamagedFXList6` | FXList | `0x1e0` | `""` |
+| `DamagedFXList7` | FXList | `0x204` | `""` |
+| `DamagedFXList8` | FXList | `0x228` | `""` |
+| `DamagedOCL1` | ObjectCreationList | `0x5b0` | `""` |
+| `DamagedOCL2` | ObjectCreationList | `0x5d4` | `""` |
+| `DamagedOCL3` | ObjectCreationList | `0x5f8` | `""` |
+| `DamagedOCL4` | ObjectCreationList | `0x61c` | `""` |
+| `DamagedOCL5` | ObjectCreationList | `0x640` | `""` |
+| `DamagedOCL6` | ObjectCreationList | `0x664` | `""` |
+| `DamagedOCL7` | ObjectCreationList | `0x688` | `""` |
+| `DamagedOCL8` | ObjectCreationList | `0x6ac` | `""` |
+| `DamagedParticleSystem1` | ParticleSystem | `0xa34` | `""` |
+| `DamagedParticleSystem2` | ParticleSystem | `0xa58` | `""` |
+| `DamagedParticleSystem3` | ParticleSystem | `0xa7c` | `""` |
+| `DamagedParticleSystem4` | ParticleSystem | `0xaa0` | `""` |
+| `DamagedParticleSystem5` | ParticleSystem | `0xac4` | `""` |
+| `DamagedParticleSystem6` | ParticleSystem | `0xae8` | `""` |
+| `DamagedParticleSystem7` | ParticleSystem | `0xb0c` | `""` |
+| `DamagedParticleSystem8` | ParticleSystem | `0xb30` | `""` |
 | `DamageFXTypes` | DamageTypeFlags | `0x8` | `ALL` |
 | `DamageOCLTypes` | DamageTypeFlags | `0x48c` | `ALL` |
 | `DamageParticleTypes` | DamageTypeFlags | `0x910` | `ALL` |
-| `PristineFXList1` | FXList | `0xc` | - |
-| `PristineFXList2` | FXList | `0x30` | - |
-| `PristineFXList3` | FXList | `0x54` | - |
-| `PristineFXList4` | FXList | `0x78` | - |
-| `PristineFXList5` | FXList | `0x9c` | - |
-| `PristineFXList6` | FXList | `0xc0` | - |
-| `PristineFXList7` | FXList | `0xe4` | - |
-| `PristineFXList8` | FXList | `0x108` | - |
-| `PristineOCL1` | ObjectCreationList | `0x490` | - |
-| `PristineOCL2` | ObjectCreationList | `0x4b4` | - |
-| `PristineOCL3` | ObjectCreationList | `0x4d8` | - |
-| `PristineOCL4` | ObjectCreationList | `0x4fc` | - |
-| `PristineOCL5` | ObjectCreationList | `0x520` | - |
-| `PristineOCL6` | ObjectCreationList | `0x544` | - |
-| `PristineOCL7` | ObjectCreationList | `0x568` | - |
-| `PristineOCL8` | ObjectCreationList | `0x58c` | - |
-| `PristineParticleSystem1` | ParticleSystem | `0x914` | - |
-| `PristineParticleSystem2` | ParticleSystem | `0x938` | - |
-| `PristineParticleSystem3` | ParticleSystem | `0x95c` | - |
-| `PristineParticleSystem4` | ParticleSystem | `0x980` | - |
-| `PristineParticleSystem5` | ParticleSystem | `0x9a4` | - |
-| `PristineParticleSystem6` | ParticleSystem | `0x9c8` | - |
-| `PristineParticleSystem7` | ParticleSystem | `0x9ec` | - |
-| `PristineParticleSystem8` | ParticleSystem | `0xa10` | - |
-| `ReallyDamagedFXList1` | FXList | `0x24c` | - |
-| `ReallyDamagedFXList2` | FXList | `0x270` | - |
-| `ReallyDamagedFXList3` | FXList | `0x294` | - |
-| `ReallyDamagedFXList4` | FXList | `0x2b8` | - |
-| `ReallyDamagedFXList5` | FXList | `0x2dc` | - |
-| `ReallyDamagedFXList6` | FXList | `0x300` | - |
-| `ReallyDamagedFXList7` | FXList | `0x324` | - |
-| `ReallyDamagedFXList8` | FXList | `0x348` | - |
-| `ReallyDamagedOCL1` | ObjectCreationList | `0x6d0` | - |
-| `ReallyDamagedOCL2` | ObjectCreationList | `0x6f4` | - |
-| `ReallyDamagedOCL3` | ObjectCreationList | `0x718` | - |
-| `ReallyDamagedOCL4` | ObjectCreationList | `0x73c` | - |
-| `ReallyDamagedOCL5` | ObjectCreationList | `0x760` | - |
-| `ReallyDamagedOCL6` | ObjectCreationList | `0x784` | - |
-| `ReallyDamagedOCL7` | ObjectCreationList | `0x7a8` | - |
-| `ReallyDamagedOCL8` | ObjectCreationList | `0x7cc` | - |
-| `ReallyDamagedParticleSystem1` | ParticleSystem | `0xb54` | - |
-| `ReallyDamagedParticleSystem2` | ParticleSystem | `0xb78` | - |
-| `ReallyDamagedParticleSystem3` | ParticleSystem | `0xb9c` | - |
-| `ReallyDamagedParticleSystem4` | ParticleSystem | `0xbc0` | - |
-| `ReallyDamagedParticleSystem5` | ParticleSystem | `0xbe4` | - |
-| `ReallyDamagedParticleSystem6` | ParticleSystem | `0xc08` | - |
-| `ReallyDamagedParticleSystem7` | ParticleSystem | `0xc2c` | - |
-| `ReallyDamagedParticleSystem8` | ParticleSystem | `0xc50` | - |
-| `RubbleFXList1` | FXList | `0x36c` | - |
-| `RubbleFXList2` | FXList | `0x390` | - |
-| `RubbleFXList3` | FXList | `0x3b4` | - |
-| `RubbleFXList4` | FXList | `0x3d8` | - |
-| `RubbleFXList5` | FXList | `0x3fc` | - |
-| `RubbleFXList6` | FXList | `0x420` | - |
-| `RubbleFXList7` | FXList | `0x444` | - |
-| `RubbleFXList8` | FXList | `0x468` | - |
-| `RubbleOCL1` | ObjectCreationList | `0x7f0` | - |
-| `RubbleOCL2` | ObjectCreationList | `0x814` | - |
-| `RubbleOCL3` | ObjectCreationList | `0x838` | - |
-| `RubbleOCL4` | ObjectCreationList | `0x85c` | - |
-| `RubbleOCL5` | ObjectCreationList | `0x880` | - |
-| `RubbleOCL6` | ObjectCreationList | `0x8a4` | - |
-| `RubbleOCL7` | ObjectCreationList | `0x8c8` | - |
-| `RubbleOCL8` | ObjectCreationList | `0x8ec` | - |
-| `RubbleParticleSystem1` | ParticleSystem | `0xc74` | - |
-| `RubbleParticleSystem2` | ParticleSystem | `0xc98` | - |
-| `RubbleParticleSystem3` | ParticleSystem | `0xcbc` | - |
-| `RubbleParticleSystem4` | ParticleSystem | `0xce0` | - |
-| `RubbleParticleSystem5` | ParticleSystem | `0xd04` | - |
-| `RubbleParticleSystem6` | ParticleSystem | `0xd28` | - |
-| `RubbleParticleSystem7` | ParticleSystem | `0xd4c` | - |
-| `RubbleParticleSystem8` | ParticleSystem | `0xd70` | - |
+| `PristineFXList1` | FXList | `0xc` | `""` |
+| `PristineFXList2` | FXList | `0x30` | `""` |
+| `PristineFXList3` | FXList | `0x54` | `""` |
+| `PristineFXList4` | FXList | `0x78` | `""` |
+| `PristineFXList5` | FXList | `0x9c` | `""` |
+| `PristineFXList6` | FXList | `0xc0` | `""` |
+| `PristineFXList7` | FXList | `0xe4` | `""` |
+| `PristineFXList8` | FXList | `0x108` | `""` |
+| `PristineOCL1` | ObjectCreationList | `0x490` | `""` |
+| `PristineOCL2` | ObjectCreationList | `0x4b4` | `""` |
+| `PristineOCL3` | ObjectCreationList | `0x4d8` | `""` |
+| `PristineOCL4` | ObjectCreationList | `0x4fc` | `""` |
+| `PristineOCL5` | ObjectCreationList | `0x520` | `""` |
+| `PristineOCL6` | ObjectCreationList | `0x544` | `""` |
+| `PristineOCL7` | ObjectCreationList | `0x568` | `""` |
+| `PristineOCL8` | ObjectCreationList | `0x58c` | `""` |
+| `PristineParticleSystem1` | ParticleSystem | `0x914` | `""` |
+| `PristineParticleSystem2` | ParticleSystem | `0x938` | `""` |
+| `PristineParticleSystem3` | ParticleSystem | `0x95c` | `""` |
+| `PristineParticleSystem4` | ParticleSystem | `0x980` | `""` |
+| `PristineParticleSystem5` | ParticleSystem | `0x9a4` | `""` |
+| `PristineParticleSystem6` | ParticleSystem | `0x9c8` | `""` |
+| `PristineParticleSystem7` | ParticleSystem | `0x9ec` | `""` |
+| `PristineParticleSystem8` | ParticleSystem | `0xa10` | `""` |
+| `ReallyDamagedFXList1` | FXList | `0x24c` | `""` |
+| `ReallyDamagedFXList2` | FXList | `0x270` | `""` |
+| `ReallyDamagedFXList3` | FXList | `0x294` | `""` |
+| `ReallyDamagedFXList4` | FXList | `0x2b8` | `""` |
+| `ReallyDamagedFXList5` | FXList | `0x2dc` | `""` |
+| `ReallyDamagedFXList6` | FXList | `0x300` | `""` |
+| `ReallyDamagedFXList7` | FXList | `0x324` | `""` |
+| `ReallyDamagedFXList8` | FXList | `0x348` | `""` |
+| `ReallyDamagedOCL1` | ObjectCreationList | `0x6d0` | `""` |
+| `ReallyDamagedOCL2` | ObjectCreationList | `0x6f4` | `""` |
+| `ReallyDamagedOCL3` | ObjectCreationList | `0x718` | `""` |
+| `ReallyDamagedOCL4` | ObjectCreationList | `0x73c` | `""` |
+| `ReallyDamagedOCL5` | ObjectCreationList | `0x760` | `""` |
+| `ReallyDamagedOCL6` | ObjectCreationList | `0x784` | `""` |
+| `ReallyDamagedOCL7` | ObjectCreationList | `0x7a8` | `""` |
+| `ReallyDamagedOCL8` | ObjectCreationList | `0x7cc` | `""` |
+| `ReallyDamagedParticleSystem1` | ParticleSystem | `0xb54` | `""` |
+| `ReallyDamagedParticleSystem2` | ParticleSystem | `0xb78` | `""` |
+| `ReallyDamagedParticleSystem3` | ParticleSystem | `0xb9c` | `""` |
+| `ReallyDamagedParticleSystem4` | ParticleSystem | `0xbc0` | `""` |
+| `ReallyDamagedParticleSystem5` | ParticleSystem | `0xbe4` | `""` |
+| `ReallyDamagedParticleSystem6` | ParticleSystem | `0xc08` | `""` |
+| `ReallyDamagedParticleSystem7` | ParticleSystem | `0xc2c` | `""` |
+| `ReallyDamagedParticleSystem8` | ParticleSystem | `0xc50` | `""` |
+| `RubbleFXList1` | FXList | `0x36c` | `""` |
+| `RubbleFXList2` | FXList | `0x390` | `""` |
+| `RubbleFXList3` | FXList | `0x3b4` | `""` |
+| `RubbleFXList4` | FXList | `0x3d8` | `""` |
+| `RubbleFXList5` | FXList | `0x3fc` | `""` |
+| `RubbleFXList6` | FXList | `0x420` | `""` |
+| `RubbleFXList7` | FXList | `0x444` | `""` |
+| `RubbleFXList8` | FXList | `0x468` | `""` |
+| `RubbleOCL1` | ObjectCreationList | `0x7f0` | `""` |
+| `RubbleOCL2` | ObjectCreationList | `0x814` | `""` |
+| `RubbleOCL3` | ObjectCreationList | `0x838` | `""` |
+| `RubbleOCL4` | ObjectCreationList | `0x85c` | `""` |
+| `RubbleOCL5` | ObjectCreationList | `0x880` | `""` |
+| `RubbleOCL6` | ObjectCreationList | `0x8a4` | `""` |
+| `RubbleOCL7` | ObjectCreationList | `0x8c8` | `""` |
+| `RubbleOCL8` | ObjectCreationList | `0x8ec` | `""` |
+| `RubbleParticleSystem1` | ParticleSystem | `0xc74` | `""` |
+| `RubbleParticleSystem2` | ParticleSystem | `0xc98` | `""` |
+| `RubbleParticleSystem3` | ParticleSystem | `0xcbc` | `""` |
+| `RubbleParticleSystem4` | ParticleSystem | `0xce0` | `""` |
+| `RubbleParticleSystem5` | ParticleSystem | `0xd04` | `""` |
+| `RubbleParticleSystem6` | ParticleSystem | `0xd28` | `""` |
+| `RubbleParticleSystem7` | ParticleSystem | `0xd4c` | `""` |
+| `RubbleParticleSystem8` | ParticleSystem | `0xd70` | `""` |
 
 ## BoredUpdate
 
@@ -960,8 +961,8 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `AllowKindOf` | KindOfFlags | `0x8` | - |
-| `ConflictsWith` | UpgradeMask | `0xc0` | - |
+| `AllowKindOf` | KindOfFlags | `0x8` | `""` |
+| `ConflictsWith` | UpgradeMask | `0xc0` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x150` | - |
 | `DelayBetweenUpdates` | Int | `0x28` | `0` |
 | `Permanent` | Bool | `0x15e` | `No` |
@@ -969,7 +970,7 @@ constant-tracking through each constructor.
 | `Radius` | Real | `0x24` | `100` |
 | `RequiresAllConflictingTriggers` | Bool | `0x15d` | `No` |
 | `RequiresAllTriggers` | Bool | `0x15c` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x30` | - |
+| `TriggeredBy` | UpgradeMask | `0x30` | `""` |
 
 ## BuildableHeroListUpgrade
 
@@ -977,12 +978,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## BuildingBehavior
 
@@ -1102,12 +1103,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 | `Upgrade` | AsciiString | `0x138` | `""` |
 | `WallUpgradeRadius` | Real | `0x13c` | `0` |
 
@@ -1273,11 +1274,11 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `ClickReactionTimer` | Int | `0x8` | `600` |
-| `ReactionFrames1` | Int | `0xc` | - |
-| `ReactionFrames2` | Int | `0x10` | - |
-| `ReactionFrames3` | Int | `0x14` | - |
-| `ReactionFrames4` | Int | `0x18` | - |
-| `ReactionFrames5` | Int | `0x1c` | - |
+| `ReactionFrames1` | Int | `0xc` | `0` |
+| `ReactionFrames2` | Int | `0x10` | `0` |
+| `ReactionFrames3` | Int | `0x14` | `0` |
+| `ReactionFrames4` | Int | `0x18` | `0` |
+| `ReactionFrames5` | Int | `0x1c` | `0` |
 
 ## CloudBreakSpecialPower
 
@@ -1399,12 +1400,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `CommandSet` | AsciiString | `0x138` | `""` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## CostModifierUpgrade
 
@@ -1435,10 +1436,10 @@ constant-tracking through each constructor.
 | `CrateData` | 0x00888b65 | `0x0` | - |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 
 ## CreateObjectDie
 
@@ -1450,10 +1451,10 @@ constant-tracking through each constructor.
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `DebrisPortionOfSelf` | AsciiString | `0x3c` | - |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `UpgradeRequired` | AsciiStringList | `0x40` | `""` |
 
 ## CreateObjectDieIfEldestKindof
@@ -1489,18 +1490,18 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `BackEndCrushSound` | AudioEventRTS | `0x3c` | - |
-| `BackEndCrushSoundPercent` | Int | `0x4c` | - |
+| `BackEndCrushSound` | AudioEventRTS | `0x3c` | `""` |
+| `BackEndCrushSoundPercent` | Int | `0x4c` | `100` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
-| `FrontEndCrushSound` | AudioEventRTS | `0x40` | - |
-| `FrontEndCrushSoundPercent` | Int | `0x50` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
+| `FrontEndCrushSound` | AudioEventRTS | `0x40` | `""` |
+| `FrontEndCrushSoundPercent` | Int | `0x50` | `100` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
-| `TotalCrushSound` | AudioEventRTS | `0x38` | - |
-| `TotalCrushSoundPercent` | Int | `0x48` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
+| `TotalCrushSound` | AudioEventRTS | `0x38` | `""` |
+| `TotalCrushSoundPercent` | Int | `0x48` | `100` |
 
 ## CurseSpecialPower
 
@@ -1597,11 +1598,11 @@ constant-tracking through each constructor.
 | `DamageTypeTriggersForDuration` | Enum | `0x40` | - |
 | `DamageTypeTriggersInstantly` | Enum | `0x3c` | - |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
 | `PostFilterTriggeredDuration` | Duration | `0x44` | `0` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 
 ## DarknessSpecialPower
 
@@ -1731,7 +1732,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `ImmortalUntilDeathTime` | Bool | `0x70` | `Yes` |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `InvulnerableFX` | FXList | `0x74` | `""` |
@@ -1750,13 +1751,13 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `DelayTime` | Duration | `0x138` | `0` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## DeletionUpdate
 
@@ -1778,7 +1779,7 @@ constant-tracking through each constructor.
 | `DetonateWhenKilled` | Bool | `0x3e` | `No` |
 | `DetonationWeapon` | WeaponTemplate | `0x8` | `""` |
 | `DetonationWeaponSlot` | LookupList | `0x2c` | `PRIMARY` |
-| `IgnoreTargetTypes` | KindOfFlags | `0xc` | - |
+| `IgnoreTargetTypes` | KindOfFlags | `0xc` | `""` |
 | `ManualModeWeaponSlot` | LookupList | `0x28` | `PRIMARY` |
 | `ProximityModeWeaponSlot` | LookupList | `0x30` | `PRIMARY` |
 | `ScanRate` | Duration | `0x38` | `0` |
@@ -1825,10 +1826,10 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 
 ## DestroyEnvironmentUpdate
 
@@ -1859,7 +1860,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `HealthPercentageWhenRiderDies` | Percent | `0x194` | `100%` |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
@@ -1941,14 +1942,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `GetUpgradeCommandButtonName` | AsciiString | `0x138` | `""` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RemoveUpgradeCommandButtonName` | AsciiString | `0x13c` | `""` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## DominateEnemySpecialPower
 
@@ -2304,12 +2305,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AddXPScalar` | Real | `0x138` | `0` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## FadeAndDieOrnamentUpdate
 
@@ -2329,12 +2330,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AllowEnemies` | Bool | `0x138` | `No` |
 | `AllowNonSkirmishAIUnits` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## FellBeastSwoopPower
 
@@ -2424,8 +2425,8 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `CollideWeapon` | WeaponTemplate | `0x8` | `""` |
 | `FireOnce` | Bool | `0x2c` | `No` |
-| `ForbiddenStatus` | ObjectStatusFlags | `0x1c` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0xc` | - |
+| `ForbiddenStatus` | ObjectStatusFlags | `0x1c` | `""` |
+| `RequiredStatus` | ObjectStatusFlags | `0xc` | `""` |
 
 ## FireWeaponUpdate
 
@@ -2444,7 +2445,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `ContinuousWeaponDamaged` | WeaponTemplate | `0x158` | `""` |
 | `ContinuousWeaponPristine` | WeaponTemplate | `0x154` | `""` |
 | `ContinuousWeaponReallyDamaged` | WeaponTemplate | `0x15c` | `""` |
@@ -2460,7 +2461,7 @@ constant-tracking through each constructor.
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x138` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## FireWeaponWhenDeadBehavior
 
@@ -2469,22 +2470,22 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `ActiveDuringConstruction` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `DamageAmountRequired` | Real | `0x170` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x14c` | `ALL` |
 | `DeathWeapon` | WeaponTemplate | `0x17c` | `""` |
 | `DelayTime` | Duration | `0x13c` | `0` |
-| `ExemptStatus` | ObjectStatusFlags | `0x150` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x150` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x178` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x174` | `57.2958` |
 | `Permanent` | Bool | `0x136` | `No` |
-| `RequiredStatus` | ObjectStatusFlags | `0x160` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x160` | `""` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x138` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
-| `WeaponOffset` | Coord3D | `0x140` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
+| `WeaponOffset` | Coord3D | `0x140` | `X:0 Y:0 Z:0` |
 
 ## FlammableUpdate
 
@@ -2501,7 +2502,7 @@ constant-tracking through each constructor.
 | `CustomAnimAndDuration` | AnimAndDuration | `0x4c` | - |
 | `DamageType` | Enum | `0x24` | `FLAME` |
 | `FireFXList` | 0x00890cd9 | `0x0` | - |
-| `FlameDamageExpiration` | Duration | `0x20` | - |
+| `FlameDamageExpiration` | Duration | `0x20` | `5000` |
 | `FlameDamageLimit` | Real | `0x1c` | `20` |
 | `PanicLocomotorWhileAflame` | Bool | `0x48` | `No` |
 | `RunToWater` | Bool | `0x3a` | `No` |
@@ -2539,7 +2540,7 @@ constant-tracking through each constructor.
 | `EffectValue` | Int | `0x5c` | `1` |
 | `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
 | `FlingPassengerLandingWarhead` | WeaponTemplate | `0xdc` | `""` |
-| `FlingPassengerVelocity` | Coord3D | `0xd0` | - |
+| `FlingPassengerVelocity` | Coord3D | `0xd0` | `X:0 Y:0 Z:0` |
 | `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
 | `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
 | `FreezeAfterTriggerDuration` | Duration | `0x9c` | `0` |
@@ -2634,7 +2635,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -2699,11 +2700,11 @@ constant-tracking through each constructor.
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathFX` | FXList | `0x38` | `""` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
 | `OrientToObject` | Bool | `0x3c` | `Yes` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 
 ## GarrisonContain
 
@@ -2753,12 +2754,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## GateOpenAndCloseBehavior
 
@@ -2806,7 +2807,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `HideGeometry` | AsciiStringList | `0x144` | `""` |
 | `Permanent` | Bool | `0x136` | `No` |
@@ -2815,7 +2816,7 @@ constant-tracking through each constructor.
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `ShowGeometry` | AsciiStringList | `0x138` | `""` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 | `WallBoundsMesh` | AsciiString | `0x150` | - |
 
 ## GettingBuiltBehavior
@@ -2882,7 +2883,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `CrashAvoidKindOfs` | KindOfFlags | `0x19c` | - |
+| `CrashAvoidKindOfs` | KindOfFlags | `0x19c` | `""` |
 | `CrashAvoidRadius` | Real | `0x1b8` | `800` |
 | `CrashAvoidStrength` | Real | `0x1bc` | `0.1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
@@ -2893,7 +2894,7 @@ constant-tracking through each constructor.
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FadeDelay` | Duration | `0x188` | `0xFACADE00` |
 | `FadeTime` | Duration | `0x184` | `1200` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -2909,7 +2910,7 @@ constant-tracking through each constructor.
 | `OCL` | MomentOCL | `0x0` | - |
 | `OCLHitGround` | ObjectCreationList | `0x194` | `""` |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -2941,7 +2942,7 @@ constant-tracking through each constructor.
 | `EffectDuration` | Duration | `0x7c` | `0` |
 | `EffectRange` | Real | `0x60` | `0` |
 | `EffectValue` | Int | `0x5c` | `1` |
-| `FlagsUsedForToggle` | WeaponSetFlags | `0xd8` | - |
+| `FlagsUsedForToggle` | WeaponSetFlags | `0xd8` | `""` |
 | `FleeRangeAfterCompletion` | Real | `0x58` | `0` |
 | `FlipOwnerAfterPacking` | Bool | `0xac` | `No` |
 | `FlipOwnerAfterUnpacking` | Bool | `0xad` | `No` |
@@ -3178,7 +3179,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `GiveOnBuildComplete` | Bool | `0x1c` | `No` |
 | `UpgradeToGrant` | AsciiString | `0x8` | - |
 
@@ -3259,10 +3260,10 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `""` |
 
 ## HeroModeSpecialAbilityUpdate
@@ -3354,7 +3355,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -3380,12 +3381,12 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `FastHitsResetReaction` | Bool | `0x20` | `No` |
-| `HitReactionLifeTimer1` | Duration | `0x8` | - |
-| `HitReactionLifeTimer2` | Duration | `0xc` | - |
-| `HitReactionLifeTimer3` | Duration | `0x10` | - |
-| `HitReactionThreshold1` | Real | `0x14` | - |
-| `HitReactionThreshold2` | Real | `0x18` | - |
-| `HitReactionThreshold3` | Real | `0x1c` | - |
+| `HitReactionLifeTimer1` | Duration | `0x8` | `0` |
+| `HitReactionLifeTimer2` | Duration | `0xc` | `0` |
+| `HitReactionLifeTimer3` | Duration | `0x10` | `0` |
+| `HitReactionThreshold1` | Real | `0x14` | `3.40282e+38` |
+| `HitReactionThreshold2` | Real | `0x18` | `3.40282e+38` |
+| `HitReactionThreshold3` | Real | `0x1c` | `3.40282e+38` |
 | `HitsParalyze` | Bool | `0x21` | `No` |
 
 ## HordeAIUpdate
@@ -3929,7 +3930,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -3957,12 +3958,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FX` | FXList | `0x38` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
 | `OCL` | 0x008601eb | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `Sound` | 0x00860324 | `0x0` | - |
 | `Weapon` | 0x0086022e | `0x0` | - |
 
@@ -4038,10 +4039,10 @@ constant-tracking through each constructor.
 | `CollapsingTime` | Duration | `0x38` | `5000` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `StayOnRadar` | Bool | `0x3c` | `No` |
 
 ## LargeGroupAudioUpdate
@@ -4159,14 +4160,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LevelCap` | Int | `0x13c` | `0` |
 | `LevelsToGain` | Int | `0x138` | `0` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## LifetimeUpdate
 
@@ -4194,13 +4195,13 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `KillLocomotorUpgrade` | Bool | `0x138` | `No` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## ManTheWallsSpecialPower
 
@@ -4252,12 +4253,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AddMaxHealth` | Real | `0x138` | `0` |
 | `ChangeType` | Enum | `0x13c` | `SAME_CURRENTHEALTH` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## MineshaftPortalBehaviour
 
@@ -4267,12 +4268,12 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AllowEnemies` | Bool | `0x138` | `No` |
 | `AllowNonSkirmishAIUnits` | Bool | `0x139` | `No` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## MissileUpdate
 
@@ -4302,9 +4303,9 @@ constant-tracking through each constructor.
 | `FlightPathAdjustDistPerSecond` | VelocityReal | `0x8c` | `0` |
 | `FuelLifetime` | Duration | `0xc0` | `0` |
 | `GarrisonHitKillCount` | UnsignedInt | `0x4c` | `0` |
-| `GarrisonHitKillForbiddenKindOf` | KindOfFlags | `0x6c` | - |
+| `GarrisonHitKillForbiddenKindOf` | KindOfFlags | `0x6c` | `""` |
 | `GarrisonHitKillFX` | FXList | `0x88` | `""` |
-| `GarrisonHitKillRequiredKindOf` | KindOfFlags | `0x50` | - |
+| `GarrisonHitKillRequiredKindOf` | KindOfFlags | `0x50` | `""` |
 | `GroundBounceFX` | FXList | `0xa0` | `""` |
 | `GroundBounceWeapon` | WeaponTemplate | `0xa8` | `""` |
 | `GroundHitFX` | FXList | `0x9c` | `""` |
@@ -4419,17 +4420,17 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `AddConditionFlags` | ModelConditionFlags | `0x138` | - |
+| `AddConditionFlags` | ModelConditionFlags | `0x138` | `""` |
 | `AddTempConditionFlag` | ModelConditionFlag | `0x1d0` | `""` |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
-| `RemoveConditionFlags` | ModelConditionFlags | `0x184` | - |
+| `RemoveConditionFlags` | ModelConditionFlags | `0x184` | `""` |
 | `RemoveConditionFlagsInRange` | ModelConditionFlagRange | `0x184` | - |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `TempConditionTime` | Real | `0x1d4` | `0` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## MoneyCrateCollide
 
@@ -4457,8 +4458,8 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `ModelConditionCommandSet` | AsciiString | `0x54` | `""` |
-| `ModelConditionFlags` | ModelConditionFlags | `0x8` | - |
-| `WeaponSetFlags` | WeaponSetFlags | `0x58` | - |
+| `ModelConditionFlags` | ModelConditionFlags | `0x8` | `""` |
+| `WeaponSetFlags` | WeaponSetFlags | `0x58` | `""` |
 | `WeaponToggleCommandSet` | AsciiString | `0x68` | `""` |
 
 ## MonsterDockUpdate
@@ -4501,7 +4502,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -4526,20 +4527,20 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `Angle` | AngleReal | `0x158` | `0` |
-| `ConflictsWith` | UpgradeMask | `0xa0` | - |
+| `ConflictsWith` | UpgradeMask | `0xa0` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x130` | - |
 | `DeathAnimAndDuration` | AnimAndDuration | `0x160` | - |
 | `Delay` | Duration | `0xc` | `0` |
 | `DestroyWhenSold` | Bool | `0x15c` | `No` |
 | `FadeInTime` | UnsignedInt | `0x16c` | `0` |
 | `GrantUpgrade` | AsciiString | `0x144` | `""` |
-| `Offset` | Coord3D | `0x14c` | - |
+| `Offset` | Coord3D | `0x14c` | `X:0 Y:0 Z:0` |
 | `Permanent` | Bool | `0x13e` | `No` |
 | `RemoveUpgrade` | AsciiString | `0x140` | `""` |
 | `RequiresAllConflictingTriggers` | Bool | `0x13d` | `No` |
 | `RequiresAllTriggers` | Bool | `0x13c` | `No` |
 | `ThingToSpawn` | AsciiString | `0x148` | `""` |
-| `TriggeredBy` | UpgradeMask | `0x10` | - |
+| `TriggeredBy` | UpgradeMask | `0x10` | `""` |
 | `UpgradeObject` | ObjectCreationList | `0x8` | `""` |
 | `UseBuildingProduction` | Bool | `0x170` | `No` |
 
@@ -4869,7 +4870,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -4979,7 +4980,7 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `BonusForType` | AsciiString | `0x44` | `""` |
 | `ConstructionCompleteDuration` | Duration | `0x18` | `0` |
-| `DisabledTypesToProcess` | DisabledTypeFlags | `0x2c` | - |
+| `DisabledTypesToProcess` | DisabledTypeFlags | `0x2c` | `DISABLED_HELD` |
 | `DoorCloseTime` | Duration | `0x14` | `0` |
 | `DoorOpeningTime` | Duration | `0xc` | `0` |
 | `DoorWaitOpenTime` | Duration | `0x10` | `0` |
@@ -5055,13 +5056,13 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `DisableProof` | Bool | `0x138` | `No` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## RadiateFearUpdate
 
@@ -5109,7 +5110,7 @@ constant-tracking through each constructor.
 | `RampageAngryLifeTimer` | Int | `0x1c` | `0` |
 | `RampageEnemyCheckRange` | Real | `0x24` | `0` |
 | `RampageEnemyThreshold` | Int | `0x28` | `0` |
-| `RampageHealthThreshold` | Real | `0x14` | - |
+| `RampageHealthThreshold` | Real | `0x14` | `0` |
 | `RampageLifeTimer` | Int | `0x18` | `0` |
 | `RampageResetTimer` | Int | `0x20` | `0` |
 | `RequiredUpgrade` | AsciiStringList | `0x8` | - |
@@ -5199,13 +5200,13 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FadeInTimeSeconds` | Real | `0x40` | `0` |
 | `HoleMaxHealth` | Real | `0x3c` | `0` |
 | `HoleName` | AsciiString | `0x38` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `TransferAttackers` | Bool | `0x44` | `Yes` |
 
 ## ReflectDamage
@@ -5240,14 +5241,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RemoveFromAllPlayerObjects` | Bool | `0x151` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `SuppressEvaEventForRemoval` | Bool | `0x150` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 | `UpgradeGroupsToRemove` | AsciiStringList | `0x144` | `""` |
 | `UpgradeToRemove` | AsciiStringList | `0x138` | `""` |
 
@@ -5381,13 +5382,13 @@ constant-tracking through each constructor.
 | field | type | offset | default |
 |---|---|---|---|
 | `AndThenAddA` | AsciiStringList | `0x138` | - |
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `ReplaceWith` | AsciiStringList | `0x138` | - |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## ReplenishUnitsBehavior
 
@@ -5395,7 +5396,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `NoReplenishIfEnemyWithinRadius` | Real | `0x13c` | `0` |
 | `Permanent` | Bool | `0x136` | `No` |
@@ -5403,11 +5404,11 @@ constant-tracking through each constructor.
 | `ReplenishFXList` | FXList | `0x140` | `""` |
 | `ReplenishHordeMembersOnly` | Bool | `0x159` | `No` |
 | `ReplenishRadius` | Real | `0x138` | `100` |
-| `ReplenishStatii` | ObjectStatusFlags | `0x144` | - |
+| `ReplenishStatii` | ObjectStatusFlags | `0x144` | `""` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x158` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## RespawnBody
 
@@ -5428,7 +5429,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -5634,7 +5635,7 @@ constant-tracking through each constructor.
 | `BigBurstFrequency` | Int | `0x48` | `0` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FXList` | MomentFXList | `0x0` | - |
 | `MaxBurstDelay` | Duration | `0x44` | - |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -5644,7 +5645,7 @@ constant-tracking through each constructor.
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
 | `MinRubbleRiseDelay` | Duration | `0x38` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `RubbleHeight` | Real | `0x50` | `0` |
 | `RubbleRiseDamping` | Real | `0x4c` | `0` |
 
@@ -5821,7 +5822,7 @@ constant-tracking through each constructor.
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FadeDelay` | Duration | `0x188` | `0xFACADE00` |
 | `FadeTime` | Duration | `0x184` | `1200` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -5834,7 +5835,7 @@ constant-tracking through each constructor.
 | `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0%` |
 | `OCL` | MomentOCL | `0x0` | - |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -6106,7 +6107,7 @@ constant-tracking through each constructor.
 | `DestructionDelay` | Duration | `0x4c` | `0` |
 | `DestructionDelayVariance` | Duration | `0x50` | `0` |
 | `DoNotRandomizeMidpoint` | Bool | `0x18e` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FadeDelay` | Duration | `0x188` | `0xFACADE00` |
 | `FadeTime` | Duration | `0x184` | `1200` |
 | `FlingForce` | Real | `0x118` | `0` |
@@ -6119,7 +6120,7 @@ constant-tracking through each constructor.
 | `ModifierBonusPerOverkillPercent` | Percent | `0x40` | `0%` |
 | `OCL` | MomentOCL | `0x0` | - |
 | `ProbabilityModifier` | Int | `0x3c` | `10` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `ShadowWhenDead` | Bool | `0x18d` | `No` |
 | `SinkDelay` | Duration | `0x44` | `0` |
 | `SinkDelayVariance` | Duration | `0x48` | `0` |
@@ -6135,11 +6136,11 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `AggregateHealth` | Bool | `0x16` | `No` |
 | `CanReclaimOrphans` | Bool | `0x15` | `No` |
-| `ConflictsWith` | UpgradeMask | `0xec` | - |
+| `ConflictsWith` | UpgradeMask | `0xec` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x17c` | - |
 | `DamageAmountRequired` | Real | `0x50` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x2c` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0x30` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0x30` | `""` |
 | `ExitByBudding` | Bool | `0x17` | `No` |
 | `FadeInTime` | UnsignedInt | `0x18c` | `0` |
 | `InitialBurst` | Int | `0x10` | `0` |
@@ -6149,7 +6150,7 @@ constant-tracking through each constructor.
 | `OneShot` | Bool | `0x14` | `No` |
 | `Permanent` | Bool | `0x18a` | `No` |
 | `PropagateDamageTypesToSlavesWhenExisting` | DamageTypeFlags | `0x1c` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x40` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x40` | `""` |
 | `RequiresAllConflictingTriggers` | Bool | `0x189` | `No` |
 | `RequiresAllTriggers` | Bool | `0x188` | `No` |
 | `RespectCommandLimit` | Bool | `0x19` | `No` |
@@ -6159,7 +6160,7 @@ constant-tracking through each constructor.
 | `SpawnNumber` | Int | `0x8` | `0` |
 | `SpawnReplaceDelay` | Duration | `0xc` | `0` |
 | `SpawnTemplateName` | AsciiStringList | `0x20` | - |
-| `TriggeredBy` | UpgradeMask | `0x5c` | - |
+| `TriggeredBy` | UpgradeMask | `0x5c` | `""` |
 
 ## SpawnedModelConditionCreate
 
@@ -6345,10 +6346,10 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x38` | `""` |
 
 ## SpecialPowerModule
@@ -6441,7 +6442,7 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LabelForPalantirString` | AsciiString | `0x148` | `">UNSPECIFIED<"` |
 | `Percentage` | 0x008ba26f | `0x138` | - |
@@ -6449,7 +6450,7 @@ constant-tracking through each constructor.
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `StartsActive` | Bool | `0x144` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## SplitHordeSpecialPower
 
@@ -6507,14 +6508,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `StatusToClear` | ObjectStatusFlags | `0x148` | - |
-| `StatusToSet` | ObjectStatusFlags | `0x138` | - |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `StatusToClear` | ObjectStatusFlags | `0x148` | `""` |
+| `StatusToSet` | ObjectStatusFlags | `0x138` | `""` |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## StatusBitsUpgradeIfEldestKindof
 
@@ -6543,8 +6544,8 @@ constant-tracking through each constructor.
 | `CanDetectWhileGarrisoned` | Bool | `0x68` | `No` |
 | `DetectionRange` | Real | `0xc` | `0` |
 | `DetectionRate` | Duration | `0x8` | `200` |
-| `ExtraForbiddenKindOf` | KindOfFlags | `0x4c` | - |
-| `ExtraRequiredKindOf` | KindOfFlags | `0x30` | - |
+| `ExtraForbiddenKindOf` | KindOfFlags | `0x4c` | `""` |
+| `ExtraRequiredKindOf` | KindOfFlags | `0x30` | `""` |
 | `InitiallyDisabled` | Bool | `0x10` | `No` |
 | `IRBeaconParticleSysName` | ParticleSystem | `0x1c` | `""` |
 | `IRBrightParticleSysName` | ParticleSystem | `0x24` | `""` |
@@ -6578,7 +6579,7 @@ constant-tracking through each constructor.
 | `ForbiddenUpgradeNames` | AsciiStringList | `0xbc` | `""` |
 | `FriendlyOpacityMax` | Percent | `0x28` | `100%` |
 | `FriendlyOpacityMin` | Percent | `0x24` | `50%` |
-| `HintDetectableConditions` | ObjectStatusFlags | `0x10` | - |
+| `HintDetectableConditions` | ObjectStatusFlags | `0x10` | `""` |
 | `InnateStealth` | Bool | `0x55` | `Yes` |
 | `MoveThresholdSpeed` | VelocityReal | `0x20` | `0` |
 | `OneRingDelayOff` | Duration | `0x94` | `2000` |
@@ -6588,7 +6589,7 @@ constant-tracking through each constructor.
 | `RemoveTerrainRestrictionOnUpgrade` | AsciiStringList | `0x74` | - |
 | `RequiredUpgradeNames` | AsciiStringList | `0xb0` | `""` |
 | `RevealDistanceFromTarget` | Real | `0x34` | `0` |
-| `RevealWeaponSets` | WeaponSetFlags | `0x64` | - |
+| `RevealWeaponSets` | WeaponSetFlags | `0x64` | `""` |
 | `RingAnimTimeOff` | Duration | `0x9c` | `0` |
 | `RingAnimTimeOn` | Duration | `0x98` | `0` |
 | `RingDelayAfterRemoving` | Duration | `0xa0` | `0` |
@@ -6604,12 +6605,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## StopSpecialPower
 
@@ -6753,7 +6754,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -6775,7 +6776,7 @@ constant-tracking through each constructor.
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `DestroyObjectWhenDone` | Bool | `0xf4` | `No` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `FXList` | MomentFXList | `0x0` | - |
 | `MaxBurstDelay` | Duration | `0x44` | - |
 | `MaxCollapseDelay` | Duration | `0x3c` | `0` |
@@ -6785,7 +6786,7 @@ constant-tracking through each constructor.
 | `MinCollapseDelay` | Duration | `0x38` | `0` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
 | `OCL` | MomentOCL | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 
 ## StructureToppleUpdate
 
@@ -6799,7 +6800,7 @@ constant-tracking through each constructor.
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamageFXTypes` | DamageTypeFlags | `0x4c` | `ALL` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `ForceToppleAngle` | Real | `0xb8` | `-9.87654` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MaxToppleBurstDelay` | Duration | `0x6c` | `0` |
@@ -6808,7 +6809,7 @@ constant-tracking through each constructor.
 | `MinToppleBurstDelay` | Duration | `0x68` | `0` |
 | `MinToppleDelay` | Duration | `0x38` | `0` |
 | `OCL` | MomentOCL | `0x0` | - |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `StructuralDecay` | Real | `0x44` | `0` |
 | `StructuralIntegrity` | Real | `0x40` | `0.1` |
 | `ToppleAccelerationFactor` | Real | `0x48` | `0.06` |
@@ -6823,20 +6824,20 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `ExcludeSubobjects` | AsciiStringList | `0x150` | `""` |
 | `FadeTimeInSeconds` | Real | `0x168` | `0.5` |
 | `HideSubObjects` | AsciiStringList | `0x144` | `""` |
-| `HideSubObjectsOnRemove` | Bool | `0x172` | - |
+| `HideSubObjectsOnRemove` | Bool | `0x172` | `No` |
 | `Permanent` | Bool | `0x136` | `No` |
-| `RecolorHouse` | Bool | `0x170` | - |
+| `RecolorHouse` | Bool | `0x170` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `ShowSubObjects` | AsciiStringList | `0x138` | `""` |
-| `SkipFadeOnCreate` | Bool | `0x171` | - |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
-| `UnHideSubObjectsOnRemove` | Bool | `0x173` | - |
+| `SkipFadeOnCreate` | Bool | `0x171` | `No` |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
+| `UnHideSubObjectsOnRemove` | Bool | `0x173` | `No` |
 | `UpgradeTexture` | 0x008b9420 | `0x15c` | - |
 | `WaitBeforeFadeInSeconds` | Real | `0x16c` | `0` |
 
@@ -7011,7 +7012,7 @@ constant-tracking through each constructor.
 | `GrabFX` | FXList | `0x38` | `""` |
 | `GrabObject` | AsciiString | `0x2c` | - |
 | `GrabOffset` | Coord2D | `0x40` | `X:0 Y:0` |
-| `HealingBuffFx` | FXList | `0x48` | `""` |
+| `HealingBuffFx` | FXList | `0x48` | - |
 | `InitialHealth` | Real | `0xc` | `-1` |
 | `MaxHealth` | Real | `0x8` | `0` |
 | `MaxHealthDamaged` | Real | `0x10` | `0` |
@@ -7457,14 +7458,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Description` | AsciiString | `0x13c` | - |
 | `DisplayName` | AsciiString | `0x138` | `""` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## ToppleUpdate
 
@@ -7491,125 +7492,125 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `DamagedFXList1` | FXList | `0x15c` | - |
-| `DamagedFXList10` | FXList | `0x258` | - |
-| `DamagedFXList11` | FXList | `0x274` | - |
-| `DamagedFXList12` | FXList | `0x290` | - |
-| `DamagedFXList2` | FXList | `0x178` | - |
-| `DamagedFXList3` | FXList | `0x194` | - |
-| `DamagedFXList4` | FXList | `0x1b0` | - |
-| `DamagedFXList5` | FXList | `0x1cc` | - |
-| `DamagedFXList6` | FXList | `0x1e8` | - |
-| `DamagedFXList7` | FXList | `0x204` | - |
-| `DamagedFXList8` | FXList | `0x220` | - |
-| `DamagedFXList9` | FXList | `0x23c` | - |
+| `DamagedFXList1` | FXList | `0x15c` | `""` |
+| `DamagedFXList10` | FXList | `0x258` | `""` |
+| `DamagedFXList11` | FXList | `0x274` | `""` |
+| `DamagedFXList12` | FXList | `0x290` | `""` |
+| `DamagedFXList2` | FXList | `0x178` | `""` |
+| `DamagedFXList3` | FXList | `0x194` | `""` |
+| `DamagedFXList4` | FXList | `0x1b0` | `""` |
+| `DamagedFXList5` | FXList | `0x1cc` | `""` |
+| `DamagedFXList6` | FXList | `0x1e8` | `""` |
+| `DamagedFXList7` | FXList | `0x204` | `""` |
+| `DamagedFXList8` | FXList | `0x220` | `""` |
+| `DamagedFXList9` | FXList | `0x23c` | `""` |
 | `DamagedHideSubObject` | AsciiStringList | `0xfe0` | - |
-| `DamagedOCL1` | ObjectCreationList | `0x6a0` | - |
-| `DamagedOCL10` | ObjectCreationList | `0x79c` | - |
-| `DamagedOCL11` | ObjectCreationList | `0x7b8` | - |
-| `DamagedOCL12` | ObjectCreationList | `0x7d4` | - |
-| `DamagedOCL2` | ObjectCreationList | `0x6bc` | - |
-| `DamagedOCL3` | ObjectCreationList | `0x6d8` | - |
-| `DamagedOCL4` | ObjectCreationList | `0x6f4` | - |
-| `DamagedOCL5` | ObjectCreationList | `0x710` | - |
-| `DamagedOCL6` | ObjectCreationList | `0x72c` | - |
-| `DamagedOCL7` | ObjectCreationList | `0x748` | - |
-| `DamagedOCL8` | ObjectCreationList | `0x764` | - |
-| `DamagedOCL9` | ObjectCreationList | `0x780` | - |
-| `DamagedParticleSystem1` | ParticleSystem | `0xbe4` | - |
-| `DamagedParticleSystem10` | ParticleSystem | `0xce0` | - |
-| `DamagedParticleSystem11` | ParticleSystem | `0xcfc` | - |
-| `DamagedParticleSystem12` | ParticleSystem | `0xd18` | - |
-| `DamagedParticleSystem2` | ParticleSystem | `0xc00` | - |
-| `DamagedParticleSystem3` | ParticleSystem | `0xc1c` | - |
-| `DamagedParticleSystem4` | ParticleSystem | `0xc38` | - |
-| `DamagedParticleSystem5` | ParticleSystem | `0xc54` | - |
-| `DamagedParticleSystem6` | ParticleSystem | `0xc70` | - |
-| `DamagedParticleSystem7` | ParticleSystem | `0xc8c` | - |
-| `DamagedParticleSystem8` | ParticleSystem | `0xca8` | - |
-| `DamagedParticleSystem9` | ParticleSystem | `0xcc4` | - |
+| `DamagedOCL1` | ObjectCreationList | `0x6a0` | `""` |
+| `DamagedOCL10` | ObjectCreationList | `0x79c` | `""` |
+| `DamagedOCL11` | ObjectCreationList | `0x7b8` | `""` |
+| `DamagedOCL12` | ObjectCreationList | `0x7d4` | `""` |
+| `DamagedOCL2` | ObjectCreationList | `0x6bc` | `""` |
+| `DamagedOCL3` | ObjectCreationList | `0x6d8` | `""` |
+| `DamagedOCL4` | ObjectCreationList | `0x6f4` | `""` |
+| `DamagedOCL5` | ObjectCreationList | `0x710` | `""` |
+| `DamagedOCL6` | ObjectCreationList | `0x72c` | `""` |
+| `DamagedOCL7` | ObjectCreationList | `0x748` | `""` |
+| `DamagedOCL8` | ObjectCreationList | `0x764` | `""` |
+| `DamagedOCL9` | ObjectCreationList | `0x780` | `""` |
+| `DamagedParticleSystem1` | ParticleSystem | `0xbe4` | `""` |
+| `DamagedParticleSystem10` | ParticleSystem | `0xce0` | `""` |
+| `DamagedParticleSystem11` | ParticleSystem | `0xcfc` | `""` |
+| `DamagedParticleSystem12` | ParticleSystem | `0xd18` | `""` |
+| `DamagedParticleSystem2` | ParticleSystem | `0xc00` | `""` |
+| `DamagedParticleSystem3` | ParticleSystem | `0xc1c` | `""` |
+| `DamagedParticleSystem4` | ParticleSystem | `0xc38` | `""` |
+| `DamagedParticleSystem5` | ParticleSystem | `0xc54` | `""` |
+| `DamagedParticleSystem6` | ParticleSystem | `0xc70` | `""` |
+| `DamagedParticleSystem7` | ParticleSystem | `0xc8c` | `""` |
+| `DamagedParticleSystem8` | ParticleSystem | `0xca8` | `""` |
+| `DamagedParticleSystem9` | ParticleSystem | `0xcc4` | `""` |
 | `DamagedShowSubObject` | AsciiStringList | `0x1010` | - |
 | `DamageFXTypes` | DamageTypeFlags | `0x8` | `ALL` |
 | `DamageOCLTypes` | DamageTypeFlags | `0x54c` | `ALL` |
 | `DamageParticleTypes` | DamageTypeFlags | `0xa90` | `ALL` |
 | `PristineHideSubObject` | AsciiStringList | `0xfd4` | - |
 | `PristineShowSubObject` | AsciiStringList | `0x1004` | - |
-| `ReallyDamagedFXList1` | FXList | `0x2ac` | - |
-| `ReallyDamagedFXList10` | FXList | `0x3a8` | - |
-| `ReallyDamagedFXList11` | FXList | `0x3c4` | - |
-| `ReallyDamagedFXList12` | FXList | `0x3e0` | - |
-| `ReallyDamagedFXList2` | FXList | `0x2c8` | - |
-| `ReallyDamagedFXList3` | FXList | `0x2e4` | - |
-| `ReallyDamagedFXList4` | FXList | `0x300` | - |
-| `ReallyDamagedFXList5` | FXList | `0x31c` | - |
-| `ReallyDamagedFXList6` | FXList | `0x338` | - |
-| `ReallyDamagedFXList7` | FXList | `0x354` | - |
-| `ReallyDamagedFXList8` | FXList | `0x370` | - |
-| `ReallyDamagedFXList9` | FXList | `0x38c` | - |
+| `ReallyDamagedFXList1` | FXList | `0x2ac` | `""` |
+| `ReallyDamagedFXList10` | FXList | `0x3a8` | `""` |
+| `ReallyDamagedFXList11` | FXList | `0x3c4` | `""` |
+| `ReallyDamagedFXList12` | FXList | `0x3e0` | `""` |
+| `ReallyDamagedFXList2` | FXList | `0x2c8` | `""` |
+| `ReallyDamagedFXList3` | FXList | `0x2e4` | `""` |
+| `ReallyDamagedFXList4` | FXList | `0x300` | `""` |
+| `ReallyDamagedFXList5` | FXList | `0x31c` | `""` |
+| `ReallyDamagedFXList6` | FXList | `0x338` | `""` |
+| `ReallyDamagedFXList7` | FXList | `0x354` | `""` |
+| `ReallyDamagedFXList8` | FXList | `0x370` | `""` |
+| `ReallyDamagedFXList9` | FXList | `0x38c` | `""` |
 | `ReallyDamagedHideSubObject` | AsciiStringList | `0xfec` | - |
-| `ReallyDamagedOCL1` | ObjectCreationList | `0x7f0` | - |
-| `ReallyDamagedOCL10` | ObjectCreationList | `0x8ec` | - |
-| `ReallyDamagedOCL11` | ObjectCreationList | `0x908` | - |
-| `ReallyDamagedOCL12` | ObjectCreationList | `0x924` | - |
-| `ReallyDamagedOCL2` | ObjectCreationList | `0x80c` | - |
-| `ReallyDamagedOCL3` | ObjectCreationList | `0x828` | - |
-| `ReallyDamagedOCL4` | ObjectCreationList | `0x844` | - |
-| `ReallyDamagedOCL5` | ObjectCreationList | `0x860` | - |
-| `ReallyDamagedOCL6` | ObjectCreationList | `0x87c` | - |
-| `ReallyDamagedOCL7` | ObjectCreationList | `0x898` | - |
-| `ReallyDamagedOCL8` | ObjectCreationList | `0x8b4` | - |
-| `ReallyDamagedOCL9` | ObjectCreationList | `0x8d0` | - |
-| `ReallyDamagedParticleSystem1` | ParticleSystem | `0xd34` | - |
-| `ReallyDamagedParticleSystem10` | ParticleSystem | `0xe30` | - |
-| `ReallyDamagedParticleSystem11` | ParticleSystem | `0xe4c` | - |
-| `ReallyDamagedParticleSystem12` | ParticleSystem | `0xe68` | - |
-| `ReallyDamagedParticleSystem2` | ParticleSystem | `0xd50` | - |
-| `ReallyDamagedParticleSystem3` | ParticleSystem | `0xd6c` | - |
-| `ReallyDamagedParticleSystem4` | ParticleSystem | `0xd88` | - |
-| `ReallyDamagedParticleSystem5` | ParticleSystem | `0xda4` | - |
-| `ReallyDamagedParticleSystem6` | ParticleSystem | `0xdc0` | - |
-| `ReallyDamagedParticleSystem7` | ParticleSystem | `0xddc` | - |
-| `ReallyDamagedParticleSystem8` | ParticleSystem | `0xdf8` | - |
-| `ReallyDamagedParticleSystem9` | ParticleSystem | `0xe14` | - |
+| `ReallyDamagedOCL1` | ObjectCreationList | `0x7f0` | `""` |
+| `ReallyDamagedOCL10` | ObjectCreationList | `0x8ec` | `""` |
+| `ReallyDamagedOCL11` | ObjectCreationList | `0x908` | `""` |
+| `ReallyDamagedOCL12` | ObjectCreationList | `0x924` | `""` |
+| `ReallyDamagedOCL2` | ObjectCreationList | `0x80c` | `""` |
+| `ReallyDamagedOCL3` | ObjectCreationList | `0x828` | `""` |
+| `ReallyDamagedOCL4` | ObjectCreationList | `0x844` | `""` |
+| `ReallyDamagedOCL5` | ObjectCreationList | `0x860` | `""` |
+| `ReallyDamagedOCL6` | ObjectCreationList | `0x87c` | `""` |
+| `ReallyDamagedOCL7` | ObjectCreationList | `0x898` | `""` |
+| `ReallyDamagedOCL8` | ObjectCreationList | `0x8b4` | `""` |
+| `ReallyDamagedOCL9` | ObjectCreationList | `0x8d0` | `""` |
+| `ReallyDamagedParticleSystem1` | ParticleSystem | `0xd34` | `""` |
+| `ReallyDamagedParticleSystem10` | ParticleSystem | `0xe30` | `""` |
+| `ReallyDamagedParticleSystem11` | ParticleSystem | `0xe4c` | `""` |
+| `ReallyDamagedParticleSystem12` | ParticleSystem | `0xe68` | `""` |
+| `ReallyDamagedParticleSystem2` | ParticleSystem | `0xd50` | `""` |
+| `ReallyDamagedParticleSystem3` | ParticleSystem | `0xd6c` | `""` |
+| `ReallyDamagedParticleSystem4` | ParticleSystem | `0xd88` | `""` |
+| `ReallyDamagedParticleSystem5` | ParticleSystem | `0xda4` | `""` |
+| `ReallyDamagedParticleSystem6` | ParticleSystem | `0xdc0` | `""` |
+| `ReallyDamagedParticleSystem7` | ParticleSystem | `0xddc` | `""` |
+| `ReallyDamagedParticleSystem8` | ParticleSystem | `0xdf8` | `""` |
+| `ReallyDamagedParticleSystem9` | ParticleSystem | `0xe14` | `""` |
 | `ReallyDamagedShowSubObject` | AsciiStringList | `0x101c` | - |
-| `RubbleFXList1` | FXList | `0x3fc` | - |
-| `RubbleFXList10` | FXList | `0x4f8` | - |
-| `RubbleFXList11` | FXList | `0x514` | - |
-| `RubbleFXList12` | FXList | `0x530` | - |
-| `RubbleFXList2` | FXList | `0x418` | - |
-| `RubbleFXList3` | FXList | `0x434` | - |
-| `RubbleFXList4` | FXList | `0x450` | - |
-| `RubbleFXList5` | FXList | `0x46c` | - |
-| `RubbleFXList6` | FXList | `0x488` | - |
-| `RubbleFXList7` | FXList | `0x4a4` | - |
-| `RubbleFXList8` | FXList | `0x4c0` | - |
-| `RubbleFXList9` | FXList | `0x4dc` | - |
+| `RubbleFXList1` | FXList | `0x3fc` | `""` |
+| `RubbleFXList10` | FXList | `0x4f8` | `""` |
+| `RubbleFXList11` | FXList | `0x514` | `""` |
+| `RubbleFXList12` | FXList | `0x530` | `""` |
+| `RubbleFXList2` | FXList | `0x418` | `""` |
+| `RubbleFXList3` | FXList | `0x434` | `""` |
+| `RubbleFXList4` | FXList | `0x450` | `""` |
+| `RubbleFXList5` | FXList | `0x46c` | `""` |
+| `RubbleFXList6` | FXList | `0x488` | `""` |
+| `RubbleFXList7` | FXList | `0x4a4` | `""` |
+| `RubbleFXList8` | FXList | `0x4c0` | `""` |
+| `RubbleFXList9` | FXList | `0x4dc` | `""` |
 | `RubbleHideSubObject` | AsciiStringList | `0xff8` | - |
 | `RubbleNeighbor` | RubbleNeighbor | `0x1034` | - |
-| `RubbleOCL1` | ObjectCreationList | `0x940` | - |
-| `RubbleOCL10` | ObjectCreationList | `0xa3c` | - |
-| `RubbleOCL11` | ObjectCreationList | `0xa58` | - |
-| `RubbleOCL12` | ObjectCreationList | `0xa74` | - |
-| `RubbleOCL2` | ObjectCreationList | `0x95c` | - |
-| `RubbleOCL3` | ObjectCreationList | `0x978` | - |
-| `RubbleOCL4` | ObjectCreationList | `0x994` | - |
-| `RubbleOCL5` | ObjectCreationList | `0x9b0` | - |
-| `RubbleOCL6` | ObjectCreationList | `0x9cc` | - |
-| `RubbleOCL7` | ObjectCreationList | `0x9e8` | - |
-| `RubbleOCL8` | ObjectCreationList | `0xa04` | - |
-| `RubbleOCL9` | ObjectCreationList | `0xa20` | - |
-| `RubbleParticleSystem1` | ParticleSystem | `0xe84` | - |
-| `RubbleParticleSystem10` | ParticleSystem | `0xf80` | - |
-| `RubbleParticleSystem11` | ParticleSystem | `0xf9c` | - |
-| `RubbleParticleSystem12` | ParticleSystem | `0xfb8` | - |
-| `RubbleParticleSystem2` | ParticleSystem | `0xea0` | - |
-| `RubbleParticleSystem3` | ParticleSystem | `0xebc` | - |
-| `RubbleParticleSystem4` | ParticleSystem | `0xed8` | - |
-| `RubbleParticleSystem5` | ParticleSystem | `0xef4` | - |
-| `RubbleParticleSystem6` | ParticleSystem | `0xf10` | - |
-| `RubbleParticleSystem7` | ParticleSystem | `0xf2c` | - |
-| `RubbleParticleSystem8` | ParticleSystem | `0xf48` | - |
-| `RubbleParticleSystem9` | ParticleSystem | `0xf64` | - |
+| `RubbleOCL1` | ObjectCreationList | `0x940` | `""` |
+| `RubbleOCL10` | ObjectCreationList | `0xa3c` | `""` |
+| `RubbleOCL11` | ObjectCreationList | `0xa58` | `""` |
+| `RubbleOCL12` | ObjectCreationList | `0xa74` | `""` |
+| `RubbleOCL2` | ObjectCreationList | `0x95c` | `""` |
+| `RubbleOCL3` | ObjectCreationList | `0x978` | `""` |
+| `RubbleOCL4` | ObjectCreationList | `0x994` | `""` |
+| `RubbleOCL5` | ObjectCreationList | `0x9b0` | `""` |
+| `RubbleOCL6` | ObjectCreationList | `0x9cc` | `""` |
+| `RubbleOCL7` | ObjectCreationList | `0x9e8` | `""` |
+| `RubbleOCL8` | ObjectCreationList | `0xa04` | `""` |
+| `RubbleOCL9` | ObjectCreationList | `0xa20` | `""` |
+| `RubbleParticleSystem1` | ParticleSystem | `0xe84` | `""` |
+| `RubbleParticleSystem10` | ParticleSystem | `0xf80` | `""` |
+| `RubbleParticleSystem11` | ParticleSystem | `0xf9c` | `""` |
+| `RubbleParticleSystem12` | ParticleSystem | `0xfb8` | `""` |
+| `RubbleParticleSystem2` | ParticleSystem | `0xea0` | `""` |
+| `RubbleParticleSystem3` | ParticleSystem | `0xebc` | `""` |
+| `RubbleParticleSystem4` | ParticleSystem | `0xed8` | `""` |
+| `RubbleParticleSystem5` | ParticleSystem | `0xef4` | `""` |
+| `RubbleParticleSystem6` | ParticleSystem | `0xf10` | `""` |
+| `RubbleParticleSystem7` | ParticleSystem | `0xf2c` | `""` |
+| `RubbleParticleSystem8` | ParticleSystem | `0xf48` | `""` |
+| `RubbleParticleSystem9` | ParticleSystem | `0xf64` | `""` |
 | `RubbleShowSubObject` | AsciiStringList | `0x1028` | - |
 
 ## TransportAIUpdate
@@ -7847,14 +7848,14 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `ObeyRechageOnTrigger` | Bool | `0x13c` | `No` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x138` | `""` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## UntamedAllegianceSpecialPower
 
@@ -7906,10 +7907,10 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `ExemptStatus` | ObjectStatusFlags | `0xc` | - |
+| `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
+| `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
 | `UpgradeToRemove` | AsciiString | `0x38` | `""` |
 
 ## UpgradeSoundSelectorClientBehavior
@@ -7968,11 +7969,11 @@ constant-tracking through each constructor.
 |---|---|---|---|
 | `DistanceFog` | Bool | `0xc` | `Yes` |
 | `FloorFadeRateOnObjectDeath` | Real | `0x20` | `0` |
-| `ForceToBack` | Bool | `0x1d` | - |
+| `ForceToBack` | Bool | `0x1d` | `No` |
 | `HideIfModelConditions` | 0x004cef06 | `0x0` | - |
 | `ModelName` | AsciiString | `0x8` | `""` |
-| `StartHidden` | Bool | `0x1e` | - |
-| `StaticModelLODMode` | Bool | `0x1c` | - |
+| `StartHidden` | Bool | `0x1e` | `No` |
+| `StaticModelLODMode` | Bool | `0x1c` | `No` |
 | `WeatherTexture` | 0x004cf066 | `0x10` | - |
 
 ## W3DHordeModelDraw
@@ -8477,13 +8478,13 @@ constant-tracking through each constructor.
 | `MinimumToppleSpeed` | PositiveReal | `0x38` | `0.5` |
 | `ModelName` | AsciiString | `0x8` | `""` |
 | `MorphFX` | FXList | `0x50` | `""` |
-| `MorphTime` | Duration | `0x4c` | - |
+| `MorphTime` | Duration | `0x4c` | `10000` |
 | `MorphTree` | AsciiString | `0x48` | `""` |
 | `MoveInwardTime` | Duration | `0x14` | `200` |
 | `MoveOutwardDistanceFactor` | Real | `0x18` | `1` |
 | `MoveOutwardTime` | Duration | `0x10` | `200` |
 | `SinkDistance` | PositiveReal | `0x44` | `20` |
-| `SinkTime` | Duration | `0x40` | - |
+| `SinkTime` | Duration | `0x40` | `10000` |
 | `StumpName` | AsciiString | `0x28` | - |
 | `TaintedTree` | Bool | `0x54` | `No` |
 | `TextureName` | AsciiString | `0xc` | `""` |
@@ -8633,12 +8634,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## WeaponBonusUpgrade
 
@@ -8646,12 +8647,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 
 ## WeaponChangeSpecialPowerModule
 
@@ -8785,7 +8786,7 @@ constant-tracking through each constructor.
 | `LockWeaponSlot` | LookupList | `0x20` | - |
 | `SpecialPowerTemplate` | SpecialPowerTemplate | `0x8` | `""` |
 | `StartsPaused` | Bool | `0x14` | `No` |
-| `WeaponSetFlags` | WeaponSetFlags | `0x24` | - |
+| `WeaponSetFlags` | WeaponSetFlags | `0x24` | `""` |
 
 ## WeaponSetSpecialAbilityUpdate
 
@@ -8862,12 +8863,12 @@ constant-tracking through each constructor.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `ConflictsWith` | UpgradeMask | `0x98` | - |
+| `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
-| `TriggeredBy` | UpgradeMask | `0x8` | - |
+| `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 | `WeaponCondition` | WeaponSetFlags | `0x138` | - |
 
 ## WorkerAIUpdate

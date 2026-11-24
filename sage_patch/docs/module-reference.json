@@ -723,7 +723,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": null
    },
    {
     "name": "InitialHealth",
@@ -1083,7 +1083,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -1123,7 +1123,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -2787,7 +2787,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -2843,7 +2843,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -4080,7 +4080,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -4120,7 +4120,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -4136,7 +4136,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -4168,7 +4168,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "KillAfterMS",
@@ -4216,7 +4216,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RequiresAllConflictingTriggers",
@@ -4248,7 +4248,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -4496,7 +4496,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -4648,7 +4648,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "UnitHealPulseFX",
@@ -4752,7 +4752,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "10000"
    },
    {
     "name": "ExpLevelDraw",
@@ -4768,7 +4768,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "15000"
    },
    {
     "name": "MeleeFreeBannerReSpawnTime",
@@ -4776,7 +4776,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "10000"
    },
    {
     "name": "MeleeFreeUnitSpawnTime",
@@ -4784,7 +4784,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "10000"
    },
    {
     "name": "MorphCondition",
@@ -4856,7 +4856,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -4912,7 +4912,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -5024,7 +5024,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "SearchAndDestroyAnnouncementName",
@@ -5136,7 +5136,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "VisionObjectName",
@@ -5320,7 +5320,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "GarrisonHitKillFX",
@@ -5336,7 +5336,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "GroundBounceFX",
@@ -5527,7 +5527,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList2",
@@ -5535,7 +5535,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList3",
@@ -5543,7 +5543,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList4",
@@ -5551,7 +5551,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList5",
@@ -5559,7 +5559,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList6",
@@ -5567,7 +5567,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList7",
@@ -5575,7 +5575,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList8",
@@ -5583,7 +5583,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL1",
@@ -5591,7 +5591,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL2",
@@ -5599,7 +5599,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL3",
@@ -5607,7 +5607,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL4",
@@ -5615,7 +5615,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL5",
@@ -5623,7 +5623,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL6",
@@ -5631,7 +5631,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL7",
@@ -5639,7 +5639,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL8",
@@ -5647,7 +5647,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem1",
@@ -5655,7 +5655,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem2",
@@ -5663,7 +5663,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem3",
@@ -5671,7 +5671,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem4",
@@ -5679,7 +5679,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem5",
@@ -5687,7 +5687,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem6",
@@ -5695,7 +5695,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem7",
@@ -5703,7 +5703,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem8",
@@ -5711,7 +5711,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamageFXTypes",
@@ -5743,7 +5743,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList2",
@@ -5751,7 +5751,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList3",
@@ -5759,7 +5759,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList4",
@@ -5767,7 +5767,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList5",
@@ -5775,7 +5775,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList6",
@@ -5783,7 +5783,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList7",
@@ -5791,7 +5791,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineFXList8",
@@ -5799,7 +5799,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL1",
@@ -5807,7 +5807,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL2",
@@ -5815,7 +5815,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL3",
@@ -5823,7 +5823,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL4",
@@ -5831,7 +5831,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL5",
@@ -5839,7 +5839,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL6",
@@ -5847,7 +5847,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL7",
@@ -5855,7 +5855,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineOCL8",
@@ -5863,7 +5863,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem1",
@@ -5871,7 +5871,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem2",
@@ -5879,7 +5879,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem3",
@@ -5887,7 +5887,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem4",
@@ -5895,7 +5895,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem5",
@@ -5903,7 +5903,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem6",
@@ -5911,7 +5911,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem7",
@@ -5919,7 +5919,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "PristineParticleSystem8",
@@ -5927,7 +5927,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList1",
@@ -5935,7 +5935,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList2",
@@ -5943,7 +5943,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList3",
@@ -5951,7 +5951,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList4",
@@ -5959,7 +5959,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList5",
@@ -5967,7 +5967,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList6",
@@ -5975,7 +5975,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList7",
@@ -5983,7 +5983,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList8",
@@ -5991,7 +5991,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL1",
@@ -5999,7 +5999,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL2",
@@ -6007,7 +6007,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL3",
@@ -6015,7 +6015,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL4",
@@ -6023,7 +6023,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL5",
@@ -6031,7 +6031,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL6",
@@ -6039,7 +6039,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL7",
@@ -6047,7 +6047,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL8",
@@ -6055,7 +6055,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem1",
@@ -6063,7 +6063,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem2",
@@ -6071,7 +6071,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem3",
@@ -6079,7 +6079,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem4",
@@ -6087,7 +6087,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem5",
@@ -6095,7 +6095,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem6",
@@ -6103,7 +6103,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem7",
@@ -6111,7 +6111,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem8",
@@ -6119,7 +6119,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList1",
@@ -6127,7 +6127,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList2",
@@ -6135,7 +6135,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList3",
@@ -6143,7 +6143,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList4",
@@ -6151,7 +6151,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList5",
@@ -6159,7 +6159,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList6",
@@ -6167,7 +6167,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList7",
@@ -6175,7 +6175,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList8",
@@ -6183,7 +6183,7 @@
     "type": "FXList",
     "parse_fn": 8955052,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL1",
@@ -6191,7 +6191,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL2",
@@ -6199,7 +6199,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL3",
@@ -6207,7 +6207,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL4",
@@ -6215,7 +6215,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL5",
@@ -6223,7 +6223,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL6",
@@ -6231,7 +6231,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL7",
@@ -6239,7 +6239,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL8",
@@ -6247,7 +6247,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 8955227,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem1",
@@ -6255,7 +6255,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem2",
@@ -6263,7 +6263,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem3",
@@ -6271,7 +6271,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem4",
@@ -6279,7 +6279,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem5",
@@ -6287,7 +6287,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem6",
@@ -6295,7 +6295,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem7",
@@ -6303,7 +6303,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem8",
@@ -6311,7 +6311,7 @@
     "type": "ParticleSystem",
     "parse_fn": 8955402,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -6429,7 +6429,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ConflictsWith",
@@ -6437,7 +6437,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -6501,7 +6501,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -6517,7 +6517,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -6557,7 +6557,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -7299,7 +7299,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -7339,7 +7339,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "Upgrade",
@@ -8577,7 +8577,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "ReactionFrames2",
@@ -8585,7 +8585,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "ReactionFrames3",
@@ -8593,7 +8593,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "ReactionFrames4",
@@ -8601,7 +8601,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "ReactionFrames5",
@@ -8609,7 +8609,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "0"
    }
   ]
  },
@@ -9485,7 +9485,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -9525,7 +9525,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -9677,7 +9677,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -9701,7 +9701,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -9749,7 +9749,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -9773,7 +9773,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "UpgradeRequired",
@@ -9935,7 +9935,7 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "BackEndCrushSoundPercent",
@@ -9943,7 +9943,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "100"
    },
    {
     "name": "DamageAmountRequired",
@@ -9967,7 +9967,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FrontEndCrushSound",
@@ -9975,7 +9975,7 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FrontEndCrushSoundPercent",
@@ -9983,7 +9983,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "100"
    },
    {
     "name": "MaxKillerAngle",
@@ -10007,7 +10007,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "TotalCrushSound",
@@ -10015,7 +10015,7 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "TotalCrushSoundPercent",
@@ -10023,7 +10023,7 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": null
+    "default": "100"
    }
   ]
  },
@@ -10783,7 +10783,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -10815,7 +10815,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -11784,7 +11784,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -11915,7 +11915,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -11963,7 +11963,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -12050,7 +12050,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ManualModeWeaponSlot",
@@ -12368,7 +12368,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -12392,7 +12392,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -12568,7 +12568,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -13168,7 +13168,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -13224,7 +13224,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -15748,7 +15748,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -15788,7 +15788,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -15852,7 +15852,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -15892,7 +15892,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -16588,7 +16588,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RequiredStatus",
@@ -16596,7 +16596,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -16652,7 +16652,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ContinuousWeaponDamaged",
@@ -16780,7 +16780,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -16804,7 +16804,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -16852,7 +16852,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -16884,7 +16884,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RequiresAllConflictingTriggers",
@@ -16916,7 +16916,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "WeaponOffset",
@@ -16924,7 +16924,7 @@
     "type": "Coord3D",
     "parse_fn": 4387399,
     "userdata": null,
-    "default": null
+    "default": "X:0 Y:0 Z:0"
    }
   ]
  },
@@ -17012,7 +17012,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "5000"
    },
    {
     "name": "FlameDamageLimit",
@@ -17304,7 +17304,7 @@
     "type": "Coord3D",
     "parse_fn": 4387399,
     "userdata": null,
-    "default": null
+    "default": "X:0 Y:0 Z:0"
    },
    {
     "name": "FlipOwnerAfterPacking",
@@ -17982,7 +17982,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -18496,7 +18496,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -18528,7 +18528,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -18892,7 +18892,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -18932,7 +18932,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -19172,7 +19172,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -19244,7 +19244,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "WallBoundsMesh",
@@ -19674,7 +19674,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CrashAvoidRadius",
@@ -19776,7 +19776,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null,
+    "default": "\"\"",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -19930,7 +19930,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null,
+    "default": "\"\"",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -20186,7 +20186,7 @@
     "type": "WeaponSetFlags",
     "parse_fn": 7117137,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FleeRangeAfterCompletion",
@@ -22286,7 +22286,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "GiveOnBuildComplete",
@@ -22802,7 +22802,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -22826,7 +22826,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "SpecialPowerTemplate",
@@ -23586,7 +23586,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": null
    },
    {
     "name": "InitialHealth",
@@ -23698,7 +23698,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "HitReactionLifeTimer2",
@@ -23706,7 +23706,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "HitReactionLifeTimer3",
@@ -23714,7 +23714,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "HitReactionThreshold1",
@@ -23722,7 +23722,7 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "3.40282e+38"
    },
    {
     "name": "HitReactionThreshold2",
@@ -23730,7 +23730,7 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "3.40282e+38"
    },
    {
     "name": "HitReactionThreshold3",
@@ -23738,7 +23738,7 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "3.40282e+38"
    },
    {
     "name": "HitsParalyze",
@@ -28268,7 +28268,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": null
    },
    {
     "name": "InitialHealth",
@@ -28403,7 +28403,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FX",
@@ -28443,7 +28443,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "Sound",
@@ -28977,7 +28977,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -29001,7 +29001,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "StayOnRadar",
@@ -29825,7 +29825,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -29881,7 +29881,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -29961,7 +29961,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -30009,7 +30009,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -30399,7 +30399,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -30439,7 +30439,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -30471,7 +30471,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -30511,7 +30511,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -30737,7 +30737,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null,
+    "default": "\"\"",
     "inherited": true,
     "inherited_from": "BezierProjectileBehavior"
    },
@@ -30757,7 +30757,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null,
+    "default": "\"\"",
     "inherited": true,
     "inherited_from": "BezierProjectileBehavior"
    },
@@ -31641,7 +31641,7 @@
     "type": "ModelConditionFlags",
     "parse_fn": 4951073,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "AddTempConditionFlag",
@@ -31657,7 +31657,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -31681,7 +31681,7 @@
     "type": "ModelConditionFlags",
     "parse_fn": 4951073,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RemoveConditionFlagsInRange",
@@ -31721,7 +31721,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -31871,7 +31871,7 @@
     "type": "ModelConditionFlags",
     "parse_fn": 4951073,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "WeaponSetFlags",
@@ -31879,7 +31879,7 @@
     "type": "WeaponSetFlags",
     "parse_fn": 7117137,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "WeaponToggleCommandSet",
@@ -32081,7 +32081,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": null
    },
    {
     "name": "InitialHealth",
@@ -32185,7 +32185,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -32241,7 +32241,7 @@
     "type": "Coord3D",
     "parse_fn": 4387399,
     "userdata": null,
-    "default": null
+    "default": "X:0 Y:0 Z:0"
    },
    {
     "name": "Permanent",
@@ -32289,7 +32289,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "UpgradeObject",
@@ -34499,7 +34499,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -35408,7 +35408,7 @@
     "type": "DisabledTypeFlags",
     "parse_fn": 9049856,
     "userdata": "0x00dad904",
-    "default": null
+    "default": "DISABLED_HELD"
    },
    {
     "name": "DoorCloseTime",
@@ -35735,7 +35735,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -35783,7 +35783,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -36030,7 +36030,7 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "RampageLifeTimer",
@@ -36606,7 +36606,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FadeInTimeSeconds",
@@ -36654,7 +36654,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "TransferAttackers",
@@ -36790,7 +36790,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -36846,7 +36846,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "UpgradeGroupsToRemove",
@@ -37918,7 +37918,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -37966,7 +37966,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -37982,7 +37982,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -38046,7 +38046,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RequiresAllConflictingTriggers",
@@ -38078,7 +38078,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -38222,7 +38222,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -39956,7 +39956,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FXList",
@@ -40036,7 +40036,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleHeight",
@@ -41390,7 +41390,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null,
+    "default": "\"\"",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -41520,7 +41520,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null,
+    "default": "\"\"",
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
    },
@@ -43478,7 +43478,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FadeDelay",
@@ -43582,7 +43582,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ShadowWhenDead",
@@ -43662,7 +43662,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -43694,7 +43694,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ExitByBudding",
@@ -43774,7 +43774,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RequiresAllConflictingTriggers",
@@ -43854,7 +43854,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -45126,7 +45126,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -45150,7 +45150,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "SpecialPowerTemplate",
@@ -45757,7 +45757,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -45821,7 +45821,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -46218,7 +46218,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -46258,7 +46258,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "StatusToSet",
@@ -46266,7 +46266,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "TriggeredBy",
@@ -46274,7 +46274,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -46426,7 +46426,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ExtraRequiredKindOf",
@@ -46434,7 +46434,7 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "InitiallyDisabled",
@@ -46658,7 +46658,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "InnateStealth",
@@ -46738,7 +46738,7 @@
     "type": "WeaponSetFlags",
     "parse_fn": 7117137,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RingAnimTimeOff",
@@ -46818,7 +46818,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -46858,7 +46858,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -48032,7 +48032,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -48178,7 +48178,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "FXList",
@@ -48258,7 +48258,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -48322,7 +48322,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ForceToppleAngle",
@@ -48394,7 +48394,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "StructuralDecay",
@@ -48466,7 +48466,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -48506,7 +48506,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "Permanent",
@@ -48522,7 +48522,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "RequiresAllConflictingTriggers",
@@ -48554,7 +48554,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "TriggeredBy",
@@ -48562,7 +48562,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "UnHideSubObjectsOnRemove",
@@ -48570,7 +48570,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "UpgradeTexture",
@@ -49841,7 +49841,7 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\"",
+    "default": null,
     "inherited": true,
     "inherited_from": "ActiveBody"
    },
@@ -53624,7 +53624,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -53680,7 +53680,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -53800,7 +53800,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList10",
@@ -53808,7 +53808,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList11",
@@ -53816,7 +53816,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList12",
@@ -53824,7 +53824,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList2",
@@ -53832,7 +53832,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList3",
@@ -53840,7 +53840,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList4",
@@ -53848,7 +53848,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList5",
@@ -53856,7 +53856,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList6",
@@ -53864,7 +53864,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList7",
@@ -53872,7 +53872,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList8",
@@ -53880,7 +53880,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedFXList9",
@@ -53888,7 +53888,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedHideSubObject",
@@ -53904,7 +53904,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL10",
@@ -53912,7 +53912,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL11",
@@ -53920,7 +53920,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL12",
@@ -53928,7 +53928,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL2",
@@ -53936,7 +53936,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL3",
@@ -53944,7 +53944,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL4",
@@ -53952,7 +53952,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL5",
@@ -53960,7 +53960,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL6",
@@ -53968,7 +53968,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL7",
@@ -53976,7 +53976,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL8",
@@ -53984,7 +53984,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedOCL9",
@@ -53992,7 +53992,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem1",
@@ -54000,7 +54000,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem10",
@@ -54008,7 +54008,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem11",
@@ -54016,7 +54016,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem12",
@@ -54024,7 +54024,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem2",
@@ -54032,7 +54032,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem3",
@@ -54040,7 +54040,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem4",
@@ -54048,7 +54048,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem5",
@@ -54056,7 +54056,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem6",
@@ -54064,7 +54064,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem7",
@@ -54072,7 +54072,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem8",
@@ -54080,7 +54080,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedParticleSystem9",
@@ -54088,7 +54088,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "DamagedShowSubObject",
@@ -54144,7 +54144,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList10",
@@ -54152,7 +54152,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList11",
@@ -54160,7 +54160,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList12",
@@ -54168,7 +54168,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList2",
@@ -54176,7 +54176,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList3",
@@ -54184,7 +54184,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList4",
@@ -54192,7 +54192,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList5",
@@ -54200,7 +54200,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList6",
@@ -54208,7 +54208,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList7",
@@ -54216,7 +54216,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList8",
@@ -54224,7 +54224,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedFXList9",
@@ -54232,7 +54232,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedHideSubObject",
@@ -54248,7 +54248,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL10",
@@ -54256,7 +54256,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL11",
@@ -54264,7 +54264,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL12",
@@ -54272,7 +54272,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL2",
@@ -54280,7 +54280,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL3",
@@ -54288,7 +54288,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL4",
@@ -54296,7 +54296,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL5",
@@ -54304,7 +54304,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL6",
@@ -54312,7 +54312,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL7",
@@ -54320,7 +54320,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL8",
@@ -54328,7 +54328,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedOCL9",
@@ -54336,7 +54336,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem1",
@@ -54344,7 +54344,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem10",
@@ -54352,7 +54352,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem11",
@@ -54360,7 +54360,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem12",
@@ -54368,7 +54368,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem2",
@@ -54376,7 +54376,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem3",
@@ -54384,7 +54384,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem4",
@@ -54392,7 +54392,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem5",
@@ -54400,7 +54400,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem6",
@@ -54408,7 +54408,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem7",
@@ -54416,7 +54416,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem8",
@@ -54424,7 +54424,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedParticleSystem9",
@@ -54432,7 +54432,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "ReallyDamagedShowSubObject",
@@ -54448,7 +54448,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList10",
@@ -54456,7 +54456,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList11",
@@ -54464,7 +54464,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList12",
@@ -54472,7 +54472,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList2",
@@ -54480,7 +54480,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList3",
@@ -54488,7 +54488,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList4",
@@ -54496,7 +54496,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList5",
@@ -54504,7 +54504,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList6",
@@ -54512,7 +54512,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList7",
@@ -54520,7 +54520,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList8",
@@ -54528,7 +54528,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleFXList9",
@@ -54536,7 +54536,7 @@
     "type": "FXList",
     "parse_fn": 9165749,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleHideSubObject",
@@ -54560,7 +54560,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL10",
@@ -54568,7 +54568,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL11",
@@ -54576,7 +54576,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL12",
@@ -54584,7 +54584,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL2",
@@ -54592,7 +54592,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL3",
@@ -54600,7 +54600,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL4",
@@ -54608,7 +54608,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL5",
@@ -54616,7 +54616,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL6",
@@ -54624,7 +54624,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL7",
@@ -54632,7 +54632,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL8",
@@ -54640,7 +54640,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleOCL9",
@@ -54648,7 +54648,7 @@
     "type": "ObjectCreationList",
     "parse_fn": 9165857,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem1",
@@ -54656,7 +54656,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem10",
@@ -54664,7 +54664,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem11",
@@ -54672,7 +54672,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem12",
@@ -54680,7 +54680,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem2",
@@ -54688,7 +54688,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem3",
@@ -54696,7 +54696,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem4",
@@ -54704,7 +54704,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem5",
@@ -54712,7 +54712,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem6",
@@ -54720,7 +54720,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem7",
@@ -54728,7 +54728,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem8",
@@ -54736,7 +54736,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleParticleSystem9",
@@ -54744,7 +54744,7 @@
     "type": "ParticleSystem",
     "parse_fn": 9165964,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "RubbleShowSubObject",
@@ -56640,7 +56640,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -56696,7 +56696,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -57086,7 +57086,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "MaxKillerAngle",
@@ -57110,7 +57110,7 @@
     "type": "ObjectStatusFlags",
     "parse_fn": 8068700,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "UpgradeToRemove",
@@ -57380,7 +57380,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "HideIfModelConditions",
@@ -57406,7 +57406,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "StaticModelLODMode",
@@ -57414,7 +57414,7 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": null
+    "default": "No"
    },
    {
     "name": "WeatherTexture",
@@ -61407,7 +61407,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "10000"
    },
    {
     "name": "MorphTree",
@@ -61455,7 +61455,7 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": "10000"
    },
    {
     "name": "StumpName",
@@ -62629,7 +62629,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -62669,7 +62669,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -62685,7 +62685,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -62725,7 +62725,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -63846,7 +63846,7 @@
     "type": "WeaponSetFlags",
     "parse_fn": 7117137,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    }
   ]
  },
@@ -64486,7 +64486,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "CustomAnimAndDuration",
@@ -64526,7 +64526,7 @@
     "type": "UpgradeMask",
     "parse_fn": 6747651,
     "userdata": null,
-    "default": null
+    "default": "\"\""
    },
    {
     "name": "WeaponCondition",

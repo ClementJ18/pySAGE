@@ -17600,7 +17600,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "ChanceToUseAllUnitsForDefenseTarget_Med",
@@ -17608,7 +17608,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "ChanceToUseAllUnitsForDefenseTarget_Small",
@@ -17616,7 +17616,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "CombatChainSearchDepthForTeamRecruits_AttackTeams",
@@ -17624,7 +17624,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "CombatChainSearchDepthForTeamRecruits_DefenseTeams",
@@ -17632,7 +17632,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "CombatChainSearchDepthForTeamRecruits_ExploreTeams",
@@ -17640,7 +17640,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "DefaultUnitPriority",
@@ -17712,7 +17712,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "LowUnitPriorityModifier_MidGame",
@@ -17720,7 +17720,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "LowUnitPriorityModifier_Rush",
@@ -17728,7 +17728,7 @@
      "type": "Real",
      "parse_fn": 4386048,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "MaxBuildingsToBeDefensiveTarget_Med",
@@ -17760,7 +17760,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "MustUseCommandPointPercentage_Phase1",
@@ -17768,7 +17768,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "MustUseCommandPointPercentage_Phase2",
@@ -17776,7 +17776,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "MustUseCommandPointPercentage_Phase3",
@@ -17784,7 +17784,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "OffensiveBuildings",
@@ -17800,7 +17800,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "PercentToSave_MidGame",
@@ -17808,7 +17808,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "PercentToSave_Rush",
@@ -17816,7 +17816,7 @@
      "type": "Percent",
      "parse_fn": 4386554,
      "userdata": null,
-     "default": null
+     "default": "0%"
     },
     {
      "name": "PhaseDuration_MidGame",
@@ -22468,7 +22468,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "AttackBonus",
@@ -22476,7 +22476,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "BuildingDiscountBonus",
@@ -22484,7 +22484,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "DefenseBonus",
@@ -22492,7 +22492,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "DiscountedBarracksUnitsBonus",
@@ -22500,7 +22500,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "DiscountedHeroUnitsBonus",
@@ -22508,7 +22508,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "DiscountedSeigeUnitsBonus",
@@ -22516,7 +22516,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "EffectName",
@@ -22532,7 +22532,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "ExtraStartResourcesBonus",
@@ -22548,7 +22548,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "FreeInnUnitsBonus",
@@ -22556,7 +22556,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "LegendaryBonus",
@@ -22564,7 +22564,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "0"
     },
     {
      "name": "LookAtCenter",
@@ -42510,7 +42510,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededCampaign",
@@ -42518,7 +42518,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededDefault",
@@ -42534,7 +42534,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededElves",
@@ -42542,7 +42542,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededIsengard",
@@ -42550,7 +42550,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededMen",
@@ -42558,7 +42558,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededMordor",
@@ -42566,7 +42566,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     },
     {
      "name": "SkillPointsNeededWild",
@@ -42574,7 +42574,7 @@
      "type": "Int",
      "parse_fn": 4385886,
      "userdata": null,
-     "default": null
+     "default": "-1"
     }
    ]
   },
