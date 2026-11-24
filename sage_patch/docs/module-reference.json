@@ -1064,7 +1064,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null
@@ -1356,7 +1356,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -1756,9 +1756,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -2148,7 +2148,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -2476,7 +2476,7 @@
    {
     "name": "RanksThatStopAdvance",
     "offset": 436,
-    "type": "0x0086df0b",
+    "type": "IntList",
     "parse_fn": 8838923,
     "userdata": null,
     "default": null,
@@ -2486,7 +2486,7 @@
    {
     "name": "RanksToJustFreeWhenAttacking",
     "offset": 452,
-    "type": "0x0086ded1",
+    "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
     "default": null,
@@ -2496,7 +2496,7 @@
    {
     "name": "RanksToReleaseWhenAttacking",
     "offset": 440,
-    "type": "0x0086ded1",
+    "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
     "default": null,
@@ -2718,7 +2718,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -3708,7 +3708,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -3742,7 +3742,7 @@
    {
     "name": "LaserFromAssisted",
     "offset": 16,
-    "type": "0x0073ad1f",
+    "type": "ThingTemplate",
     "parse_fn": 7580959,
     "userdata": null,
     "default": null
@@ -3750,7 +3750,7 @@
    {
     "name": "LaserToTarget",
     "offset": 20,
-    "type": "0x0073ad1f",
+    "type": "ThingTemplate",
     "parse_fn": 7580959,
     "userdata": null,
     "default": null
@@ -3894,7 +3894,7 @@
    {
     "name": "AffectsKindOf",
     "offset": 0,
-    "type": "0x0089ecd7",
+    "type": "Obsolete",
     "parse_fn": 9039063,
     "userdata": null,
     "default": null
@@ -3918,9 +3918,9 @@
    {
     "name": "AntiCategory",
     "offset": 352,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null
    },
    {
@@ -4317,7 +4317,7 @@
    {
     "name": "Query",
     "offset": 44,
-    "type": "0x0085d29c",
+    "type": "QueryEntry",
     "parse_fn": 8770204,
     "userdata": null,
     "default": null
@@ -6372,7 +6372,7 @@
    {
     "name": "BridgeDieFX",
     "offset": 16,
-    "type": "0x0085b11b",
+    "type": "BridgeFXEntry",
     "parse_fn": 8761627,
     "userdata": null,
     "default": null
@@ -6380,7 +6380,7 @@
    {
     "name": "BridgeDieOCL",
     "offset": 20,
-    "type": "0x0085b1c5",
+    "type": "BridgeOCLEntry",
     "parse_fn": 8761797,
     "userdata": null,
     "default": null
@@ -6698,9 +6698,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -6996,7 +6996,7 @@
    {
     "name": "UpgradeMoneyAmount",
     "offset": 124,
-    "type": "0x008c6b1e",
+    "type": "ScienceInt",
     "parse_fn": 9202462,
     "userdata": null,
     "default": null
@@ -7048,7 +7048,7 @@
    {
     "name": "CastleToUnpackForFaction",
     "offset": 104,
-    "type": "0x0079bd2f",
+    "type": "CastleUnpack",
     "parse_fn": 7978287,
     "userdata": null,
     "default": null
@@ -7120,7 +7120,7 @@
    {
     "name": "FactionDecal",
     "offset": 92,
-    "type": "0x0079ca81",
+    "type": "FactionDecal",
     "parse_fn": 7981697,
     "userdata": null,
     "default": null
@@ -7176,7 +7176,7 @@
    {
     "name": "PreBuiltList",
     "offset": 80,
-    "type": "0x0079ca18",
+    "type": "ObjectCount",
     "parse_fn": 7981592,
     "userdata": null,
     "default": null
@@ -7408,9 +7408,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -7724,9 +7724,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -7932,7 +7932,7 @@
    {
     "name": "InitialRoster",
     "offset": 0,
-    "type": "0x00653381",
+    "type": "ObjectCount",
     "parse_fn": 6632321,
     "userdata": null,
     "default": null,
@@ -8208,15 +8208,15 @@
    {
     "name": "ClearanceGeometryHeight",
     "offset": 400,
-    "type": "0x00ad2b60",
+    "type": "Real",
     "parse_fn": 11348832,
     "userdata": null,
-    "default": null
+    "default": "1.74194e-38"
    },
    {
     "name": "ClearanceGeometryIsSmall",
     "offset": 400,
-    "type": "0x00ad2b30",
+    "type": "Bool",
     "parse_fn": 11348784,
     "userdata": null,
     "default": null
@@ -8224,18 +8224,18 @@
    {
     "name": "ClearanceGeometryMajorRadius",
     "offset": 400,
-    "type": "0x00ad2bc0",
+    "type": "Real",
     "parse_fn": 11348928,
     "userdata": null,
-    "default": null
+    "default": "1.74194e-38"
    },
    {
     "name": "ClearanceGeometryMinorRadius",
     "offset": 400,
-    "type": "0x00ad2c10",
+    "type": "Real",
     "parse_fn": 11349008,
     "userdata": null,
-    "default": null
+    "default": "1.74194e-38"
    },
    {
     "name": "ClearanceGeometryOffset",
@@ -8248,7 +8248,7 @@
    {
     "name": "ClearanceGeometryRotationAnchorOffset",
     "offset": 400,
-    "type": "0x00ad14c0",
+    "type": "Coord2D",
     "parse_fn": 11343040,
     "userdata": null,
     "default": null
@@ -8298,9 +8298,9 @@
    {
     "name": "DeathFlags",
     "offset": 0,
-    "type": "0x008612e7",
+    "type": "DeathFlags",
     "parse_fn": 8786663,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
@@ -8662,9 +8662,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -9052,9 +9052,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -9578,10 +9578,10 @@
    {
     "name": "Percentage",
     "offset": 316,
-    "type": "0x008ba26f",
+    "type": "Percent",
     "parse_fn": 9151087,
     "userdata": null,
-    "default": null
+    "default": "0%"
    },
    {
     "name": "Permanent",
@@ -9650,7 +9650,7 @@
    {
     "name": "CrateData",
     "offset": 0,
-    "type": "0x00888b65",
+    "type": "AsciiString",
     "parse_fn": 8948581,
     "userdata": null,
     "default": null
@@ -9916,7 +9916,7 @@
    {
     "name": "SpawnObject",
     "offset": 0,
-    "type": "0x008cd3a8",
+    "type": "OCLList",
     "parse_fn": 9229224,
     "userdata": null,
     "default": null
@@ -10868,9 +10868,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -11266,9 +11266,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -12307,7 +12307,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -12807,9 +12807,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -14089,7 +14089,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -14323,7 +14323,7 @@
    {
     "name": "GridDecalTemplate",
     "offset": 40,
-    "type": "GridDecalTemplate",
+    "type": "DeliveryDecal",
     "parse_fn": 7546812,
     "userdata": null,
     "default": null
@@ -14419,9 +14419,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -14573,7 +14573,7 @@
    {
     "name": "ElvenWoodObject",
     "offset": 0,
-    "type": "0x008c81cd",
+    "type": "ObjectReal",
     "parse_fn": 9208269,
     "userdata": null,
     "default": null
@@ -15089,7 +15089,7 @@
    {
     "name": "WeaponThatCausesEvacuation",
     "offset": 0,
-    "type": "0x008bedf8",
+    "type": "WeaponName",
     "parse_fn": 9170424,
     "userdata": null,
     "default": null
@@ -17001,7 +17001,7 @@
    {
     "name": "FireFXList",
     "offset": 0,
-    "type": "0x00890cd9",
+    "type": "FXListAtBone",
     "parse_fn": 8981721,
     "userdata": null,
     "default": null
@@ -18127,9 +18127,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -18581,9 +18581,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -18717,7 +18717,7 @@
    {
     "name": "InitialRoster",
     "offset": 0,
-    "type": "0x00653381",
+    "type": "ObjectCount",
     "parse_fn": 6632321,
     "userdata": null,
     "default": null
@@ -19653,7 +19653,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -19705,9 +19705,9 @@
    {
     "name": "DeathFlags",
     "offset": 0,
-    "type": "0x008612e7",
+    "type": "DeathFlags",
     "parse_fn": 8786663,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
@@ -21957,9 +21957,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -22355,9 +22355,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -23903,7 +23903,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null
@@ -24055,9 +24055,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -24401,7 +24401,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -24653,7 +24653,7 @@
    {
     "name": "RanksThatStopAdvance",
     "offset": 436,
-    "type": "0x0086df0b",
+    "type": "IntList",
     "parse_fn": 8838923,
     "userdata": null,
     "default": null
@@ -24661,7 +24661,7 @@
    {
     "name": "RanksToJustFreeWhenAttacking",
     "offset": 452,
-    "type": "0x0086ded1",
+    "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
     "default": null
@@ -24669,7 +24669,7 @@
    {
     "name": "RanksToReleaseWhenAttacking",
     "offset": 440,
-    "type": "0x0086ded1",
+    "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
     "default": null
@@ -24851,7 +24851,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -24941,9 +24941,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -25299,9 +25299,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -25471,7 +25471,7 @@
    {
     "name": "InitialRoster",
     "offset": 0,
-    "type": "0x00653381",
+    "type": "ObjectCount",
     "parse_fn": 6632321,
     "userdata": null,
     "default": null,
@@ -25736,9 +25736,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -26050,7 +26050,7 @@
    {
     "name": "InitialCrew",
     "offset": 0,
-    "type": "0x0087ec0b",
+    "type": "ObjectCount",
     "parse_fn": 8907787,
     "userdata": null,
     "default": null
@@ -26058,7 +26058,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -26364,7 +26364,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -26422,9 +26422,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -26712,7 +26712,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -27002,7 +27002,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -27171,7 +27171,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null
@@ -27323,9 +27323,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -27669,7 +27669,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -27921,7 +27921,7 @@
    {
     "name": "RanksThatStopAdvance",
     "offset": 436,
-    "type": "0x0086df0b",
+    "type": "IntList",
     "parse_fn": 8838923,
     "userdata": null,
     "default": null
@@ -27929,7 +27929,7 @@
    {
     "name": "RanksToJustFreeWhenAttacking",
     "offset": 452,
-    "type": "0x0086ded1",
+    "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
     "default": null
@@ -27937,7 +27937,7 @@
    {
     "name": "RanksToReleaseWhenAttacking",
     "offset": 440,
-    "type": "0x0086ded1",
+    "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
     "default": null
@@ -28119,7 +28119,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -28432,7 +28432,7 @@
    {
     "name": "OCL",
     "offset": 0,
-    "type": "0x008601eb",
+    "type": "OCLList",
     "parse_fn": 8782315,
     "userdata": null,
     "default": null
@@ -28448,7 +28448,7 @@
    {
     "name": "Sound",
     "offset": 0,
-    "type": "0x00860324",
+    "type": "AudioEventRTSList",
     "parse_fn": 8782628,
     "userdata": null,
     "default": null
@@ -28456,7 +28456,7 @@
    {
     "name": "Weapon",
     "offset": 0,
-    "type": "0x0086022e",
+    "type": "WeaponTemplateList",
     "parse_fn": 8782382,
     "userdata": null,
     "default": null
@@ -28512,9 +28512,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -29022,7 +29022,7 @@
    {
     "name": "Key",
     "offset": 8,
-    "type": "0x007eec77",
+    "type": "LargeGroupAudioKeys",
     "parse_fn": 8318071,
     "userdata": null,
     "default": null
@@ -30062,9 +30062,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -32358,9 +32358,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -32672,7 +32672,7 @@
    {
     "name": "UpgradeName",
     "offset": 144,
-    "type": "0x008c7acc",
+    "type": "QuotedAsciiString",
     "parse_fn": 9206476,
     "userdata": null,
     "default": null
@@ -32680,7 +32680,7 @@
    {
     "name": "UpgradeOCL",
     "offset": 124,
-    "type": "0x008c7a8f",
+    "type": "ScienceOCL",
     "parse_fn": 9206415,
     "userdata": null,
     "default": null
@@ -32940,9 +32940,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null
    },
    {
@@ -33156,7 +33156,7 @@
    {
     "name": "Angle",
     "offset": 104,
-    "type": "0x0073b723",
+    "type": "RealOrFCurve",
     "parse_fn": 7583523,
     "userdata": null,
     "default": null
@@ -33172,7 +33172,7 @@
    {
     "name": "Opacity",
     "offset": 60,
-    "type": "0x0073b723",
+    "type": "RealOrFCurve",
     "parse_fn": 7583523,
     "userdata": null,
     "default": null
@@ -33180,7 +33180,7 @@
    {
     "name": "Radius",
     "offset": 16,
-    "type": "0x0073b723",
+    "type": "RealOrFCurve",
     "parse_fn": 7583523,
     "userdata": null,
     "default": null
@@ -33212,9 +33212,9 @@
    {
     "name": "AntiCategories",
     "offset": 44,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null
    },
    {
@@ -33596,9 +33596,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -34002,9 +34002,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -34292,7 +34292,7 @@
    {
     "name": "UpgradeName",
     "offset": 124,
-    "type": "0x008cc228",
+    "type": "QuotedAsciiString",
     "parse_fn": 9224744,
     "userdata": null,
     "default": null
@@ -34641,9 +34641,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -34701,7 +34701,7 @@
    {
     "name": "DestinationTemplate",
     "offset": 212,
-    "type": "0x0088494c",
+    "type": "TemplateFilter",
     "parse_fn": 8931660,
     "userdata": null,
     "default": null
@@ -34829,7 +34829,7 @@
    {
     "name": "InitialRoster",
     "offset": 0,
-    "type": "0x00653381",
+    "type": "ObjectCount",
     "parse_fn": 6632321,
     "userdata": null,
     "default": null,
@@ -35047,9 +35047,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -35469,7 +35469,7 @@
    {
     "name": "QuantityModifier",
     "offset": 28,
-    "type": "0x008a3633",
+    "type": "ObjectCount",
     "parse_fn": 9057843,
     "userdata": null,
     "default": null
@@ -36267,7 +36267,7 @@
    {
     "name": "UnitSpecificSounds",
     "offset": 456,
-    "type": "0x0073f684",
+    "type": "UnitSpecificSounds",
     "parse_fn": 7599748,
     "userdata": null,
     "default": null
@@ -36499,10 +36499,10 @@
    {
     "name": "VoicePriority",
     "offset": 472,
-    "type": "0x008d000e",
+    "type": "Int",
     "parse_fn": 9240590,
     "userdata": null,
-    "default": null
+    "default": "0"
    },
    {
     "name": "VoiceRetreatToCastle",
@@ -36949,9 +36949,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -38485,9 +38485,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -38805,7 +38805,7 @@
    {
     "name": "InitialCrew",
     "offset": 0,
-    "type": "0x0087ec0b",
+    "type": "ObjectCount",
     "parse_fn": 8907787,
     "userdata": null,
     "default": null,
@@ -38815,7 +38815,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -39223,7 +39223,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -40951,9 +40951,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -41327,9 +41327,9 @@
    {
     "name": "DeathFlags",
     "offset": 0,
-    "type": "0x008612e7",
+    "type": "DeathFlags",
     "parse_fn": 8786663,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "SlowDeathBehavior"
@@ -41871,7 +41871,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -42087,9 +42087,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -42401,7 +42401,7 @@
    {
     "name": "InitialCrew",
     "offset": 0,
-    "type": "0x0087ec0b",
+    "type": "ObjectCount",
     "parse_fn": 8907787,
     "userdata": null,
     "default": null
@@ -42409,7 +42409,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null,
@@ -42723,7 +42723,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null,
@@ -42781,9 +42781,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -42977,7 +42977,7 @@
    {
     "name": "InitialRoster",
     "offset": 0,
-    "type": "0x00653381",
+    "type": "ObjectCount",
     "parse_fn": 6632321,
     "userdata": null,
     "default": null,
@@ -43427,9 +43427,9 @@
    {
     "name": "DeathFlags",
     "offset": 0,
-    "type": "0x008612e7",
+    "type": "DeathFlags",
     "parse_fn": 8786663,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null
    },
    {
@@ -43867,9 +43867,9 @@
    {
     "name": "SpawnerTrigger",
     "offset": 0,
-    "type": "0x007a7b81",
+    "type": "SpawnerTrigger",
     "parse_fn": 8027009,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null
    }
   ]
@@ -45210,9 +45210,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null
    },
    {
@@ -45498,9 +45498,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null
    },
    {
@@ -45778,10 +45778,10 @@
    {
     "name": "Percentage",
     "offset": 312,
-    "type": "0x008ba26f",
+    "type": "Percent",
     "parse_fn": 9151087,
     "userdata": null,
-    "default": null
+    "default": "0%"
    },
    {
     "name": "Permanent",
@@ -45874,9 +45874,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -46199,7 +46199,7 @@
    {
     "name": "StanceTemplate",
     "offset": 8,
-    "type": "0x00548990",
+    "type": "NameKey",
     "parse_fn": 5540240,
     "userdata": null,
     "default": null
@@ -46911,9 +46911,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -48575,7 +48575,7 @@
    {
     "name": "UpgradeTexture",
     "offset": 348,
-    "type": "0x008b9420",
+    "type": "TextureSwap",
     "parse_fn": 9147424,
     "userdata": null,
     "default": null
@@ -49612,7 +49612,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -49984,9 +49984,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -54909,7 +54909,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null
@@ -54965,9 +54965,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -55221,7 +55221,7 @@
    {
     "name": "InitialPayload",
     "offset": 0,
-    "type": "0x0086af0a",
+    "type": "ObjectCount",
     "parse_fn": 8826634,
     "userdata": null,
     "default": null
@@ -55481,7 +55481,7 @@
    {
     "name": "UpgradeCreationTrigger",
     "offset": 0,
-    "type": "0x0086ba2c",
+    "type": "UpgradeCreationTrigger",
     "parse_fn": 8829484,
     "userdata": null,
     "default": null
@@ -55537,9 +55537,9 @@
    {
     "name": "BoneSpecificConditionState",
     "offset": 0,
-    "type": "0x008678eb",
+    "type": "BoneConditionState",
     "parse_fn": 8812779,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null,
     "inherited": true,
     "inherited_from": "OpenContain"
@@ -55717,7 +55717,7 @@
    {
     "name": "InitialRoster",
     "offset": 0,
-    "type": "0x00653381",
+    "type": "ObjectCount",
     "parse_fn": 6632321,
     "userdata": null,
     "default": null,
@@ -56749,9 +56749,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -57385,9 +57385,9 @@
    {
     "name": "HideIfModelConditions",
     "offset": 0,
-    "type": "0x004cef06",
+    "type": "ModelConditionFlagsList",
     "parse_fn": 5041926,
-    "userdata": null,
+    "userdata": "0x00d9fad8",
     "default": null
    },
    {
@@ -57419,9 +57419,9 @@
    {
     "name": "WeatherTexture",
     "offset": 16,
-    "type": "0x004cf066",
+    "type": "WeatherTexture",
     "parse_fn": 5042278,
-    "userdata": null,
+    "userdata": "0x00da3a84",
     "default": null
    }
   ]
@@ -57525,7 +57525,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -57555,7 +57555,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null,
@@ -57585,7 +57585,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null,
@@ -57803,7 +57803,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null,
@@ -57893,9 +57893,9 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null,
     "inherited": true,
     "inherited_from": "W3DScriptedModelDraw"
@@ -57903,7 +57903,7 @@
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -58407,7 +58407,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -58437,7 +58437,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null,
@@ -58467,7 +58467,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null,
@@ -58693,7 +58693,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null,
@@ -58799,9 +58799,9 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null,
     "inherited": true,
     "inherited_from": "W3DScriptedModelDraw"
@@ -58809,7 +58809,7 @@
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -59032,7 +59032,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -59070,7 +59070,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null,
@@ -59100,7 +59100,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null,
@@ -59318,7 +59318,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null,
@@ -59408,9 +59408,9 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null,
     "inherited": true,
     "inherited_from": "W3DScriptedModelDraw"
@@ -59418,7 +59418,7 @@
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -59608,7 +59608,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null
@@ -59632,7 +59632,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null
@@ -59656,7 +59656,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null
@@ -59824,7 +59824,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null
@@ -59896,15 +59896,15 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null
    },
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null
@@ -60040,9 +60040,9 @@
    {
     "name": "WeatherTexture",
     "offset": 40,
-    "type": "0x004cfeb9",
+    "type": "WeatherTexture",
     "parse_fn": 5045945,
-    "userdata": null,
+    "userdata": "0x00da3a84",
     "default": null
    },
    {
@@ -60154,7 +60154,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -60184,7 +60184,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null,
@@ -60214,7 +60214,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null,
@@ -60424,7 +60424,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null,
@@ -60522,9 +60522,9 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null,
     "inherited": true,
     "inherited_from": "W3DScriptedModelDraw"
@@ -60532,7 +60532,7 @@
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -60740,7 +60740,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -60770,7 +60770,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null,
@@ -60800,7 +60800,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null,
@@ -61010,7 +61010,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null,
@@ -61100,9 +61100,9 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null,
     "inherited": true,
     "inherited_from": "W3DScriptedModelDraw"
@@ -61110,7 +61110,7 @@
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -61284,7 +61284,7 @@
    {
     "name": "DecalTemplate",
     "offset": 8,
-    "type": "DecalTemplate",
+    "type": "DeliveryDecal",
     "parse_fn": 7546812,
     "userdata": null,
     "default": null
@@ -61590,7 +61590,7 @@
    {
     "name": "AttachToBoneInAnotherModule",
     "offset": 64,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -61620,7 +61620,7 @@
    {
     "name": "BurntTexture",
     "offset": 0,
-    "type": "0x004c3321",
+    "type": "TextureSwap",
     "parse_fn": 4993825,
     "userdata": null,
     "default": null,
@@ -61682,7 +61682,7 @@
    {
     "name": "EmbedPortal",
     "offset": 284,
-    "type": "0x004c30bd",
+    "type": "EmbedPortal",
     "parse_fn": 4993213,
     "userdata": null,
     "default": null,
@@ -62004,7 +62004,7 @@
    {
     "name": "RandomTexture",
     "offset": 0,
-    "type": "0x004c7c56",
+    "type": "RandomTexture",
     "parse_fn": 5012566,
     "userdata": null,
     "default": null,
@@ -62134,9 +62134,9 @@
    {
     "name": "TimeOfDayTexture",
     "offset": 0,
-    "type": "0x004c42a8",
+    "type": "TimeOfDayTexture",
     "parse_fn": 4997800,
-    "userdata": null,
+    "userdata": "0x00da3a68",
     "default": null,
     "inherited": true,
     "inherited_from": "W3DScriptedModelDraw"
@@ -62152,7 +62152,7 @@
    {
     "name": "TrackMarks",
     "offset": 60,
-    "type": "0x004b65ba",
+    "type": "LowercaseAsciiString",
     "parse_fn": 4941242,
     "userdata": null,
     "default": null,
@@ -62585,7 +62585,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,
@@ -62778,9 +62778,9 @@
    {
     "name": "AntiCategory",
     "offset": 52,
-    "type": "0x0089f32d",
+    "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
-    "userdata": null,
+    "userdata": "0x00d9fa40",
     "default": null,
     "inherited": true,
     "inherited_from": "SpecialPowerModule"
@@ -64823,7 +64823,7 @@
    {
     "name": "Turret",
     "offset": 20,
-    "type": "0x006620a2",
+    "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
     "default": null,

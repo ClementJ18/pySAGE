@@ -33,12 +33,29 @@ from typing import Any, Iterator, Optional
 
 import pefile
 from capstone import CS_ARCH_X86, CS_MODE_32, Cs
-from unicorn import (UC_ARCH_X86, UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_UNMAPPED, UC_MODE_32,
-                     UC_PROT_READ, UC_PROT_WRITE, Uc, UcError)
-from unicorn.x86_const import (UC_X86_REG_DS, UC_X86_REG_EAX, UC_X86_REG_EBP,
-                               UC_X86_REG_ECX, UC_X86_REG_EIP, UC_X86_REG_ES,
-                               UC_X86_REG_ESP, UC_X86_REG_FS, UC_X86_REG_GDTR,
-                               UC_X86_REG_SS)
+from unicorn import (
+    UC_ARCH_X86,
+    UC_HOOK_BLOCK,
+    UC_HOOK_CODE,
+    UC_HOOK_MEM_UNMAPPED,
+    UC_MODE_32,
+    UC_PROT_READ,
+    UC_PROT_WRITE,
+    Uc,
+    UcError,
+)
+from unicorn.x86_const import (
+    UC_X86_REG_DS,
+    UC_X86_REG_EAX,
+    UC_X86_REG_EBP,
+    UC_X86_REG_ECX,
+    UC_X86_REG_EIP,
+    UC_X86_REG_ES,
+    UC_X86_REG_ESP,
+    UC_X86_REG_FS,
+    UC_X86_REG_GDTR,
+    UC_X86_REG_SS,
+)
 
 __all__ = [
     "Image",
@@ -163,6 +180,228 @@ PARSE_TYPES = {
     # to an object, and the geometry primitive an object's shape is built from.
     0x0073F24D: "Module",
     0x00AD4040: "GeometryType",
+    # Parsers with a syntax of their own, each read from its body: what it scans, what it
+    # resolves a token against, how it stores the result. `build_wiki.py` documents each.
+    0x0073A4DC: "AccelerationReal",
+    0x008ED575: "AIKindOf",
+    0x008ED5C4: "AIKindOfList",
+    0x004B65FE: "AngleReal",
+    0x004B661E: "AngleReal",
+    0x005D86F1: "ArmorCoefficient",
+    0x0073D99B: "ArmorSetFlags",
+    0x004B2687: "AsciiString",
+    0x00621411: "AsciiString",
+    0x00888B65: "AsciiString",
+    0x00AD16B0: "AsciiString",
+    0x00806264: "AttributeModifier",
+    0x0073BB7D: "AudioEventRTSList",
+    0x00860324: "AudioEventRTSList",
+    0x00836A37: "AutoResolveArmor",
+    0x00829153: "AutoResolveBody",
+    0x00829A85: "AutoResolveCombatChain",
+    0x00828A07: "AutoResolveLeadership",
+    0x008287E3: "AutoResolveUnitTypeFlags",
+    0x0082A029: "AutoResolveWeapon",
+    0x006D9FDC: "BitFlags",
+    0x0042EF5A: "BitFlags16",
+    0x008678EB: "BoneConditionState",
+    0x004C232A: "BoneNameKey",
+    0x004C236F: "BoneNameKey",
+    0x004B26AF: "Bool",
+    0x0075CAA4: "Bool",
+    0x0093B44C: "Bool",
+    0x0093B46D: "Bool",
+    0x0093B48F: "Bool",
+    0x00AD16F0: "Bool",
+    0x00AD1730: "Bool",
+    0x00AD2B30: "Bool",
+    0x0042E574: "BoolBit",
+    0x005E3183: "BoolOrInt",
+    0x0085B11B: "BridgeFXEntry",
+    0x0085B1C5: "BridgeOCLEntry",
+    0x0042E976: "ByteEnum",
+    0x0079BD2F: "CastleUnpack",
+    0x006CB608: "ClearNuggets",
+    0x0080C9E1: "CommandButton",
+    0x0075CB37: "CommandType",
+    0x00AD3D30: "ContactPoint",
+    0x00AD14C0: "Coord2D",
+    0x0042F2D2: "Coord2DList",
+    0x006CF43F: "Coord2DList",
+    0x00AD1770: "Coord3D",
+    0x00825DC2: "CrowdResponse",
+    0x0073AF3F: "DamageFX",
+    0x0076246E: "DamageFXDuration",
+    0x0076238A: "DamageFXFXList",
+    0x007623FC: "DamageFXFXList",
+    0x00762311: "DamageFXReal",
+    0x008612E7: "DeathFlags",
+    0x0073B071: "DurationByte",
+    0x006C9D99: "DurationRange",
+    0x006C9E7A: "DurationRange",
+    0x00899C7D: "EatObjectEntry",
+    0x004C30BD: "EmbedPortal",
+    0x008E0A11: "EmotionAIType",
+    0x008E0CA9: "EmotionNuggetRef",
+    0x0073B6D5: "EnumList",
+    0x0073B7CB: "EnumList",
+    0x005DE179: "EvaEventList",
+    0x0079CA81: "FactionDecal",
+    0x0061C0A5: "FactionFlags",
+    0x0093B931: "FactionNameList",
+    0x009A7CB8: "FactionNameList",
+    0x0062145C: "FontDesc",
+    0x00778C93: "FontDesc",
+    0x004C425B: "FXEvent",
+    0x004C4284: "FXEvent",
+    0x006C9CDC: "FXList",
+    0x0068A2B8: "FXListAtBone",
+    0x00890CD9: "FXListAtBone",
+    0x006C9C9A: "FXListByVeterancy",
+    0x0064501B: "GameDifficulty",
+    0x00AD4310: "GeometryOther",
+    0x00AD3BC0: "GeometryType",
+    0x0073D0FD: "HealthFraction",
+    0x005DC399: "Int",
+    0x008CEF70: "Int",
+    0x008CF53A: "Int",
+    0x008D000E: "Int",
+    0x0093B4B1: "Int",
+    0x0042EC7A: "IntList",
+    0x005FD599: "IntList",
+    0x0086DF0B: "IntList",
+    0x009015CE: "IntList",
+    0x00641911: "IntPair",
+    0x0042F382: "IntRange",
+    0x0086DED1: "IntSet",
+    0x007EEC77: "LargeGroupAudioKeys",
+    0x006CF475: "LinearTarget",
+    0x006E398A: "LivingWorldPlayerTypeList",
+    0x007FCE85: "LivingWorldSoundFlags",
+    0x0073B192: "LocalizedString",
+    0x0073D3E0: "LocalizedString",
+    0x005DF31D: "LookupList",
+    0x004B65BA: "LowercaseAsciiString",
+    0x004C3236: "LuaEvent",
+    0x0073A9C2: "MappedImage",
+    0x00688E67: "ModelConditionFlags",
+    0x008E092B: "ModelConditionFlags",
+    0x004CEF06: "ModelConditionFlagsList",
+    0x004C21EE: "ModelName",
+    0x004C33C8: "ModelWithProbability",
+    0x00804DEA: "ModifierCategory",
+    0x0089F32D: "ModifierCategoryFlags",
+    0x0073E716: "ModuleTag",
+    0x005FC8DE: "Money",
+    0x00548990: "NameKey",
+    0x0075CAA9: "NameKey",
+    0x005489D4: "NameKeyList",
+    0x0061A4FF: "NameKeyList",
+    0x0061A5B5: "NameKeyList",
+    0x00621F44: "NotificationType",
+    0x00653381: "ObjectCount",
+    0x0079CA18: "ObjectCount",
+    0x0086AF0A: "ObjectCount",
+    0x0087EC0B: "ObjectCount",
+    0x008A3633: "ObjectCount",
+    0x005FD78C: "ObjectPercent",
+    0x005FD7D9: "ObjectPercent",
+    0x0074040D: "ObjectPrerequisite",
+    0x007013C2: "ObjectPriority",
+    0x00719B59: "ObjectReal",
+    0x0075E9AF: "ObjectReal",
+    0x008C81CD: "ObjectReal",
+    0x005FD841: "ObjectVeterancy",
+    0x0089ECD7: "Obsolete",
+    0x008601EB: "OCLList",
+    0x008CD3A8: "OCLList",
+    0x004BCE37: "ParticleSysBone",
+    0x004BCE4E: "ParticleSysBone",
+    0x006C9D46: "ParticleSystem",
+    0x006C9D04: "ParticleSystemByVeterancy",
+    0x005D875A: "Percent",
+    0x005DC3C7: "Percent",
+    0x008BA26F: "Percent",
+    0x006A926A: "Probability",
+    0x0085D29C: "QueryEntry",
+    0x0042EE9A: "QuotedAsciiString",
+    0x005EA54B: "QuotedAsciiString",
+    0x007EFB84: "QuotedAsciiString",
+    0x008C7ACC: "QuotedAsciiString",
+    0x008CC228: "QuotedAsciiString",
+    0x004C7C56: "RandomTexture",
+    0x0073A396: "RandomVariable",
+    0x004B265F: "Real",
+    0x00AD2B60: "Real",
+    0x00AD2BC0: "Real",
+    0x00AD2C10: "Real",
+    0x008ED4AA: "RealList",
+    0x0073B723: "RealOrFCurve",
+    0x00642182: "RealPerMPSlot",
+    0x006422D2: "RealPerMPSlot",
+    0x00642408: "RealPerMPSlot",
+    0x0064253E: "RealPerMPSlot",
+    0x00642674: "RealPerMPSlot",
+    0x0042F334: "RealRange",
+    0x004B262A: "RealRange",
+    0x007F2A14: "RegionBonus",
+    0x007F4A9D: "RegionNameList",
+    0x006213CF: "RGBAColor",
+    0x0042F03F: "RGBAColorInt",
+    0x005DF33E: "RGBColorSigned",
+    0x008C6B1E: "ScienceInt",
+    0x008C7A8F: "ScienceOCL",
+    0x00740483: "SciencePrerequisite",
+    0x0073BCBF: "SciencePrerequisiteList",
+    0x0073B4A0: "ScienceTypeList",
+    0x0042DB44: "ScriptText",
+    0x0042EE37: "SecondsToMs",
+    0x004B92D3: "ShadowType",
+    0x007A7B81: "SpawnerTrigger",
+    0x0075D4D0: "StanceList",
+    0x006C6B0D: "TacticalAITargetList",
+    0x0088494C: "TemplateFilter",
+    0x004C2EEC: "TextureSwap",
+    0x004C3321: "TextureSwap",
+    0x008B9420: "TextureSwap",
+    0x0073AD1F: "ThingTemplate",
+    0x008E08DC: "ThreatThreshold",
+    0x008E0906: "ThreatThreshold",
+    0x004C42A8: "TimeOfDayTexture",
+    0x0086BA2C: "UpgradeCreationTrigger",
+    0x008E02AF: "UpgradeHeuristic",
+    0x0061EB52: "UpgradeNameList",
+    0x007404E0: "UpgradePrerequisite",
+    0x006897B9: "UpgradeTemplateList",
+    0x0073B304: "UpgradeTemplateList",
+    0x007F3646: "UpgradeTemplateList",
+    0x007F36A9: "UpgradeTemplateList",
+    0x008050D3: "UpgradeWithDelay",
+    0x006CB559: "WeaponBonus",
+    0x006CB5AB: "WeaponBonus",
+    0x008BEDF8: "WeaponName",
+    0x006C7FE6: "WeaponSlotBitFlags",
+    0x004C317B: "WeaponSlotBone",
+    0x006C9961: "WeaponSlotKindOf",
+    0x006C9992: "WeaponSlotKindOf",
+    0x006C9589: "WeaponSlotModelConditions",
+    0x006C7FB3: "WeaponSlotWeapon",
+    0x0086022E: "WeaponTemplateList",
+    0x004CF066: "WeatherTexture",
+    0x004CFEB9: "WeatherTexture",
+    0x005DA4CD: "WeightedSoundList",
+    0x005DC241: "WindowTransition",
+    0x007F3C5C: "WorldToMapMatch",
+    0x0073B4FF: "SpecialPowerTemplateList",
+    0x00836792: "MissionObjectiveTagList",
+    0x008367EB: "MissionObjectiveTagList",
+    0x005DA4F7: "AudioEventRTSList",
+    0x008E7E95: "Coord2DList",
+    0x006FEC18: "ScienceType",
+    0x008DC24C: "WeaponSlotAngle",
+    0x008DC27F: "WeaponSlotReal",
+    0x008DC20F: "WeaponSlotFlags",
+    0x005DF2DB: "LookupList",
 }
 
 # The lists those types resolve their tokens against, where the array is reached from
@@ -182,6 +421,57 @@ PARSER_TABLES = {
     0x0086C30A: 0x00DAEB2C,
     0x00AD4040: 0x00DC1C38,
     0x008D239B: 0x00DB4B08,
+    0x004BCE37: 0x00D99E70,
+    0x004BCE4E: 0x00D99E70,
+    0x004C317B: 0x00DA12E4,
+    0x004C42A8: 0x00DA3A68,
+    0x004CEF06: 0x00D9FAD8,
+    0x004CF066: 0x00DA3A84,
+    0x004CFEB9: 0x00DA3A84,
+    0x005D86F1: 0x00D9DA08,
+    0x005DF31D: 0x00BF3350,
+    0x005FD841: 0x00D9F5E4,
+    0x0061C0A5: 0x00DA3AC0,
+    0x00688E67: 0x00D9FAD8,
+    0x006C6B0D: 0x00DA1208,
+    0x006C7FB3: 0x00DA12E4,
+    0x006C7FE6: 0x00DA1314,
+    0x006C9589: 0x00DA12E4,
+    0x006C9961: 0x00DA12E4,
+    0x006C9992: 0x00DA12E4,
+    0x006C9C9A: 0x00D9F5E4,
+    0x006C9D04: 0x00D9F5E4,
+    0x006CB559: 0x00DA1740,
+    0x006CB5AB: 0x00DA1740,
+    0x006D9FDC: 0x00DA1FE4,
+    0x0073A396: 0x00DA1CBC,
+    0x0073D99B: 0x00D9FA80,
+    0x0075CB37: 0x00DA4D10,
+    0x0075D4D0: 0x00C53660,
+    0x00762311: 0x00DA5110,
+    0x0076238A: 0x00DA5110,
+    0x007623FC: 0x00DA5110,
+    0x0076246E: 0x00DA5110,
+    0x007A7B81: 0x00D9FAD8,
+    0x007F2A14: 0x00C4CBD0,
+    0x007FCE85: 0x00DA6958,
+    0x00804DEA: 0x00D9FA40,
+    0x00806264: 0x00DA6D28,
+    0x008287E3: 0x00DADBE4,
+    0x008612E7: 0x00D9FAD8,
+    0x008678EB: 0x00D9FAD8,
+    0x0089F32D: 0x00D9FA40,
+    0x008E02AF: 0x00DB4F44,
+    0x008E092B: 0x00D9FAD8,
+    0x008E0A11: 0x00D9F9EC,
+    0x008ED575: 0x00DB55C8,
+    0x008ED5C4: 0x00DB55C8,
+    0x00AD3BC0: 0x00DC1C38,
+    0x00AD4310: 0x00DC1C38,
+    0x008DC20F: 0x00DA12E4,
+    0x008DC24C: 0x00DA12E4,
+    0x008DC27F: 0x00DA12E4,
+    0x005DF2DB: 0x00BF3234,
 }
 
 # Sub-block parsers shared by more than one keyword, so the block's name cannot be
@@ -194,6 +484,69 @@ BLOCK_TYPES = {
     0x004C8840: "AnimationState",
     0x004C800E: "ModelConditionState",
     0x008D07CF: "ModelConditionAudio",
+    # Nested blocks named after what they hold rather than after a keyword taking them.
+    0x0073BEC3: "AddModule",
+    0x0082FD19: "AIEconomyAssignment",
+    0x0082FD30: "AIWallNodeAssignment",
+    0x004C7A89: "Animation",
+    0x0073FAC4: "ArmorSet",
+    0x0061DBC8: "Attribute",
+    0x008E5DBC: "AudioEvent",
+    0x009494E2: "AutoResolveArmor",
+    0x009493FA: "AutoResolveWeapon",
+    0x006E1376: "BuildingNugget",
+    0x007F4B0E: "Connection",
+    0x00909F2D: "ControlPoint",
+    0x006CD6F4: "DamageContainedNugget",
+    0x006CD301: "DamageNugget",
+    0x007327BC: "DeliveryDecal",
+    0x006CD757: "DOTNugget",
+    0x008E5A80: "EnableRegion",
+    0x008E7EBC: "EyeTowerPoints",
+    0x005F05B8: "FireWeaponOCLNugget",
+    0x0073D711: "Flammability",
+    0x008E5BE0: "ForceBattle",
+    0x0073BE51: "FormationPreviewDecal",
+    0x00721AF4: "ImagePart",
+    0x007213E9: "ImagePart",
+    0x0073BF17: "InheritableModule",
+    0x007EF63F: "LargeGroupAudioSound",
+    0x00973910: "LivingWorldBuildingIconObject",
+    0x00973A33: "LivingWorldBuildPlotIconObject",
+    0x0073BF6B: "LocomotorSet",
+    0x008E6106: "MoveArmy",
+    0x008E589C: "MoveCamera",
+    0x009A7AF1: "OwnershipSet",
+    0x009023D8: "PlayerDefeatCondition",
+    0x00902375: "PlayerDefeatCondition",
+    0x0074057B: "Prerequisites",
+    0x0073E7ED: "ReplaceModule",
+    0x007F3BF3: "RestrictBuildings",
+    0x008E6185: "SetPlayerControlOfArmy",
+    0x006FF6A7: "SkillSet",
+    0x007001DB: "SkirmishBuildList",
+    0x009A792F: "SpawnArmies",
+    0x008E78CE: "SpawnArmy",
+    0x008E5CF2: "SpawnBuilding",
+    0x009A7854: "SpawnBuildings",
+    0x008E7981: "SplineCamera",
+    0x009A7DD4: "StartingRestriction",
+    0x006CD887: "StealMoneyNugget",
+    0x0061F82B: "SubClass",
+    0x009024A2: "TeamDefeatCondition",
+    0x0090243F: "TeamDefeatCondition",
+    0x00902588: "TeamVictoryCondition",
+    0x00902525: "TeamVictoryCondition",
+    0x0073C073: "ThreatBreakdown",
+    0x006620A2: "TurretAIData",
+    0x007FAA42: "Tutorial",
+    0x0073F5B1: "UnitSpecificFX",
+    0x0073F684: "UnitSpecificSounds",
+    0x008E5F3A: "UpdateAnimObject",
+    0x00619141: "ViewInfo",
+    0x0073ED19: "WeaponSet",
+    0x008E5E63: "WorldText",
+    0x006001D4: "ShellMenuImagePart",
 }
 
 # Name arrays the flag and enum types resolve their tokens against: a
@@ -517,7 +870,8 @@ def lookup_table(img: Image, va: int, limit: int = 256) -> list[tuple[str, int]]
 
 def field_table_of(img: Image, fn: int, max_offset: int = 0x4000, limit: int = 200,
                    depth: int = 0, maxdepth: int = 1,
-                   seen: Optional[set[int]] = None) -> list[tuple[str, int, int, int]]:
+                   seen: Optional[set[int]] = None,
+                   min_rows: int = 2) -> list[tuple[str, int, int, int]]:
     """The field table a parser hands to the INI reader, if it uses one.
 
     Every block the engine reads - a module, a nested block, a whole `Object` - is read
@@ -536,7 +890,7 @@ def field_table_of(img: Image, fn: int, max_offset: int = 0x4000, limit: int = 2
             return []
         rows = parse_table(img, addr, limit)
         ok = all(img.is_text(r[1]) and r[3] < max_offset for r in rows)
-        return rows if len(rows) >= 2 and ok else []
+        return rows if len(rows) >= min_rows and ok else []
 
     ins = list(img.disasm(fn, 0x900))
     # the parser's own table first, then the one a helper it calls hands over
@@ -562,9 +916,27 @@ def field_table_of(img: Image, fn: int, max_offset: int = 0x4000, limit: int = 2
             target = int(i.op_str, 16)
             if img.is_text(target):
                 rows = field_table_of(img, target, max_offset, limit, depth + 1,
-                                      maxdepth, seen)
+                                      maxdepth, seen, min_rows)
                 if rows:
                     return rows
+    return []
+
+
+def registered_rows(img: Image, fn: int) -> list[tuple[str, int, int, int]]:
+    """The rows a parser's block gets from a `buildFieldParse` it hands over.
+
+    A block read through `MultiIniFieldParse` - a weapon nugget, the turret data - has
+    no table of its own for the parser to push: it pushes the function that adds the
+    tables instead. A pushed function counts as one only if it really does call
+    `MultiIniFieldParse::add`, which `field_tables` checks.
+    """
+    for i in img.disasm(fn, 0x600):
+        if i.mnemonic == "push" and i.op_str.startswith("0x") and img.is_text(int(i.op_str, 16)):
+            rows = [(kw, parse, ud, off + extra)
+                    for tab, _src, extra in field_tables(img, int(i.op_str, 16))
+                    for kw, parse, ud, off in parse_table(img, tab)]
+            if rows:
+                return rows
     return []
 
 
@@ -1024,7 +1396,7 @@ class Emulator:
         # what a constructor can change, as each run starts it: the initialised part of
         # .data as shipped, the uninitialised rest zeroed in one run and poisoned in the other
         self.data: list[tuple[int, tuple[bytes, bytes]]] = []
-        for name, va, size, fo in img.sections:
+        for name, va, size, _fo in img.sections:
             raw = img.read(va, size)
             uc.mem_write(va, raw)
             if name == ".data":
@@ -1362,9 +1734,11 @@ def _render_real(img: Image, kind: str, defaults: dict[int, Any], off: int) -> O
         return None
     reals: list[float] = [v for v in values if v is not None]
     if kind == "RGBColor":
-        return " ".join("%s:%d" % (label, round(v * 255)) for label, v in zip(labels, reals))
+        return " ".join("%s:%d" % (label, round(v * 255))
+                        for label, v in zip(labels, reals, strict=True))
     if count > 1:
-        return " ".join("%s:%s" % (label, _num(v)) for label, v in zip(labels, reals))
+        return " ".join("%s:%s" % (label, _num(v))
+                        for label, v in zip(labels, reals, strict=True))
     value = reals[0]
     if kind == "Percent":
         return _num(value * 100) + "%"
@@ -1391,16 +1765,24 @@ def field_type(img: Image, keyword: str, parse: int,
     if parse in PARSE_TYPES:
         return PARSE_TYPES[parse]
     name = BLOCK_TYPES.get(parse, keyword)
-    if name in blocks:
-        return name if blocks[name]["parse_fn"] == parse else "0x%08x" % parse
-    rows = field_table_of(img, parse)
-    fields = [{"name": kw, "type": PARSE_TYPES.get(fn, "0x%08x" % fn),
-               "parse_fn": fn, "offset": off}
-              for kw, fn, _ud, off in rows]
-    words = [f["name"] for f in fields] or block_keywords(img, parse)
-    if len(words) < 2 and parse not in BLOCK_TYPES:
+    if name in blocks and blocks[name]["parse_fn"] == parse:
+        return name
+    # a nested block may have a single keyword; the table's shape still has to hold
+    rows = field_table_of(img, parse, min_rows=1) or registered_rows(img, parse)
+    words = [kw for kw, _fn, _ud, _off in rows] or block_keywords(img, parse)
+    if not rows and len(words) < 2 and parse not in BLOCK_TYPES:
         return "0x%08x" % parse
-    blocks[name] = {"parse_fn": parse, "keywords": words, "fields": fields}
+    if name in blocks:
+        # Another parser already took the name. Several wrap the same block - the
+        # `ArmorSet` an `AddModule` takes is the one an `Object` takes - and then it is
+        # the same type; a block with other keywords is not, and keeps its address.
+        return name if blocks[name]["keywords"] == words else "0x%08x" % parse
+    # registered before its own fields are typed, so a block nested in itself ends
+    entry: dict[str, Any] = {"parse_fn": parse, "keywords": words, "fields": []}
+    blocks[name] = entry
+    entry["fields"] = [{"name": kw, "type": field_type(img, kw, fn, blocks),
+                        "parse_fn": fn, "offset": off}
+                       for kw, fn, _ud, off in rows]
     return name
 
 

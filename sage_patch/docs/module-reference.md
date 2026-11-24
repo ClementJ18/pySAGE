@@ -1,7 +1,7 @@
 # Engine module reference - fields and compiled-in defaults
 
 Generated from `game.dat` by [`../scripts/module_defaults.py`](../scripts/module_defaults.py);
-regenerate rather than edit. **330 modules, 6817 fields, 5785 with a recovered default (85%).**
+regenerate rather than edit. **330 modules, 6817 fields, 5791 with a recovered default (85%).**
 
 A listed default is what the ModuleData constructor writes, so it is the value in
 force whenever an INI block omits that keyword. Field names and offsets come from
@@ -19,7 +19,7 @@ instructions where emulation cannot vouch for a value.
 - `-` in the default column means neither method could vouch for the value -
   typically one the constructor looks up in game data loaded at startup. It does
   not mean the field is unset.
-- `type` is derived from the field's parse function. 179 fields (3%) use a
+- `type` is derived from the field's parse function. 0 fields (0%) use a
   parse function that has not been identified and show its raw address instead.
 - Offsets are into ModuleData, not into the module instance.
 - Types are checked for internal consistency: no `Bool` resolves to a non-boolean.
@@ -179,7 +179,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## AllowBannerSpawnUpgrade
 
@@ -223,7 +223,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 | `UpdateTimer` | Int | `0x78` | `10` |
 | `WanderPercentage` | Int | `0x6c` | `50` |
 
@@ -285,7 +285,7 @@ instructions where emulation cannot vouch for a value.
 | `BannerCarrierMinLevel` | UInt8 | `0x27c` | `1` |
 | `BannerCarrierPosition` | BannerCarrierPosition | `0x20c` | - |
 | `BannerCarriersAllowed` | AsciiStringList | `0x218` | `""` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ComboHorde` | ComboHorde | `0x198` | - |
@@ -325,7 +325,7 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `IsPorcupineFormation` | Bool | `0x238` | `No` |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `LargeUnitHeightFactor` | Real | `0x2b0` | `0.45` |
@@ -359,9 +359,9 @@ instructions where emulation cannot vouch for a value.
 | `RandomOffset` | Coord2D | `0x1d0` | - |
 | `RankInfo` | RankInfo | `0x18c` | - |
 | `RankSplit` | Bool | `0x254` | `No` |
-| `RanksThatStopAdvance` | 0x0086df0b | `0x1b4` | - |
-| `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
-| `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
+| `RanksThatStopAdvance` | IntList | `0x1b4` | - |
+| `RanksToJustFreeWhenAttacking` | IntSet | `0x1c4` | - |
+| `RanksToReleaseWhenAttacking` | IntSet | `0x1b8` | - |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
 | `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
@@ -384,7 +384,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 | `UseMarchingAnims` | Bool | `0x25d` | `No` |
 | `UseSlowHordeMovement` | Bool | `0x248` | `Yes` |
 | `VisionRearOverride` | Percent | `0x274` | `0%` |
@@ -505,7 +505,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## AssistedTargetingUpdate
 
@@ -515,8 +515,8 @@ instructions where emulation cannot vouch for a value.
 |---|---|---|---|
 | `AssistingClipSize` | Int | `0x8` | - |
 | `AssistingWeaponSlot` | LookupList | `0xc` | - |
-| `LaserFromAssisted` | 0x0073ad1f | `0x10` | - |
-| `LaserToTarget` | 0x0073ad1f | `0x14` | - |
+| `LaserFromAssisted` | ThingTemplate | `0x10` | - |
+| `LaserToTarget` | ThingTemplate | `0x14` | - |
 
 ## AttachUpdate
 
@@ -546,10 +546,10 @@ instructions where emulation cannot vouch for a value.
 | `AffectContainedOnly` | Bool | `0x16c` | `No` |
 | `AffectEvil` | Bool | `0x169` | `No` |
 | `AffectGood` | Bool | `0x168` | `No` |
-| `AffectsKindOf` | 0x0089ecd7 | `0x0` | - |
+| `AffectsKindOf` | Obsolete | `0x0` | - |
 | `AllowPowerWhenAttacking` | Bool | `0x20` | `Yes` |
 | `AllowSelf` | Bool | `0x16b` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x160` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x160` | - |
 | `AntiFX` | FXList | `0x164` | `""` |
 | `BonusName` | AsciiString | `0x8` | - |
 | `ConflictsWith` | UpgradeMask | `0xb8` | - |
@@ -616,7 +616,7 @@ instructions where emulation cannot vouch for a value.
 | `IdleTimeSeconds` | Real | `0x14` | `0` |
 | `MaxScanRange` | Real | `0x8` | `0` |
 | `MinScanRange` | Real | `0xc` | `0` |
-| `Query` | 0x0085d29c | `0x2c` | - |
+| `Query` | QueryEntry | `0x2c` | - |
 | `SpecialAbility` | AsciiString | `0x18` | `""` |
 | `StartsActive` | Bool | `0x5c` | `No` |
 | `WorkingRadius` | Real | `0x10` | `0` |
@@ -950,8 +950,8 @@ instructions where emulation cannot vouch for a value.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `BridgeDieFX` | 0x0085b11b | `0x10` | - |
-| `BridgeDieOCL` | 0x0085b1c5 | `0x14` | - |
+| `BridgeDieFX` | BridgeFXEntry | `0x10` | - |
+| `BridgeDieOCL` | BridgeOCLEntry | `0x14` | - |
 | `LateralScaffoldSpeed` | VelocityReal | `0x8` | `5` |
 | `VerticalScaffoldSpeed` | VelocityReal | `0xc` | `5` |
 
@@ -1018,7 +1018,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -1048,7 +1048,7 @@ instructions where emulation cannot vouch for a value.
 | `TargetEnemy` | Bool | `0x40` | `No` |
 | `TriggerFX` | FXList | `0x48` | `""` |
 | `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
-| `UpgradeMoneyAmount` | 0x008c6b1e | `0x7c` | - |
+| `UpgradeMoneyAmount` | ScienceInt | `0x7c` | - |
 | `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
 | `WeatherDuration` | Duration | `0x30` | `0` |
 
@@ -1060,7 +1060,7 @@ instructions where emulation cannot vouch for a value.
 |---|---|---|---|
 | `BuildTime` | Real | `0x24` | `5` |
 | `BuildVariation` | Int | `0xc` | `0` |
-| `CastleToUnpackForFaction` | 0x0079bd2f | `0x68` | - |
+| `CastleToUnpackForFaction` | CastleUnpack | `0x68` | - |
 | `CrewPrepareFX` | FXList | `0x44` | `""` |
 | `CrewPrepareInterval` | Duration | `0x40` | `2000` |
 | `CrewPrepareTime` | Duration | `0x38` | `3600` |
@@ -1069,14 +1069,14 @@ instructions where emulation cannot vouch for a value.
 | `DecalSize` | Real | `0x18` | `1` |
 | `DisableStructureRotation` | Bool | `0x74` | `No` |
 | `EvaEnemyCastleSightedEvent` | EvaEvent | `0x4c` | `""` |
-| `FactionDecal` | 0x0079ca81 | `0x5c` | - |
+| `FactionDecal` | FactionDecal | `0x5c` | - |
 | `FadeTime` | Real | `0x1c` | `2` |
 | `FilterCrew` | KindOfFilter | `0x34` | `""` |
 | `FilterValidOwnedEntries` | KindOfFilter | `0x30` | - |
 | `InstantUnpack` | Bool | `0x3c` | `No` |
 | `KeepDeathKillsEverything` | Bool | `0x3d` | `No` |
 | `MaxCastleRadius` | Real | `0x2c` | `0` |
-| `PreBuiltList` | 0x0079ca18 | `0x50` | - |
+| `PreBuiltList` | ObjectCount | `0x50` | - |
 | `PreBuiltPlyr` | AsciiString | `0x10` | `""` |
 | `RepairHealthPercentPerSecond` | Percent | `0x8` | `0%` |
 | `ScanDistance` | Real | `0x28` | `100` |
@@ -1122,7 +1122,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CaveIndex` | Int | `0x98` | `0` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
@@ -1160,7 +1160,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanAlwaysEnter` | KindOfFilter | `0xd8` | - |
 | `CashBackPercent` | Percent | `0xd4` | `50%` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
@@ -1181,7 +1181,7 @@ instructions where emulation cannot vouch for a value.
 | `FXForRingEntry` | FXList | `0x10c` | `""` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
-| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `InitialRoster` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -1229,18 +1229,18 @@ instructions where emulation cannot vouch for a value.
 | field | type | offset | default |
 |---|---|---|---|
 | `ClearanceGeometry` | GeometryType | `0x190` | - |
-| `ClearanceGeometryHeight` | 0x00ad2b60 | `0x190` | - |
-| `ClearanceGeometryIsSmall` | 0x00ad2b30 | `0x190` | - |
-| `ClearanceGeometryMajorRadius` | 0x00ad2bc0 | `0x190` | - |
-| `ClearanceGeometryMinorRadius` | 0x00ad2c10 | `0x190` | - |
+| `ClearanceGeometryHeight` | Real | `0x190` | `1.74194e-38` |
+| `ClearanceGeometryIsSmall` | Bool | `0x190` | - |
+| `ClearanceGeometryMajorRadius` | Real | `0x190` | `1.74194e-38` |
+| `ClearanceGeometryMinorRadius` | Real | `0x190` | `1.74194e-38` |
 | `ClearanceGeometryOffset` | Coord3D | `0x1ec` | - |
-| `ClearanceGeometryRotationAnchorOffset` | 0x00ad14c0 | `0x190` | - |
+| `ClearanceGeometryRotationAnchorOffset` | Coord2D | `0x190` | - |
 | `ClearanceMaxHeight` | NonNegativeReal | `0x1f8` | `20` |
 | `ClearanceMaxHeightFraction` | NonNegativeReal | `0x1fc` | `1.1` |
 | `ClearanceMinHeight` | NonPositiveReal | `0x200` | `-20` |
 | `ClearanceMinHeightFraction` | NonNegativeReal | `0x204` | `1.1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
-| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathFlags` | DeathFlags | `0x0` | - |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
@@ -1290,7 +1290,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -1336,7 +1336,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -1418,7 +1418,7 @@ instructions where emulation cannot vouch for a value.
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LabelForPalantirString` | AsciiString | `0x14c` | - |
 | `ObjectFilter` | KindOfFilter | `0x138` | - |
-| `Percentage` | 0x008ba26f | `0x13c` | - |
+| `Percentage` | Percent | `0x13c` | `0%` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
@@ -1433,7 +1433,7 @@ instructions where emulation cannot vouch for a value.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `CrateData` | 0x00888b65 | `0x0` | - |
+| `CrateData` | AsciiString | `0x0` | - |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `ExemptStatus` | ObjectStatusFlags | `0xc` | `""` |
@@ -1482,7 +1482,7 @@ instructions where emulation cannot vouch for a value.
 |---|---|---|---|
 | `FX` | FXList | `0x8` | `""` |
 | `ReloadTime` | Duration | `0x20` | `0` |
-| `SpawnObject` | 0x008cd3a8 | `0x0` | - |
+| `SpawnObject` | OCLList | `0x0` | - |
 
 ## CrushDie
 
@@ -1614,7 +1614,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -1667,7 +1667,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -1813,7 +1813,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 | `TurretsFunctionOnlyWhenDeployed` | Bool | `0x6d` | `No` |
 | `TurretsMustCenterBeforePacking` | Bool | `0x6e` | `No` |
 | `UnpackTime` | Duration | `0x64` | `0` |
@@ -1899,7 +1899,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -2050,7 +2050,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## DualWeaponBehavior
 
@@ -2097,7 +2097,7 @@ instructions where emulation cannot vouch for a value.
 |---|---|---|---|
 | `ChangeInterval` | Duration | `0x1c` | `0` |
 | `FinalVision` | Real | `0x18` | `0` |
-| `GridDecalTemplate` | GridDecalTemplate | `0x28` | - |
+| `GridDecalTemplate` | DeliveryDecal | `0x28` | - |
 | `GrowDelay` | Duration | `0x10` | `0` |
 | `GrowInterval` | Duration | `0x20` | `0` |
 | `GrowTime` | Duration | `0x14` | `0` |
@@ -2114,7 +2114,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -2130,7 +2130,7 @@ instructions where emulation cannot vouch for a value.
 | `ElvenGroveObject` | AsciiString | `0x88` | `""` |
 | `ElvenNumObjects` | Int | `0x8c` | `0` |
 | `ElvenWoodFX` | FXList | `0x94` | `""` |
-| `ElvenWoodObject` | 0x008c81cd | `0x0` | - |
+| `ElvenWoodObject` | ObjectReal | `0x0` | - |
 | `ElvenWoodOCL` | ObjectCreationList | `0x98` | `""` |
 | `ElvenWoodRadius` | Real | `0x90` | `10` |
 | `GiveLevels` | Int | `0x58` | `0` |
@@ -2220,7 +2220,7 @@ instructions where emulation cannot vouch for a value.
 | `DamageToPanicThreshold` | Percent | `0x10` | `10%` |
 | `DamageTypeToTrack` | Enum | `0xc` | `PIERCE` |
 | `TrackingTimeSpan` | Duration | `0x14` | `1200` |
-| `WeaponThatCausesEvacuation` | 0x008bedf8 | `0x0` | - |
+| `WeaponThatCausesEvacuation` | WeaponName | `0x0` | - |
 
 ## EvacuateGarrisonSpecialPower
 
@@ -2501,7 +2501,7 @@ instructions where emulation cannot vouch for a value.
 | `BurningSoundName` | AudioEventRTS | `0x18` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x4c` | - |
 | `DamageType` | Enum | `0x24` | `FLAME` |
-| `FireFXList` | 0x00890cd9 | `0x0` | - |
+| `FireFXList` | FXListAtBone | `0x0` | - |
 | `FlameDamageExpiration` | Duration | `0x20` | `5000` |
 | `FlameDamageLimit` | Real | `0x1c` | `20` |
 | `PanicLocomotorWhileAflame` | Bool | `0x48` | `No` |
@@ -2656,7 +2656,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -2716,7 +2716,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
@@ -2730,7 +2730,7 @@ instructions where emulation cannot vouch for a value.
 | `ExitSound` | AudioEventRTS | `0x3c` | `""` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
-| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `InitialRoster` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -2875,7 +2875,7 @@ instructions where emulation cannot vouch for a value.
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
 | `TossFX` | FXList | `0x80` | `""` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## GiantBirdSlowDeathBehavior
 
@@ -2887,7 +2887,7 @@ instructions where emulation cannot vouch for a value.
 | `CrashAvoidRadius` | Real | `0x1b8` | `800` |
 | `CrashAvoidStrength` | Real | `0x1bc` | `0.1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
-| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathFlags` | DeathFlags | `0x0` | - |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DelayFromGroundToFinalDeath` | DurationReal | `0x198` | `0` |
@@ -3140,7 +3140,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
 | `AllowTree` | Bool | `0x80` | `Yes` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -3193,7 +3193,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
@@ -3413,7 +3413,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## HordeContain
 
@@ -3437,7 +3437,7 @@ instructions where emulation cannot vouch for a value.
 | `BannerCarrierMinLevel` | UInt8 | `0x27c` | `1` |
 | `BannerCarrierPosition` | BannerCarrierPosition | `0x20c` | - |
 | `BannerCarriersAllowed` | AsciiStringList | `0x218` | `""` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ComboHorde` | ComboHorde | `0x198` | - |
@@ -3473,7 +3473,7 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `IsPorcupineFormation` | Bool | `0x238` | `No` |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `LeaderPosition` | Coord3D | `0x200` | - |
@@ -3501,9 +3501,9 @@ instructions where emulation cannot vouch for a value.
 | `RandomOffset` | Coord2D | `0x1d0` | - |
 | `RankInfo` | RankInfo | `0x18c` | - |
 | `RankSplit` | Bool | `0x254` | `No` |
-| `RanksThatStopAdvance` | 0x0086df0b | `0x1b4` | - |
-| `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
-| `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
+| `RanksThatStopAdvance` | IntList | `0x1b4` | - |
+| `RanksToJustFreeWhenAttacking` | IntSet | `0x1c4` | - |
+| `RanksToReleaseWhenAttacking` | IntSet | `0x1b8` | - |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
 | `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
@@ -3522,7 +3522,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 | `UseMarchingAnims` | Bool | `0x25d` | `No` |
 | `UseSlowHordeMovement` | Bool | `0x248` | `Yes` |
 | `VisionRearOverride` | Percent | `0x274` | `0%` |
@@ -3538,7 +3538,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -3580,7 +3580,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
@@ -3598,7 +3598,7 @@ instructions where emulation cannot vouch for a value.
 | `ExitSound` | AudioEventRTS | `0x3c` | `""` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
-| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `InitialRoster` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -3637,7 +3637,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `""` |
@@ -3669,8 +3669,8 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialCrew` | 0x0087ec0b | `0x0` | - |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialCrew` | ObjectCount | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -3701,7 +3701,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 
 ## HordeTransportContain
 
@@ -3713,7 +3713,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `""` |
@@ -3742,7 +3742,7 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -3771,7 +3771,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 
 ## HordeWorkerAIUpdate
 
@@ -3797,7 +3797,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## HorseHordeContain
 
@@ -3821,7 +3821,7 @@ instructions where emulation cannot vouch for a value.
 | `BannerCarrierMinLevel` | UInt8 | `0x27c` | `1` |
 | `BannerCarrierPosition` | BannerCarrierPosition | `0x20c` | - |
 | `BannerCarriersAllowed` | AsciiStringList | `0x218` | `""` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ComboHorde` | ComboHorde | `0x198` | - |
@@ -3857,7 +3857,7 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `IsPorcupineFormation` | Bool | `0x238` | `No` |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `LeaderPosition` | Coord3D | `0x200` | - |
@@ -3885,9 +3885,9 @@ instructions where emulation cannot vouch for a value.
 | `RandomOffset` | Coord2D | `0x1d0` | - |
 | `RankInfo` | RankInfo | `0x18c` | - |
 | `RankSplit` | Bool | `0x254` | `No` |
-| `RanksThatStopAdvance` | 0x0086df0b | `0x1b4` | - |
-| `RanksToJustFreeWhenAttacking` | 0x0086ded1 | `0x1c4` | - |
-| `RanksToReleaseWhenAttacking` | 0x0086ded1 | `0x1b8` | - |
+| `RanksThatStopAdvance` | IntList | `0x1b4` | - |
+| `RanksToJustFreeWhenAttacking` | IntSet | `0x1c4` | - |
+| `RanksToReleaseWhenAttacking` | IntSet | `0x1b8` | - |
 | `ReleaseSnappyness` | Real | `0x17c` | `0.7` |
 | `RequiredStatus` | ObjectStatusFlags | `0x1c` | - |
 | `ResetMoodCheckTimeOnExit` | Bool | `0x141` | `Yes` |
@@ -3906,7 +3906,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 | `UseMarchingAnims` | Bool | `0x25d` | `No` |
 | `UseSlowHordeMovement` | Bool | `0x248` | `Yes` |
 | `VisionRearOverride` | Percent | `0x274` | `0%` |
@@ -3962,10 +3962,10 @@ instructions where emulation cannot vouch for a value.
 | `FX` | FXList | `0x38` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
 | `MinKillerAngle` | AngleReal | `0x30` | `57.2958` |
-| `OCL` | 0x008601eb | `0x0` | - |
+| `OCL` | OCLList | `0x0` | - |
 | `RequiredStatus` | ObjectStatusFlags | `0x1c` | `""` |
-| `Sound` | 0x00860324 | `0x0` | - |
-| `Weapon` | 0x0086022e | `0x0` | - |
+| `Sound` | AudioEventRTSList | `0x0` | - |
+| `Weapon` | WeaponTemplateList | `0x0` | - |
 
 ## InvisibilitySpecialPower
 
@@ -3977,7 +3977,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -4051,7 +4051,7 @@ instructions where emulation cannot vouch for a value.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `Key` | 0x007eec77 | `0x8` | - |
+| `Key` | LargeGroupAudioKeys | `0x8` | - |
 | `TimeBetweenUpdatesMin` | Duration | `0x14` | - |
 | `TimeBetweenUpdatesVariation` | Duration | `0x18` | `200` |
 | `UnitWeight` | UInt16 | `0x1c` | `1` |
@@ -4213,7 +4213,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -4554,7 +4554,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -4586,8 +4586,8 @@ instructions where emulation cannot vouch for a value.
 | `TargetEnemy` | Bool | `0x40` | `No` |
 | `TriggerFX` | FXList | `0x48` | `""` |
 | `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
-| `UpgradeName` | 0x008c7acc | `0x90` | - |
-| `UpgradeOCL` | 0x008c7a8f | `0x7c` | - |
+| `UpgradeName` | QuotedAsciiString | `0x90` | - |
+| `UpgradeOCL` | ScienceOCL | `0x7c` | - |
 | `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
 | `WeatherDuration` | Duration | `0x30` | `0` |
 
@@ -4642,7 +4642,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
@@ -4675,10 +4675,10 @@ instructions where emulation cannot vouch for a value.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `Angle` | 0x0073b723 | `0x68` | - |
+| `Angle` | RealOrFCurve | `0x68` | - |
 | `Color` | RGBAColor | `0xc` | `R:0 G:0 B:0 A:0` |
-| `Opacity` | 0x0073b723 | `0x3c` | - |
-| `Radius` | 0x0073b723 | `0x10` | - |
+| `Opacity` | RealOrFCurve | `0x3c` | - |
+| `Radius` | RealOrFCurve | `0x10` | - |
 | `Texture` | AsciiString | `0x8` | `""` |
 
 ## PassiveAreaEffectBehavior
@@ -4688,7 +4688,7 @@ instructions where emulation cannot vouch for a value.
 | field | type | offset | default |
 |---|---|---|---|
 | `AllowFilter` | KindOfFilter | `0x20` | - |
-| `AntiCategories` | 0x0089f32d | `0x2c` | - |
+| `AntiCategories` | ModifierCategoryFlags | `0x2c` | - |
 | `AntiFX` | FXList | `0x30` | `""` |
 | `EffectRadius` | Real | `0x8` | `200` |
 | `HealFX` | FXList | `0x34` | `""` |
@@ -4759,7 +4759,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -4807,7 +4807,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -4836,7 +4836,7 @@ instructions where emulation cannot vouch for a value.
 | `TargetEnemy` | Bool | `0x40` | `No` |
 | `TriggerFX` | FXList | `0x48` | `""` |
 | `UpdateModuleStartsAttack` | Bool | `0xc` | `No` |
-| `UpgradeName` | 0x008cc228 | `0x7c` | - |
+| `UpgradeName` | QuotedAsciiString | `0x7c` | - |
 | `UseDistanceFromCommandCenter` | Bool | `0x74` | `No` |
 | `WeatherDuration` | Duration | `0x30` | `0` |
 
@@ -4890,13 +4890,13 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
 | `DamagePercentToUnits` | Percent | `0x6c` | `0%` |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
-| `DestinationTemplate` | 0x0088494c | `0xd4` | - |
+| `DestinationTemplate` | TemplateFilter | `0xd4` | - |
 | `DoorOpenTime` | Duration | `0x78` | `200` |
 | `EjectPassengersOnDeath` | Bool | `0x82` | `Yes` |
 | `Enabled` | Bool | `0x84` | `Yes` |
@@ -4909,7 +4909,7 @@ instructions where emulation cannot vouch for a value.
 | `ExitSound` | AudioEventRTS | `0x3c` | `""` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
-| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `InitialRoster` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -4937,7 +4937,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -4988,7 +4988,7 @@ instructions where emulation cannot vouch for a value.
 | `MaxQueueEntries` | UnsignedInt | `0x28` | `20` |
 | `NumDoorAnimations` | Int | `0x8` | `0` |
 | `ProductionModifier` | ProductionModifier | `0x0` | - |
-| `QuantityModifier` | 0x008a3633 | `0x1c` | - |
+| `QuantityModifier` | ObjectCount | `0x1c` | - |
 | `SecondaryQueue` | Bool | `0x4c` | `No` |
 | `SetBonusModelConditionOnSpeedBonus` | Bool | `0x41` | `No` |
 | `SpecialPrepModelconditionTime` | Duration | `0x38` | `0` |
@@ -5146,7 +5146,7 @@ instructions where emulation cannot vouch for a value.
 | `SoundPromotedVeteran` | AudioEventRTS | `0x190` | - |
 | `SoundStealthOff` | AudioEventRTS | `0x160` | - |
 | `SoundStealthOn` | AudioEventRTS | `0x158` | - |
-| `UnitSpecificSounds` | 0x0073f684 | `0x1c8` | - |
+| `UnitSpecificSounds` | UnitSpecificSounds | `0x1c8` | - |
 | `VoiceAlert` | AudioEventRTS | `0x78` | - |
 | `VoiceAttack` | AudioEventRTS | `0x38` | - |
 | `VoiceAttackAir` | AudioEventRTS | `0x68` | - |
@@ -5175,7 +5175,7 @@ instructions where emulation cannot vouch for a value.
 | `VoiceMoveToCamp` | AudioEventRTS | `0x90` | - |
 | `VoiceMoveToHigherGround` | AudioEventRTS | `0x28` | - |
 | `VoiceMoveWhileAttacking` | AudioEventRTS | `0xa8` | - |
-| `VoicePriority` | 0x008d000e | `0x1d8` | - |
+| `VoicePriority` | Int | `0x1d8` | `0` |
 | `VoiceRetreatToCastle` | AudioEventRTS | `0x88` | - |
 | `VoiceSelect` | AudioEventRTS | `0x8` | - |
 | `VoiceSelectBattle` | AudioEventRTS | `0x18` | - |
@@ -5272,7 +5272,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -5471,7 +5471,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `""` |
@@ -5503,8 +5503,8 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialCrew` | 0x0087ec0b | `0x0` | - |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialCrew` | ObjectCount | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `KillRiderWhenVehicleDies` | Bool | `0x280` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
@@ -5547,7 +5547,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 
 ## RousingSpeechUpdate
 
@@ -5765,7 +5765,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -5816,7 +5816,7 @@ instructions where emulation cannot vouch for a value.
 | field | type | offset | default |
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
-| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathFlags` | DeathFlags | `0x0` | - |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
@@ -5885,7 +5885,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## SiegeDeployHordeSpecialPower
 
@@ -5934,7 +5934,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `""` |
@@ -5966,8 +5966,8 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialCrew` | 0x0087ec0b | `0x0` | - |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialCrew` | ObjectCount | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -5999,7 +5999,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 
 ## SlaughterHordeContain
 
@@ -6011,7 +6011,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanAlwaysEnter` | KindOfFilter | `0xd8` | - |
 | `CashBackPercent` | Percent | `0xd4` | `50%` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
@@ -6031,7 +6031,7 @@ instructions where emulation cannot vouch for a value.
 | `ExitSound` | AudioEventRTS | `0x3c` | `""` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
-| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `InitialRoster` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -6101,7 +6101,7 @@ instructions where emulation cannot vouch for a value.
 | field | type | offset | default |
 |---|---|---|---|
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
-| `DeathFlags` | 0x008612e7 | `0x0` | - |
+| `DeathFlags` | DeathFlags | `0x0` | - |
 | `DeathTypes` | DeathTypeFlags | `0x8` | `ALL` |
 | `DecayBeginTime` | Duration | `0x54` | `0` |
 | `DestructionDelay` | Duration | `0x4c` | `0` |
@@ -6168,7 +6168,7 @@ instructions where emulation cannot vouch for a value.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `SpawnerTrigger` | 0x007a7b81 | `0x0` | - |
+| `SpawnerTrigger` | SpawnerTrigger | `0x0` | - |
 
 ## SpawnPointProductionExitUpdate
 
@@ -6362,7 +6362,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -6404,7 +6404,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -6445,7 +6445,7 @@ instructions where emulation cannot vouch for a value.
 | `ConflictsWith` | UpgradeMask | `0x98` | `""` |
 | `CustomAnimAndDuration` | AnimAndDuration | `0x128` | - |
 | `LabelForPalantirString` | AsciiString | `0x148` | `">UNSPECIFIED<"` |
-| `Percentage` | 0x008ba26f | `0x138` | - |
+| `Percentage` | Percent | `0x138` | `0%` |
 | `Permanent` | Bool | `0x136` | `No` |
 | `RequiresAllConflictingTriggers` | Bool | `0x135` | `No` |
 | `RequiresAllTriggers` | Bool | `0x134` | `No` |
@@ -6462,7 +6462,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -6500,7 +6500,7 @@ instructions where emulation cannot vouch for a value.
 
 | field | type | offset | default |
 |---|---|---|---|
-| `StanceTemplate` | 0x00548990 | `0x8` | - |
+| `StanceTemplate` | NameKey | `0x8` | - |
 
 ## StatusBitsUpgrade
 
@@ -6622,7 +6622,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -6838,7 +6838,7 @@ instructions where emulation cannot vouch for a value.
 | `SkipFadeOnCreate` | Bool | `0x171` | `No` |
 | `TriggeredBy` | UpgradeMask | `0x8` | `""` |
 | `UnHideSubObjectsOnRemove` | Bool | `0x173` | `No` |
-| `UpgradeTexture` | 0x008b9420 | `0x15c` | - |
+| `UpgradeTexture` | TextureSwap | `0x15c` | - |
 | `WaitBeforeFadeInSeconds` | Real | `0x16c` | `0` |
 
 ## SummonReplacementSpecialAbilityUpdate
@@ -6971,7 +6971,7 @@ instructions where emulation cannot vouch for a value.
 | `SupplyWarehouseActionDelay` | Duration | `0x6c` | `0` |
 | `SupplyWarehouseScanDistance` | Real | `0x70` | `100` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## SupplyWarehouseCripplingBehavior
 
@@ -7033,7 +7033,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -7637,7 +7637,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## TransportContain
 
@@ -7649,7 +7649,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CanGrabStructure` | Bool | `0x13d` | `No` |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ConditionForEntry` | ModelConditionFlag | `0x14c` | `""` |
@@ -7678,7 +7678,7 @@ instructions where emulation cannot vouch for a value.
 | `GoAggressiveOnExit` | Bool | `0x140` | `No` |
 | `GrabWeapon` | WeaponTemplate | `0x144` | `""` |
 | `HealthRegen%PerSec` | Real | `0xa8` | `0` |
-| `InitialPayload` | 0x0086af0a | `0x0` | - |
+| `InitialPayload` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | `""` |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -7707,7 +7707,7 @@ instructions where emulation cannot vouch for a value.
 | `TypeThreeForWeaponState` | KindOfFlags | `0x120` | - |
 | `TypeTwoForWeaponSet` | KindOfFlags | `0xcc` | - |
 | `TypeTwoForWeaponState` | KindOfFlags | `0x104` | - |
-| `UpgradeCreationTrigger` | 0x0086ba2c | `0x0` | - |
+| `UpgradeCreationTrigger` | UpgradeCreationTrigger | `0x0` | - |
 
 ## TunnelContain
 
@@ -7719,7 +7719,7 @@ instructions where emulation cannot vouch for a value.
 | `AllowEnemiesInside` | Bool | `0x7e` | `Yes` |
 | `AllowNeutralInside` | Bool | `0x7f` | `Yes` |
 | `AllowOwnPlayerInsideOverride` | Bool | `0x7c` | `No` |
-| `BoneSpecificConditionState` | 0x008678eb | `0x0` | - |
+| `BoneSpecificConditionState` | BoneConditionState | `0x0` | - |
 | `CollidePickup` | Bool | `0x81` | `Yes` |
 | `ContainMax` | Int | `0x70` | `-1` |
 | `DamageAmountRequired` | Real | `0x2c` | `-1` |
@@ -7737,7 +7737,7 @@ instructions where emulation cannot vouch for a value.
 | `ExitSound` | AudioEventRTS | `0x3c` | `""` |
 | `HealObjects` | Bool | `0x98` | `No` |
 | `ImmuneToClearBuildingAttacks` | Bool | `0xa1` | `No` |
-| `InitialRoster` | 0x00653381 | `0x0` | - |
+| `InitialRoster` | ObjectCount | `0x0` | - |
 | `KillPassengersOnDeath` | Bool | `0x83` | `No` |
 | `ManualPickUpFilter` | KindOfFilter | `0x44` | - |
 | `MaxKillerAngle` | AngleReal | `0x34` | `-57.2958` |
@@ -7867,7 +7867,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -7970,11 +7970,11 @@ instructions where emulation cannot vouch for a value.
 | `DistanceFog` | Bool | `0xc` | `Yes` |
 | `FloorFadeRateOnObjectDeath` | Real | `0x20` | `0` |
 | `ForceToBack` | Bool | `0x1d` | `No` |
-| `HideIfModelConditions` | 0x004cef06 | `0x0` | - |
+| `HideIfModelConditions` | ModelConditionFlagsList | `0x0` | - |
 | `ModelName` | AsciiString | `0x8` | `""` |
 | `StartHidden` | Bool | `0x1e` | `No` |
 | `StaticModelLODMode` | Bool | `0x1c` | `No` |
-| `WeatherTexture` | 0x004cf066 | `0x10` | - |
+| `WeatherTexture` | WeatherTexture | `0x10` | - |
 
 ## W3DHordeModelDraw
 
@@ -7991,13 +7991,13 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8019,7 +8019,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8028,8 +8028,8 @@ instructions where emulation cannot vouch for a value.
 | `StaticModelLODMode` | Bool | `0x135` | `No` |
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TransitionState` | AnimationState | `0x0` | - |
@@ -8117,13 +8117,13 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8146,7 +8146,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8157,8 +8157,8 @@ instructions where emulation cannot vouch for a value.
 | `StaticModelLODMode` | Bool | `0x135` | `No` |
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TransitionState` | AnimationState | `0x0` | - |
@@ -8186,14 +8186,14 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
 | `BlowingThresholdDegrees` | AngleReal | `0x18c` | `14.3239` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8215,7 +8215,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8224,8 +8224,8 @@ instructions where emulation cannot vouch for a value.
 | `StaticModelLODMode` | Bool | `0x135` | `No` |
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TransitionState` | AnimationState | `0x0` | - |
@@ -8252,13 +8252,13 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8279,7 +8279,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8288,8 +8288,8 @@ instructions where emulation cannot vouch for a value.
 | `StaticModelLODMode` | Bool | `0x135` | `No` |
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TransitionState` | AnimationState | `0x0` | - |
@@ -8312,7 +8312,7 @@ instructions where emulation cannot vouch for a value.
 | `Length` | Real | `0x8` | `50` |
 | `NumSegments` | UnsignedInt | `0x20` | `5` |
 | `Texture` | AsciiString | `0x24` | `""` |
-| `WeatherTexture` | 0x004cfeb9 | `0x28` | - |
+| `WeatherTexture` | WeatherTexture | `0x28` | - |
 | `Width` | Real | `0xc` | `0.5` |
 
 ## W3DSupplyDraw
@@ -8330,13 +8330,13 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8357,7 +8357,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8367,8 +8367,8 @@ instructions where emulation cannot vouch for a value.
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SupplyBonePrefix` | AsciiString | `0x188` | `""` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TransitionState` | AnimationState | `0x0` | - |
@@ -8395,13 +8395,13 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8422,7 +8422,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8431,8 +8431,8 @@ instructions where emulation cannot vouch for a value.
 | `StaticModelLODMode` | Bool | `0x135` | `No` |
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TransitionState` | AnimationState | `0x0` | - |
@@ -8457,7 +8457,7 @@ instructions where emulation cannot vouch for a value.
 |---|---|---|---|
 | `DecalCount` | UnsignedInt | `0x3c` | `0` |
 | `DecalMaxRadius` | Real | `0x40` | `200` |
-| `DecalTemplate` | DecalTemplate | `0x8` | - |
+| `DecalTemplate` | DeliveryDecal | `0x8` | - |
 
 ## W3DTreeDraw
 
@@ -8505,17 +8505,17 @@ instructions where emulation cannot vouch for a value.
 | `AnimationsRequirePower` | Bool | `0x6b` | `Yes` |
 | `AnimationState` | AnimationState | `0x0` | - |
 | `AttachModel` | AttachModel | `0x0` | - |
-| `AttachToBoneInAnotherModule` | 0x004b65ba | `0x40` | - |
+| `AttachToBoneInAnotherModule` | LowercaseAsciiString | `0x40` | - |
 | `BirthFadeAdditive` | Bool | `0x154` | `No` |
 | `BirthFadeTime` | Duration | `0x150` | `0` |
-| `BurntTexture` | 0x004c3321 | `0x0` | - |
+| `BurntTexture` | TextureSwap | `0x0` | - |
 | `CabBone` | AsciiString | `0x1d4` | `""` |
 | `CabRotationMultiplier` | Real | `0x1dc` | `1` |
 | `DefaultModelConditionState` | ModelConditionState | `0x0` | - |
 | `DependencySharedModelFlags` | ModelConditionFlags | `0xbc` | - |
 | `DirtSpray` | AsciiString | `0x18c` | `""` |
 | `Dust` | AsciiString | `0x188` | `""` |
-| `EmbedPortal` | 0x004c30bd | `0x11c` | - |
+| `EmbedPortal` | EmbedPortal | `0x11c` | - |
 | `ExtraPublicBone` | AsciiStringList | `0x30` | `""` |
 | `GlowEmissive` | Bool | `0x129` | `No` |
 | `GlowEnabled` | Bool | `0x128` | `No` |
@@ -8550,7 +8550,7 @@ instructions where emulation cannot vouch for a value.
 | `RaisedWallMesh` | AsciiString | `0x110` | `""` |
 | `RampMesh1` | AsciiString | `0x114` | `""` |
 | `RampMesh2` | AsciiString | `0x118` | `""` |
-| `RandomTexture` | 0x004c7c56 | `0x0` | - |
+| `RandomTexture` | RandomTexture | `0x0` | - |
 | `RandomTextureFixedRandomIndex` | Bool | `0x88` | `No` |
 | `RecoilDamping` | Real | `0x5c` | `0.4` |
 | `RecoilSettleSpeed` | VelocityReal | `0x60` | `0.325` |
@@ -8564,9 +8564,9 @@ instructions where emulation cannot vouch for a value.
 | `StaticModelLODMode` | Bool | `0x135` | `No` |
 | `StaticSortLevelWhileFading` | Int | `0x158` | `-1` |
 | `SwitchModelLODMode` | Bool | `0x134` | `No` |
-| `TimeOfDayTexture` | 0x004c42a8 | `0x0` | - |
+| `TimeOfDayTexture` | TimeOfDayTexture | `0x0` | - |
 | `TireRotationMultiplier` | Real | `0x1e8` | `1` |
-| `TrackMarks` | 0x004b65ba | `0x3c` | - |
+| `TrackMarks` | LowercaseAsciiString | `0x3c` | - |
 | `TrackMarksLeftBone` | AsciiString | `0x44` | `""` |
 | `TrackMarksRightBone` | AsciiString | `0x48` | `""` |
 | `TrailerBone` | AsciiString | `0x1d8` | `""` |
@@ -8624,7 +8624,7 @@ instructions where emulation cannot vouch for a value.
 | `StandGround` | Bool | `0x24` | `No` |
 | `StopChaseDistance` | Real | `0x20` | `500` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 | `WanderDistance` | UnsignedInt | `0x70` | `30` |
 | `WildBeast` | Bool | `0x64` | `No` |
 
@@ -8664,7 +8664,7 @@ instructions where emulation cannot vouch for a value.
 | `AffectAllies` | Bool | `0x60` | `Yes` |
 | `AffectEvil` | Bool | `0x5f` | `No` |
 | `AffectGood` | Bool | `0x5e` | `No` |
-| `AntiCategory` | 0x0089f32d | `0x34` | - |
+| `AntiCategory` | ModifierCategoryFlags | `0x34` | - |
 | `AntiFX` | FXList | `0x4c` | `""` |
 | `AttributeModifier` | AsciiString | `0x18` | `""` |
 | `AttributeModifierAffects` | KindOfFilter | `0x24` | - |
@@ -8907,7 +8907,7 @@ instructions where emulation cannot vouch for a value.
 | `SupplyWarehouseActionDelay` | Duration | `0x78` | `0` |
 | `SupplyWarehouseScanDistance` | Real | `0x7c` | `100` |
 | `TimeToEjectPassengersOnRampage` | Duration | `0x48` | `0` |
-| `Turret` | 0x006620a2 | `0x14` | - |
+| `Turret` | TurretAIData | `0x14` | - |
 
 ## WoundArrowUpdate
 

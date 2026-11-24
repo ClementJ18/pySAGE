@@ -338,6 +338,728 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "one geometry token",
         "The primitive the object's collision shape is built from.",
     ),
+    # The parsers with a syntax of their own; what each one reads and keeps was read
+    # from its body.
+    "AccelerationReal": (
+        "Scalar",
+        "`<real per second^2>`",
+        "Real * (0.2 s/frame)^2 -> per-frame^2 acceleration.",
+    ),
+    "AIKindOf": (
+        "Enumeration",
+        "`<AIKindOf> or \"<AIKindOf>\"`",
+        "Optionally quoted string indexed, stored as dword; throws \"invalid AI_KINDOF\".",
+    ),
+    "AIKindOfList": (
+        "Flag set",
+        "`<AIKindOf> ...`",
+        "Each token indexed into a fixed array at field, max 17.",
+    ),
+    "ArmorCoefficient": (
+        "Scalar",
+        "`<DamageType|Default> <percent>`",
+        "Percent/100 stored at instance+4+4*DamageType; Default fills all 28 entries. Each "
+        "line adds another entry.",
+    ),
+    "ArmorSetFlags": (
+        "Flag set",
+        "`<ArmorSetFlag> ... | +X -Y | NONE`",
+        "Each token turns on one bit; `+X` adds and `-X` removes one, `NONE` clears them all.",
+    ),
+    "AttributeModifier": (
+        "Scalar",
+        "`<ModifierAttribute> <real>[%] [<string> ...]`",
+        "Attribute index, value (percent if it contains '%'), optional string list; appended.",
+    ),
+    "AudioEventRTSList": (
+        "Reference",
+        "`<sound> ... | NoSound`",
+        "Every token parsed as AudioEventRTS (\"NoSound\" allowed, \"Invalid Sound\" "
+        "otherwise) and pushed.",
+    ),
+    "AutoResolveBody": (
+        "Reference",
+        "`<name>`",
+        "Looked up by name in the LW auto-resolve body store; pointer stored; throws \"Unknown "
+        "LivingWorldAutoResolveBody %s\".",
+    ),
+    "AutoResolveCombatChain": (
+        "Reference",
+        "`<name>`",
+        "Looked up; pointer stored; throws \"Unknown LivingWorldAutoResolveCombatChain %s\".",
+    ),
+    "AutoResolveLeadership": (
+        "Reference",
+        "`<name>`",
+        "Looked up; pointer stored; throws \"Unknown LivingWorldAutoResolveLeadership %s\".",
+    ),
+    "AutoResolveUnitTypeFlags": (
+        "Flag set",
+        "`<AutoResolveUnit_*> ... | +X -Y | NONE`",
+        "Each token turns on one bit; `+X` adds and `-X` removes one, `NONE` clears them all.",
+    ),
+    "BitFlags16": (
+        "Flag set",
+        "`<name> ...`",
+        "BitFlags; throws if any bit above 15 is set; stored as a word.",
+    ),
+    "BoneConditionState": (
+        "Scalar",
+        "`<uint boneIndex> <ModelConditionFlag> ...`",
+        "Map<UnsignedInt, ModelConditionFlags> at a fixed offset (field offset ignored): key "
+        "from scanUInt, value from the ModelCondition token loop, inserted.",
+    ),
+    "BoneNameKey": (
+        "Text",
+        "`<bone> | None`",
+        "Bone name -> NameKey and a new turret entry pushed.",
+    ),
+    "BoolBit": (
+        "Scalar",
+        "`<bool>`",
+        "ScanBool; Yes ORs the userData mask into the dword field, No ANDs it out.",
+    ),
+    "BoolOrInt": (
+        "Scalar",
+        "`<1..4> | <bool>`",
+        "Atoi value 1..4 stored as-is, otherwise scanBool (0/1); dword.",
+    ),
+    "BridgeFXEntry": (
+        "Scalar",
+        "`FX <FXList> Delay <ms> Bone <bone>`",
+        "{FXList*, Duration frames, AsciiString bone} pushed; FX/Delay/Bone keywords mandatory.",
+    ),
+    "BridgeOCLEntry": (
+        "Scalar",
+        "`OCL <ObjectCreationList> Delay <ms> Bone <bone>`",
+        "{OCL*, Duration frames, AsciiString bone} pushed; OCL/Delay/Bone keywords mandatory.",
+    ),
+    "ByteEnum": (
+        "Enumeration",
+        "`<name>`",
+        "ScanIndexList(token, userData names), range-checked 0..255, stored as a byte.",
+    ),
+    "CastleUnpack": (
+        "Scalar",
+        "`<Faction> <CastleTemplate> [<uint>] [<uint>]`",
+        "Faction name -> NameKey inserted into map at field with value {AsciiString castle, "
+        "UnsignedInt, UnsignedInt}; castle name also registered with TheSidesList.",
+    ),
+    "ClearNuggets": (
+        "Text",
+        "`(no value)`",
+        "Takes no value: deletes every damage nugget already attached to the weapon, so the "
+        "nuggets that follow replace them.",
+    ),
+    "CommandButton": (
+        "Reference",
+        "`<CommandButtonName>`",
+        "CommandButton lookup and pointer stored into field[userData] (slot index); unknown "
+        "name throws.",
+    ),
+    "CommandType": (
+        "Enumeration",
+        "`<GUICommand name>`",
+        "Index (61 entries: NONE, FOUNDATION_CONSTRUCT, UNIT_BUILD,...) stored as dword; "
+        "throws \"Command '%s' not found\".",
+    ),
+    "ContactPoint": (
+        "Scalar",
+        "`X:<real> Y:<real> Z:<real> [<tag>]`",
+        "Coord3D (plus optional trailing token) appended to the object's contact-point list; "
+        "extents recomputed.",
+    ),
+    "Coord2DList": (
+        "Scalar",
+        "`X:<real> Y:<real>`",
+        "Coord2D push_back.",
+    ),
+    "CrowdResponse": (
+        "Reference",
+        "`<name>`",
+        "Looked up in crowd-response store, pointer stored; throws \"Unknown CrowdResponse "
+        "name '%s'\".",
+    ),
+    "DamageFX": (
+        "Reference",
+        "`<DamageFXName> | None`",
+        "Name -> NameKey -> DamageFX store lookup; pointer stored; None -> null.",
+    ),
+    "DamageFXDuration": (
+        "Scalar",
+        "`[<VeterancyLevel>] <DamageFXType|Default> <ms>`",
+        "Duration in ms -> frames written to the [veterancy][damageFXType] table. Each line "
+        "adds another entry.",
+    ),
+    "DamageFXFXList": (
+        "Scalar",
+        "`[<VeterancyLevel>] <DamageFXType|Default> <FXList>`",
+        "FXList* written to the same [veterancy][damageFXType] table. Each line adds another "
+        "entry.",
+    ),
+    "DamageFXReal": (
+        "Scalar",
+        "`[<VeterancyLevel>] <DamageFXType|Default> <real>`",
+        "Real written to table[veterancy 0..3][damageFXType 0..35] (16-byte cells, 64-byte "
+        "rows); Veterancy* fields take a level (names = userData), plain ones fill all levels; "
+        "Default fills all 36 types. Each line adds another entry.",
+    ),
+    "DeathFlags": (
+        "Scalar",
+        "`<ModelConditionFlag | ObjectStatus> ...`",
+        "Tokens parsed as ModelConditionFlags into a fixed offset, 5 reserved condition bits "
+        "masked out; the leftover tokens are parsed as ObjectStatus flags into a fixed offset "
+        "with status bits - masked out.",
+    ),
+    "DurationByte": (
+        "Scalar",
+        "`<ms>`",
+        "Ms -> ceil frames (* 0.005), must be < 256 frames (\"Duration %u must be less than %d "
+        "frames\"), stored as byte.",
+    ),
+    "DurationRange": (
+        "Scalar",
+        "`<ms> | Min:<ms> Max:<ms>`",
+        "Two Ints (min at field, max at the paired field) converted ms -> ceil frames; a "
+        "single value sets both.",
+    ),
+    "EatObjectEntry": (
+        "Scalar",
+        "`MyHealth:<percent> TargetHealth:<percent> Filter:<KindOfFilter ...>`",
+        "Three labelled values (Percent, Percent, ObjectFilter) required in this order, entry "
+        "appended.",
+    ),
+    "EmbedPortal": (
+        "Scalar",
+        "`<ramp|ladder|...> <bone>`",
+        "New entry pushed; first quoted token lower-cased and mapped to type 2 (ramp) / 3 "
+        "(ladder) at entry-8, second quoted token assigned as bone name at entry-4.",
+    ),
+    "EmotionAIType": (
+        "Enumeration",
+        "`<BACK_AWAY|AVOID_SCARER|IDLE|RUN_AWAY_PANIC|FACE_OBJECT|QUARREL>`",
+        "Index stored as dword; throws \"Emotion AI type expected.\".",
+    ),
+    "EmotionNuggetRef": (
+        "Reference",
+        "`<EmotionNuggetName>`",
+        "Named emotion nugget looked up and its whole data copied into this nugget.",
+    ),
+    "EnumList": (
+        "Flag set",
+        "`<name> ... | None`",
+        "Vector cleared, each token scanIndexList against the field userData array, index "
+        "push_back; None clears.",
+    ),
+    "EvaEventList": (
+        "Reference",
+        "`<EvaEvent> ... | None`",
+        "Every token resolved and push_back.",
+    ),
+    "FactionDecal": (
+        "Scalar",
+        "`<Faction> <Texture> <real>`",
+        "{AsciiString, AsciiString, Real} push_back into vector at a fixed offset (field "
+        "offset ignored); also emits a debug-log line first.",
+    ),
+    "FactionFlags": (
+        "Flag set",
+        "`<Men|Elves|Dwarves|Isengard|Mordor|Wild|Angmar|Arnor|...> ... | NONE`",
+        "Each token turns on one bit; `+X` adds and `-X` removes one, `NONE` clears them all.",
+    ),
+    "FactionNameList": (
+        "Reference",
+        "`<faction> ...`",
+        "AsciiStringList, each name resolved as a Faction and stored.",
+    ),
+    "FontDesc": (
+        "Scalar",
+        "`\"<font name>\" <int size> <bool bold>`",
+        "Quoted name -> AsciiString at field, Int size at field+4, Bool byte at field+8.",
+    ),
+    "FXEvent": (
+        "Scalar",
+        "`Frame:<int> [FrameStep:<int>] [FrameStop:<int>] [FireWhenSkipped] Name:<FXList>`",
+        "Event struct parsed (keywords Frame, FrameStep, FrameStop, FireWhenSkipped, Name -> "
+        "FX store) and appended to the state.",
+    ),
+    "FXListAtBone": (
+        "Scalar",
+        "`FX <FXList> [BONE <bone>]`",
+        "{FXList*, AsciiString bone} pushed; \"FX\" keyword mandatory (\"'fx' expected\").",
+    ),
+    "FXListByVeterancy": (
+        "Scalar",
+        "`<VeterancyLevel> <FXList>`",
+        "FXList stored in slot [veterancy]. Each line adds another entry.",
+    ),
+    "GameDifficulty": (
+        "Enumeration",
+        "`EASY|NORMAL|HARD|BRUTAL`",
+        "0..3 stored as dword; anything else throws \"invalid GameDifficulty data\".",
+    ),
+    "GeometryOther": (
+        "Scalar",
+        "`GeomType:<SPHERE|CYLINDER|BOX> IsSmall:<bool> Height:<real> MajorRadius:<real> "
+        "MinorRadius:<real> OffsetX:<real> OffsetY:<real> OffsetZ:<real> (label/value pairs, "
+        "any order)`",
+        "Builds one geometry entry from label/value token pairs and appends it to the object's "
+        "\"other\" geometry list; extents recomputed.",
+    ),
+    "HealthFraction": (
+        "Scalar",
+        "`<real>`",
+        "Real multiplied by the Body's max health (needs Body first) and truncated to Int, "
+        "range-checked.",
+    ),
+    "IntList": (
+        "Scalar",
+        "`<int> ... (1-based team numbers)`",
+        "IntList then every stored value decremented by 1 (1-based in INI -> 0-based index). "
+        "Each line adds another entry.",
+    ),
+    "IntPair": (
+        "Scalar",
+        "`<int> <int>`",
+        "Two Ints at field and field+4.",
+    ),
+    "IntRange": (
+        "Scalar",
+        "`<int min> <int max>`",
+        "Two Ints at field / field+4, swapped so min <= max.",
+    ),
+    "IntSet": (
+        "Scalar",
+        "`<int> <int> ...`",
+        "Every remaining token atoid and inserted into set<Int> at field.",
+    ),
+    "LargeGroupAudioKeys": (
+        "Text",
+        "`<key> ...`",
+        "Every token registered in the global LargeGroupAudio key map which hands out a bit "
+        "index; that bit is OR'd into the mask at field. Each line adds another entry.",
+    ),
+    "LinearTarget": (
+        "Scalar",
+        "`X:<real> Y:<real> T:<uint>`",
+        "{Real x, Real y, UnsignedInt t} pushed.",
+    ),
+    "LivingWorldPlayerTypeList": (
+        "Reference",
+        "`<player type> ...`",
+        "Every token resolved and push_back; throws \"Unknown Living World player type '%s'\".",
+    ),
+    "LivingWorldSoundFlags": (
+        "Flag set",
+        "`<flag> ... | +X -Y | NONE`",
+        "Each token turns on one bit; `+X` adds and `-X` removes one, `NONE` clears them all.",
+    ),
+    "LocalizedString": (
+        "Text",
+        "`<label from game text>`",
+        "Looked up in the game text when the INI loads and stored as the translated string; an "
+        "unknown label is a load error (\"Label '%s' not found in game text\").",
+    ),
+    "LowercaseAsciiString": (
+        "Text",
+        "`<name> or \"<name>\"`",
+        "Optionally quoted string assigned to the AsciiString field, then lower-cased in place.",
+    ),
+    "LuaEvent": (
+        "Scalar",
+        "`Frame <int> Data <string> OnStateEnter|OnStateLeave (keywords in any order)`",
+        "Event {frame, data string, enter/leave flag} built from keyword tokens and appended.",
+    ),
+    "MappedImage": (
+        "Reference",
+        "`<MappedImageName>`",
+        "Image collection lookup; pointer stored.",
+    ),
+    "MissionObjectiveTagList": (
+        "Text",
+        "`<tag> ...`",
+        "Every token is added to the list of mission objective tags; the bonus variant marks "
+        "them as bonus objectives.",
+    ),
+    "ModelConditionFlagsList": (
+        "Flag set",
+        "`<ModelConditionFlag> ...`",
+        "ModelConditionFlags parsed into a temporary and pushed: one alternative set per "
+        "occurrence.",
+    ),
+    "ModelName": (
+        "Text",
+        "`<model> [ExtraMesh Yes|No]`",
+        "Model name pushed onto the state's model list at a fixed offset; the list is cleared "
+        "first unless ExtraMesh is Yes.",
+    ),
+    "ModelWithProbability": (
+        "Scalar",
+        "`<model> [prob <1..100>]`",
+        "{AsciiString model, Int probability} pushed; probability outside 1..100 throws.",
+    ),
+    "ModifierCategory": (
+        "Enumeration",
+        "`<ModifierCategory>`",
+        "Index over names (must be 1..14) stored as dword; else \"Invalid Category encountered "
+        "by ModifierList::Category\".",
+    ),
+    "ModifierCategoryFlags": (
+        "Flag set",
+        "`<ModifierCategory> ... | +X -Y | NONE`",
+        "BitFlags (4 dwords), tokens resolved against names (NONE, LEADERSHIP, FORMATION, "
+        "SPELL, WEAPON, STRUCTURE, LEVEL, BUFF,...); +/- add/remove, NONE clears.",
+    ),
+    "ModuleTag": (
+        "Reference",
+        "`<ModuleTag>`",
+        "Finds the module with that tag in the object template and removes it; throws "
+        "\"RemoveModule %s was not found for %s.\"; only valid in MODULEPARSE_NORMAL mode. "
+        "Each line adds another entry.",
+    ),
+    "Money": (
+        "Scalar",
+        "`<int>`",
+        "Int deposited into a Money object.",
+    ),
+    "NameKey": (
+        "Text",
+        "`<name> or \"<name>\"`",
+        "Optionally quoted string -> NameKey via TheNameKeyGenerator, stored as dword.",
+    ),
+    "NameKeyList": (
+        "Reference",
+        "`<award> ...`",
+        "NameKeyList, each key validated against AwardSystemManager awards; throws \"The Award "
+        "%s does not exist\". Each line adds another entry.",
+    ),
+    "NotificationType": (
+        "Reference",
+        "`<name>`",
+        "Creates a notification-type object for the token and files it in a name-keyed map "
+        "when not already present; no nested block is parsed here. Each line adds another "
+        "entry.",
+    ),
+    "ObjectCount": (
+        "Scalar",
+        "`<ObjectTemplate> [<int count=1>]`",
+        "{AsciiString name, Int count} pushed onto a list at a fixed offset (field offset "
+        "ignored); count defaults to 1.",
+    ),
+    "ObjectPercent": (
+        "Scalar",
+        "`<ObjectTemplate> <percent>`",
+        "Map NameKey(template) -> Real (percent/100) entry. Each line adds another entry.",
+    ),
+    "ObjectPrerequisite": (
+        "Reference",
+        "`<ObjectTemplate> ...`",
+        "One prerequisite whose names are all the tokens (OR-group), appended.",
+    ),
+    "ObjectPriority": (
+        "Scalar",
+        "`<ObjectTemplate> <int>`",
+        "Template resolved; when found, {template name, Int priority} pushed; unknown "
+        "templates dropped.",
+    ),
+    "ObjectReal": (
+        "Scalar",
+        "`<ObjectTemplate> <real>`",
+        "{AsciiString, Real} pushed onto a vector at a fixed offset (field offset ignored).",
+    ),
+    "ObjectVeterancy": (
+        "Scalar",
+        "`<ObjectTemplate> <VeterancyLevel>`",
+        "Map NameKey(template) -> veterancy index. Each line adds another entry.",
+    ),
+    "Obsolete": (
+        "Text",
+        "`(value ignored)`",
+        "Takes no value and stores nothing; the engine only writes a debug-log line saying the "
+        "keyword is obsolete.",
+    ),
+    "OCLList": (
+        "Reference",
+        "`<ObjectCreationList> ...`",
+        "Every token resolved in the OCL store and the pointer push_back.",
+    ),
+    "ParticleSystemByVeterancy": (
+        "Scalar",
+        "`<VeterancyLevel> <ParticleSystem>`",
+        "ParticleSystem stored in slot [veterancy]. Each line adds another entry.",
+    ),
+    "Probability": (
+        "Scalar",
+        "`<int numerator> <separator> <int denominator>`",
+        "Token 1 -> Int numerator at field, token 2 ignored, token 3 -> Int denominator (>= 1) "
+        "at field+4.",
+    ),
+    "QueryEntry": (
+        "Scalar",
+        "`<int> <KindOfFilter ...>`",
+        "{Int, KindOfFilter} appended to a fixed in-place array of at most 6 (\"iniParseQuery: "
+        "Too many queries\").",
+    ),
+    "QuotedAsciiString": (
+        "Text",
+        "`<text> or \"<text with spaces>\"`",
+        "Optionally quoted string assigned to the AsciiString field.",
+    ),
+    "RandomTexture": (
+        "Scalar",
+        "`<newTexture> <int> <oldTexture>`",
+        "Entry keyed by oldTexture found or created; newTexture appended to its candidate "
+        "list; Int stored at a fixed offset.",
+    ),
+    "RandomVariable": (
+        "Scalar",
+        "`<real min> <real max> [CONSTANT|UNIFORM|GAUSSIAN|TRIANGULAR|LOW_BIAS|HIGH_BIAS]`",
+        "{Real low, Real high, distribution index} set.",
+    ),
+    "RealList": (
+        "Scalar",
+        "`<real> <real> ...`",
+        "Reals into a fixed array at field, index = position, at most 17.",
+    ),
+    "RealOrFCurve": (
+        "Scalar",
+        "`<real> | FCurve newline Key = ... End`",
+        "A plain \"%f\" value is stored as a constant curve; keyword FCurve opens a nested key "
+        "block; anything else throws \"'FCurve' expected\".",
+    ),
+    "RealPerMPSlot": (
+        "Scalar",
+        "`MP1 <real> MP2 <real> ... MP8 <real> (any subset)`",
+        "A value per multiplayer slot, written into a fixed GameData array; slots left out "
+        "keep theirs. The field table offset is not used.",
+    ),
+    "RealRange": (
+        "Scalar",
+        "`<real min> <real max>`",
+        "Two Reals at field / field+4, swapped so min <= max.",
+    ),
+    "RegionBonus": (
+        "Enumeration",
+        "`<name> | None`",
+        "Index over names stored as dword.",
+    ),
+    "RegionNameList": (
+        "Reference",
+        "`<Region> ...`",
+        "One connection entry per token, pushed.",
+    ),
+    "RGBAColorInt": (
+        "Scalar",
+        "`R:<0-255> G:<0-255> B:<0-255> [A:<0-255>]`",
+        "Four Int channels (alpha defaults to 255), range-checked 0..255, not scaled.",
+    ),
+    "RGBColorSigned": (
+        "Scalar",
+        "`R:<-255..255> G:<-255..255> B:<-255..255>`",
+        "Three channels range-checked -255..255, * 1/255 into three Reals.",
+    ),
+    "ScienceInt": (
+        "Scalar",
+        "`<Science> <int>`",
+        "{ScienceType, Int} pair push_back.",
+    ),
+    "ScienceOCL": (
+        "Scalar",
+        "`<Science> <ObjectCreationList>`",
+        "{ScienceType, OCL*} pair push_back.",
+    ),
+    "SciencePrerequisite": (
+        "Reference",
+        "`<Science>`",
+        "Prerequisite with one science appended.",
+    ),
+    "SciencePrerequisiteList": (
+        "Reference",
+        "`<Science> [OR <Science>] ... | None`",
+        "Vector reset, sciences resolved and push_back; \"OR\" groups alternatives; None clears.",
+    ),
+    "ScienceTypeList": (
+        "Reference",
+        "`<Science> ... | None`",
+        "Vector cleared, every token resolved via TheScienceStore and push_back; None clears.",
+    ),
+    "ScriptText": (
+        "Text",
+        "`newline <script lines> ... <end token>`",
+        "Following raw lines concatenated until a line equal to the block end token, assigned "
+        "to an AsciiString.",
+    ),
+    "SecondsToMs": (
+        "Scalar",
+        "`<seconds>`",
+        "Real * 1000 truncated (ftol) -> Int milliseconds.",
+    ),
+    "ShadowType": (
+        "Flag set",
+        "`<shadow flag> ...`",
+        "BitFlags16; when nonzero allocates a 40-byte shadow-info at a fixed offset and stores "
+        "the type in it.",
+    ),
+    "SpawnerTrigger": (
+        "Scalar",
+        "`UNIT <name> NEWMODELCONDITION <ModelConditionFlags> FX <FXList> "
+        "SPAWNERMODELCONDITION <ModelConditionFlags> (keywords in any order)`",
+        "Trigger struct (unit name, two ModelConditionFlags, FXList*) appended to a vector; "
+        "capacity-checked (\"parseUpgradeCreation: Too many triggers\").",
+    ),
+    "SpecialPowerTemplateList": (
+        "Reference",
+        "`<SpecialPower> ...`",
+        "Each name is resolved against the special power store and appended to a list.",
+    ),
+    "StanceList": (
+        "Flag set",
+        "`<Battle|Aggressive|HoldGround|Porcupine|HoldGroundMoving> ...`",
+        "Each token indexed against names (index 1..5 accepted) and push_back.",
+    ),
+    "TacticalAITargetList": (
+        "Flag set",
+        "`<ENEMY_STRUCTURE|DEFENSIVE|OPPORTUNITY|EXPANSION|TARGETLESS> ...`",
+        "Every token indexed against names (5) and push_back; throws \"invalid AITARGET\".",
+    ),
+    "TemplateFilter": (
+        "Scalar",
+        "`<ObjectTemplate> <KindOfFilter ...>`",
+        "{AsciiString, ObjectFilter} pushed onto a list at field.",
+    ),
+    "TextureSwap": (
+        "Scalar",
+        "`<oldTexture> <newTexture>`",
+        "Two AsciiStrings pushed as a pair.",
+    ),
+    "ThingTemplate": (
+        "Reference",
+        "`<ObjectTemplate> | None`",
+        "ThingFactory::findTemplate pointer stored; None -> null; unknown name logs "
+        "\"ThingTemplate %s not found!\" and stores null.",
+    ),
+    "ThreatThreshold": (
+        "Scalar",
+        "`<uint>`",
+        "{Int mode = -1 (above), UnsignedInt value} at field / field+4.",
+    ),
+    "TimeOfDayTexture": (
+        "Scalar",
+        "`<oldTexture> <TimeOfDay> <int> <newTexture>`",
+        "{AsciiString, TimeOfDay index, Int, AsciiString} pushed at a fixed offset.",
+    ),
+    "UpgradeCreationTrigger": (
+        "Scalar",
+        "`<UpgradeName> <ObjectName> <uint>`",
+        "{AsciiString upgrade, AsciiString object, UnsignedInt} pushed into 12-byte-entry "
+        "vector at a fixed offset; at most 4 (\"iniParseQuery: Too many triggers\").",
+    ),
+    "UpgradeHeuristic": (
+        "Enumeration",
+        "`<AI_UPGRADEHEURISTIC_*>`",
+        "Optionally quoted name indexed against names (8 entries), dword.",
+    ),
+    "UpgradeNameList": (
+        "Reference",
+        "`<upgrade> ...`",
+        "AsciiStringList; each name (optional leading '@' handled) inserted into the "
+        "bling-upgrade map.",
+    ),
+    "UpgradePrerequisite": (
+        "Reference",
+        "`<Upgrade>`",
+        "Prerequisite with one upgrade appended.",
+    ),
+    "UpgradeTemplateList": (
+        "Reference",
+        "`<Upgrade> ...`",
+        "Every token -> NameKey -> UpgradeCenter findUpgradeByKey; only player upgrades "
+        "([upgrade+4]==0) push_back.",
+    ),
+    "UpgradeWithDelay": (
+        "Reference",
+        "`<Upgrade> [Delay <ms>]`",
+        "Allocates {Upgrade*, frames} at a fixed offset: upgrade via "
+        "UpgradeCenter::findUpgrade, optional Delay ms -> frames.",
+    ),
+    "WeaponBonus": (
+        "Scalar",
+        "`<WeaponBonusCondition> <WeaponBonusField> <percent>`",
+        "Percent/100 written to the bonus table [condition][field]. Each line adds another entry.",
+    ),
+    "WeaponName": (
+        "Reference",
+        "`<WeaponTemplate>`",
+        "Name validated in the weapon store; when found stored as AsciiString at instance+8 "
+        "(field offset ignored); unknown names silently ignored.",
+    ),
+    "WeaponSlotAngle": (
+        "Scalar",
+        "`<WeaponSlot> <angle in degrees>`",
+        "The slot token picks which weapon slot the angle applies to; the angle is stored in "
+        "radians.",
+    ),
+    "WeaponSlotBitFlags": (
+        "Scalar",
+        "`<WeaponSlot> <FROM_PLAYER|FROM_SCRIPT|FROM_AI> ...`",
+        "The slot token picks which weapon slot the flags that follow apply to.",
+    ),
+    "WeaponSlotBone": (
+        "Scalar",
+        "`<WeaponSlot> <bone>`",
+        "Bone name (quoted string, lower-cased) stored in the per-weapon-slot bone array.",
+    ),
+    "WeaponSlotFlags": (
+        "Flag set",
+        "`<WeaponSlot> ...`",
+        "Each slot named turns on its bit in the mask.",
+    ),
+    "WeaponSlotKindOf": (
+        "Scalar",
+        "`<WeaponSlot> <KindOf> ...`",
+        "The slot token picks which weapon slot the KindOf set that follows applies to.",
+    ),
+    "WeaponSlotModelConditions": (
+        "Scalar",
+        "`<WeaponSlot> <ModelConditionFlag> ...`",
+        "Slot index selects the per-slot ModelConditionFlags.",
+    ),
+    "WeaponSlotReal": (
+        "Scalar",
+        "`<WeaponSlot> <real>`",
+        "The slot token picks which weapon slot the value applies to.",
+    ),
+    "WeaponSlotWeapon": (
+        "Scalar",
+        "`<WeaponSlot> <WeaponTemplate>`",
+        "Slot index selects the per-slot WeaponTemplate*.",
+    ),
+    "WeaponTemplateList": (
+        "Reference",
+        "`<WeaponTemplate> ...`",
+        "Every token resolved in the weapon store, pointer push_back.",
+    ),
+    "WeatherTexture": (
+        "Scalar",
+        "`<NORMAL|SNOWY> <texture>`",
+        "{weather index, AsciiString} pushed.",
+    ),
+    "WeightedSoundList": (
+        "Scalar",
+        "`<file>[:<weight>] ...`",
+        "Every token split at the last ':'; {AsciiString name, weight (atoi, default 1000)} "
+        "pushed; total weight accumulated.",
+    ),
+    "WindowTransition": (
+        "Reference",
+        "`<TransitionName>`",
+        "Token -> NameKey resolved by TheTransitionHandler; result stored via virtual call.",
+    ),
+    "WorldToMapMatch": (
+        "Scalar",
+        "`World <name> RTS <name> ...`",
+        "Entry allocated and push_back; sub-keys World/RTS parsed; throws on unknown sub-key.",
+    ),
 }
 
 CATEGORY_ORDER = [
@@ -359,6 +1081,14 @@ VALUE_KINDS = {
     "UInt8": "uint8",
     "UInt16": "uint16",
     "UnsignedInt": "uint32",
+    "Money": "int",
+    "BoolBit": "bool",
+    "SecondsToMs": "real",
+    "DurationByte": "real",
+    "AccelerationReal": "real",
+    "HealthFraction": "real",
+    "RGBAColorInt": "rgba",
+    "RGBColorSigned": "rgb",
     "Real": "real",
     "Percent": "percent",
     "Duration": "real",
@@ -817,7 +1547,10 @@ def field_rows(
             extra = f' <a class="enumref" href="{base}enums.html#{esc(slug(enum))}">{esc(enum)}</a>'
         extra += target_link(ref, owner, f, base)
         if f["default"] == EMPTY:
-            default = '<span class="none" title="no value: an empty string or list, or no reference">empty</span>'
+            default = (
+                '<span class="none" title="no value: an empty string or list, '
+                'or no reference">empty</span>'
+            )
         elif f["default"] is not None:
             default = f"<code>{esc(f['default'])}</code>"
         else:
