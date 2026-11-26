@@ -1,7 +1,7 @@
 # Engine module reference - fields and compiled-in defaults
 
 Generated from `game.dat` by [`../scripts/module_defaults.py`](../scripts/module_defaults.py);
-regenerate rather than edit. **330 modules, 6817 fields, 5791 with a recovered default (85%).**
+regenerate rather than edit. **330 modules, 6817 fields, 5790 with a recovered default (85%).**
 
 A listed default is what the ModuleData constructor writes, so it is the value in
 force whenever an INI block omits that keyword. Field names and offsets come from
@@ -5110,7 +5110,7 @@ instructions where emulation cannot vouch for a value.
 | `RampageAngryLifeTimer` | Int | `0x1c` | `0` |
 | `RampageEnemyCheckRange` | Real | `0x24` | `0` |
 | `RampageEnemyThreshold` | Int | `0x28` | `0` |
-| `RampageHealthThreshold` | Real | `0x14` | `0` |
+| `RampageHealthThreshold` | Real | `0x14` | - |
 | `RampageLifeTimer` | Int | `0x18` | `0` |
 | `RampageResetTimer` | Int | `0x20` | `0` |
 | `RequiredUpgrade` | AsciiStringList | `0x8` | - |

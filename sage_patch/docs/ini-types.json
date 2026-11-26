@@ -1952,6 +1952,15 @@
    "LOOP_BACKWARDS",
    "ONCE_BACKWARDS"
   ],
+  "0x00da1d88": [
+   "NONE",
+   "ONCE",
+   "ONCE_BACKWARDS",
+   "LOOP",
+   "LOOP_BACKWARDS",
+   "PING_PONG",
+   "PING_PONG_BACKWARDS"
+  ],
   "0x00d99f18": [
    "RANDOMSTART",
    "START_FRAME_FIRST",
@@ -2821,6 +2830,30 @@
    "FROM_PLAYER",
    "FROM_SCRIPT",
    "FROM_AI"
+  ],
+  "0x00c31a54": [
+   "NONE",
+   "ADDITIVE",
+   "ADDITIVE_ALPHA_TEST",
+   "ALPHA",
+   "ALPHA_TEST",
+   "MULTIPLY",
+   "ADDITIVE_NO_DEPTH_TEST",
+   "ALPHA_NO_DEPTH_TEST",
+   "W3D_DIFFUSE",
+   "W3D_ALPHA",
+   "W3D_EMISSIVE"
+  ],
+  "0x00c31a84": [
+   "NONE",
+   "PARTICLE",
+   "DRAWABLE",
+   "STREAK",
+   "VOLUME_PARTICLE",
+   "SMUDGE",
+   "TERRAIN_PARTICLE",
+   "GPU_PARTICLE",
+   "GPU_TERRAINFIRE"
   ]
  },
  "lookup_tables": {
@@ -7700,6 +7733,14 @@
    ],
    "fields": []
   },
+  "FormationSelection": {
+   "parse_fn": 8599776,
+   "keywords": [
+    "MaxDragLength",
+    "MaxUnitsSelected"
+   ],
+   "fields": []
+  },
   "GrabNugget": {
    "parse_fn": 7132711,
    "keywords": [
@@ -10915,6 +10956,104 @@
     }
    ]
   },
+  "RadiusCursorTemplate": {
+   "parse_fn": 6966823,
+   "keywords": [
+    "Texture",
+    "Texture2",
+    "Style",
+    "OpacityMin",
+    "OpacityMax",
+    "OpacityThrobTime",
+    "RotationsPerMinute",
+    "Color",
+    "OnlyVisibleToOwningPlayer",
+    "MaxRadius",
+    "MinRadius",
+    "MaxSelectedUnits",
+    "SpiralAcceleration"
+   ],
+   "fields": [
+    {
+     "name": "Texture",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 0
+    },
+    {
+     "name": "Texture2",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 4
+    },
+    {
+     "name": "Style",
+     "type": "BitFlags",
+     "parse_fn": 4384832,
+     "offset": 8
+    },
+    {
+     "name": "OpacityMin",
+     "type": "Percent",
+     "parse_fn": 4386554,
+     "offset": 12
+    },
+    {
+     "name": "OpacityMax",
+     "type": "Percent",
+     "parse_fn": 4386554,
+     "offset": 16
+    },
+    {
+     "name": "OpacityThrobTime",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 20
+    },
+    {
+     "name": "RotationsPerMinute",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 44
+    },
+    {
+     "name": "Color",
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "offset": 24
+    },
+    {
+     "name": "OnlyVisibleToOwningPlayer",
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "offset": 28
+    },
+    {
+     "name": "MaxRadius",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 36
+    },
+    {
+     "name": "MinRadius",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 32
+    },
+    {
+     "name": "MaxSelectedUnits",
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "offset": 40
+    },
+    {
+     "name": "SpiralAcceleration",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 48
+    }
+   ]
+  },
   "RankInfo": {
    "parse_fn": 8876933,
    "keywords": [
@@ -13507,6 +13646,14 @@
    ],
    "fields": []
   },
+  "Stance": {
+   "parse_fn": 8607066,
+   "keywords": [
+    "AttributeModifier",
+    "MeleeBehavior"
+   ],
+   "fields": []
+  },
   "StartingRestriction": {
    "parse_fn": 10124756,
    "keywords": [
@@ -13714,6 +13861,33 @@
      "offset": 108
     }
    ]
+  },
+  "System": {
+   "parse_fn": 6239170,
+   "keywords": [
+    "Priority",
+    "IsOneShot",
+    "Shader",
+    "Type",
+    "ParticleName",
+    "SlaveSystem",
+    "SlavePosOffset",
+    "PerParticleAttachedSystem",
+    "Lifetime",
+    "SystemLifetime",
+    "SortLevel",
+    "Size",
+    "StartSizeRate",
+    "BurstDelay",
+    "BurstCount",
+    "InitialDelay",
+    "IsGroundAligned",
+    "IsEmitAboveGroundOnly",
+    "IsParticleUpTowardsEmitter",
+    "UseMaximumHeight",
+    "ShroudEmitter"
+   ],
+   "fields": []
   },
   "TaskAfterAudio": {
    "parse_fn": 8365845,
@@ -14639,6 +14813,14 @@
      "offset": 8
     }
    ]
+  },
+  "UnitDefinition": {
+   "parse_fn": 8599347,
+   "keywords": [
+    "ObjectFilter",
+    "PreviewObject"
+   ],
+   "fields": []
   },
   "UnitSpecificFX": {
    "parse_fn": 7599537,
@@ -18022,6 +18204,74 @@
     }
    ]
   },
+  "Animation2D": {
+   "parse_fn": 7177642,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "AnimationDelay",
+     "offset": 18,
+     "type": "DurationUInt16",
+     "parse_fn": 7578735,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "AnimationMode",
+     "offset": 20,
+     "type": "Enum",
+     "parse_fn": 4385110,
+     "userdata": "0x00da1d88",
+     "default": null
+    },
+    {
+     "name": "Image",
+     "offset": 0,
+     "type": "MappedImageList",
+     "parse_fn": 7177282,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ImageSequence",
+     "offset": 0,
+     "type": "ImageSequence",
+     "parse_fn": 7177320,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NumberImages",
+     "offset": 0,
+     "type": "UnsignedInt",
+     "parse_fn": 7177031,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "RandomizeStartFrame",
+     "offset": 24,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "AnimationSoundClientBehaviorGlobalSetting": {
+   "parse_fn": 8647658,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "MinMicrophoneDistanceToDirty",
+     "offset": 0,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "AnimationState": {
    "parse_fn": 5015616,
    "moduledata_ctor": null,
@@ -18157,6 +18407,20 @@
      "offset": 12,
      "type": "AngleReal",
      "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "AptButtonTooltipMap": {
+   "parse_fn": 6441723,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "ButtonMap",
+     "offset": 0,
+     "type": "ButtonTooltipMapping",
+     "parse_fn": 6440749,
      "userdata": null,
      "default": null
     }
@@ -22049,6 +22313,20 @@
      "offset": 1028,
      "type": "UpgradeMask",
      "parse_fn": 6747651,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "CloudBreakEffect": {
+   "parse_fn": 7447537,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "SunbeamObject",
+     "offset": 0,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
      "userdata": null,
      "default": null
     }
@@ -27010,6 +27288,92 @@
     }
    ]
   },
+  "FXParticleSystem": {
+   "parse_fn": 6277083,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Alpha",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6257793,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Color",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6257627,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Draw",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6258343,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "EmissionVelocity",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6258123,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "EmissionVolume",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6258233,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Event",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6266962,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Physics",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6258013,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "System",
+     "offset": 0,
+     "type": "System",
+     "parse_fn": 6239170,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Update",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6257903,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Wind",
+     "offset": 0,
+     "type": "ParticleSystemModule",
+     "parse_fn": 6258453,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "FactionVictoryData": {
    "parse_fn": 6380136,
    "moduledata_ctor": null,
@@ -27272,6 +27636,20 @@
     }
    ]
   },
+  "FireWeapon": {
+   "parse_fn": 6227384,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Weapon",
+     "offset": 4,
+     "type": "WeaponTemplate",
+     "parse_fn": 7581305,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "FireWeaponNugget": {
    "parse_fn": 8975143,
    "moduledata_ctor": 8974315,
@@ -27402,6 +27780,34 @@
     }
    ]
   },
+  "FontDefaultSettings": {
+   "parse_fn": 6392193,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Antialiased",
+     "offset": 8,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "FontSubstitution": {
+   "parse_fn": 6393092,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Size",
+     "offset": 0,
+     "type": "FontSizeSubstitution",
+     "parse_fn": 6392725,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "ForceBattle": {
    "parse_fn": 9329632,
    "moduledata_ctor": null,
@@ -27467,6 +27873,168 @@
      "offset": 12,
      "type": "AsciiString",
      "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "FormationAssistant": {
+   "parse_fn": 8606477,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "ActivationDragDistance",
+     "offset": 44,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ActivationTime",
+     "offset": 48,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ColumnPadding",
+     "offset": 40,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "DefaultPreviewObject",
+     "offset": 12,
+     "type": "ThingTemplate",
+     "parse_fn": 7580959,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FacingArrowBaseTemplate",
+     "offset": 24,
+     "type": "ThingTemplate",
+     "parse_fn": 7580959,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FacingArrowBodyTemplate",
+     "offset": 20,
+     "type": "ThingTemplate",
+     "parse_fn": 7580959,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FacingArrowHeadTemplate",
+     "offset": 16,
+     "type": "ThingTemplate",
+     "parse_fn": 7580959,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FormationSelection",
+     "offset": 0,
+     "type": "FormationSelection",
+     "parse_fn": 8599776,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FormationTemplate",
+     "offset": 0,
+     "type": "FormationTemplate",
+     "parse_fn": 8605631,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "RowPadding",
+     "offset": 36,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "UnitDefinition",
+     "offset": 0,
+     "type": "UnitDefinition",
+     "parse_fn": 8599347,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ValidObjectFilter",
+     "offset": 32,
+     "type": "KindOfFilter",
+     "parse_fn": 7747887,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "FormationPreviewDecal": {
+   "parse_fn": 7585361,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Height",
+     "offset": 8,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Texture",
+     "offset": 0,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Width",
+     "offset": 4,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "FormationPreviewItemDecal": {
+   "parse_fn": 7585361,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Height",
+     "offset": 8,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Texture",
+     "offset": 0,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Width",
+     "offset": 4,
+     "type": "Real",
+     "parse_fn": 4386048,
      "userdata": null,
      "default": null
     }
@@ -31620,6 +32188,660 @@
     }
    ]
   },
+  "InGameUI": {
+   "parse_fn": 6926526,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "DrawableCaptionBold",
+     "offset": 1956,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "DrawableCaptionColor",
+     "offset": 1960,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "DrawableCaptionFont",
+     "offset": 1948,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "DrawableCaptionPointSize",
+     "offset": 1952,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "DrawRMBScrollAnchor",
+     "offset": 2243,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FloatingTextMoveUpSpeed",
+     "offset": 2216,
+     "type": "VelocityReal",
+     "parse_fn": 7578806,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FloatingTextTimeOut",
+     "offset": 2212,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FloatingTextVanishRate",
+     "offset": 2220,
+     "type": "VelocityReal",
+     "parse_fn": 7578806,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxCostBold",
+     "offset": 1988,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxCostColor",
+     "offset": 1992,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxCostFont",
+     "offset": 1980,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxCostPointSize",
+     "offset": 1984,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxDescriptionBold",
+     "offset": 2020,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxDescriptionColor",
+     "offset": 2024,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxDescriptionFont",
+     "offset": 2012,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxDescriptionPointSize",
+     "offset": 2016,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxNameBold",
+     "offset": 1972,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxNameColor",
+     "offset": 1976,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxNameFont",
+     "offset": 1964,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxNamePointSize",
+     "offset": 1968,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxShortcutBold",
+     "offset": 2004,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxShortcutColor",
+     "offset": 2008,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxShortcutFont",
+     "offset": 1996,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HelpBoxShortcutPointSize",
+     "offset": 2000,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroDeathNotificationMessage",
+     "offset": 2528,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroDeathNotificationTimeout",
+     "offset": 2532,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroEarnedAwardNotificationMessage",
+     "offset": 2536,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroEarnedAwardNotificationTimeout",
+     "offset": 2540,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroInitialSpawnNotificationMessage",
+     "offset": 2512,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroInitialSpawnNotificationTimeout",
+     "offset": 2516,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroRespawnNotificationMessage",
+     "offset": 2520,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "HeroRespawnNotificationTimeout",
+     "offset": 2524,
+     "type": "Real",
+     "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MaxSelectionSize",
+     "offset": 1388,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessageBold",
+     "offset": 2100,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessageColor1",
+     "offset": 2068,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessageColor2",
+     "offset": 2072,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessageDelayMS",
+     "offset": 2104,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessageFont",
+     "offset": 2092,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessagePointSize",
+     "offset": 2096,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessagePosition",
+     "offset": 2076,
+     "type": "Coord2DInt",
+     "parse_fn": 4387578,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MessagePositionLW",
+     "offset": 2084,
+     "type": "Coord2DInt",
+     "parse_fn": 4387578,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionBold",
+     "offset": 2156,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionCentered",
+     "offset": 2132,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionColor",
+     "offset": 2108,
+     "type": "RGBAColorInt",
+     "parse_fn": 4386879,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionDelayMS",
+     "offset": 2160,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionFont",
+     "offset": 2148,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionPointSize",
+     "offset": 2152,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionPosition",
+     "offset": 2124,
+     "type": "Coord2D",
+     "parse_fn": 4387480,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionTitleBold",
+     "offset": 2144,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionTitleFont",
+     "offset": 2136,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MilitaryCaptionTitlePointSize",
+     "offset": 2140,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MoveRMBScrollAnchor",
+     "offset": 2244,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownCentered",
+     "offset": 1896,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownFlashColor",
+     "offset": 1908,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownFlashDuration",
+     "offset": 1900,
+     "type": "DurationReal",
+     "parse_fn": 7578627,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownNormalBold",
+     "offset": 1924,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownNormalColor",
+     "offset": 1928,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownNormalFont",
+     "offset": 1916,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownNormalPointSize",
+     "offset": 1920,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownPosition",
+     "offset": 1884,
+     "type": "Coord2D",
+     "parse_fn": 4387480,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownReadyBold",
+     "offset": 1940,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownReadyColor",
+     "offset": 1944,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownReadyFont",
+     "offset": 1932,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NamedTimerCountdownReadyPointSize",
+     "offset": 1936,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "PlaceTerrainResourceClaimantDecal",
+     "offset": 1396,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "PlaceTerrainResourceClaimantFont",
+     "offset": 1400,
+     "type": "FontDesc",
+     "parse_fn": 7834771,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "PlaceTerrainResourceClaimantFontColor",
+     "offset": 1412,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "RadiusCursorTemplate",
+     "offset": 0,
+     "type": "RadiusCursorTemplate",
+     "parse_fn": 6966823,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "RadiusCursorUseWeaponScatterRadius",
+     "offset": 2204,
+     "type": "NameKey",
+     "parse_fn": 5540240,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SelectNearestBuilderCycleTimeOut",
+     "offset": 2440,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownFlashColor",
+     "offset": 1864,
+     "type": "RGBAColor",
+     "parse_fn": 4387134,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownFlashDuration",
+     "offset": 1832,
+     "type": "DurationReal",
+     "parse_fn": 7578627,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownNormalBold",
+     "offset": 1844,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownNormalFont",
+     "offset": 1836,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownNormalPointSize",
+     "offset": 1840,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownPosition",
+     "offset": 1824,
+     "type": "Coord2D",
+     "parse_fn": 4387480,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownReadyBold",
+     "offset": 1856,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownReadyFont",
+     "offset": 1848,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SuperweaponCountdownReadyPointSize",
+     "offset": 1852,
+     "type": "Int",
+     "parse_fn": 4385886,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TerrainResourceClaimDecal",
+     "offset": 0,
+     "type": "DecalTexture",
+     "parse_fn": 6931316,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "UnitHelpTextDelay",
+     "offset": 2436,
+     "type": "SecondsToMs",
+     "parse_fn": 4386359,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "InheritableModule": {
    "parse_fn": 7585559,
    "moduledata_ctor": null,
@@ -33575,6 +34797,20 @@
      "offset": 226,
      "type": "UInt16",
      "parse_fn": 4385809,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "LargeGroupAudioUnusedKnownKeys": {
+   "parse_fn": 6347485,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Key",
+     "offset": 16,
+     "type": "LargeGroupAudioKeys",
+     "parse_fn": 8318071,
      "userdata": null,
      "default": null
     }
@@ -38528,6 +39764,84 @@
     }
    ]
   },
+  "NewEvaEvent": {
+   "parse_fn": 6155073,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "AlwaysPlayFromHomeBase",
+     "offset": 44,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "CountAsJumpToLocation",
+     "offset": 45,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ExpirationTimeMS",
+     "offset": 4,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MillisecondsToWaitBeforePlaying",
+     "offset": 12,
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "OtherEvaEventsToBlock",
+     "offset": 32,
+     "type": "EvaEventList",
+     "parse_fn": 6152569,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Priority",
+     "offset": 16,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "QuietTimeMS",
+     "offset": 8,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SideSound",
+     "offset": 20,
+     "type": "SideSound",
+     "parse_fn": 6152327,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TimeBetweenEventsMS",
+     "offset": 0,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "NotificationType": {
    "parse_fn": 6430532,
    "moduledata_ctor": 6428897,
@@ -42273,6 +43587,34 @@
      "parse_fn": 4384088,
      "userdata": null,
      "default": "No"
+    }
+   ]
+  },
+  "Pathfinder": {
+   "parse_fn": 7246248,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "SlopeLimits",
+     "offset": 0,
+     "type": "Ignored",
+     "parse_fn": 6550463,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "PlayerAIType": {
+   "parse_fn": 6379925,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "LibraryMap",
+     "offset": 0,
+     "type": "QuotedAsciiStringList",
+     "parse_fn": 6378539,
+     "userdata": null,
+     "default": null
     }
    ]
   },
@@ -46068,6 +47410,76 @@
     }
    ]
   },
+  "SkillSet1": {
+   "parse_fn": 7337639,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Science",
+     "offset": 0,
+     "type": "ScienceType",
+     "parse_fn": 7334936,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "SkillSet2": {
+   "parse_fn": 7337639,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Science",
+     "offset": 0,
+     "type": "ScienceType",
+     "parse_fn": 7334936,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "SkillSet3": {
+   "parse_fn": 7337639,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Science",
+     "offset": 0,
+     "type": "ScienceType",
+     "parse_fn": 7334936,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "SkillSet4": {
+   "parse_fn": 7337639,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Science",
+     "offset": 0,
+     "type": "ScienceType",
+     "parse_fn": 7334936,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "SkillSet5": {
+   "parse_fn": 7337639,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Science",
+     "offset": 0,
+     "type": "ScienceType",
+     "parse_fn": 7334936,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "SkirmishAIData": {
    "parse_fn": 6984790,
    "moduledata_ctor": null,
@@ -46301,6 +47713,20 @@
      "offset": 2424,
      "type": "Real",
      "parse_fn": 4386048,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "SkirmishBuildList": {
+   "parse_fn": 7340507,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Structure",
+     "offset": 0,
+     "type": "Structure",
+     "parse_fn": 7521195,
      "userdata": null,
      "default": null
     }
@@ -47040,6 +48466,20 @@
     }
    ]
   },
+  "StanceTemplate": {
+   "parse_fn": 8608103,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Stance",
+     "offset": 0,
+     "type": "Stance",
+     "parse_fn": 8607066,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "StartingRestriction": {
    "parse_fn": 10124756,
    "moduledata_ctor": 10124599,
@@ -47721,6 +49161,180 @@
      "offset": 108,
      "type": "ViewInfo",
      "parse_fn": 6394177,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "System": {
+   "parse_fn": 6239170,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "BurstCount",
+     "offset": 80,
+     "type": "RandomVariable",
+     "parse_fn": 7578518,
+     "userdata": "0x00da1cbc",
+     "default": null
+    },
+    {
+     "name": "BurstDelay",
+     "offset": 68,
+     "type": "RandomVariable",
+     "parse_fn": 7578518,
+     "userdata": "0x00da1cbc",
+     "default": null
+    },
+    {
+     "name": "InitialDelay",
+     "offset": 92,
+     "type": "RandomVariable",
+     "parse_fn": 7578518,
+     "userdata": "0x00da1cbc",
+     "default": null
+    },
+    {
+     "name": "IsEmitAboveGroundOnly",
+     "offset": 129,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "IsGroundAligned",
+     "offset": 128,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "IsOneShot",
+     "offset": 4,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "IsParticleUpTowardsEmitter",
+     "offset": 130,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Lifetime",
+     "offset": 20,
+     "type": "RandomVariable",
+     "parse_fn": 7578518,
+     "userdata": "0x00da1cbc",
+     "default": null
+    },
+    {
+     "name": "ParticleName",
+     "offset": 16,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "PerParticleAttachedSystem",
+     "offset": 120,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Priority",
+     "offset": 124,
+     "type": "Enum",
+     "parse_fn": 4385110,
+     "userdata": "0x00c31ae8",
+     "default": null
+    },
+    {
+     "name": "Shader",
+     "offset": 8,
+     "type": "Enum",
+     "parse_fn": 4385110,
+     "userdata": "0x00c31a54",
+     "default": null
+    },
+    {
+     "name": "ShroudEmitter",
+     "offset": 132,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Size",
+     "offset": 40,
+     "type": "RandomVariable",
+     "parse_fn": 7578518,
+     "userdata": "0x00da1cbc",
+     "default": null
+    },
+    {
+     "name": "SlavePosOffset",
+     "offset": 108,
+     "type": "Coord3D",
+     "parse_fn": 4387399,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SlaveSystem",
+     "offset": 104,
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "SortLevel",
+     "offset": 36,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "StartSizeRate",
+     "offset": 52,
+     "type": "RandomVariable",
+     "parse_fn": 7578518,
+     "userdata": "0x00da1cbc",
+     "default": null
+    },
+    {
+     "name": "SystemLifetime",
+     "offset": 32,
+     "type": "UnsignedInt",
+     "parse_fn": 4385970,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "Type",
+     "offset": 12,
+     "type": "Enum",
+     "parse_fn": 4385110,
+     "userdata": "0x00c31a84",
+     "default": null
+    },
+    {
+     "name": "UseMaximumHeight",
+     "offset": 131,
+     "type": "Bool",
+     "parse_fn": 4384088,
      "userdata": null,
      "default": null
     }
@@ -48640,6 +50254,172 @@
     }
    ]
   },
+  "Turret": {
+   "parse_fn": 6693026,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "AllowsPitch",
+     "offset": 102,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "ControlledWeaponSlots",
+     "offset": 76,
+     "type": "WeaponSlotFlags",
+     "parse_fn": 9290255,
+     "userdata": "0x00da12e4",
+     "default": null
+    },
+    {
+     "name": "FirePitch",
+     "offset": 64,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "FiresWhileTurning",
+     "offset": 101,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "GroundUnitPitch",
+     "offset": 72,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "InitiallyDisabled",
+     "offset": 100,
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MaxIdleScanAngle",
+     "offset": 84,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MaxIdleScanInterval",
+     "offset": 92,
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MinIdleScanAngle",
+     "offset": 80,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MinIdleScanInterval",
+     "offset": 88,
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "MinPhysicalPitch",
+     "offset": 68,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NaturalTurretAngle",
+     "offset": 8,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "NaturalTurretPitch",
+     "offset": 12,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "RecenterTime",
+     "offset": 96,
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TurretFireAngleSweep",
+     "offset": 0,
+     "type": "WeaponSlotAngle",
+     "parse_fn": 9290316,
+     "userdata": "0x00da12e4",
+     "default": null
+    },
+    {
+     "name": "TurretMaxDeflectionACW",
+     "offset": 108,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TurretMaxDeflectionCW",
+     "offset": 104,
+     "type": "AngleReal",
+     "parse_fn": 4386325,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TurretPitchRate",
+     "offset": 4,
+     "type": "AngularVelocityReal",
+     "parse_fn": 7578326,
+     "userdata": null,
+     "default": null
+    },
+    {
+     "name": "TurretSweepSpeedModifier",
+     "offset": 0,
+     "type": "WeaponSlotReal",
+     "parse_fn": 9290367,
+     "userdata": "0x00da12e4",
+     "default": null
+    },
+    {
+     "name": "TurretTurnRate",
+     "offset": 0,
+     "type": "AngularVelocityReal",
+     "parse_fn": 7578326,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
   "UnitCategory": {
    "parse_fn": 6425854,
    "moduledata_ctor": null,
@@ -49301,6 +51081,20 @@
      "offset": 8,
      "type": "AsciiString",
      "parse_fn": 4386398,
+     "userdata": null,
+     "default": null
+    }
+   ]
+  },
+  "WaterTextureList": {
+   "parse_fn": 6292604,
+   "moduledata_ctor": null,
+   "fields": [
+    {
+     "name": "Texture",
+     "offset": 8,
+     "type": "AsciiStringList",
+     "parse_fn": 4384158,
      "userdata": null,
      "default": null
     }

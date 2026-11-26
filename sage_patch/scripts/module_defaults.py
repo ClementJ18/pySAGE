@@ -80,10 +80,20 @@ INI_BLOCK_MIN_FIELDS = 2
 EH_PROLOG = 0xA3CEF0
 OPERATOR_NEW = (0x42F6E0, 0x42F6A0)
 STR_ASSIGN = (0x4374E0, 0x4050E6, 0x436030, 0x40611E)
-HELPERS = set(OPERATOR_NEW) | set(STR_ASSIGN) | {EH_PROLOG, 0x42DBBD, 0x435D50}
+STR_COPY = 0x436030
+STR_RELEASE = 0x435D50
+HELPERS = set(OPERATOR_NEW) | set(STR_ASSIGN) | {EH_PROLOG, 0x42DBBD, STR_RELEASE}
 # `MultiIniFieldParse::add`, the one call inside a `buildFieldParse` that takes a table
 # rather than contributing one. Every other call there is a base class's own.
 MULTI_FIELD_ADD = 0x42B8D7
+# INI::initFromINI(instance, fieldTable) and its buildFieldParse variant, the two ways a
+# block parser hands a block to the reader
+INI_PARSE_FIELDS, INI_PARSE_MULTI = 0x42DB80, 0x42DBBD
+INI_NEXT_TOKEN = (0x42DC9F, 0x42DD73)
+INI_NEXT_TOKEN_OR_NULL = 0x42DBF5
+# INI::registerBlock(keyword, parser): a block type added at startup, not in a static table
+INI_REGISTER_BLOCK = 0x73B0E8
+CXX_THROW = 0xA3CE04
 # The deepest chain the engine actually has is four (`CitadelSlaughterHordeContain`);
 # the cap is a guard against following a call that is not a base class at all.
 MAX_BASE_DEPTH = 8
@@ -402,6 +412,25 @@ PARSE_TYPES = {
     0x008DC27F: "WeaponSlotReal",
     0x008DC20F: "WeaponSlotFlags",
     0x005DF2DB: "LookupList",
+    0x0063F3BF: "Ignored",
+    0x0061542B: "QuotedAsciiStringList",
+    0x0062472D: "ButtonTooltipMapping",
+    0x00618B95: "FontSizeSubstitution",
+    0x00834FBF: "FormationTemplate",
+    0x005F7BDB: "ParticleSystemModule",
+    0x005F7C81: "ParticleSystemModule",
+    0x005F7CEF: "ParticleSystemModule",
+    0x005F7D5D: "ParticleSystemModule",
+    0x005F7DCB: "ParticleSystemModule",
+    0x005F7E39: "ParticleSystemModule",
+    0x005F7EA7: "ParticleSystemModule",
+    0x005F7F15: "ParticleSystemModule",
+    0x005FA052: "ParticleSystemModule",
+    0x0073A46F: "DurationUInt16",
+    0x006D8347: "UnsignedInt",
+    0x006D8442: "MappedImageList",
+    0x006D8468: "ImageSequence",
+    0x0069C374: "DecalTexture",
 }
 
 # The lists those types resolve their tokens against, where the array is reached from
@@ -1358,6 +1387,18 @@ def _drop_stray(defaults: dict[int, Any], bases: dict[int, int],
 
 
 
+# Windows calls an engine function can make on its way to a value without that value
+# depending on them, with the number of argument dwords each pops on return
+STDCALL_ARGS = {
+    "InitializeCriticalSection": 1, "DeleteCriticalSection": 1, "EnterCriticalSection": 1,
+    "LeaveCriticalSection": 1, "InterlockedIncrement": 1, "InterlockedDecrement": 1,
+    "InterlockedExchange": 2, "InterlockedExchangeAdd": 2, "GetTickCount": 0,
+    "GetCurrentThreadId": 0, "GetCurrentProcessId": 0, "GetLastError": 0,
+    "QueryPerformanceCounter": 1, "QueryPerformanceFrequency": 1, "OutputDebugStringA": 1,
+    "TlsGetValue": 1, "timeGetTime": 0,
+}
+
+
 class Emulator:
     """Runs constructors in unicorn, to read the defaults they really write.
 
@@ -1380,13 +1421,19 @@ class Emulator:
     STACK, STACK_SIZE = 0x08000000, 0x100000
     HEAP, HEAP_SIZE = 0x09000000, 0x400000
     TEB, GDT, RET, BUF, BUF_SIZE = 0x07F00000, 0x07D00000, 0x07E00000, 0x0C000000, 0x10000
+    IMPORTS = 0x07C00000
     BUDGET = 400000
 
     def __init__(self, img: Image, path: str) -> None:
         self.img = img
         self.stubs: dict[int, int] = {}
+        self.hooked: set[int] = set()
+        self.pages: list[int] = []
         self.variant = 0
         self.path_hash = 0
+        self.faulted = False
+        self.capturing: Optional[
+            list[tuple[list[tuple[str, int, int, int]], Optional[bytes]]]] = None
         # the first reset fills the whole heap; later ones only what a run handed out
         self.heap_top = self.HEAP + self.HEAP_SIZE
         self.uc = uc = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -1431,11 +1478,28 @@ class Emulator:
             uc.reg_write(reg, 2 << 3)
         uc.reg_write(UC_X86_REG_FS, 3 << 3)
         uc.hook_add(UC_HOOK_MEM_UNMAPPED, self._map_page)
+        # Copying a string draws on a memory pool nothing here sets up, and branches on
+        # its uninitialised state. String defaults are read by constant tracking anyway,
+        # so the copy starts out stubbed.
+        self._stub_out(STR_COPY)
         uc.hook_add(UC_HOOK_BLOCK, self._block)
         for fn in OPERATOR_NEW:
             uc.hook_add(UC_HOOK_CODE, self._new, begin=fn, end=fn)
-        for thunk, name in _import_thunks(img, path).items():
-            uc.hook_add(UC_HOOK_CODE, self._crt, begin=thunk, end=thunk, user_data=name)
+        for fn in (INI_PARSE_FIELDS, INI_PARSE_MULTI, CXX_THROW, INI_NEXT_TOKEN_OR_NULL,
+                   *INI_NEXT_TOKEN):
+            uc.hook_add(UC_HOOK_CODE, self._ini, begin=fn, end=fn)
+        uc.mem_write(self.RET + 0x100, b"Default\0")
+        # The engine reaches the system DLLs both through `jmp [slot]` thunks and with a
+        # direct `call [slot]`, so every import slot is pointed at an address of its own
+        # that _import answers.
+        self.imports = _imports(path)
+        size = (4 * len(self.imports) + 0xFFF) & ~0xFFF
+        uc.mem_map(self.IMPORTS, size)
+        for k, (slot, _dll, _name) in enumerate(self.imports):
+            uc.mem_write(slot, struct.pack("<I", self.IMPORTS + 4 * k))
+        uc.hook_add(UC_HOOK_CODE, self._import, begin=self.IMPORTS,
+                    end=self.IMPORTS + 4 * len(self.imports) - 1)
+        self.thunks = set(_import_thunks(img, path))
 
     def run(self, ctor: int) -> Optional[tuple[bytes, bytes]]:
         """The instance as each of the two runs leaves it, or None if they cannot be
@@ -1458,12 +1522,84 @@ class Emulator:
             return None
         return runs[0], runs[1]
 
+    def capture(self, parser: int) -> Optional[tuple[list[tuple[str, int, int, int]],
+                                                     Optional[tuple[bytes, bytes]]]]:
+        """The field rows a block parser hands to the INI reader, and the instance they
+        fill as each run had it at that moment - or None if the parser never gets there.
+
+        The parser runs on an INI whose every token reads `Default`, up to the moment it
+        calls `initFromINI`. Its table is the one the run that starts from zeroed
+        memory passes, as the running game does: a table assembled on the stack, or in
+        a static the first call fills, can only be read here. The instance's defaults
+        are believed where both runs reached that call the same way, on an instance
+        each allocated itself; a global instance is whatever its static constructor,
+        which nothing here runs, would leave.
+        """
+        got = []
+        # What a constructor had stubbed would break a parser that needs it, and the
+        # other way round, so a parser starts from the stubs every emulator starts with.
+        stubs, self.stubs = self.stubs, {STR_COPY: self.stubs[STR_COPY]}
+        for variant in (0, 1):
+            self.capturing = []
+            self._run(parser, variant)
+            seen, self.capturing = self.capturing, None
+            if not seen:
+                break
+            got.append((seen[0], self.path_hash))
+        self.stubs = stubs
+        if not got or not got[0][0][0]:
+            return None
+        (rows, mem), path = got[0]
+        if len(got) < 2 or path != got[1][1] or mem is None or got[1][0][1] is None:
+            return rows, None
+        return rows, (mem, got[1][0][1])
+
+    def _ini(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
+        if self.capturing is None:
+            return
+        if address in INI_NEXT_TOKEN:
+            self._return(self.RET + 0x100, _ret_imm(self.img, address))
+        elif address == INI_NEXT_TOKEN_OR_NULL:
+            self._return(0, _ret_imm(self.img, address))
+        else:
+            # the first block handed over, or a throw before any, ends the run
+            if address != CXX_THROW and not self.capturing:
+                inst, arg = self._arg(0), self._arg(1)
+                if address == INI_PARSE_FIELDS:
+                    rows = self._rows(arg)
+                else:
+                    rows = [(kw, parse, ud, off + extra)
+                            for tab, _src, extra in field_tables(self.img, arg)
+                            for kw, parse, ud, off in parse_table(self.img, tab)]
+                size = max((r[3] for r in rows), default=0) + 16
+                mem = None
+                if self.HEAP <= inst and inst + size <= self.heap_top:
+                    mem = bytes(self.uc.mem_read(inst, size))
+                self.capturing.append((rows, mem))
+            self.uc.reg_write(UC_X86_REG_EIP, self.RET)
+
+    def _rows(self, table: int) -> list[tuple[str, int, int, int]]:
+        rows = []
+        for k in range(500):
+            try:
+                name, parse, ud, off = struct.unpack("<4I", self.uc.mem_read(table + 16 * k, 16))
+            except UcError:
+                return []
+            if not name:
+                return rows
+            keyword = self.img.cstr(name, 64) if _is_data(self.img, name) else None
+            if not keyword or not self.img.is_text(parse) or off >= 0x10000:
+                return []
+            rows.append((keyword, parse, ud, off))
+        return []
+
     def _run(self, ctor: int, variant: int) -> Optional[bytes]:
         for _attempt in range(25):
             self._reset(variant)
             uc = self.uc
             sp = self.STACK + self.STACK_SIZE - 0x100
-            uc.mem_write(sp, struct.pack("<I", self.RET))
+            # a block parser's one argument, the INI being read, is the buffer as well
+            uc.mem_write(sp, struct.pack("<II", self.RET, self.BUF))
             uc.reg_write(UC_X86_REG_ESP, sp)
             uc.reg_write(UC_X86_REG_EBP, sp + 0x80)
             uc.reg_write(UC_X86_REG_ECX, self.BUF)
@@ -1471,11 +1607,19 @@ class Emulator:
             for _escape in range(50):
                 try:
                     uc.emu_start(start, self.RET, count=self.BUDGET)
+                    ran_out = True
                 except UcError:
-                    pass
+                    ran_out = False
                 eip = uc.reg_read(UC_X86_REG_EIP)
                 if eip == self.RET:
                     return bytes(uc.mem_read(self.BUF, self.BUF_SIZE))
+                if self.faulted:
+                    break
+                if ran_out:
+                    # A loop counting through poison. Whatever happens to be running when
+                    # the budget ends is no more to blame than its callers, and stubbing
+                    # it would only break the next constructor that needs it.
+                    return None
                 # a call through a pointer nothing initialised lands outside the code:
                 # return to the caller with a value that fails the agreement test
                 esp = uc.reg_read(UC_X86_REG_ESP)
@@ -1490,8 +1634,7 @@ class Emulator:
             culprit = self._innermost_callee(sp)
             if culprit is None or culprit in self.stubs or culprit == ctor:
                 return None
-            self.stubs[culprit] = _ret_imm(self.img, culprit)
-            uc.hook_add(UC_HOOK_CODE, self._stub, begin=culprit, end=culprit)
+            self._stub_out(culprit)
         return None
 
     def _block(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
@@ -1500,11 +1643,14 @@ class Emulator:
     def _reset(self, variant: int) -> None:
         self.variant = variant
         self.path_hash = 0
+        self.faulted = False
         fill = self.UNSET[variant]
         for va, images in self.data:
             self.uc.mem_write(va, images[variant])
         self.uc.mem_write(self.HEAP, bytes([fill]) * (self.heap_top - self.HEAP))
         self.uc.mem_write(self.BUF, bytes([self.POISON]) * self.BUF_SIZE)
+        for page in self.pages:
+            self.uc.mem_write(page, bytes([fill]) * 0x1000)
         self.heap_top = self.HEAP
 
     def _innermost_callee(self, top: int) -> Optional[int]:
@@ -1514,7 +1660,9 @@ class Emulator:
         for a in range(esp, top, 4):
             back = struct.unpack("<I", self.uc.mem_read(a, 4))[0] - 5
             if self.img.is_text(back) and self.img.read(back, 1) == b"\xe8":
-                return back + 5 + struct.unpack("<i", self.img.read(back + 1, 4))[0]
+                callee = back + 5 + struct.unpack("<i", self.img.read(back + 1, 4))[0]
+                if callee not in self.thunks:
+                    return callee
         return None
 
     def _map_page(self, uc: Any, _access: int, address: int, _size: int, _value: int,
@@ -1526,6 +1674,7 @@ class Emulator:
             uc.mem_write(address & ~0xFFF, bytes([self.UNSET[self.variant]]) * 0x1000)
         except UcError:
             return False
+        self.pages.append(address & ~0xFFF)
         return True
 
     def _return(self, value: int, pop: int = 0) -> None:
@@ -1542,6 +1691,11 @@ class Emulator:
 
     def _alloc(self, n: int) -> int:
         p = self.heap_top
+        if p + n > self.HEAP + self.HEAP_SIZE:
+            # a size read from poison
+            self.faulted = True
+            self.uc.emu_stop()
+            return 0
         self.heap_top += (n + 15) & ~15
         return p
 
@@ -1549,9 +1703,48 @@ class Emulator:
         self._return(self._alloc(self._arg(0)))
 
     def _stub(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
-        self._return(0x5A5A5A5A if self.variant else 0, self.stubs[address])
+        if address in self.stubs:
+            self._return(0x5A5A5A5A if self.variant else 0, self.stubs[address])
 
-    def _crt(self, _uc: Any, _address: int, _size: int, name: str) -> None:
+    def _stub_out(self, fn: int) -> None:
+        if fn not in self.hooked:
+            self.hooked.add(fn)
+            self.uc.hook_add(UC_HOOK_CODE, self._stub, begin=fn, end=fn)
+        self.stubs[fn] = _ret_imm(self.img, fn)
+
+    def _import(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
+        _slot, dll, name = self.imports[(address - self.IMPORTS) // 4]
+        if dll.startswith("msvcr"):
+            self._crt(name)
+        elif name in STDCALL_ARGS:
+            self._return(0x5A5A5A5A if self.variant else 0, 4 * STDCALL_ARGS[name])
+        else:
+            # how many arguments it pops is unknown, so its caller cannot go on
+            self.faulted = True
+            self.uc.emu_stop()
+
+    def _cstr(self, p: int) -> bytes:
+        out = b""
+        while len(out) < 0x1000:
+            chunk = bytes(self.uc.mem_read(p + len(out), 64))
+            if b"\0" in chunk:
+                return out + chunk[:chunk.index(b"\0")]
+            out += chunk
+        return out
+
+    def _compare(self, name: str) -> int:
+        if name == "strlen":
+            return len(self._cstr(self._arg(0)))
+        if name == "memcmp":
+            n = self._arg(2)
+            a, b = (bytes(self.uc.mem_read(self._arg(k), n)) for k in (0, 1))
+        else:
+            a, b = self._cstr(self._arg(0)), self._cstr(self._arg(1))
+            if name != "strcmp":
+                a, b = a.lower(), b.lower()
+        return (a > b) - (a < b)
+
+    def _crt(self, name: str) -> None:
         uc, value = self.uc, 0
         if name == "memset":
             p, byte, n = self._arg(0), self._arg(1), self._arg(2)
@@ -1566,6 +1759,8 @@ class Emulator:
             value = self._alloc(n)
             if name == "calloc":
                 uc.mem_write(value, bytes(n))
+        elif name in ("strcmp", "_stricmp", "_strcmpi", "strlen", "memcmp"):
+            value = self._compare(name)
         else:
             # anything else the C runtime does is outside what a constructor's defaults
             # can rest on, so make it fail the agreement test
@@ -1586,13 +1781,19 @@ def _ret_imm(img: Image, fn: int) -> int:
     return 0
 
 
-def _import_thunks(img: Image, path: str) -> dict[int, str]:
-    """`jmp [IAT slot]` thunk address -> the import it jumps to."""
+def _imports(path: str) -> list[tuple[int, str, str]]:
+    """Every import slot, with the lower-cased DLL and the name it imports."""
     pe = pefile.PE(path, fast_load=True)
     pe.parse_data_directories(
         directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
-    slots = {imp.address: (imp.name or b"#%d" % imp.ordinal).decode()
-             for dll in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []) for imp in dll.imports}
+    return [(imp.address, dll.dll.decode().lower(),
+             (imp.name or b"#%d" % imp.ordinal).decode())
+            for dll in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []) for imp in dll.imports]
+
+
+def _import_thunks(img: Image, path: str) -> dict[int, str]:
+    """`jmp [IAT slot]` thunk address -> the import it jumps to."""
+    slots = {slot: name for slot, _dll, name in _imports(path)}
     thunks: dict[int, str] = {}
     at = img.text.find(b"\xff\x25")
     while at != -1:
@@ -1859,9 +2060,10 @@ def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str,
     """Every INI block keyword whose parser owns a field table.
 
     The loader dispatches a block on `{keyword, parser}` pairs sitting in the data
-    sections. Rather than trust the pairs - a string next to a function pointer is a
-    common enough accident - each candidate is kept only if its parser really does
-    hand a field table to the INI reader, which is what makes it a block type at all.
+    sections, or registered at startup through `INI::registerBlock`. Rather than trust
+    the pairs - a string next to a function pointer is a common enough accident - each
+    candidate is kept only if its parser really does hand a field table to the INI
+    reader, which is what makes it a block type at all.
     """
     candidates: dict[str, set[int]] = {}
     for name, va0, size, _fo in img.sections:
@@ -1876,6 +2078,19 @@ def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str,
             keyword = img.cstr(strp, 48)
             if keyword and INI_KEYWORD.match(keyword):
                 candidates.setdefault(keyword, set()).add(fn)
+    for call in img.calls_to(INI_REGISTER_BLOCK):
+        pushed: list[int] = []
+        for start in range(call - 16, call - 9):
+            ins = list(img.disasm(start, call - start))
+            if ins and ins[-1].address + ins[-1].size == call:
+                pushed = [int(i.op_str, 16) for i in ins
+                          if i.mnemonic == "push" and i.op_str.startswith("0x")][-2:]
+                if len(pushed) == 2:
+                    break
+        if len(pushed) == 2 and img.is_text(pushed[0]) and _is_data(img, pushed[1]):
+            keyword = img.cstr(pushed[1], 48)
+            if keyword and INI_KEYWORD.match(keyword):
+                candidates.setdefault(keyword, set()).add(pushed[0])
 
     # A field-table row is a keyword next to a parse function too, so a keyword often
     # has several candidates: the block parser that owns its whole schema, and the leaf
@@ -1904,7 +2119,82 @@ def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str,
             "moduledata_ctor": ctor,
             "fields": sorted(fields, key=lambda f: f["name"].lower()),
         }
+    # What is left is read in a way no table address in the code gives away: a table
+    # assembled on the stack or filled in on first use, a single-keyword table, one
+    # behind a getter. Running the parser shows the table it really passes.
+    reaches: dict[tuple[int, int], bool] = {}
+    for keyword, fns in sorted(candidates.items()):
+        if keyword in out:
+            continue
+        for fn in sorted(fns):
+            if not _reaches(img, fn, (INI_PARSE_FIELDS, INI_PARSE_MULTI), reaches):
+                continue
+            got = emu.capture(fn) or (virtual_rows(img, fn, keyword), None)
+            if not got[0]:
+                continue
+            rows, runs = got
+            out[keyword] = {
+                "parse_fn": fn,
+                "moduledata_ctor": None,
+                "fields": sorted((cat.field(img, row, {}, runs, keyword) for row in rows),
+                                 key=lambda f: f["name"].lower()),
+            }
+            break
     return dict(sorted(out.items()))
+
+
+def virtual_rows(img: Image, parser: int, keyword: str) -> list[tuple[str, int, int, int]]:
+    """The rows of a block whose parser asks a global object for its table.
+
+    `InGameUI` hands the reader whatever `TheInGameUI->getFieldParse()` returns, a
+    virtual call on an object only the running game creates. Of the classes whose vtable
+    has a table getter in that slot, the block's own is the one that also names itself
+    after the block keyword.
+    """
+    ins = list(img.disasm(parser, 0x80))
+    if not any(i.mnemonic == "call" and i.op_str == "0x%x" % INI_PARSE_FIELDS for i in ins):
+        return []
+    slots = [re.fullmatch(r"dword ptr \[e[abcd]x \+ (0x[0-9a-f]+)\]", i.op_str)
+             for i in ins if i.mnemonic == "call"]
+    slot = next((int(m.group(1), 16) for m in slots if m), None)
+    if slot is None:
+        return []
+    tables: set[int] = set()
+    for name, va0, size, _fo in img.sections:
+        if name != ".rdata":
+            continue
+        for va in range(va0, va0 + size - slot - 4, 4):
+            getter = img.u32(va + slot)
+            if not img.is_text(getter) or not img.is_text(img.u32(va)):
+                continue
+            table = const_return(img, getter)
+            if not table or not _looks_like_table(img, table):
+                continue
+            # the name getter sits in the same vtable, or in the one just before it
+            for at in range(va - 0x10, va + slot, 4):
+                named = const_return(img, img.u32(at)) if img.is_text(img.u32(at)) else None
+                if named and _is_data(img, named) and img.cstr(named, 64) == keyword:
+                    tables.add(table)
+                    break
+    if len(tables) != 1:
+        return []
+    rows = parse_table(img, tables.pop(), 500)
+    return rows if all(img.is_text(r[1]) for r in rows) else []
+
+
+def _reaches(img: Image, fn: int, targets: tuple[int, ...],
+             memo: dict[tuple[int, int], bool], depth: int = 2) -> bool:
+    """Whether `fn` calls one of `targets`, itself or through at most `depth` callees."""
+    if (fn, depth) in memo:
+        return memo[fn, depth]
+    memo[fn, depth] = False
+    calls = [int(i.op_str, 16) for i in img.disasm(fn, 0x600)
+             if i.mnemonic in ("call", "jmp") and i.op_str.startswith("0x")]
+    found = any(t in targets for t in calls) or depth > 0 and any(
+        img.is_text(t) and t not in HELPERS and _reaches(img, t, targets, memo, depth - 1)
+        for t in calls)
+    memo[fn, depth] = found
+    return found
 
 
 def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any], list[str]]:

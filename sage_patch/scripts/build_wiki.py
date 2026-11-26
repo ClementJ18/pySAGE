@@ -434,6 +434,12 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`OCL <ObjectCreationList> Delay <ms> Bone <bone>`",
         "{OCL*, Duration frames, AsciiString bone} pushed; OCL/Delay/Bone keywords mandatory.",
     ),
+    "ButtonTooltipMapping": (
+        "Text",
+        "`<AptButtonPath> <TooltipLabel>`",
+        "Maps an Apt button path to the string label of its tooltip. Each line adds another "
+        "entry.",
+    ),
     "ByteEnum": (
         "Enumeration",
         "`<name>`",
@@ -511,6 +517,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "masked out; the leftover tokens are parsed as ObjectStatus flags into a fixed offset "
         "with status bits - masked out.",
     ),
+    "DecalTexture": (
+        "Text",
+        "`<texture>`",
+        "Name of the texture the decal is drawn with.",
+    ),
     "DurationByte": (
         "Scalar",
         "`<ms>`",
@@ -522,6 +533,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`<ms> | Min:<ms> Max:<ms>`",
         "Two Ints (min at field, max at the paired field) converted ms -> ceil frames; a "
         "single value sets both.",
+    ),
+    "DurationUInt16": (
+        "Scalar",
+        "`<milliseconds>`",
+        "Unsigned Int in ms, rounded up to whole logic frames and stored as a 16-bit count.",
     ),
     "EatObjectEntry": (
         "Scalar",
@@ -577,6 +593,18 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`\"<font name>\" <int size> <bool bold>`",
         "Quoted name -> AsciiString at field, Int size at field+4, Bool byte at field+8.",
     ),
+    "FontSizeSubstitution": (
+        "Scalar",
+        "`<int size> = <int size> \"<font name>\"`",
+        "Two Ints and a quoted font name: text in the block's font at the first size is drawn "
+        "in the named font at the second size. Each line adds another entry.",
+    ),
+    "FormationTemplate": (
+        "Text",
+        "`<name>` followed by a sub-block",
+        "Names a formation layout and reads a sub-block for it. The stock INI never uses it, "
+        "and its keywords are not listed here.",
+    ),
     "FXEvent": (
         "Scalar",
         "`Frame:<int> [FrameStep:<int>] [FrameStop:<int>] [FireWhenSkipped] Name:<FXList>`",
@@ -611,6 +639,17 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`<real>`",
         "Real multiplied by the Body's max health (needs Body first) and truncated to Int, "
         "range-checked.",
+    ),
+    "Ignored": (
+        "Scalar",
+        "`<anything>`",
+        "Accepted and ignored: this build reads nothing from the line.",
+    ),
+    "ImageSequence": (
+        "Reference",
+        "`<base image name>`",
+        "Adds `NumberImages` MappedImages named `<base>000`, `<base>001`, ... (`%s%03d`); "
+        "`NumberImages` has to come first.",
     ),
     "IntList": (
         "Scalar",
@@ -674,6 +713,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Reference",
         "`<MappedImageName>`",
         "Image collection lookup; pointer stored.",
+    ),
+    "MappedImageList": (
+        "Reference",
+        "`<MappedImage>`",
+        "MappedImage looked up by name. Each line adds another entry.",
     ),
     "MissionObjectiveTagList": (
         "Text",
@@ -788,6 +832,13 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`<VeterancyLevel> <ParticleSystem>`",
         "ParticleSystem stored in slot [veterancy]. Each line adds another entry.",
     ),
+    "ParticleSystemModule": (
+        "Reference",
+        "`<ModuleType>` followed by a sub-block",
+        "Picks a particle-system module by its type name (`Update = DefaultUpdate`) and reads "
+        "that module's sub-block up to `End`. Its keywords depend on the module type, which "
+        "the engine registers at startup, so they are not listed here.",
+    ),
     "Probability": (
         "Scalar",
         "`<int numerator> <separator> <int denominator>`",
@@ -804,6 +855,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Text",
         "`<text> or \"<text with spaces>\"`",
         "Optionally quoted string assigned to the AsciiString field.",
+    ),
+    "QuotedAsciiStringList": (
+        "Text",
+        "`<text> or \"<text with spaces>\"`",
+        "Optionally quoted string. Each line adds another entry.",
     ),
     "RandomTexture": (
         "Scalar",
@@ -1085,6 +1141,7 @@ VALUE_KINDS = {
     "BoolBit": "bool",
     "SecondsToMs": "real",
     "DurationByte": "real",
+    "DurationUInt16": "real",
     "AccelerationReal": "real",
     "HealthFraction": "real",
     "RGBAColorInt": "rgba",

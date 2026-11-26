@@ -36030,7 +36030,7 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": null
    },
    {
     "name": "RampageLifeTimer",
