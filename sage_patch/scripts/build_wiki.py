@@ -355,6 +355,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "`<AIKindOf> ...`",
         "Each token indexed into a fixed array at field, max 17.",
     ),
+    "AnimationSet": (
+        "Text",
+        "`<animation> <animation> <animation>`",
+        "Three animation names kept together as one set. Each line adds another set.",
+    ),
     "ArmorCoefficient": (
         "Scalar",
         "`<DamageType|Default> <percent>`",
@@ -377,6 +382,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Every token parsed as AudioEventRTS (\"NoSound\" allowed, \"Invalid Sound\" "
         "otherwise) and pushed.",
     ),
+    "AutoResolveArmorCoefficient": (
+        "Scalar",
+        "`<AutoResolveUnitType> <percent>`",
+        "Percent stored for that auto-resolve unit type. Each line sets one type.",
+    ),
     "AutoResolveBody": (
         "Reference",
         "`<name>`",
@@ -392,6 +402,12 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Reference",
         "`<name>`",
         "Looked up; pointer stored; throws \"Unknown LivingWorldAutoResolveLeadership %s\".",
+    ),
+    "AutoResolveTarget": (
+        "Scalar",
+        "`Target:<AutoResolveUnitType> Priority:<int>`",
+        "Int priority stored for that auto-resolve unit type; naming a type twice is an "
+        "error. Each line adds another target.",
     ),
     "AutoResolveUnitTypeFlags": (
         "Flag set",
@@ -587,6 +603,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Reference",
         "`<faction> ...`",
         "AsciiStringList, each name resolved as a Faction and stored.",
+    ),
+    "FilteredPercent": (
+        "Scalar",
+        "`<percent> <ObjectFilter ...>`",
+        "A percent and the object filter it applies to. Each line adds another entry.",
     ),
     "FontDesc": (
         "Scalar",
@@ -893,6 +914,11 @@ TYPE_DOCS: dict[str, tuple[str, str, str]] = {
         "Scalar",
         "`<real min> <real max>`",
         "Two Reals at field / field+4, swapped so min <= max.",
+    ),
+    "RealSequence": (
+        "Scalar",
+        "`<real> <real> ...`",
+        "Every Real on the line is appended to a list.",
     ),
     "RegionBonus": (
         "Enumeration",
@@ -1765,11 +1791,22 @@ def block_page(ref: Reference, name: str, block: dict) -> str:
             f'<a href="{esc(slug(n))}.html"><code>{esc(n)}</code></a>' for n in shared
         )
         facts = f'<p class="note">The same schema is read for {links}.</p>'
-    lead = (
-        "A named block takes its name after the keyword "
-        f"(<code>{esc(name)} SomeName</code>); the settings blocks that exist once "
-        "take none."
-    )
+    if block.get("file_set"):
+        lead = (
+            f"Every top-level block in the <code>{esc(name)}</code> INI files is read with "
+            "this schema, whatever keyword it starts with."
+        )
+    elif block.get("top_level"):
+        lead = (
+            "A named block takes its name after the keyword "
+            f"(<code>{esc(name)} SomeName</code>); the settings blocks that exist once "
+            "take none."
+        )
+    else:
+        lead = (
+            "A nested block: the INI loader does not take it at the top of a file, only "
+            "inside another block."
+        )
     return schema_page(ref, name, block["fields"], name, lead, "../", facts)
 
 

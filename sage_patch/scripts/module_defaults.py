@@ -29,7 +29,7 @@ import bisect
 import json
 import re
 import struct
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional
 
 import pefile
 from capstone import CS_ARCH_X86, CS_MODE_32, Cs
@@ -49,11 +49,16 @@ from unicorn.x86_const import (
     UC_X86_REG_EAX,
     UC_X86_REG_EBP,
     UC_X86_REG_ECX,
+    UC_X86_REG_EFLAGS,
     UC_X86_REG_EIP,
     UC_X86_REG_ES,
     UC_X86_REG_ESP,
+    UC_X86_REG_FPCW,
+    UC_X86_REG_FPSW,
+    UC_X86_REG_FPTAG,
     UC_X86_REG_FS,
     UC_X86_REG_GDTR,
+    UC_X86_REG_MXCSR,
     UC_X86_REG_SS,
 )
 
@@ -89,10 +94,16 @@ MULTI_FIELD_ADD = 0x42B8D7
 # INI::initFromINI(instance, fieldTable) and its buildFieldParse variant, the two ways a
 # block parser hands a block to the reader
 INI_PARSE_FIELDS, INI_PARSE_MULTI = 0x42DB80, 0x42DBBD
+# what both come down to: INI::initFromINI(instance, MultiIniFieldParse&), the one call
+# every block reaches however its parser assembled the tables
+INI_PARSE_CORE = 0x42D4B0
 INI_NEXT_TOKEN = (0x42DC9F, 0x42DD73)
 INI_NEXT_TOKEN_OR_NULL = 0x42DBF5
-# INI::registerBlock(keyword, parser): a block type added at startup, not in a static table
-INI_REGISTER_BLOCK = 0x73B0E8
+# The head of the list every top-level block keyword is registered on, and INI::load over a
+# named set of files with one parser that reads every top-level block in them, whatever
+# keyword the block starts with (`InGameUI`, `Animation2D`).
+INI_BLOCK_LIST = 0xDC51C0
+INI_LOAD_FILE_SET = 0x73B0E8
 CXX_THROW = 0xA3CE04
 # The deepest chain the engine actually has is four (`CitadelSlaughterHordeContain`);
 # the cap is a guard against following a call that is not a base class at all.
@@ -431,11 +442,18 @@ PARSE_TYPES = {
     0x006D8442: "MappedImageList",
     0x006D8468: "ImageSequence",
     0x0069C374: "DecalTexture",
+    0x008368A9: "AutoResolveArmorCoefficient",
+    0x005F2BAC: "AnimationSet",
+    0x0090E9E9: "FilteredPercent",
+    0x006898E3: "RealSequence",
+    0x0090F933: "Enum",
+    0x00829880: "AutoResolveTarget",
 }
 
 # The lists those types resolve their tokens against, where the array is reached from
 # inside the parse function rather than from the field table's userData.
 PARSER_TABLES = {
+    0x0090F933: 0x00DA12E4,
     0x0086158D: 0x00DAE770,
     0x008615FE: 0x00DAE770,
     0x00861903: 0x00DAE770,
@@ -1422,7 +1440,7 @@ class Emulator:
     HEAP, HEAP_SIZE = 0x09000000, 0x400000
     TEB, GDT, RET, BUF, BUF_SIZE = 0x07F00000, 0x07D00000, 0x07E00000, 0x0C000000, 0x10000
     IMPORTS = 0x07C00000
-    BUDGET = 400000
+    BLOCK_BUDGET = 100000
 
     def __init__(self, img: Image, path: str) -> None:
         self.img = img
@@ -1432,6 +1450,8 @@ class Emulator:
         self.variant = 0
         self.path_hash = 0
         self.faulted = False
+        self.blocks = 0
+        self.ran_out = False
         self.capturing: Optional[
             list[tuple[list[tuple[str, int, int, int]], Optional[bytes]]]] = None
         # the first reset fills the whole heap; later ones only what a run handed out
@@ -1485,10 +1505,8 @@ class Emulator:
         uc.hook_add(UC_HOOK_BLOCK, self._block)
         for fn in OPERATOR_NEW:
             uc.hook_add(UC_HOOK_CODE, self._new, begin=fn, end=fn)
-        for fn in (INI_PARSE_FIELDS, INI_PARSE_MULTI, CXX_THROW, INI_NEXT_TOKEN_OR_NULL,
-                   *INI_NEXT_TOKEN):
+        for fn in (INI_PARSE_CORE, CXX_THROW, INI_NEXT_TOKEN_OR_NULL, *INI_NEXT_TOKEN):
             uc.hook_add(UC_HOOK_CODE, self._ini, begin=fn, end=fn)
-        uc.mem_write(self.RET + 0x100, b"Default\0")
         # The engine reaches the system DLLs both through `jmp [slot]` thunks and with a
         # direct `call [slot]`, so every import slot is pointed at an address of its own
         # that _import answers.
@@ -1564,19 +1582,35 @@ class Emulator:
         else:
             # the first block handed over, or a throw before any, ends the run
             if address != CXX_THROW and not self.capturing:
-                inst, arg = self._arg(0), self._arg(1)
-                if address == INI_PARSE_FIELDS:
-                    rows = self._rows(arg)
-                else:
-                    rows = [(kw, parse, ud, off + extra)
-                            for tab, _src, extra in field_tables(self.img, arg)
-                            for kw, parse, ud, off in parse_table(self.img, tab)]
+                inst, multi = self._arg(0), self._arg(1)
+                rows = self._multi_rows(multi)
                 size = max((r[3] for r in rows), default=0) + 16
                 mem = None
                 if self.HEAP <= inst and inst + size <= self.heap_top:
                     mem = bytes(self.uc.mem_read(inst, size))
                 self.capturing.append((rows, mem))
             self.uc.reg_write(UC_X86_REG_EIP, self.RET)
+
+    def _multi_rows(self, multi: int) -> list[tuple[str, int, int, int]]:
+        """Every row of a `MultiIniFieldParse`: up to 16 tables, then their 16 extra
+        offsets, then the count."""
+        try:
+            raw = bytes(self.uc.mem_read(multi, 0x84))
+        except UcError:
+            return []
+        count = struct.unpack_from("<I", raw, 0x80)[0]
+        if not 0 < count <= 16:
+            return []
+        rows: list[tuple[str, int, int, int]] = []
+        seen: set[str] = set()
+        for k in range(count):
+            table, extra = struct.unpack_from("<I", raw, 4 * k)[0], struct.unpack_from(
+                "<I", raw, 0x40 + 4 * k)[0]
+            for kw, parse, ud, off in self._rows(table):
+                if kw not in seen:
+                    seen.add(kw)
+                    rows.append((kw, parse, ud, off + extra))
+        return rows
 
     def _rows(self, table: int) -> list[tuple[str, int, int, int]]:
         rows = []
@@ -1605,17 +1639,19 @@ class Emulator:
             uc.reg_write(UC_X86_REG_ECX, self.BUF)
             start = ctor
             for _escape in range(50):
+                # Whether emu_start raises on a fault is not reliable - a division by
+                # zero it has raised on once can come back as a plain return - so how
+                # a run ended is read from the hooks and the instruction pointer.
                 try:
-                    uc.emu_start(start, self.RET, count=self.BUDGET)
-                    ran_out = True
+                    uc.emu_start(start, self.RET)
                 except UcError:
-                    ran_out = False
+                    pass
                 eip = uc.reg_read(UC_X86_REG_EIP)
                 if eip == self.RET:
                     return bytes(uc.mem_read(self.BUF, self.BUF_SIZE))
                 if self.faulted:
                     break
-                if ran_out:
+                if self.ran_out:
                     # A loop counting through poison. Whatever happens to be running when
                     # the budget ends is no more to blame than its callers, and stubbing
                     # it would only break the next constructor that needs it.
@@ -1639,11 +1675,23 @@ class Emulator:
 
     def _block(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
         self.path_hash = hash((self.path_hash, address))
+        self.blocks += 1
+        if self.blocks > self.BLOCK_BUDGET:
+            self.ran_out = True
+            self.uc.emu_stop()
 
     def _reset(self, variant: int) -> None:
         self.variant = variant
         self.path_hash = 0
         self.faulted = False
+        self.blocks = 0
+        self.ran_out = False
+        # A run cut short leaves values on the x87 stack, and unicorn starts with every
+        # FPU exception unmasked at single precision: begin each run as a process does.
+        for reg, value in ((UC_X86_REG_FPCW, 0x27F), (UC_X86_REG_FPSW, 0),
+                           (UC_X86_REG_FPTAG, 0xFFFF), (UC_X86_REG_MXCSR, 0x1F80),
+                           (UC_X86_REG_EFLAGS, 0x202)):
+            self.uc.reg_write(reg, value)
         fill = self.UNSET[variant]
         for va, images in self.data:
             self.uc.mem_write(va, images[variant])
@@ -1651,6 +1699,10 @@ class Emulator:
         self.uc.mem_write(self.BUF, bytes([self.POISON]) * self.BUF_SIZE)
         for page in self.pages:
             self.uc.mem_write(page, bytes([fill]) * 0x1000)
+        # what earlier runs left on the stack is as uninitialised as the heap, and a
+        # parser may have written into the token it was handed
+        self.uc.mem_write(self.STACK + self.STACK_SIZE - 0x10000, bytes([fill]) * 0x10000)
+        self.uc.mem_write(self.RET + 0x100, b"Default\0")
         self.heap_top = self.HEAP
 
     def _innermost_callee(self, top: int) -> Optional[int]:
@@ -1710,6 +1762,8 @@ class Emulator:
         if fn not in self.hooked:
             self.hooked.add(fn)
             self.uc.hook_add(UC_HOOK_CODE, self._stub, begin=fn, end=fn)
+            # code translated before the hook existed would run straight through it
+            self.uc.ctl_flush_tb()
         self.stubs[fn] = _ret_imm(self.img, fn)
 
     def _import(self, _uc: Any, address: int, _size: int, _data: Any) -> None:
@@ -1955,7 +2009,8 @@ def _render_real(img: Image, kind: str, defaults: dict[int, Any], off: int) -> O
 
 
 def field_type(img: Image, keyword: str, parse: int,
-               blocks: dict[str, dict[str, Any]]) -> str:
+               blocks: dict[str, dict[str, Any]],
+               capture: Optional[Callable[[int], list[tuple[str, int, int, int]]]] = None) -> str:
     """The type name for a field, registering the sub-block schema behind it.
 
     An unidentified parse function that reads a nested block is a sub-block type;
@@ -1968,8 +2023,11 @@ def field_type(img: Image, keyword: str, parse: int,
     name = BLOCK_TYPES.get(parse, keyword)
     if name in blocks and blocks[name]["parse_fn"] == parse:
         return name
-    # a nested block may have a single keyword; the table's shape still has to hold
-    rows = field_table_of(img, parse, min_rows=1) or registered_rows(img, parse)
+    # The tables the parser really hands over where running it gets that far: a nugget
+    # assembles its base class's table and its own at run time. Otherwise the table its
+    # code points at - a nested block may have a single keyword, the shape still holds.
+    rows = ((capture(parse) if capture else [])
+            or field_table_of(img, parse, min_rows=1) or registered_rows(img, parse))
     words = [kw for kw, _fn, _ud, _off in rows] or block_keywords(img, parse)
     if not rows and len(words) < 2 and parse not in BLOCK_TYPES:
         return "0x%08x" % parse
@@ -1981,7 +2039,7 @@ def field_type(img: Image, keyword: str, parse: int,
     # registered before its own fields are typed, so a block nested in itself ends
     entry: dict[str, Any] = {"parse_fn": parse, "keywords": words, "fields": []}
     blocks[name] = entry
-    entry["fields"] = [{"name": kw, "type": field_type(img, kw, fn, blocks),
+    entry["fields"] = [{"name": kw, "type": field_type(img, kw, fn, blocks, capture),
                         "parse_fn": fn, "offset": off}
                        for kw, fn, _ud, off in rows]
     return name
@@ -1990,7 +2048,16 @@ def field_type(img: Image, keyword: str, parse: int,
 class Catalogue:
     """The shared side-tables an extraction fills in: enums, lookups, sub-blocks."""
 
-    def __init__(self) -> None:
+    def capture_rows(self, parser: int) -> list[tuple[str, int, int, int]]:
+        """The rows `parser` hands to the INI reader when run, or none."""
+        if parser not in self.captured:
+            got = self.emu.capture(parser) if self.emu else None
+            self.captured[parser] = got[0] if got else []
+        return self.captured[parser]
+
+    def __init__(self, emu: Optional[Emulator] = None) -> None:
+        self.emu = emu
+        self.captured: dict[int, list[tuple[str, int, int, int]]] = {}
         self.blocks: dict[str, dict[str, Any]] = {}
         self.tables: dict[str, list[str]] = {}
         self.lookups: dict[str, list[tuple[str, int]]] = {}
@@ -2005,7 +2072,7 @@ class Catalogue:
         emulator's stands - it ran the code - and the disagreement is recorded.
         """
         keyword, parse, ud, off = row
-        kind = field_type(img, keyword, parse, self.blocks)
+        kind = field_type(img, keyword, parse, self.blocks, self.capture_rows)
         ud = ud or PARSER_TABLES.get(parse, 0)
         members = name_table(img, ud) if ud else []
         pairs = lookup_table(img, ud) if kind == "LookupList" and ud else []
@@ -2056,14 +2123,55 @@ def alloc_ctor(img: Image, fn: int) -> Optional[int]:
     return None
 
 
+def top_level_blocks(img: Image) -> dict[str, int]:
+    """Every keyword the INI loader takes at the top of a file, with its parser.
+
+    Each block type is a static `{next, keyword, parser}` node that a static initialiser
+    pushes onto the list at `INI_BLOCK_LIST`; the loader walks that list for every
+    top-level token.
+    """
+    pattern = b"\xc7\x05" + struct.pack("<I", INI_BLOCK_LIST)
+    out: dict[str, int] = {}
+    at = img.text.find(pattern)
+    while at != -1:
+        node = struct.unpack_from("<I", img.text, at + 6)[0]
+        name, parser = img.u32(node + 4), img.u32(node + 8)
+        if _is_data(img, node) and _is_data(img, name) and img.is_text(parser):
+            keyword = img.cstr(name, 64)
+            if keyword and INI_KEYWORD.match(keyword):
+                out[keyword] = parser
+        at = img.text.find(pattern, at + 1)
+    return out
+
+
+def file_sets(img: Image) -> dict[str, int]:
+    """The named file sets read with one parser for every top-level block in them."""
+    out: dict[str, int] = {}
+    for call in img.calls_to(INI_LOAD_FILE_SET):
+        pushed: list[int] = []
+        for start in range(call - 16, call - 9):
+            ins = list(img.disasm(start, call - start))
+            if ins and ins[-1].address + ins[-1].size == call:
+                pushed = [int(i.op_str, 16) for i in ins
+                          if i.mnemonic == "push" and i.op_str.startswith("0x")][-2:]
+                if len(pushed) == 2:
+                    break
+        if len(pushed) == 2 and img.is_text(pushed[0]) and _is_data(img, pushed[1]):
+            name = img.cstr(pushed[1], 48)
+            if name and INI_KEYWORD.match(name):
+                out[name] = pushed[0]
+    return out
+
+
 def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str, Any]]:
     """Every INI block keyword whose parser owns a field table.
 
-    The loader dispatches a block on `{keyword, parser}` pairs sitting in the data
-    sections, or registered at startup through `INI::registerBlock`. Rather than trust
-    the pairs - a string next to a function pointer is a common enough accident - each
-    candidate is kept only if its parser really does hand a field table to the INI
-    reader, which is what makes it a block type at all.
+    The top-level keywords come from the loader's own list, and the file sets it reads
+    with one parser whatever their keywords say. Nested blocks are dispatched on
+    `{keyword, parser}` pairs sitting in the data sections; rather than trust those - a
+    string next to a function pointer is a common enough accident - each candidate is
+    kept only if its parser really does hand a field table to the INI reader, which is
+    what makes it a block type at all.
     """
     candidates: dict[str, set[int]] = {}
     for name, va0, size, _fo in img.sections:
@@ -2078,19 +2186,19 @@ def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str,
             keyword = img.cstr(strp, 48)
             if keyword and INI_KEYWORD.match(keyword):
                 candidates.setdefault(keyword, set()).add(fn)
-    for call in img.calls_to(INI_REGISTER_BLOCK):
-        pushed: list[int] = []
-        for start in range(call - 16, call - 9):
-            ins = list(img.disasm(start, call - start))
-            if ins and ins[-1].address + ins[-1].size == call:
-                pushed = [int(i.op_str, 16) for i in ins
-                          if i.mnemonic == "push" and i.op_str.startswith("0x")][-2:]
-                if len(pushed) == 2:
-                    break
-        if len(pushed) == 2 and img.is_text(pushed[0]) and _is_data(img, pushed[1]):
-            keyword = img.cstr(pushed[1], 48)
-            if keyword and INI_KEYWORD.match(keyword):
-                candidates.setdefault(keyword, set()).add(pushed[0])
+    top, sets = top_level_blocks(img), file_sets(img)
+    # a top-level keyword is read by the loader's parser, not by a same-named field's
+    for keyword, fn in {**top, **sets}.items():
+        candidates[keyword] = {fn}
+
+    def entry(keyword: str, fn: int, ctor: Optional[int],
+              fields: list[FieldInfo]) -> dict[str, Any]:
+        out = {"parse_fn": fn, "moduledata_ctor": ctor,
+               "top_level": keyword in top or keyword in sets,
+               "fields": sorted(fields, key=lambda f: f["name"].lower())}
+        if keyword in sets:
+            out["file_set"] = True
+        return out
 
     # A field-table row is a keyword next to a parse function too, so a keyword often
     # has several candidates: the block parser that owns its whole schema, and the leaf
@@ -2100,25 +2208,25 @@ def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str,
     for keyword, fns in sorted(candidates.items()):
         best: list[tuple[str, int, int, int]] = []
         chosen = 0
+        registered = keyword in top or keyword in sets
         for fn in sorted(fns):
             if fn not in rows_of:
+                # the loader's own list vouches for a block, however few its keywords
                 rows_of[fn] = field_table_of(img, fn, max_offset=0x10000, limit=500,
-                                             maxdepth=2)
+                                             maxdepth=2, min_rows=1 if registered else 2)
             if len(rows_of[fn]) > len(best):
                 best, chosen = rows_of[fn], fn
-        if len(best) < INI_BLOCK_MIN_FIELDS:
+        if len(best) < (1 if registered else INI_BLOCK_MIN_FIELDS):
             continue
+        # a table found in the code may be only the first of the ones the parser passes
+        best = cat.capture_rows(chosen) or best
         ctor = alloc_ctor(img, chosen)
         bases: dict[int, int] = {}
         defaults = ctor_defaults(img, ctor, bases=bases) if ctor else {}
         defaults = _drop_stray(defaults, bases, [(row[3], 0) for row in best])
         runs = emu.run(ctor) if ctor else None
-        fields = [cat.field(img, row, defaults, runs, keyword) for row in best]
-        out[keyword] = {
-            "parse_fn": chosen,
-            "moduledata_ctor": ctor,
-            "fields": sorted(fields, key=lambda f: f["name"].lower()),
-        }
+        out[keyword] = entry(keyword, chosen, ctor,
+                             [cat.field(img, row, defaults, runs, keyword) for row in best])
     # What is left is read in a way no table address in the code gives away: a table
     # assembled on the stack or filled in on first use, a single-keyword table, one
     # behind a getter. Running the parser shows the table it really passes.
@@ -2127,18 +2235,15 @@ def ini_blocks(img: Image, cat: Catalogue, emu: Emulator) -> dict[str, dict[str,
         if keyword in out:
             continue
         for fn in sorted(fns):
-            if not _reaches(img, fn, (INI_PARSE_FIELDS, INI_PARSE_MULTI), reaches):
+            if not _reaches(img, fn, (INI_PARSE_FIELDS, INI_PARSE_MULTI, INI_PARSE_CORE),
+                            reaches):
                 continue
             got = emu.capture(fn) or (virtual_rows(img, fn, keyword), None)
             if not got[0]:
                 continue
             rows, runs = got
-            out[keyword] = {
-                "parse_fn": fn,
-                "moduledata_ctor": None,
-                "fields": sorted((cat.field(img, row, {}, runs, keyword) for row in rows),
-                                 key=lambda f: f["name"].lower()),
-            }
+            out[keyword] = entry(keyword, fn, None,
+                                 [cat.field(img, row, {}, runs, keyword) for row in rows])
             break
     return dict(sorted(out.items()))
 
@@ -2206,8 +2311,8 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any], list[str]]:
     default on which constant tracking and emulation disagree.
     """
     mods: list[ModuleInfo] = []
-    cat = Catalogue()
     emu = Emulator(img, img.path)
+    cat = Catalogue(emu)
     blocks, tables, lookups = cat.blocks, cat.tables, cat.lookups
     reg = [(name, mask) + moduledata_info(img, md)
            for name, inst, md, mask in registrations(img)]
