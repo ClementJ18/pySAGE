@@ -921,6 +921,7 @@ def _edits(base_va: int) -> list[tuple[int, bytes, bytes, str]]:
 class ReplacementTransferPatch(Patch):
     name = "replacement-transfer"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add TransferToReplacement to ReplaceSelfUpgrade and "
         "SummonReplacementSpecialAbilityUpdate: write TransferToReplacement = UPGRADES EXPERIENCE "

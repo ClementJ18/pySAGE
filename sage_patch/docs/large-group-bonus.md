@@ -325,7 +325,13 @@ either half of this patch.
   branch anywhere near it. So the keyword's `No` setting does nothing, and **a widened filter still
   only ever sees the module owner's own objects.** The fix has the same shape as gate 1 — the
   vtable is stored by the imm32 at `0x0089396a` — but the vtable itself (`0x00c10e14`) is shared
-  with twelve other sites, so it must be repointed at the store, never patched in place.
+  with twelve other sites, so it must be repointed at the store, never patched in place. **Both of
+  its working slots enforce the rule.** Slot `+4` is the `allow` above; slot `+8` (`0x00660af2`)
+  is the filter's *player mask*, `1 << [player+0x54]`. `iterateObjectsInRange` calls every chained
+  filter's `+8` and ANDs the answers (`0x00a394a0`) to choose whose objects it walks at all, before
+  any `allow` runs, and the other three filters here answer `0x0048dacd` (`or eax, -1`, every
+  player). A copy that swaps only `allow` still scans the owner alone; it needs `0x0048dacd` in
+  slot `+8` too (seen in a running game 2026-11-20).
 - **`FlagSubObjectNames` can only ever be hidden, never shown.** The sub-object show/hide routine
   is `0x00893810`, and it has exactly one caller: `0x0089386b`, which passes a hardcoded `push 0`.
   The visibility state it would be driven from is `module+0x2a`, and that byte is written **once in

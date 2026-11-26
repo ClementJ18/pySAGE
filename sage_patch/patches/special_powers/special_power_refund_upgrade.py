@@ -165,6 +165,7 @@ class SpecialPowerRefundUpgradePatch(Patch):
 
     name = "special-power-refund-upgrade"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Adds a new Behavior SpecialPowerRefundUpgrade: when its TriggeredBy upgrade fires, the "
         "SpecialPower it names on the controlling player's spellbook comes ready sooner by "

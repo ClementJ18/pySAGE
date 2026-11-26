@@ -30,6 +30,13 @@ __all__ = [
     "SCRIPT_ACTIVE",
     "SCRIPT_AUTHORED_ACTIVE",
     "SCRIPT_CONDITIONS",
+    "SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE",
+    "SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE_BYTES",
+    "SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE_CALL",
+    "SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE_CALL_BYTES",
+    "SCRIPT_CONDITION_PARAMETER_STRING",
+    "ASCII_STRING_COMPARE_NO_CASE",
+    "ASCII_STRING_COMPARE_NO_CASE_BYTES",
     "SCRIPT_COUNTER_IS_SECONDS",
     "SCRIPT_COUNTER_IS_TIMER",
     "SCRIPT_COUNTER_VALUE",
@@ -86,6 +93,8 @@ __all__ = [
     "SCRIPT_GROUP_SUBROUTINE",
     "SCRIPT_HARD",
     "SCRIPT_IS_DUE",
+    "SCRIPT_IS_DUE_CALL",
+    "SCRIPT_IS_DUE_CALL_BYTES",
     "SCRIPT_KEY_COMPOSE",
     "SCRIPT_LIST_ENTRY_GENERATION",
     "SCRIPT_LIST_ENTRY_NAME",
@@ -253,6 +262,10 @@ SCRIPT_ENGINE_CALL_SUBROUTINE = 0x0060BD42
 SCRIPT_ENGINE_EXECUTE_SCRIPT = 0x006099DC
 SCRIPT_ENGINE_EXECUTE_SEQUENTIAL = 0x00609C3A
 SCRIPT_IS_DUE = 0x00603878
+#: The only call to `SCRIPT_IS_DUE` (thiscall on the `ScriptEngine`, one argument, `ret 4`): the
+#: first thing `SCRIPT_ENGINE_RUN_SCRIPT` does, which skips the script entirely when it returns 0.
+SCRIPT_IS_DUE_CALL = 0x0060A168
+SCRIPT_IS_DUE_CALL_BYTES = bytes.fromhex("e80b97ffff")  # call SCRIPT_IS_DUE
 SCRIPT_ENGINE_CURRENT_PLAYER = 0x1A230
 SCRIPT_ENGINE_DIFFICULTY = 0x1A5C4
 #: The script debugger's pause (`docs/script-debugger.md` section 1): skipping the logic phase
@@ -301,6 +314,21 @@ CONDITION_PARAM_COUNT = 0x08
 CONDITION_NEXT = 0x3C
 CONDITION_ENABLED = 0x4C
 CONDITION_INVERTED = 0x4D
+#: `ScriptConditions::evaluateIsGameModeActive(Parameter *)`, condition 201 `IS_GAME_MODE_ACTIVE`
+#: (`ret 4`, verdict in `al`). Stock it knows one name: true when the parameter's string is
+#: `ringheroes` (case-insensitive) and `TheGameInfo` is absent or its rule 2, `AllowRingHeroes`, is
+#: 1. Every other string is false. `..._CALL` is its only caller, the condition switch's case 201,
+#: which pushes the condition's first `Parameter *` (or NULL).
+SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE = 0x007E9E83
+SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE_BYTES = bytes.fromhex("8b4c240468c0bec40083c110")
+SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE_CALL = 0x007ED0F4
+SCRIPT_CONDITION_IS_GAME_MODE_ACTIVE_CALL_BYTES = bytes.fromhex("e88acdffff")
+#: The `AsciiString` inside a script `Parameter`, which the condition compares.
+SCRIPT_CONDITION_PARAMETER_STRING = 0x10
+#: `AsciiString::compareNoCase(const char *)`, `__thiscall` on the string, `ret 4`: `_memicmp` over
+#: the shorter length, then the length difference, so 0 means equal ignoring case.
+ASCII_STRING_COMPARE_NO_CASE = 0x004372C0
+ASCII_STRING_COMPARE_NO_CASE_BYTES = bytes.fromhex("538b5c240885db565774")
 SCRIPT_ENGINE_RUN_ACTIONS = 0x0060C1C9
 SCRIPT_ENGINE_CURRENT_OBJECT = 0x1A218
 #: How the per-frame driver puts a player's scripts in scope - what a script run from outside it has

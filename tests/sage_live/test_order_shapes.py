@@ -133,3 +133,25 @@ def test_the_two_unpack_orders_are_different_ids():
     """`0x43D` is what a player clicks; `0x43F` names a template explicitly. Conflating them
     is why the unpack path stayed unverified for so long."""
     assert orders.castle_unpack(0).order_type != orders.unpack(0, 5).order_type
+
+
+def test_upgrade_selection_is_the_click_form_of_the_queue_upgrade_message():
+    """Object id 0, which `research` refuses: the button is pressed on whatever is selected."""
+    order = orders.upgrade_selection(0, 289)
+    assert order.order_type == orders.OrderType.QUEUE_UPGRADE
+    assert shape(order) == [T.ObjectId, T.Integer]
+    assert values(order) == [0, 289]
+
+
+@pytest.mark.parametrize(
+    "build,message",
+    [
+        (orders.combine_hordes, orders.OrderType.COMBINE_HORDES_WITH_OBJECT),
+        (orders.sacrifice, orders.OrderType.SACRIFICE),
+    ],
+)
+def test_horde_orders_carry_only_the_other_object(build, message):
+    order = build(0, 4242)
+    assert order.order_type == message
+    assert shape(order) == [T.ObjectId]
+    assert values(order) == [4242]

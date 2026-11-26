@@ -6,6 +6,11 @@ when no side matches, the player falls back to its faction's `DefaultPlayerAITyp
 type's library scripts. Skirmish only (the scan runs only for `playerIsSkirmish` players); never
 overrides a side the map has.
 
+The fallback is meant to become the normal path, with maps carrying no `Skirmish<Faction>` sides
+at all, so past its library load it rejoins the engine's own code for a skirmish AI rather than
+skipping it: the lobby difficulty, then the name-based import of the map's `Player_N` side. Only
+the copy of a matched side's scripts and teams is left out, because there is no side to copy.
+
 Derivation: `../docs/skirmish-ai-fallback.md`.
 """
 
@@ -23,6 +28,8 @@ from ...addresses import (
     PLAYER_INIT_FROM_DICT_BYTES,
     PLAYER_SET_TYPE,
     PLAYER_SET_TYPE_BYTES,
+    PLAYER_SKIRMISH_AI_TYPE_TEST,
+    PLAYER_SKIRMISH_AI_TYPE_TEST_BYTES,
     PLAYER_SKIRMISH_FOUND_EBP,
     PLAYER_SKIRMISH_IMPORT,
     PLAYER_SKIRMISH_IMPORT_BYTES,
@@ -31,6 +38,8 @@ from ...addresses import (
     PLAYER_SKIRMISH_MISSING_EBP,
     PLAYER_SKIRMISH_ROUTE,
     PLAYER_SKIRMISH_ROUTE_BYTES,
+    PLAYER_SKIRMISH_SETTINGS,
+    PLAYER_SKIRMISH_SETTINGS_BYTES,
     PLAYER_TEMPLATE_DEFAULT_AI_TYPE,
     PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE,
     PLAYER_TEMPLATE_FIELD_DEFAULT_AI_TYPE_BYTES,
@@ -72,13 +81,16 @@ _CHARACTERISTICS = 0x20 | 0x20000000 | 0x40000000
 
 #: The first bytes at each address the cave calls, jumps to or reads through, as a `{va: bytes}`
 #: map. The two hook windows are asserted by `apply_byte_patch`; these are everything else the
-#: assembly assumes about this build - the four engine routines, the resume point, the name-key
-#: object, one load of `TheSidesList` inside the hooked function, and the field-table entry that
-#: says where `DefaultPlayerAIType` lands in a `PlayerTemplate`. A build whose layout moved fails
-#: here rather than on a wild call or a write into the middle of some other field.
+#: assembly assumes about this build - the four engine routines, both resume points, the
+#: `playerAIType` type test the synthesised path relies on to bypass the matched-side copy, the
+#: name-key object, one load of `TheSidesList` inside the hooked function, and the field-table entry
+#: that says where `DefaultPlayerAIType` lands in a `PlayerTemplate`. A build whose layout moved
+#: fails here rather than on a wild call or a write into the middle of some other field.
 ANCHORS = {
     PLAYER_INIT_FROM_DICT: PLAYER_INIT_FROM_DICT_BYTES,
     PLAYER_SKIRMISH_IMPORT_SKIP: PLAYER_SKIRMISH_IMPORT_SKIP_BYTES,
+    PLAYER_SKIRMISH_SETTINGS: PLAYER_SKIRMISH_SETTINGS_BYTES,
+    PLAYER_SKIRMISH_AI_TYPE_TEST: PLAYER_SKIRMISH_AI_TYPE_TEST_BYTES,
     PLAYER_SET_TYPE: PLAYER_SET_TYPE_BYTES,
     THE_SIDES_LIST_LOAD: THE_SIDES_LIST_LOAD_BYTES,
     SIDES_LIST_GET_SIDE_INFO: SIDES_LIST_GET_SIDE_INFO_BYTES,
@@ -129,7 +141,7 @@ def _assemble(base_va: int) -> Asm:
     a.emit(0x53, 0x56, 0x57)  # push ebx / push esi / push edi
     a.emit(0x8B, 0x46, PLAYER_TEMPLATE_PTR)  # mov eax, [esi+0x34]   ; m_playerTemplate
     a.emit(0x85, 0xC0)  # test eax, eax
-    a.jcc_short(JE, "done")
+    a.jcc_short(JE, "bail")
     a.emit(0x05, struct.pack("<I", PLAYER_TEMPLATE_DEFAULT_AI_TYPE))  # add eax, 0x1b0
     a.emit(0x50)  # push eax              ; &value, arg 2
     a.emit(0xB9, struct.pack("<I", KEY_PLAYER_AI_TYPE))  # mov ecx, &TheKey_playerAIType
@@ -145,14 +157,26 @@ def _assemble(base_va: int) -> Asm:
     a.emit(0xFF, 0x76, PLAYER_INDEX)  # push [esi+0x54]
     a.emit(0x8B, 0x0D, struct.pack("<I", THE_SIDES_LIST))  # mov ecx, [TheSidesList]
     a.call_absolute(SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE)  # merge our own library (ret 4)
-    a.jmp_short("done")
-
-    a.label("unwind")
-    a.emit(0x83, 0xC4, 0x08)  # add esp, 8
-    a.label("done")
     a.emit(0x5F, 0x5E, 0x5B)  # pop edi / pop esi / pop ebx
 
-    # Both the stock 0-edge and the synthesised path continue where the engine's own "nothing to
+    # Rejoin the matched path past its side lookup, which is the one step that needs a side. The
+    # engine then sets the AI's difficulty from the lobby, finds the `playerAIType` string written
+    # above (Dict type 3) and so takes its own name-based import instead of the matched-side copy -
+    # the edge a matched player whose dict names its AI type takes too. `esi` (the Player), `edi`
+    # (zero, the null the difficulty write tests against) and `[ebp+8]` (the dict) are what that
+    # code reads, and all three are as the hooked function left them.
+    a.emit(0x83, 0xC4, 0x04)  # add esp, 4
+    a.jmp_absolute(PLAYER_SKIRMISH_SETTINGS)
+
+    # No template or no side info: `playerAIType` was never written, so the type test would fall
+    # into the matched-side copy with no matched side. Leave by the stock "nothing to import" edge
+    # instead, as before.
+    a.label("unwind")
+    a.emit(0x83, 0xC4, 0x08)  # add esp, 8
+    a.label("bail")
+    a.emit(0x5F, 0x5E, 0x5B)  # pop edi / pop esi / pop ebx
+
+    # The stock 0-edge and the failed synthesis continue where the engine's own "nothing to
     # import" jump went, so the cave discards its return address rather than coming back.
     a.label("skip")
     a.emit(0x83, 0xC4, 0x04)  # add esp, 4
@@ -179,10 +203,12 @@ def entry_points(base_va: int) -> tuple[int, int]:
 class SkirmishAiFallbackPatch(Patch):
     name = "skirmish-ai-fallback"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Give a faction a working AI on maps that carry no Skirmish<Faction> side for it. The "
         "faction's own PlayerTemplate must name a DefaultPlayerAIType, and that AIPlayerType's "
-        "LibraryMap scripts are what the AI then runs - no map edit and no new INI field"
+        "LibraryMap scripts are what the AI then runs, at the lobby's difficulty and with the "
+        "map's Player_N scripts like any skirmish AI - no map edit and no new INI field"
     )
 
     def apply(self, data: bytearray) -> None:

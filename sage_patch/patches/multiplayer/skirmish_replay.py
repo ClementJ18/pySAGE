@@ -5,6 +5,8 @@ though every later step already handles it. A `.rpskir` section holds a mode tab
 buffer: the whitelist tail (`0x0077F910`) jumps to a routine that also accepts the table's modes,
 and a second edit names each recording by timestamp and map instead of overwriting `Last Replay`. By
 default network recordings are renamed too, which costs the replay menu's Save Replay button.
+Before each recording is named, the oldest timestamp-named replays are deleted so only the newest
+`keep` remain (10 by default; 0 keeps everything). Files of any other name are never touched.
 
 Derivation: `../docs/skirmish-replay.md`.
 """
@@ -15,10 +17,15 @@ import argparse
 import struct
 
 from ...addresses import (
+    DELETE_FILE_W_IAT,
+    FIND_CLOSE_IAT,
+    FIND_FIRST_FILE_W_IAT,
+    FIND_NEXT_FILE_W_IAT,
     GAME_INFO_MAP,
     GAME_MODE_SKIRMISH,
     IMPORT_GET_LOCAL_TIME,
     IMPORT_SWPRINTF,
+    IMPORT_WCSCMP,
     RECORDER_LAST_REPLAY_NAME,
     RECORDER_MODE_GATE,
     RECORDER_MODE_GATE_ACCEPT,
@@ -31,25 +38,35 @@ from ...addresses import (
     RECORDER_NEW_GAME_BRANCH_BYTES,
     RECORDER_RECORDED_MODES,
     START_RECORDING_MODE_ARG,
+    START_RECORDING_REPLAY_DIR,
     THE_GAME_INFO,
     THE_SKIRMISH_GAME_INFO,
     UNICODE_STRING_FROM_WIDE,
 )
-from ...asm import JA, JB, JE, JNE, Asm
+from ...asm import JA, JB, JE, JGE, JNE, Asm
 from ...patcher import Patch
 from ...utils import allocate_section, apply_byte_patch, find_section, u32, va_to_offset
 
 __all__ = [
+    "DEFAULT_KEEP",
     "DEFAULT_MODES",
+    "DIR_MAX",
     "FORMAT",
     "GATE_CODE_OFF",
     "ILLEGAL_CHARACTERS",
+    "KEEP_OFF",
     "MAP_MAX",
+    "MAX_DELETES",
     "MAX_MODES",
     "MODE_COUNT_OFF",
     "MODE_TABLE_OFF",
+    "NAME_CODE_MAX",
     "NAME_CODE_OFF",
     "NAME_MAX",
+    "NAME_TEMPLATE",
+    "PRUNE_CODE_OFF",
+    "PRUNE_DATA_OFF",
+    "REPLAY_PATTERN",
     "RENAME_ADDED",
     "RENAME_ALL",
     "RENAME_ALL_OFF",
@@ -120,6 +137,60 @@ GATE_CODE_OFF = NAME_OFF + NAME_MAX * 2
 GATE_CODE_MAX = 0x80
 NAME_CODE_OFF = GATE_CODE_OFF + GATE_CODE_MAX
 
+#: The naming routine's window, and after it the pruning routine's. Everything above this point
+#: is laid out exactly as before pruning existed, so a binary patched without it still reads
+#: back through `detect`.
+NAME_CODE_MAX = 0x200
+PRUNE_CODE_OFF = NAME_CODE_OFF + NAME_CODE_MAX
+PRUNE_CODE_MAX = 0x200
+PRUNE_DATA_OFF = PRUNE_CODE_OFF + PRUNE_CODE_MAX
+
+#: How many timestamp-named replays survive a new recording, the new one included. 0 turns the
+#: pruning off.
+DEFAULT_KEEP = 10
+
+#: The most files one recording start deletes. Deleting the oldest takes a fresh directory scan
+#: each time, so a first run over a large backlog is capped rather than allowed to stall the
+#: loading screen; the rest go over the following games. It is also what ends the loop if a
+#: `DeleteFileW` reports success on a file another process keeps open (a pending delete still
+#: lists).
+MAX_DELETES = 256
+
+#: What a file name must start with to count as one of the patch's own: `#` is any ASCII digit,
+#: every other character literal. It is `FORMAT`'s timestamp and the space before the map, so
+#: `Last Replay`, a replay saved under a typed name, and anything downloaded or renamed are
+#: never counted and never deleted.
+NAME_TEMPLATE = "####-##-## ##-##-## "
+
+#: The scan's wildcard, appended to the replay directory. The extension is `getReplayExtension`'s
+#: literal (`0x00C2EEB4`).
+REPLAY_PATTERN = "*.BfME2Replay"
+
+#: The longest replay directory the routine will scan, in characters. A longer one skips the
+#: pruning rather than overrun the path buffer.
+DIR_MAX = 200
+
+# `WIN32_FIND_DATAW`: `dwFileAttributes` first, `cFileName[MAX_PATH]` at +0x2C, 592 bytes in all.
+_WFD_ATTRIBUTES = 0x00
+_WFD_FILE_NAME = 0x2C
+_WFD_LEN = 0x250
+_FILE_ATTRIBUTE_DIRECTORY = 0x10
+_MAX_PATH = 260
+
+# The pruning data, relative to `PRUNE_DATA_OFF`.
+KEEP_OFF = PRUNE_DATA_OFF
+_COUNT_OFF = KEEP_OFF + 4
+_DIR_END_OFF = _COUNT_OFF + 4
+_BUDGET_OFF = _DIR_END_OFF + 4
+_PATTERN_OFF = _BUDGET_OFF + 4
+_PATTERN_BYTES = REPLAY_PATTERN.encode("utf-16-le") + b"\x00\x00"
+_TEMPLATE_OFF = _PATTERN_OFF + 0x20
+_TEMPLATE_BYTES = NAME_TEMPLATE.encode("ascii")
+_WFD_OFF = _TEMPLATE_OFF + 0x20
+_OLDEST_OFF = _WFD_OFF + _WFD_LEN
+_PATH_OFF = _OLDEST_OFF + _MAX_PATH * 2
+_PRUNE_DATA_END = _PATH_OFF + (DIR_MAX + _MAX_PATH + 1) * 2
+
 # The mode the stock whitelist tail tests, taken from the bytes being replaced rather than
 # written down twice: `cmp eax, imm8` is `83 F8 <imm>`.
 _STOCK_TAIL_MODE = RECORDER_MODE_GATE_BYTES[2]
@@ -163,7 +234,154 @@ def _build_gate_code(base_va: int, count_va: int, table_va: int) -> bytes:
     return a.finish()
 
 
-def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
+def _emit_wide_copy(a: Asm, label: str) -> None:
+    """`esi` -> `edi`, a wide string up to and including its terminator. Both pointers end past
+    it. Every source handed to it is bounded: a constant, or a `cFileName` the OS terminated
+    within `MAX_PATH`."""
+    a.label(label)
+    a.emit(0x0F, 0xB7, 0x06)  # movzx eax, word [esi]
+    a.emit(0x66, 0x89, 0x07)  # mov word [edi], ax
+    a.emit(0x83, 0xC6, 0x02)  # add esi, 2
+    a.emit(0x83, 0xC7, 0x02)  # add edi, 2
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JNE, label)
+
+
+def _build_prune_code(base_va: int) -> bytes:
+    """Delete the oldest timestamp-named replays until fewer than `keep` remain.
+
+    A plain near function (`call` / `ret`, no arguments) entered from the top of the naming
+    routine, so still on `startRecording`'s `ebp` frame: the replay directory is its local
+    `UnicodeString` at `[ebp-0x2C]`, already created on disk, and not yet extended by the name.
+    `pushad` / `popad` give every register back, so the naming routine's own contract is
+    untouched.
+
+    Each pass scans `<dir>*.BfME2Replay`, counts the files matching `NAME_TEMPLATE` and keeps the
+    lowest such name; the names begin with a zero-padded local timestamp, so the lowest is the
+    oldest. If the count has reached `keep`, that file is deleted and the scan repeats. Any
+    failure - no directory, an over-long one, nothing found, a delete refused, the budget spent
+    - simply returns: a replay that is not pruned is never worse than a recording that does not
+    start.
+    """
+    keep = base_va + KEEP_OFF
+    count = base_va + _COUNT_OFF
+    dir_end = base_va + _DIR_END_OFF
+    budget = base_va + _BUDGET_OFF
+    pattern = base_va + _PATTERN_OFF
+    template = base_va + _TEMPLATE_OFF
+    wfd = base_va + _WFD_OFF
+    file_name = wfd + _WFD_FILE_NAME
+    oldest = base_va + _OLDEST_OFF
+    path = base_va + _PATH_OFF
+
+    a = Asm(base_va + PRUNE_CODE_OFF)
+    a.emit(0x60)  # pushad
+    # One more than the deletes allowed: the budget is spent by the `dec` ahead of each.
+    a.emit(0xC7, 0x05, u32(budget), u32(MAX_DELETES + 1))  # mov dword [budget], MAX+1
+
+    # The directory, copied once; each pass rewrites only what follows it.
+    a.emit(0x8B, 0x45, START_RECORDING_REPLAY_DIR & 0xFF)  # mov eax, [ebp-0x2c]
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "out")  # an empty UnicodeString: no directory to scan
+    a.emit(0x8D, 0x70, 0x08)  # lea esi, [eax+8]      ; the characters
+    a.emit(0xBF, u32(path))  # mov edi, path
+    a.emit(0xB9, u32(DIR_MAX))  # mov ecx, DIR_MAX
+    a.label("dir")
+    a.emit(0x0F, 0xB7, 0x06)  # movzx eax, word [esi]
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "dir_done")
+    a.emit(0x85, 0xC9)  # test ecx, ecx
+    a.jcc(JE, "out")  # longer than DIR_MAX: leave it alone
+    a.emit(0x66, 0x89, 0x07)  # mov word [edi], ax
+    a.emit(0x83, 0xC6, 0x02)  # add esi, 2
+    a.emit(0x83, 0xC7, 0x02)  # add edi, 2
+    a.emit(0x49)  # dec ecx
+    a.jmp("dir")
+    a.label("dir_done")
+    a.emit(0x89, 0x3D, u32(dir_end))  # mov [dir_end], edi
+
+    a.label("scan")
+    a.emit(0x8B, 0x3D, u32(dir_end))  # mov edi, [dir_end]
+    a.emit(0xBE, u32(pattern))  # mov esi, pattern
+    _emit_wide_copy(a, "append_pattern")
+    a.emit(0x33, 0xC0)  # xor eax, eax
+    a.emit(0xA3, u32(count))  # mov [count], eax
+    a.emit(0x66, 0xA3, u32(oldest))  # mov word [oldest], ax  ; none yet
+    a.emit(0x68, u32(wfd))  # push &wfd
+    a.emit(0x68, u32(path))  # push path
+    a.emit(0xFF, 0x15, u32(FIND_FIRST_FILE_W_IAT))  # call [FindFirstFileW]  (stdcall)
+    a.emit(0x83, 0xF8, 0xFF)  # cmp eax, INVALID_HANDLE_VALUE
+    a.jcc(JE, "out")
+    a.emit(0x8B, 0xD8)  # mov ebx, eax          ; the find handle
+
+    a.label("entry")
+    a.emit(0xF6, 0x05, u32(wfd + _WFD_ATTRIBUTES), _FILE_ATTRIBUTE_DIRECTORY)  # test byte
+    a.jcc(JNE, "next")
+    a.emit(0xBE, u32(file_name))  # mov esi, cFileName
+    a.emit(0xBF, u32(template))  # mov edi, template
+    a.emit(0xB9, u32(len(NAME_TEMPLATE)))  # mov ecx, len(template)
+    a.label("match")
+    a.emit(0x0F, 0xB7, 0x06)  # movzx eax, word [esi]
+    a.emit(0x0F, 0xB6, 0x17)  # movzx edx, byte [edi]
+    a.emit(0x83, 0xFA, ord("#"))  # cmp edx, '#'
+    a.jcc(JNE, "literal")
+    a.emit(0x83, 0xE8, ord("0"))  # sub eax, '0'
+    a.emit(0x83, 0xF8, 0x09)  # cmp eax, 9
+    a.jcc(JA, "next")  # unsigned: below '0' wraps high
+    a.jmp("matched_char")
+    a.label("literal")
+    a.emit(0x3B, 0xC2)  # cmp eax, edx
+    a.jcc(JNE, "next")
+    a.label("matched_char")
+    a.emit(0x83, 0xC6, 0x02)  # add esi, 2
+    a.emit(0x47)  # inc edi
+    a.emit(0x49)  # dec ecx
+    a.jcc(JNE, "match")
+
+    a.emit(0xFF, 0x05, u32(count))  # inc dword [count]
+    a.emit(0x66, 0x83, 0x3D, u32(oldest), 0x00)  # cmp word [oldest], 0
+    a.jcc(JE, "take")
+    a.emit(0x68, u32(oldest))  # push oldest
+    a.emit(0x68, u32(file_name))  # push cFileName
+    a.emit(0xFF, 0x15, u32(IMPORT_WCSCMP))  # call [wcscmp]  (cdecl)
+    a.emit(0x83, 0xC4, 0x08)  # add esp, 8
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JGE, "next")  # not older than the oldest so far
+    a.label("take")
+    a.emit(0xBE, u32(file_name))  # mov esi, cFileName
+    a.emit(0xBF, u32(oldest))  # mov edi, oldest
+    _emit_wide_copy(a, "copy_oldest")
+
+    a.label("next")
+    a.emit(0x68, u32(wfd))  # push &wfd
+    a.emit(0x53)  # push ebx
+    a.emit(0xFF, 0x15, u32(FIND_NEXT_FILE_W_IAT))  # call [FindNextFileW]  (stdcall)
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JNE, "entry")
+    a.emit(0x53)  # push ebx
+    a.emit(0xFF, 0x15, u32(FIND_CLOSE_IAT))  # call [FindClose]  (stdcall)
+
+    # The new recording is about to make one more, so the count may reach keep - 1.
+    a.emit(0xA1, u32(keep))  # mov eax, [keep]
+    a.emit(0x3B, 0x05, u32(count))  # cmp eax, [count]
+    a.jcc(JA, "out")  # keep > count: room enough
+    a.emit(0xFF, 0x0D, u32(budget))  # dec dword [budget]
+    a.jcc(JE, "out")
+    a.emit(0x8B, 0x3D, u32(dir_end))  # mov edi, [dir_end]
+    a.emit(0xBE, u32(oldest))  # mov esi, oldest
+    _emit_wide_copy(a, "append_oldest")
+    a.emit(0x68, u32(path))  # push path
+    a.emit(0xFF, 0x15, u32(DELETE_FILE_W_IAT))  # call [DeleteFileW]  (stdcall)
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JNE, "scan")  # deleted: count again
+
+    a.label("out")
+    a.emit(0x61)  # popad
+    a.emit(0xC3)  # ret
+    return a.finish()
+
+
+def _build_name_code(base_va: int, rename_all: bool = True, prune: bool = False) -> bytes:
     """The base-name routine, in the place of `getLastReplayFileName`.
 
     cdecl with one argument - the uninitialised `UnicodeString` storage `startRecording` wants
@@ -175,6 +393,10 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     modes the patch enabled, and tail-jumps to the stock helper if not. When it is true - the
     default - every recording is named, there is nothing to decide, and the routine never reads
     the caller's frame at all.
+
+    When `prune` is set the routine first calls the pruning routine, before deciding anything:
+    it only ever deletes timestamp-named files, so it is as safe ahead of a `Last Replay`
+    recording as ahead of one of its own.
     """
     systemtime = base_va + SYSTEMTIME_OFF
     count_va = base_va + MODE_COUNT_OFF
@@ -185,6 +407,9 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     name_buffer = base_va + NAME_OFF
 
     a = Asm(base_va + NAME_CODE_OFF)
+
+    if prune:
+        a.call_absolute(base_va + PRUNE_CODE_OFF)
 
     if not rename_all:
         # `startRecording`'s own second argument - the value it writes into the header, so the
@@ -340,10 +565,21 @@ def _build_name_code(base_va: int, rename_all: bool = True) -> bytes:
     return a.finish()
 
 
+def _pad(code: bytes, window: int, what: str) -> bytes:
+    if len(code) > window:
+        raise ValueError(f"the {what} routine is {len(code)} bytes, over the {window:#x}")
+    return code + b"\xcc" * (window - len(code))
+
+
 def build_section(
-    base_va: int, modes: tuple[int, ...] = DEFAULT_MODES, rename_all: bool = True
+    base_va: int,
+    modes: tuple[int, ...] = DEFAULT_MODES,
+    rename_all: bool = True,
+    keep: int = DEFAULT_KEEP,
 ) -> bytes:
-    """The whole `.rpskir` payload: the mode table, the buffers, then the two routines."""
+    """The whole `.rpskir` payload: the mode table, the buffers, the three routines, then the
+    pruning data. The pruning routine and its data are laid out even when `keep` is 0, and only
+    the call into it is left out, so the layout never depends on the configuration."""
     body = bytearray(GATE_CODE_OFF)
     struct.pack_into("<I", body, RENAME_ALL_OFF, int(rename_all))
     struct.pack_into("<I", body, MODE_COUNT_OFF, len(modes))
@@ -351,28 +587,48 @@ def build_section(
     body[FORMAT_OFF : FORMAT_OFF + len(_FORMAT_BYTES)] = _FORMAT_BYTES
 
     gate = _build_gate_code(base_va, base_va + MODE_COUNT_OFF, base_va + MODE_TABLE_OFF)
-    if len(gate) > GATE_CODE_MAX:
-        raise ValueError(f"the whitelist routine is {len(gate)} bytes, over the {GATE_CODE_MAX}")
-    body += gate + b"\xcc" * (GATE_CODE_MAX - len(gate))
-    return bytes(body) + _build_name_code(base_va, rename_all)
+    body += _pad(gate, GATE_CODE_MAX, "whitelist")
+    body += _pad(_build_name_code(base_va, rename_all, keep > 0), NAME_CODE_MAX, "naming")
+    body += _pad(_build_prune_code(base_va), PRUNE_CODE_MAX, "pruning")
+
+    data = bytearray(_PRUNE_DATA_END - PRUNE_DATA_OFF)
+    struct.pack_into("<I", data, KEEP_OFF - PRUNE_DATA_OFF, keep)
+    at = _PATTERN_OFF - PRUNE_DATA_OFF
+    data[at : at + len(_PATTERN_BYTES)] = _PATTERN_BYTES
+    at = _TEMPLATE_OFF - PRUNE_DATA_OFF
+    data[at : at + len(_TEMPLATE_BYTES)] = _TEMPLATE_BYTES
+    return bytes(body + data)
+
+
+def _stored_keep(data: bytes | bytearray, section_off: int, section_size: int) -> int:
+    """The keep count a cave carries, or 0 for one laid out before pruning existed."""
+    if section_size < KEEP_OFF + 4:
+        return 0
+    return struct.unpack_from("<I", data, section_off + KEEP_OFF)[0]
 
 
 class SkirmishReplayPatch(Patch):
     name = "skirmish-replay"
     author = "officialNecro"
+    # The recording and the naming are live-verified; the `--keep` pruning has only run under
+    # Unicorn (tests), not yet in a game.
     runtime_verified = "partly"
     description = (
         "Record single-player skirmish games, which the stock engine does not, and name each "
-        "recording by timestamp and map instead of overwriting Last Replay. No INI change; the "
-        "default --rename all renames network recordings too, which costs the replay menu's "
-        "Save Replay button"
+        "recording by timestamp and map instead of overwriting Last Replay, keeping only the "
+        "newest --keep (default 10) of those. No INI change; the default --rename all renames "
+        "network recordings too, which costs the replay menu's Save Replay button"
     )
 
     def __init__(
         self,
         modes: tuple[int, ...] | list[int] = DEFAULT_MODES,
         rename: str = RENAME_ALL,
+        keep: int = DEFAULT_KEEP,
     ) -> None:
+        if not 0 <= keep <= 0xFFFF:
+            raise ValueError(f"keep must be 0 (keep everything) to 65535, got {keep}")
+        self.keep = keep
         if rename not in (RENAME_ALL, RENAME_ADDED):
             raise ValueError(f"rename must be {RENAME_ALL!r} or {RENAME_ADDED!r}, got {rename!r}")
         self.rename = rename
@@ -396,7 +652,8 @@ class SkirmishReplayPatch(Patch):
 
     def __str__(self) -> str:
         modes = ", ".join(str(mode) for mode in self.modes)
-        return f"{self.name} (modes {modes}, rename {self.rename})"
+        kept = self.keep if self.keep else "all"
+        return f"{self.name} (modes {modes}, rename {self.rename}, keep {kept})"
 
     def apply(self, data: bytearray) -> None:
         gate_off = va_to_offset(data, RECORDER_MODE_GATE)
@@ -415,7 +672,7 @@ class SkirmishReplayPatch(Patch):
         section_va = allocate_section(
             data,
             SECTION_NAME,
-            lambda base: build_section(base, self.modes, self.rename_all),
+            lambda base: build_section(base, self.modes, self.rename_all, self.keep),
             _CHARACTERISTICS,
         )
         jump = b"\xe9" + struct.pack("<i", section_va + GATE_CODE_OFF - (RECORDER_MODE_GATE + 5))
@@ -485,7 +742,7 @@ class SkirmishReplayPatch(Patch):
         located = find_section(data, SECTION_NAME)
         if located is None:
             return [f"{SECTION_NAME} section is absent"]
-        section_va, section_off, _ = located
+        section_va, section_off, section_size = located
 
         gate_off = va_to_offset(data, RECORDER_MODE_GATE)
         name_off = va_to_offset(data, RECORDER_NAME_CALL)
@@ -524,12 +781,35 @@ class SkirmishReplayPatch(Patch):
         at = section_off + FORMAT_OFF
         if bytes(data[at : at + len(_FORMAT_BYTES)]) != _FORMAT_BYTES:
             problems.append("the name format in the cave is not the expected one")
+        problems.extend(self._verify_prune(data, section_va, section_off, section_size))
 
         try:
             self._check_new_game_branch(data)
             self._check_name_call(data)
         except ValueError as exc:
             problems.append(str(exc))
+        return problems
+
+    def _verify_prune(
+        self, data: bytes | bytearray, section_va: int, section_off: int, section_size: int
+    ) -> list[str]:
+        """The keep count, and whether the naming routine calls the pruning one. A cave written
+        before pruning existed ends with the naming routine; it reads as `keep=0`."""
+        stored = _stored_keep(data, section_off, section_size)
+        if stored != self.keep:
+            return [f"the cave keeps {stored or 'all'} replays, expected {self.keep or 'all'}"]
+        if not self.keep:
+            return []
+        problems: list[str] = []
+        expected = build_section(section_va, self.modes, self.rename_all, self.keep)
+        for start, end, what in (
+            (NAME_CODE_OFF, NAME_CODE_OFF + 5, "the call into the pruning routine"),
+            (PRUNE_CODE_OFF, PRUNE_DATA_OFF, "the pruning routine"),
+            (_PATTERN_OFF, _WFD_OFF, "the pruning pattern and name template"),
+        ):
+            got = bytes(data[section_off + start : section_off + end])
+            if got != expected[start:end]:
+                problems.append(f"{what} is not the expected code")
         return problems
 
     @classmethod
@@ -551,7 +831,8 @@ class SkirmishReplayPatch(Patch):
                 return None
             modes = struct.unpack_from(f"<{count}I", data, section_off + MODE_TABLE_OFF)
             stored = struct.unpack_from("<I", data, section_off + RENAME_ALL_OFF)[0]
-            patch = cls(modes=modes, rename=RENAME_ALL if stored else RENAME_ADDED)
+            keep = _stored_keep(data, section_off, _vsize)
+            patch = cls(modes=modes, rename=RENAME_ALL if stored else RENAME_ADDED, keep=keep)
         except (ValueError, struct.error):
             return None
         return None if patch.verify(data) else patch
@@ -566,6 +847,19 @@ class SkirmishReplayPatch(Patch):
                 "the MSG_NEW_GAME game modes to record on top of the stock "
                 f"{','.join(str(m) for m in RECORDER_RECORDED_MODES)} (default "
                 f"{','.join(str(m) for m in DEFAULT_MODES)} - skirmish)"
+            ),
+        )
+        parser.add_argument(
+            "--keep",
+            type=int,
+            default=DEFAULT_KEEP,
+            metavar="N",
+            help=(
+                "how many timestamp-named replays to keep, the new one included: when a "
+                "recording starts, the oldest beyond that are deleted from Replays\\ (default "
+                f"{DEFAULT_KEEP}; 0 keeps everything). Only names the patch itself writes - "
+                "'YYYY-MM-DD HH-MM-SS <map>' - are ever counted or deleted; rename a replay to "
+                "keep it"
             ),
         )
         parser.add_argument(
@@ -586,4 +880,5 @@ class SkirmishReplayPatch(Patch):
         return cls(
             modes=tuple(int(part) for part in args.modes.split(",") if part.strip()),
             rename=args.rename,
+            keep=args.keep,
         )

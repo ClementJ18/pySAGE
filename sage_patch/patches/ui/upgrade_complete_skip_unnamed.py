@@ -86,6 +86,7 @@ def replacement(base_va: int) -> bytes:
 class UpgradeCompleteSkipUnnamedPatch(Patch):
     name = "upgrade-complete-skip-unnamed"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Skip the top-right 'upgrade complete' message for an upgrade with no DisplayName, which "
         'stock shows as MISSING: "". The EVA event, radar event and sounds still play, and named '

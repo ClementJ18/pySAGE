@@ -6,7 +6,7 @@ The RE behind [`patches/commandbar/multi_select_group.py`](../patches/commandbar
 **Status: built** as `multi-select-group`, applying and verifying against the real binary and
 against a synthetic stand-in, and composing with `command-point-cost` and `queue-ignore-cp` in
 any order. **Mostly static-verified.** The one part run in game is the member refusal (§9): Edain's
-`tests/test_multi_select_banner_carrier.py`, 2026-10-31, fails on the build before it and passes
+`tests/dwarves/test_multi_select_banner_carrier.py`, 2026-10-31, fails on the build before it and passes
 on the build with it.
 
 Four behaviours, four hooks: a slot two sets disagree on survives when they are grouped (§1, §6); a
@@ -447,6 +447,34 @@ changed between the click and the order landing, which now loses that click.
 Units that have neither button nor module, like the tunnel orcs against the lancers'
 `Upgrade_WildForgedBlades`, were already skipped by `canAcceptUpgrade`. They are now skipped one
 check earlier, and still nothing is charged.
+
+## 10. A substituted button's own prerequisites
+
+§8 swaps in the member's own button from the group, and nothing on the logic side ever asked
+whether *that* button was usable. The click executor checks the clicked button only, and
+`0x0066F492`, the gate in the member loop, is affordability alone (the template's cost against
+`Player+0x94`). Edain groups Rivendell's blades and golden arrows (`MultiSelectGroup = 2`, slot 3).
+With blades researched and arrows not (`NeededUpgrade = Upgrade_TechnologyBruchtalFireArrows`), one
+click on the blades bought arrows for every archer in the selection (reported 2026-11-05). The
+Eregions stages, gated by `EnableOnModelCondition`, had the same hole.
+
+`resolve` now refuses the member unless `usable(btn, member)` holds:
+
+- `COMMAND_BUTTON_CONDITION_GATE` (`0x00942490`), the `Enable`/`DisableOnModelCondition` test,
+  which reads the object's own model flags;
+- with `NEED_UPGRADE` (`Options & 0x40`), the `NeededUpgrade` vector (`+0x28`/`+0x2C`), all of it,
+  or one entry when `NeededUpgradeAny` (`+0x34`) is set. A PLAYER upgrade is asked of
+  `Object::getControllingPlayer` -> `Player::hasUpgradeComplete` (`0x006AC2AF`), an OBJECT one of
+  `Object::hasUpgrade`. Stock refuses an empty Any-list too, and so does this.
+
+`getCommandAvailability` itself is **not** usable here. It loads `ThePlayerList->getLocalPlayer()`
+at `0x00942756` and tests PLAYER upgrades on that player (`0x00942903`), so in a logic-side order
+it would answer differently on each peer and desync. One stock difference: an OBJECT upgrade that
+is still in production counts as missing. Stock answers with a separate verdict there
+(`0x00942939`).
+
+The check covers only the substitution path. A member that has the clicked button itself is
+still taken as stock takes it.
 
 ## What is still unknown
 

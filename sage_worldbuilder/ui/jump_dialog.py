@@ -52,6 +52,7 @@ from sage_worldbuilder.jump import (
     default_seats,
     playable_factions,
 )
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
@@ -104,6 +105,7 @@ class JumpSettingsDialog(QDialog):
         options: JumpOptions | None = None,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Jump To Game Settings")
         self.resize(760, 600)
         self.game = game

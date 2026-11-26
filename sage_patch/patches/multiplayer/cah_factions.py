@@ -94,7 +94,11 @@ _TABLE_REF_VAS = (
 )
 
 # Loops in the stats/leaderboard screens bounded by the *address* of entry 8 rather than a count.
-# They move with the table so they keep iterating exactly the stock eight sides.
+# They move with the table so they keep iterating exactly the stock eight sides - or, with
+# `stats_totals`, run to the terminator so the profile's Overall totals and its best/worst
+# opponent count every side. `Neutral` and `All` are walked too and add nothing: the getters
+# (`0x0093C52C` and its siblings) read `<side>Wins` and the like with a default of 0, and write
+# nothing.
 _TABLE_END_REF_VAS = (
     0x0093C5B0,
     0x0093DD1F,
@@ -165,20 +169,38 @@ class CahFactionsPatch(Patch):
 
     name = "cah-factions"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add mod sides + an 'All' token to the Create-A-Hero faction enum, so a "
         "CreateAHeroClass SubClass can name them in UsableFactions and DefaultFaction. Give "
         "--sides each side name exactly as its PlayerTemplate Side string spells it; a side the "
-        "list omits gets only the subclasses that named All"
+        "list omits gets only the subclasses that named All. --stats-totals also makes the "
+        "profile Stats screen's Overall totals count every side in the table"
     )
 
-    def __init__(self, sides: list[str] | tuple[str, ...] = ()):
+    def __init__(self, sides: list[str] | tuple[str, ...] = (), stats_totals: bool = False):
         self.sides = tuple(sides)
+        self.stats_totals = stats_totals
         validate_sides(self.sides)
 
     def __str__(self) -> str:
         listed = ", ".join(self.sides) if self.sides else "no extra sides"
-        return f"{self.name} ({listed})"
+        totals = ", stats totals" if self.stats_totals else ""
+        return f"{self.name} ({listed}{totals})"
+
+    def options(self) -> dict[str, object]:
+        """`sides`, and `stats_totals` only when set, so a manifest written before the option
+        existed still matches a build without it."""
+        found: dict[str, object] = {"sides": self.sides}
+        if self.stats_totals:
+            found["stats_totals"] = True
+        return found
+
+    @property
+    def _table_end_delta(self) -> int:
+        """Where the stats loops' address bound sits past the table base: entry 8 stock, the
+        NULL terminator with `stats_totals`."""
+        return self.entry_count * 4 if self.stats_totals else _TABLE_END_DELTA
 
     @property
     def entry_count(self) -> int:
@@ -260,11 +282,12 @@ class CahFactionsPatch(Patch):
         reports the patch as absent, which is the one case worth detecting. `getSideIndex`'s
         rewritten scan bound holds the entry count, and the cave opens with one name pointer per
         entry, so the names read straight back out: everything past the stock nine and `All`,
-        which the constructor re-adds. `verify` then re-checks all 30 sites against them."""
+        which the constructor re-adds. The first stats-loop bound says whether `stats_totals`
+        moved it to the terminator. `verify` then re-checks all 30 sites against them."""
         located = find_section(data, _SECTION_NAME)
         if located is None:
             return None
-        _section_va, section_off, _vsize = located
+        section_va, section_off, _vsize = located
         try:
             bound_off = va_to_offset(data, _SCAN_BOUND_VA)
             if bound_off is None:
@@ -282,7 +305,11 @@ class CahFactionsPatch(Patch):
                 if name is None:
                     return None
                 sides.append(name)
-            patch = cls(sides=sides)
+            end_off = va_to_offset(data, _TABLE_END_REF_VAS[0])
+            if end_off is None:
+                return None
+            (end,) = struct.unpack_from("<I", data, end_off)
+            patch = cls(sides=sides, stats_totals=end == section_va + entry_count * 4)
         except (ValueError, IndexError, struct.error):
             return None
         return None if patch.verify(data) else patch
@@ -298,11 +325,19 @@ class CahFactionsPatch(Patch):
                 f"PlayerTemplate's Side string exactly. 'All' is always added."
             ),
         )
+        parser.add_argument(
+            "--stats-totals",
+            action="store_true",
+            help=(
+                "also run the profile Stats screen's Overall totals and best/worst opponent over "
+                "every side in the table, not only the stock eight"
+            ),
+        )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> CahFactionsPatch:
         sides = [part.strip() for part in args.sides.split(",") if part.strip()]
-        return cls(sides=sides)
+        return cls(sides=sides, stats_totals=args.stats_totals)
 
     def _compute_section(self, data: bytes | bytearray, section_va: int) -> tuple[bytes, int]:
         """Return `(section content, wrapper VA)` for a cave based at `section_va`.
@@ -371,8 +406,8 @@ class CahFactionsPatch(Patch):
                 (
                     offset(va),
                     u32(_SIDE_TABLE_VA + _TABLE_END_DELTA),
-                    u32(section_va + _TABLE_END_DELTA),
-                    f"stock-eight loop bound @0x{va:08x}",
+                    u32(section_va + self._table_end_delta),
+                    f"stats loop bound @0x{va:08x}",
                 )
             )
         edits.append(

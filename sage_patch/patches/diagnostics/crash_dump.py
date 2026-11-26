@@ -236,6 +236,7 @@ class CrashDumpPatch(Patch):
 
     name = "crash-dump"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make the engine's crash .dmp readable: thread names, the memory map and memory around "
         "stack pointers go in, the video driver's 20 MB of globals come out, the whole heap is "

@@ -120,5 +120,12 @@ class TestBinding:
         assert "placement 1" in str(caught.value)
         assert "Absent" in str(caught.value)
 
+    def test_an_unbound_placement_may_be_missing(self):
+        """Scenery placed with `bind=False` is not looked for, so its dying is not an error."""
+        scenario = _scenario()
+        gate = scenario.place("Gate", at=(0.0, 0.0, 0.0))
+        scenario.place("Prop", at=(50.0, 50.0, 0.0), bind=False)
+        assert bind_handles(scenario, _observation(_obj(1, "Gate", 0.0, 0.0))) == {gate.index: 1}
+
     def test_an_empty_scenario_binds_to_nothing_without_complaint(self):
         assert bind_handles(_scenario(), _observation()) == {}

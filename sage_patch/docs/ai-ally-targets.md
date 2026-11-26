@@ -289,12 +289,12 @@ and both pickers under Unicorn against stubbed engine calls
 (`tests/sage_patch/test_ai_ally_targets.py`).
 
 - `AI_SPECIAL_POWER_ALLY_OBJECT`: **runtime verified.** Edain's engine test
-  (`tests/test_ai_might_of_the_witch_king.py` in the mod repo) gives a Brutal Angmar AI a keep
+  (`tests/angmar/test_ai_might_of_the_witch_king.py` in the mod repo) gives a Brutal Angmar AI a keep
   with the Sanctum and two heroes, sends a Dwarven wave at the heroes whenever the power is ready,
   and counts the casts off the keep's power clock. On 2026-10-21 the AI cast twice, at frames 1536
   and 2837, each restarting the full 240 s reload.
 - `AI_SPECIAL_POWER_ALLY_STRUCTURE`: **runtime verified** on 2026-10-22. Edain's
-  `tests/test_ai_dorwinion_emissary.py` gives a Brutal Dwarves AI a Dorwinion outpost with the
+  `tests/dwarves/test_ai_dorwinion_emissary.py` gives a Brutal Dwarves AI a Dorwinion outpost with the
   Vinedresser's Union, one lumbermill (structure list) and one `DwarvenMineShaft_Extern`
   (economy list). Its Emissary's Establish Vineyard hook cast at frame ~476, nine frames after the
   power came ready, and converted the lumbermill; it cast again at frame ~879, after the influence

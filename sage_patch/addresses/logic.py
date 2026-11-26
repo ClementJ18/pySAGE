@@ -90,8 +90,13 @@ __all__ = [
     "GAME_INFO_PARSE_ENTRY",
     "GAME_INFO_PARSE_KEYS",
     "GAME_INFO_PARSE_KEYS_BYTES",
+    "GAME_INFO_PARSE_RULES_COPIED",
+    "GAME_INFO_PARSE_RULES_COPIED_BYTES",
+    "GAME_INFO_PARSE_RULES_COPIED_RESUME",
+    "GAME_INFO_PARSE_TEMPLATE_CHECKS",
     "GAME_INFO_RULES",
     "GAME_INFO_RULES_COUNT",
+    "GAME_INFO_RULE_CLAN_GAME",
     "GAME_INFO_SEED",
     "GAME_INFO_SET_MAP",
     "GAME_INFO_SET_MAP_CRC",
@@ -128,12 +133,16 @@ __all__ = [
     "GAME_MAIN_BYTES",
     "GAME_MESSAGE_APPEND_INTEGER",
     "GAME_MODE_SKIRMISH",
+    "GAME_RULES_CLAN_GAME_HIDE",
+    "GAME_RULES_CLAN_GAME_HIDE_BYTES",
+    "GAME_RULES_CLAN_GAME_LABEL",
     "GAME_RULES_COMBOS_MP",
     "GAME_RULES_COMMAND_POINT_FACTOR",
     "GAME_RULES_COMMAND_POINT_FACTOR_BYTES",
     "GAME_RULES_COMMAND_POINT_FACTOR_COUNT",
     "GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS",
     "GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS_BYTES",
+    "GAME_RULES_NAMES",
     "GAME_RULES_POPULATE",
     "GAME_SLOT_ACCEPTED",
     "GAME_SLOT_COLOR",
@@ -148,6 +157,8 @@ __all__ = [
     "GAME_SLOT_PLAYER_TEMPLATE",
     "GAME_SLOT_SET_IS_OCCUPIED",
     "GAME_SLOT_SET_PLAYER_TEMPLATE",
+    "GAME_SLOT_REQUEST_TEMPLATE_CHECK",
+    "GAME_SLOT_SET_TEMPLATE_OBSERVER_JG",
     "GAME_SLOT_SIZE",
     "GAME_SLOT_START_POS",
     "GAME_SLOT_START_POS_GRANTED",
@@ -193,6 +204,10 @@ __all__ = [
     "LAN_FACTION_READ_HUMAN_BYTES",
     "LAN_FACTION_READ_NEXT_AI",
     "LAN_FACTION_READ_NEXT_AI_BYTES",
+    "LAN_FACTION_SET_TEMPLATE_AI",
+    "LAN_FACTION_SET_TEMPLATE_AI_BYTES",
+    "LAN_FACTION_SET_TEMPLATE_HUMAN",
+    "LAN_FACTION_SET_TEMPLATE_HUMAN_BYTES",
     "LAN_FACTION_READ_NEXT_HUMAN",
     "LAN_FACTION_READ_NEXT_HUMAN_BYTES",
     "LAN_FACTION_WRITE_AI",
@@ -298,6 +313,7 @@ __all__ = [
     "SIDES_LIST_SIDE_COUNT",
     "START_RECORDING",
     "START_RECORDING_MODE_ARG",
+    "START_RECORDING_REPLAY_DIR",
     "STD_MAP_INT_FIND",
     "STD_MAP_ITERATOR_INCREMENT",
     "STD_MAP_NODE_VALUE",
@@ -309,6 +325,17 @@ __all__ = [
     "THE_GAME_LOGIC",
     "THE_GAME_STATE",
     "THE_MESSAGE_STREAM",
+    "THE_NETWORK",
+    "NETWORK_VTABLE",
+    "NETWORK_SEND_CHAT_SLOT",
+    "NETWORK_SEND_CHAT",
+    "NETWORK_CHAT_EVERYONE",
+    "PROCESS_CHAT_TEXT",
+    "PROCESS_CHAT_TEXT_BYTES",
+    "PROCESS_CHAT_TEXT_RESUME",
+    "PROCESS_FILE_ANNOUNCE",
+    "PROCESS_FILE_ANNOUNCE_ZERO",
+    "PROCESS_FILE_ANNOUNCE_ZERO_BYTES",
     "THE_NAME_KEY_GENERATOR",
     "THE_RECORDER",
     "THE_SIDES_LIST",
@@ -431,6 +458,35 @@ THE_NAME_KEY_GENERATOR = 0x00DD90E4
 THE_COMMAND_SET_STORE = 0x00DE7744
 THE_GAME_STATE = 0x00DE4AD4
 THE_RECORDER = 0x00DE7CD8
+# The network singleton, null in single-player and in replays (`docs/render-rate.md`). Created at
+# `0x0065E1B0`; its constructor (`0x0065D86D`) stores `NETWORK_VTABLE`. `sendChat` is the slot
+# the in-game chat box's Send handler calls (`0x008ED215`): thiscall `(UnicodeString text, Int
+# playerMask)`, `ret 8`, the string taken by value and destroyed by the callee. The mask has one
+# bit per `GameInfo` slot; the message is relayed to every connection and each client shows it
+# when its own bit is set, the sender included (`ConnectionManager::sendChat`, `0x008D5BA5`).
+THE_NETWORK = 0x00DE4468
+NETWORK_VTABLE = 0x00C0C1F8
+NETWORK_SEND_CHAT_SLOT = 0x68
+NETWORK_SEND_CHAT = 0x0065DF98
+NETWORK_CHAT_EVERYONE = 0xFF
+# `ConnectionManager::processChat` (`0x008D54D1`), which every chat line goes through - remote ones
+# from the network command switch (`0x008D742D`), the sender's own from `sendChat`. Here the
+# command's text has just been copied out (`call 0x008DA4CB`, the `UnicodeString *` in `eax`); next
+# it is formatted as `[%ls] %ls` with the sender's name and shown. Five bytes, no branch into them.
+PROCESS_CHAT_TEXT = 0x008D54F9
+PROCESS_CHAT_TEXT_BYTES = bytes.fromhex("8bf8ff760c")  # mov edi, eax / push [esi+0xc]
+PROCESS_CHAT_TEXT_RESUME = 0x008D54FE
+# `ConnectionManager::processFileAnnounce` (`0x008D7019`), the lobby map transfer's announce:
+# stores the file's name and recipient mask by file ID, then for each of the eight slots writes
+# that slot's progress for the file - 0 when the slot is in the mask, 100 when not. The progress
+# maps (`+0x12150`, one `std::map<UnsignedShort, Int>` per slot, 0xC apart) are also written by
+# `processFile` (`0x008D6EA1`, the receiver's own entry to 100) and `processFileProgress`
+# (`0x008D6BDD`, the maximum of the old and reported value). `ZERO` is the masked branch's store
+# through the `operator[]` result (`0x008D6A70`, which inserts new keys at 0); the host runs the
+# handler on itself inside `sendFileAnnounce` (`0x008D70F5`) before anything is sent.
+PROCESS_FILE_ANNOUNCE = 0x008D7019
+PROCESS_FILE_ANNOUNCE_ZERO = 0x008D70BD
+PROCESS_FILE_ANNOUNCE_ZERO_BYTES = bytes.fromhex("832000")  # and dword ptr [eax], 0
 THE_BUILD_ASSISTANT = 0x00DE8200
 THE_VICTORY_CONDITIONS = 0x00DE89AC
 # The lobby description of the running game (`TheGameInfo`, whichever flavour is live) and the
@@ -467,6 +523,12 @@ GAME_INFO_SI = 0x58
 GAME_INFO_GAME_TYPE = 0x5C
 GAME_INFO_RULES = 0x60
 GAME_INFO_RULES_COUNT = 10
+#: Rule 1, the lobby's `RULE:ClanGame` checkbox (default 0). Only an online clan match shows it:
+#: `MpGameSetup`'s constructor hides it everywhere else (`GAME_RULES_CLAN_GAME_HIDE`), and no
+#: simulation code reads it - a scan of every `[TheGameInfo]` load followed by a `+0x60..+0x70`
+#: access finds rules 2, 3 and 4 and the stats string's rule 0, never this one. It travels with the
+#: other rules: the `GR` string, so `Skirmish.ini`, the LAN game info and replay headers.
+GAME_INFO_RULE_CLAN_GAME = 0x64
 #: Rule 3, the lobby's `RULE:CommandPointFactor` (default 100): a percentage the command-point
 #: hard cap is scaled by in `COMMAND_POINTS_INIT_FACTOR`, and nothing else in the simulation reads
 #: it. Edain relabels its seven values as game modes. See `docs/command-point-override.md`.
@@ -501,6 +563,18 @@ GAME_RULES_COMMAND_POINT_FACTOR_OPTIONS_BYTES = bytes.fromhex(
 )
 GAME_RULES_COMMAND_POINT_FACTOR_COUNT = 7
 GAME_RULES_POPULATE = 0x00986B1C
+#: The rules' string-table labels, ten `const char *` by rule (`0x00960B14` reads a checkbox's or
+#: combo's title here): `RULE:AllowCustomHeroes`, `RULE:ClanGame` (`GAME_RULES_CLAN_GAME_LABEL`),
+#: `RULE:AllowRingHeroes`, `RULE:CommandPointFactor`, ... The checkboxes of rule set 0 are
+#: `{Int rule, Bool default}` at `0x00C82528` (rule 0, 1), `0x00C82530` (rule 2, 1) and
+#: `0x00C82538` (rule 1, 0), bound in that order to the movie's `RuleCheckBox_0..2`.
+GAME_RULES_NAMES = 0x00DB7794
+GAME_RULES_CLAN_GAME_LABEL = 0x00C82904
+#: In `MpGameSetup`'s constructor: `test byte [ebx+0x3a4], 0x40` / `jne` over `push 3` / `push 1` /
+#: `call 0x00986A5C` - every screen but an online clan one sets rule 1's checkbox state to 3, which
+#: the binder (`0x00986873`) skips, so the gadget is left hidden. The `jne`.
+GAME_RULES_CLAN_GAME_HIDE = 0x0084532C
+GAME_RULES_CLAN_GAME_HIDE_BYTES = bytes.fromhex("750f")
 # `ParseAsciiStringToGameInfo(GameInfo *, AsciiString, bool keepNames)`, cdecl; the string is passed
 # by value and destroyed by the callee. Nothing is committed unless the whole string parses.
 GAME_INFO_PARSE = 0x00802DBA
@@ -508,6 +582,13 @@ GAME_INFO_PARSE_ENTRY = bytes.fromhex("b8ca90b900")
 #: The parser's key strings, in the order they sit in `.rdata` - which is also how a build whose
 #: parser moved is refused, since nothing else references this run.
 GAME_INFO_PARSE_KEYS = 0x00C4E73C
+#: Right after the parser's commit copies `GR`'s ten ints into the `GameInfo` (`memcpy(info+0x60,
+#: local, 0x28)` at `0x00803B57`): `add esp, 0xc` / `jmp` to the shared tail. `esi` points at the
+#: rules here, so `[esi + 4*rule]` is a rule. Every `GR` source - `Skirmish.ini`, a lobby string, a
+#: replay header - passes this point. Eight bytes, two whole instructions, nothing branches in.
+GAME_INFO_PARSE_RULES_COPIED = 0x00803B5C
+GAME_INFO_PARSE_RULES_COPIED_BYTES = bytes.fromhex("83c40ce958ffffff")
+GAME_INFO_PARSE_RULES_COPIED_RESUME = 0x00803ABC
 GAME_INFO_PARSE_KEYS_BYTES = (
     b"SI\x00\x00GT\x00\x00GSID\x00\x00\x00\x00GR\x00\x00SD\x00\x00MS\x00\x00%X\x00\x00MC\x00\x00"
 )
@@ -605,6 +686,13 @@ LAN_FACTION_READ_NEXT_HUMAN = 0x0084B4DB
 LAN_FACTION_READ_NEXT_HUMAN_BYTES = bytes.fromhex("ff75f08d45e85053e858f1ffff")
 LAN_FACTION_READ_NEXT_AI = 0x0084B7D2
 LAN_FACTION_READ_NEXT_AI_BYTES = bytes.fromhex("ff75f08d45cc5053e861eeffff")
+#: Each parser arm handing the seat its template, once both bounds have passed:
+#: `push edi` (the template byte, sign-extended) / `mov ecx, esi` (the seat) /
+#: `call GAME_SLOT_SET_PLAYER_TEMPLATE`. The call is the last five bytes.
+LAN_FACTION_SET_TEMPLATE_HUMAN = 0x0084B4D3
+LAN_FACTION_SET_TEMPLATE_HUMAN_BYTES = bytes.fromhex("578bcee87f77fbff")
+LAN_FACTION_SET_TEMPLATE_AI = 0x0084B7CA
+LAN_FACTION_SET_TEMPLATE_AI_BYTES = bytes.fromhex("578bcee88874fbff")
 LAN_PARSE_CURSOR_EBP = -0x14
 LAN_PARSE_END_EBP = -0x10
 #: The host's `MSG_REQUEST_JOIN` handler (`LANAPI` method, `ret 8`; derived in
@@ -657,6 +745,18 @@ GAME_START_RANDOM_CANDIDATES_EBP = -0x28
 GAME_START_RANDOM_SLOT_EBP = -0x1C
 #: `GameSlot::setPlayerTemplate(Int)`, `__thiscall`, `ret 4`.
 GAME_SLOT_SET_PLAYER_TEMPLATE = 0x00802C5A
+#: Its observer test, `cmp [ebp+8], -2 / pop edi / jg <keep>`: a template of -2 *or below* has the
+#: seat's start position cleared (`+0x10`, `+0x14` = -1) as an observer's. The `jg`, one byte.
+GAME_SLOT_SET_TEMPLATE_OBSERVER_JG = 0x00802D55
+#: The LAN host applying a client's `PlayerTemplate` request, `edi` the template asked for:
+#: `cmp edi, -2 / jl <refuse>`, `(window va, window, resume, refuse)`. The third
+#: `GAME_SLOT_TEMPLATE_BOUNDS` site opens it.
+GAME_SLOT_REQUEST_TEMPLATE_CHECK = (
+    0x0064A271,
+    bytes.fromhex("83fffe0f8c7d010000"),
+    0x0064A27A,
+    0x0064A3F7,
+)
 #: `GameLogicRandomValue(lo, hi, file, line)`, cdecl: the synchronised generator, `lo..hi`
 #: inclusive. `file` is only read when the random log is on, but must be a real string; the draw
 #: `startNewGame` makes passes `GAME_LOGIC_SOURCE_FILE`.
@@ -672,6 +772,14 @@ GAME_SLOT_TEMPLATE_BOUNDS = (
     (0x0064A271, bytes.fromhex("83fffe")),
     (0x0084B4A6, bytes.fromhex("807de6fe")),
     (0x0084B79D, bytes.fromhex("807de5fe")),
+)
+#: The lobby string parser's template check in each slot arm, `cmp eax, -2 / pop ecx /
+#: mov [ebp-0x28], eax / jl <reject>`, with `eax` what `atoi` read from the faction field:
+#: `(window va, window, resume, reject)`. The first two `GAME_SLOT_TEMPLATE_BOUNDS` sites open
+#: these windows.
+GAME_INFO_PARSE_TEMPLATE_CHECKS = (
+    (0x0080351C, bytes.fromhex("83f8fe598945d80f8c8a010000"), 0x00803529, 0x008036B3),
+    (0x0080385B, bytes.fromhex("83f8fe598945d80f8c5d010000"), 0x00803868, 0x008039C5),
 )
 #: The setup screen's map preview numbering its start positions: `cmp [slot+0x18], -2` then
 #: `jle <skip>` - skipping observers by "-2 or below". The `jle` of each.
@@ -758,6 +866,10 @@ RECORDER_RESET_WRITES_GAME_MODE = 0x0077D7D2
 # Its arguments go into the header's trailing block, so `[ebp+0x0C]` is the recorded mode.
 START_RECORDING = 0x0077EA03
 START_RECORDING_MODE_ARG = 0x0C
+# `startRecording`'s local `UnicodeString` holding `getReplayDir()` (`<UserDataDir>\Replays\`,
+# built at `0x0077EA28` and created on disk at `0x0077EA3C`), still the bare directory when the
+# name call at `RECORDER_NAME_CALL` runs: the name and extension are appended at `0x0077EA8E`.
+START_RECORDING_REPLAY_DIR = -0x2C
 # `updateRecord`'s `MSG_NEW_GAME` branch, the engine's whole decision to record. The nine-byte
 # whitelist tail at `..._MODE_GATE` is all that stands between a skirmish and a recording.
 RECORDER_NEW_GAME_BRANCH = 0x0077F8D1
@@ -770,7 +882,8 @@ RECORDER_MODE_GATE_BYTES = bytes.fromhex("83f8050f85c4000000")  # cmp eax,5 / jn
 RECORDER_MODE_GATE_ACCEPT = 0x0077F919  # fall through: start the recording
 RECORDER_MODE_GATE_REJECT = 0x0077F9DD  # the function epilogue: record nothing
 # `startRecording`'s call to the helper naming the file `Last Replay`, so each recording overwrites
-# the last. The helper has a second caller: patch this call site, not the helper.
+# the last. The helper has a second caller, the replay-save dialog's copy source
+# (`REPLAY_SAVE_SOURCE_NAME_CALL`): patch this call site, not the helper.
 RECORDER_LAST_REPLAY_NAME = 0x0077DEFD
 RECORDER_NAME_CALL = 0x0077EA45
 RECORDER_NAME_CALL_BYTES = bytes.fromhex("e8b3f4ffff")  # call 0x0077DEFD
@@ -1291,4 +1404,87 @@ __all__ += [
     "GAME_LOGIC_RESET",
     "GAME_LOGIC_RESET_ENTRY",
     "GAME_LOGIC_RESET_VTABLE_SLOTS",
+]
+
+# The hero recruit order, `MSG_QUEUE_UNIT_CREATE` (`0x417`) with its leading Boolean set, from the
+# click that sends it to the dispatcher case that runs it.
+
+#: `ControlBar`'s UNIT_BUILD / REVIVE case, where it has appended the order's five arguments
+#: (`isRevive`, the revive index or template id, the exit door, two Booleans) and leaves through
+#: `CONTROL_BAR_EXECUTE_HANDLED`. `esi` is the message, `[ebp+8]` the `isRevive` byte and
+#: `[ebp-0x18]` the revive index the button carried (`button+0xC0`). Nothing branches into it.
+CONTROL_BAR_RECRUIT_SENT = 0x00940C52
+CONTROL_BAR_RECRUIT_SENT_BYTES = bytes.fromhex("e9640e0000")  # jmp 0x00941abb
+CONTROL_BAR_RECRUIT_IS_REVIVE_EBP = 0x08
+CONTROL_BAR_RECRUIT_INDEX_EBP = -0x18
+#: From the `isRevive` test to the index store, and the five appends up to the hooked `jmp`.
+CONTROL_BAR_RECRUIT_INDEX = 0x00940B0E
+CONTROL_BAR_RECRUIT_INDEX_BYTES = bytes.fromhex(
+    "83f92e0f944508807d080074068365ec00eb0a8bcee8b4c6e1ff8945ec807d080074088bbec0000000eb03"
+    "83cfff85db897de8"
+)
+CONTROL_BAR_RECRUIT_APPENDS = 0x00940C10
+CONTROL_BAR_RECRUIT_APPENDS_BYTES = bytes.fromhex(
+    "ff75088bf08bcee8e804ddff807d08008bce7405ff75e8eb080fb783e805000050e8af05ddff578bcee8a705"
+    "ddffff750c8bcee8bc04ddffff75108bcee8b204ddff"
+)
+#: `xor eax, eax` / `inc eax` / `jmp` - the ControlBar's "command handled" return. The same
+#: address as `CASTLE_COMMAND_SENDER_EXIT`.
+CONTROL_BAR_EXECUTE_HANDLED = 0x00941ABB
+CONTROL_BAR_EXECUTE_HANDLED_BYTES = bytes.fromhex("33c040")
+
+#: The dispatcher's `MSG_QUEUE_UNIT_CREATE` case, from its first instruction through the reads of
+#: all five arguments to the two "nothing to make" tests. Afterwards `esi` is the message, `ebx` 0,
+#: `al` the fifth argument, `[ebp+8]` the producer, `[ebp-0x18]` the template (null for a revive)
+#: and `[ebp+0xc]` the revive index (-1 for a unit).
+QUEUE_UNIT_CREATE_CASE = 0x0077A764
+QUEUE_UNIT_CREATE_CASE_BYTES = bytes.fromhex(
+    "8b4df0e8b5f2ffff538bce894508e82765f9ff38188bce6a01740fe81a65f9ff8b0089450c895de8eb2f834d"
+    "0cffe80765f9ff668b008b0d404ade0050e8c656f5ff3bc3740e8b48043bcb7409e83eb3ceffeb0233c08945"
+    "e86a028bcee8d864f9ff8b386a038bcee8cd64f9ff8a006a048bce8845d8e8bf64f9ff395d088a000f84fc27"
+    "0000"
+)
+#: `cmp [ebp-0x18], ebx` / `jne RESUME` / `cmp [ebp+0xc], -1` / `je GAME_LOGIC_DISPATCH_BREAK`:
+#: whole instructions, entered only by falling through from the case above.
+QUEUE_UNIT_CREATE_NOTHING_TEST = 0x0077A7EA
+QUEUE_UNIT_CREATE_NOTHING_TEST_BYTES = bytes.fromhex("395de8750a837d0cff0f84ed270000")
+#: `cmp al, bl` / `je` - the producer lookup and `queueCreateUnit` call that follow the tests.
+QUEUE_UNIT_CREATE_RESUME = 0x0077A7F9
+QUEUE_UNIT_CREATE_RESUME_BYTES = bytes.fromhex("3ac37410")
+QUEUE_UNIT_CREATE_PRODUCER_EBP = 0x08
+QUEUE_UNIT_CREATE_INDEX_EBP = 0x0C
+QUEUE_UNIT_CREATE_TEMPLATE_EBP = -0x18
+#: How many arguments the stock order carries; an extra one is at this index.
+QUEUE_UNIT_CREATE_ARGUMENTS = 5
+#: The dispatcher's shared `break`. The same address as `CASTLE_COMMAND_RECEIVER_FAIL`.
+GAME_LOGIC_DISPATCH_BREAK = 0x0077CFE6
+GAME_LOGIC_DISPATCH_BREAK_BYTES = bytes.fromhex("395df0")
+#: `GameMessage::getArgumentType`'s answer for an integer, which `appendIntegerArgument` stores
+#: (`and [eax+0x18], 0`). A missing argument answers 0xB.
+GAME_MESSAGE_ARGUMENT_INTEGER = 0
+
+__all__ += [
+    "CONTROL_BAR_EXECUTE_HANDLED",
+    "CONTROL_BAR_EXECUTE_HANDLED_BYTES",
+    "CONTROL_BAR_RECRUIT_APPENDS",
+    "CONTROL_BAR_RECRUIT_APPENDS_BYTES",
+    "CONTROL_BAR_RECRUIT_INDEX",
+    "CONTROL_BAR_RECRUIT_INDEX_BYTES",
+    "CONTROL_BAR_RECRUIT_INDEX_EBP",
+    "CONTROL_BAR_RECRUIT_IS_REVIVE_EBP",
+    "CONTROL_BAR_RECRUIT_SENT",
+    "CONTROL_BAR_RECRUIT_SENT_BYTES",
+    "GAME_LOGIC_DISPATCH_BREAK",
+    "GAME_LOGIC_DISPATCH_BREAK_BYTES",
+    "GAME_MESSAGE_ARGUMENT_INTEGER",
+    "QUEUE_UNIT_CREATE_ARGUMENTS",
+    "QUEUE_UNIT_CREATE_CASE",
+    "QUEUE_UNIT_CREATE_CASE_BYTES",
+    "QUEUE_UNIT_CREATE_INDEX_EBP",
+    "QUEUE_UNIT_CREATE_NOTHING_TEST",
+    "QUEUE_UNIT_CREATE_NOTHING_TEST_BYTES",
+    "QUEUE_UNIT_CREATE_PRODUCER_EBP",
+    "QUEUE_UNIT_CREATE_RESUME",
+    "QUEUE_UNIT_CREATE_RESUME_BYTES",
+    "QUEUE_UNIT_CREATE_TEMPLATE_EBP",
 ]

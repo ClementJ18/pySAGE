@@ -16,17 +16,24 @@ import struct
 import pytest
 
 from sage_patch.addresses import (
+    GAME_SLOT_SET_PLAYER_TEMPLATE,
     LAN_FACTION_READ_AI,
     LAN_FACTION_READ_HUMAN,
     LAN_PACK_NIBBLES,
     LAN_UNPACK_NIBBLES,
     LAN_WRITE_BYTE,
 )
+from sage_patch.patches.multiplayer.faction_variants import (
+    LAN_POOL_ESCAPE,
+    RANDOM_POOL,
+    random_pool,
+)
 from sage_patch.patches.multiplayer.lobby_faction_byte import (
     ANCHORS,
     MISSING_TEMPLATE,
     READ_SITES,
     SECTION_NAME,
+    SET_TEMPLATE_SITES,
     WRITE_SITES,
     LobbyFactionBytePatch,
     build_code,
@@ -79,12 +86,13 @@ class TestStructure:
             assert stock[:15] == bytes.fromhex("8b4e0c6afe89450c8b46186aff5051")
             assert stock[15:20] == call_rel32(va + 15, LAN_PACK_NIBBLES)
 
-    def test_only_the_four_calls_change(self, image: bytearray, patched: bytearray) -> None:
+    def test_only_the_six_calls_change(self, image: bytearray, patched: bytearray) -> None:
         cave = _cave_va(patched)
-        write_va, read_va = entry_points(cave)
+        write_va, read_va, set_va = entry_points(cave)
         for window, target in (
             *((w, write_va) for w in WRITE_SITES),
             *((r, read_va) for r in READ_SITES),
+            *((t, set_va) for t in SET_TEMPLATE_SITES),
         ):
             va, stock = window
             got = _read(patched, va, len(stock))
@@ -93,41 +101,22 @@ class TestStructure:
         for va, stock in ANCHORS.items():
             assert _read(patched, va, len(stock)) == stock
 
-    def test_the_caves_decode_as_written(self, patched: bytearray) -> None:
+    def test_each_template_hand_off_is_push_seat_call(self) -> None:
+        for _va, stock in SET_TEMPLATE_SITES:
+            assert stock[:3] == bytes.fromhex("578bce")  # push edi / mov ecx, esi
+            assert stock[3] == 0xE8
+
+    def test_the_cave_is_the_pending_pool_then_code_that_decodes(self, patched) -> None:
         capstone = pytest.importorskip("capstone")
         md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
         cave = _cave_va(patched)
-        code = build_code(cave)
-        assert _read(patched, cave, len(code)) == code
-        write_va, read_va = entry_points(cave)
-        listing = [f"{i.mnemonic} {i.op_str}" for i in md.disasm(code, cave)]
-        assert listing == [
-            "mov eax, dword ptr [esp + 4]",
-            "push dword ptr [esp + 0xc]",
-            "push dword ptr [esi + 0xc]",
-            "push eax",
-            f"call {LAN_WRITE_BYTE:#x}",
-            "add esp, 0xc",
-            "push dword ptr [esp + 0xc]",
-            "push dword ptr [esi + 0x18]",
-            "push eax",
-            f"call {LAN_WRITE_BYTE:#x}",
-            "add esp, 0xc",
-            "ret ",
-            "mov eax, dword ptr [esp + 4]",
-            "mov ecx, dword ptr [esp + 0x10]",
-            "mov byte ptr [ecx], al",
-            "mov ecx, dword ptr [esp + 0x14]",
-            "mov byte ptr [ecx], 0x80",
-            "cmp ebx, dword ptr [ebp - 0x10]",
-            f"jae {cave + len(code) - 1:#x}",  # the read cave's closing `ret`
-            "mov al, byte ptr [ebx]",
-            "mov byte ptr [ecx], al",
-            "inc ebx",
-            "mov dword ptr [ebp - 0x14], ebx",
-            "ret ",
-        ]
-        assert write_va == cave
+        section = build_code(cave)
+        assert _read(patched, cave, len(section)) == section
+        assert section[:4] == bytes(4), "no pool pending in the file"
+        write_va, _read_va, _set_va = entry_points(cave)
+        assert write_va == cave + 4
+        code = section[4:]
+        assert sum(i.size for i in md.disasm(code, write_va)) == len(code)
 
 
 class TestLifecycle:
@@ -217,7 +206,8 @@ _PARSER_LOCALS = {
 
 def _emulator(data: bytes | bytearray) -> Uc:
     uc = Uc(UC_ARCH_X86, UC_MODE_32)
-    pages = {va & ~0xFFF for va, _ in (*WRITE_SITES, *READ_SITES)}
+    pages = {va & ~0xFFF for va, _ in (*WRITE_SITES, *READ_SITES, *SET_TEMPLATE_SITES)}
+    pages.add(GAME_SLOT_SET_PLAYER_TEMPLATE & ~0xFFF)
     pages |= {va & ~0xFFF for va in ANCHORS}
     pages |= {_WRITE_BLOCK & ~0xFFF, _MEMCPY_THUNK & ~0xFFF, _MEMCPY_IAT & ~0xFFF, _REJECT & ~0xFFF}
     pages |= {_HEAP, _STACK, _STUBS}
@@ -234,8 +224,9 @@ def _emulator(data: bytes | bytearray) -> Uc:
     finally:
         if was_enabled:
             faulthandler.enable()
-    for va, stock in (*WRITE_SITES, *READ_SITES, *ANCHORS.items()):
+    for va, stock in (*WRITE_SITES, *READ_SITES, *SET_TEMPLATE_SITES, *ANCHORS.items()):
         uc.mem_write(va, _read(data, va, len(stock)))
+    uc.mem_write(GAME_SLOT_SET_PLAYER_TEMPLATE, b"\xc2\x04\x00")  # ret 4
     if cave is not None:
         uc.mem_write(cave[0], _read(data, cave[0], len(build_code(cave[0]))))
     uc.mem_write(_WRITE_BLOCK, _WRITE_BLOCK_BYTES)
@@ -246,9 +237,16 @@ def _emulator(data: bytes | bytearray) -> Uc:
 
 
 def _write_seat(
-    data: bytes | bytearray, arm: tuple[int, bytes], colour: int, template: int
+    data: bytes | bytearray,
+    arm: tuple[int, bytes],
+    colour: int,
+    template: int,
+    *,
+    room: int = 0x40,
+    seat_after: list[int] | None = None,
 ) -> bytes:
-    """Run one packer arm for a seat and return the bytes it put on the wire."""
+    """Run one packer arm for a seat and return the bytes it put on the wire. `room` is how much
+    payload is left at the cursor; `seat_after` collects the seat's template once it ran."""
     uc = _emulator(data)
     seat, buf = _HEAP, _HEAP + 0x400
     uc.mem_write(seat + 0x0C, struct.pack("<i", colour))
@@ -258,21 +256,28 @@ def _write_seat(
     uc.reg_write(UC_X86_REG_EBP, esp + 0x100)
     uc.reg_write(UC_X86_REG_ESI, seat)
     uc.reg_write(UC_X86_REG_EAX, buf)  # the cursor, as the arm before it leaves it
-    uc.reg_write(UC_X86_REG_EDI, buf + 0x40)  # the end
+    uc.reg_write(UC_X86_REG_EDI, buf + room)  # the end
     va, stock = arm
-    uc.emu_start(va, va + len(stock), count=200)
+    # a pool is five calls of the byte writer, each a block copy and a memcpy
+    uc.emu_start(va, va + len(stock), count=2000)
     # The arm leaves its 7 arguments for the function's later `add esp`.
     assert uc.reg_read(UC_X86_REG_ESP) == esp - 0x1C
     end = uc.reg_read(UC_X86_REG_EAX)
+    if seat_after is not None:
+        seat_after.append(struct.unpack("<i", bytes(uc.mem_read(seat + 0x18, 4)))[0])
     return bytes(uc.mem_read(buf, end - buf))
 
 
 def _read_seat(
-    data: bytes | bytearray, arm: tuple[int, bytes], wire: bytes
+    data: bytes | bytearray,
+    arm: tuple[int, bytes],
+    wire: bytes,
+    *,
+    uc: Uc | None = None,
 ) -> tuple[int, int, int] | None:
     """Run one parser arm over `wire`, as the stock read of its first byte leaves it, and return
     `(colour, template, bytes consumed)` - or None if the arm rejected the message."""
-    uc = _emulator(data)
+    uc = uc or _emulator(data)
     buf = _HEAP + 0x400
     uc.mem_write(buf, wire)
     esp = _STACK + 0x800
@@ -343,5 +348,64 @@ class TestTheWire:
         self, patched: bytearray, reader: tuple[int, bytes]
     ) -> None:
         """No byte is read past the end: the template stays at the sentinel, which the arm's own
-        `cmp byte [template], -2 / jl` turns away, and the cursor does not move."""
-        assert _read_seat(patched, reader, b"\x03") == (3, MISSING_TEMPLATE - 0x100, 1)
+        `template < template count` check turns away, and the cursor does not move."""
+        assert _read_seat(patched, reader, b"\x03") == (3, MISSING_TEMPLATE, 1)
+
+
+#: A pool naming templates 3, 5 and 13, as faction-variants writes one into a seat.
+POOL = random_pool([3, 5, 13])
+
+
+def _hand_off(uc: Uc, data: bytes | bytearray, site: tuple[int, bytes], template: int) -> int:
+    """Run a parser arm's template hand-off with `template` pushed, up to the engine's
+    `setPlayerTemplate`, and return what it is then asked to set."""
+    cave = _cave_va(data)
+    _write_va, _read_va, set_va = entry_points(cave)
+    esp = _STACK + 0x400
+    uc.mem_write(esp, struct.pack("<Ii", 0xDEAD, template))
+    uc.reg_write(UC_X86_REG_ESP, esp)
+    uc.emu_start(set_va, GAME_SLOT_SET_PLAYER_TEMPLATE, count=100)
+    assert uc.reg_read(UC_X86_REG_ESP) == esp
+    return struct.unpack("<i", bytes(uc.mem_read(esp + 4, 4)))[0]
+
+
+class TestRandomPools:
+    @pytest.mark.parametrize(("writer", "reader"), ARMS)
+    def test_a_pool_crosses_as_the_escape_and_its_mask(self, patched, writer, reader) -> None:
+        wire = _write_seat(patched, writer, 2, POOL)
+        mask = POOL & 0xFFFFFF
+        assert wire == bytes([2, LAN_POOL_ESCAPE & 0xFF]) + mask.to_bytes(3, "little")
+        uc = _emulator(patched)
+        assert _read_seat(patched, reader, wire + b"\x07", uc=uc) == (2, LAN_POOL_ESCAPE, 5)
+        site = SET_TEMPLATE_SITES[READ_SITES.index(reader)]
+        assert _hand_off(uc, patched, site, LAN_POOL_ESCAPE) == POOL
+
+    @pytest.mark.parametrize("writer", WRITE_SITES, ids=["human", "ai"])
+    def test_no_room_for_the_pool_makes_it_plain_random_on_the_host_too(
+        self, patched, writer
+    ) -> None:
+        seat: list[int] = []
+        wire = _write_seat(patched, writer, 2, POOL, room=4, seat_after=seat)
+        assert wire == struct.pack("<bb", 2, -1)
+        assert seat == [-1], "the host draws as every client will"
+
+    @pytest.mark.parametrize("reader", READ_SITES, ids=["human", "ai"])
+    def test_a_cut_off_mask_leaves_a_rejected_template(self, patched, reader) -> None:
+        wire = bytes([2, LAN_POOL_ESCAPE & 0xFF, 0x28, 0x20])
+        assert _read_seat(patched, reader, wire) == (2, MISSING_TEMPLATE, 1)
+
+    def test_an_escape_with_no_pool_behind_it_is_plain_random(self, patched) -> None:
+        uc = _emulator(patched)
+        assert _hand_off(uc, patched, SET_TEMPLATE_SITES[0], LAN_POOL_ESCAPE) == -1
+
+    @pytest.mark.parametrize("template", [-1, -2, 5, 21])
+    def test_every_other_template_is_handed_on_as_it_is(self, patched, template: int) -> None:
+        uc = _emulator(patched)
+        assert _hand_off(uc, patched, SET_TEMPLATE_SITES[0], template) == template
+
+    @pytest.mark.parametrize("writer", WRITE_SITES, ids=["human", "ai"])
+    def test_a_tag_without_a_mask_goes_out_as_plain_random(self, patched, writer) -> None:
+        seat: list[int] = []
+        wire = _write_seat(patched, writer, 2, RANDOM_POOL, seat_after=seat)
+        assert wire == struct.pack("<bb", 2, -1)
+        assert seat == [-1]

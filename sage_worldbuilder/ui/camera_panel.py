@@ -67,6 +67,7 @@ from sage_worldbuilder.camera.named import (
     LOOK,
     SPLINE,
     CameraView,
+    Pose,
     add_animation,
     add_named_camera,
     animation_length_error,
@@ -82,6 +83,7 @@ from sage_worldbuilder.camera.named import (
     new_animation,
     new_camera_name,
     pose_axes,
+    pose_view,
     remove_animation,
     remove_named_camera,
     rotation_angles,
@@ -98,9 +100,6 @@ __all__ = ["CameraHost", "CameraPanel"]
 
 REAL_TIME_FPS = 30
 _PATH_SAMPLES = 400
-# How far the camera preview sees by default, in world units. WorldBuilder opens its dialog at
-# 2,000; half that keeps the cone the view draws from swallowing the map.
-DEFAULT_FAR_CLIP = 1000.0
 
 
 class CameraHost(Protocol):
@@ -351,6 +350,21 @@ class CameraPanel(QWidget):
         self.delete_key_button.clicked.connect(self.delete_key)
         keys.addWidget(self.delete_key_button)
         column.addLayout(keys)
+        source = QHBoxLayout()
+        source.addWidget(QLabel("Key from"))
+        self.key_from_view = QRadioButton("My view")
+        self.key_from_view.setToolTip("New keys take the camera of the view being worked in.")
+        self.key_from_view.setChecked(True)
+        self.key_from_animation = QRadioButton("Animation camera")
+        self.key_from_animation.setToolTip(
+            "New keys take where the animation's camera is at the slider's frame."
+        )
+        self.key_source_buttons = QButtonGroup(self)
+        for button in (self.key_from_view, self.key_from_animation):
+            self.key_source_buttons.addButton(button)
+            source.addWidget(button)
+        source.addStretch(1)
+        column.addLayout(source)
         interpolation = QFormLayout()
         self.interpolation_box = QComboBox()
         self.interpolation_box.addItem("Smooth", SPLINE)
@@ -412,14 +426,6 @@ class CameraPanel(QWidget):
         )
         self.preview_box.toggled.connect(lambda _on: self._send_scene())
         grid.addWidget(self.preview_box, 0, 1)
-        self.far_clip_box = QDoubleSpinBox()
-        self.far_clip_box.setRange(50.0, 100000.0)
-        self.far_clip_box.setDecimals(0)
-        self.far_clip_box.setSingleStep(100.0)
-        self.far_clip_box.setValue(DEFAULT_FAR_CLIP)
-        self.far_clip_box.valueChanged.connect(lambda _value: self._send_scene())
-        grid.addWidget(QLabel("Preview far clip"), 1, 0)
-        grid.addWidget(self.far_clip_box, 1, 1)
         return group
 
     def _handle_group(self) -> QWidget:
@@ -517,6 +523,8 @@ class CameraPanel(QWidget):
     def _play_toggled(self, on: bool) -> None:
         self.play_button.setText("Stop" if on else "Play")
         if on:
+            if self.frame >= self.frame_slider.maximum():
+                self.frame_slider.setValue(0)  # play again from the start
             interval = round(1000 / REAL_TIME_FPS) if self.real_time_box.isChecked() else 0
             self.timer.start(interval)
         else:
@@ -530,19 +538,26 @@ class CameraPanel(QWidget):
         else:
             self.play_button.setChecked(False)
 
+    def _key_source(self, animation: CameraAnimation) -> Pose:
+        """The pose a new key takes: the animation's camera at the slider's frame, or the view
+        being worked in (also when the animation has no camera key to place one from)."""
+        if self.key_from_animation.isChecked():
+            pose = evaluate(animation, self.frame)
+            if pose is not None:
+                return pose
+        return view_pose(self.host.current_view())
+
     def set_camera_key(self) -> None:
         animation = self.selected_animation()
         if animation is not None:
-            self.host.execute(
-                set_camera_key(animation, self.frame, view_pose(self.host.current_view()))
-            )
+            self.host.execute(set_camera_key(animation, self.frame, self._key_source(animation)))
 
     def set_look_key(self) -> None:
         animation = self.selected_animation()
         if animation is not None and animation.animation_type == LOOK:
-            self.host.execute(
-                set_look_at_key(animation, self.frame, self.host.current_view().target)
-            )
+            pose = self._key_source(animation)
+            point = pose.target if pose.target is not None else pose_view(pose).target
+            self.host.execute(set_look_at_key(animation, self.frame, point))
 
     def _object_key(self, row: int) -> tuple[str, int] | None:
         """The camera object a row of the key list stands for. The list holds the camera keys
@@ -653,7 +668,6 @@ class CameraPanel(QWidget):
         document = self.host.document
         system = self._choice(self.system_buttons, WORLD)
         motion = self._choice(self.motion_buttons, TRANSLATE)
-        far_clip = self.far_clip_box.value()
         preview = self.preview_box.isChecked()
         if document is None:
             self.scene_changed.emit(None)
@@ -672,7 +686,6 @@ class CameraPanel(QWidget):
                     system=system,
                     motion=motion,
                     preview=pose if preview else None,
-                    far_clip=far_clip,
                 )
             )
             return
@@ -691,7 +704,6 @@ class CameraPanel(QWidget):
                 camera_path=camera_path if self.path_box.isChecked() else None,
                 look_at_path=look_at_path if self.look_path_box.isChecked() else None,
                 preview=evaluate(animation, self.frame) if preview else None,
-                far_clip=far_clip,
             )
         )
 
@@ -850,6 +862,9 @@ class CameraPanel(QWidget):
                 self.camera_list.addItem(camera.name)
             self.camera_list.setCurrentRow(min(max(row, 0), len(cameras) - 1) if cameras else -1)
             index = self.animation_box.currentIndex()
+            # Silent while rebuilt: passing through another, shorter animation would clamp the
+            # frame slider to its length.
+            self.animation_box.blockSignals(True)
             self.animation_box.clear()
             for animation in animations:
                 kind = "free" if animation.animation_type == FREE else "look-at"
@@ -858,6 +873,7 @@ class CameraPanel(QWidget):
                 min(max(index, 0), len(animations) - 1) if animations else -1
             )
         finally:
+            self.animation_box.blockSignals(False)
             self._updating = False
         self._show_camera()
         self._show_animation()

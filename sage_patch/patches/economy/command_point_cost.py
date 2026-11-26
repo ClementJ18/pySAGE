@@ -314,6 +314,7 @@ class CommandPointCostPatch(Patch):
 
     name = "command-point-cost"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a CommandPointCost integer to CommandButton, so a summoning special power or upgrade "
         "greys out unless the player has that many command points free - the engine's own "

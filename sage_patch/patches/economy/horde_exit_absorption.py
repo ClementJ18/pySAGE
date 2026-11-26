@@ -193,6 +193,7 @@ def build_code(base_va: int) -> bytes:
 class HordeExitAbsorptionPatch(Patch):
     name = "horde-exit-absorption"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop a hero recruited in parallel from being absorbed into a battalion that is walking "
         "out of the same building. An object only joins the horde in the door when that horde "

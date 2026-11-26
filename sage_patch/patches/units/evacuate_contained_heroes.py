@@ -70,6 +70,7 @@ def build_code(cave_va: int) -> bytes:
 class EvacuateContainedHeroesPatch(Patch):
     name = "evacuate-contained-heroes"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make EVACUATE (the exit-all button) on a TunnelContain or garrison also send out a "
         "passenger that carries a non-horde contain module of its own - every ring-bearing hero, "

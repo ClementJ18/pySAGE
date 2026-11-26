@@ -404,6 +404,7 @@ def build_section(section_va: int) -> bytes:
 class AiHeroBuildDelayPatch(Patch):
     name = "ai-hero-build-delay"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let a HeroBuildOrder entry carry a delay, as Name:Seconds, before which the skirmish AI "
         "will not consider recruiting that hero - so it stops banking its whole purse for an "

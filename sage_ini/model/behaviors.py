@@ -431,7 +431,7 @@ __all__ = [
 ]
 
 
-class SpecialPowerModuleBehavior(Behavior):
+class SpecialPowerModuleBehavior(Behavior, factory_registered=False):
     SpecialPowerTemplate: SpecialPower
     StartsPaused: Bool
     UpdateModuleStartsAttack: Bool
@@ -709,7 +709,7 @@ class DominateEnemySpecialPower(SpecialPowerModuleBehavior):
     Instant: Bool
 
 
-class UpgradeBehavior(Behavior):
+class UpgradeBehavior(Behavior, factory_registered=False):
     TriggeredBy: List[Upgrade]
     ConflictsWith: List[Upgrade]
     RequiresAllTriggers: Bool
@@ -1205,7 +1205,7 @@ class PhysicsBehavior(Behavior):
     GroundBounceFX: FXList
 
 
-class DieBehavior(Behavior):
+class DieBehavior(Behavior, factory_registered=False):
     DeathType: DeathTypeFilter
     DeathTypes: DeathTypeFilter
     ExemptStatus: ObjectStatus
@@ -1250,7 +1250,7 @@ class ShipSlowDeathBehavior(SlowDeathBehavior):
     pass
 
 
-class BattleBusSlowDeathBehavior(SlowDeathBehavior):
+class BattleBusSlowDeathBehavior(SlowDeathBehavior, factory_registered=False):
     FXStartUndeath: FXList
     OCLStartUndeath: ObjectCreationList
     FXHitGround: FXList
@@ -1260,7 +1260,7 @@ class BattleBusSlowDeathBehavior(SlowDeathBehavior):
     EmptyHulkDestructionDelay: Int
 
 
-class HelicopterSlowDeathBehavior(SlowDeathBehavior):
+class HelicopterSlowDeathBehavior(SlowDeathBehavior, factory_registered=False):
     SpiralOrbitTurnRate: Float
     SpiralOrbitForwardSpeed: Float
     SpiralOrbitForwardSpeedDamping: Float
@@ -1288,7 +1288,7 @@ class HelicopterSlowDeathBehavior(SlowDeathBehavior):
     FinalRubbleObject: Object
 
 
-class JetSlowDeathBehavior(SlowDeathBehavior):
+class JetSlowDeathBehavior(SlowDeathBehavior, factory_registered=False):
     FXOnGroundDeath: FXList
     OCLOnGroundDeath: ObjectCreationList
     RollRate: Float
@@ -1307,7 +1307,7 @@ class JetSlowDeathBehavior(SlowDeathBehavior):
     OCLFinalBlowUp: ObjectCreationList
 
 
-class NeutronMissileSlowDeathBehavior(SlowDeathBehavior):
+class NeutronMissileSlowDeathBehavior(SlowDeathBehavior, factory_registered=False):
     ScorchMarkSize: Int
     FXList: t.FXList
     Blast1Enabled: Bool
@@ -1429,11 +1429,11 @@ class GiantBirdSlowDeathBehavior(SlowDeathBehavior):
     FXHitGround: FXList
 
 
-class ContainBehavior(Behavior):
+class ContainBehavior(Behavior, factory_registered=False):
     """Marker base for every contain module; carries no keys of its own."""
 
 
-class ParachuteContain(ContainBehavior):
+class ParachuteContain(ContainBehavior, factory_registered=False):
     PitchRateMax: Int
     RollRateMax: Int
     LowAltitudeDamping: Float
@@ -1529,19 +1529,19 @@ class TransportContain(OpenContain):
     ConditionForEntry: ContainCondition
 
 
-class HelixContain(TransportContain):
+class HelixContain(TransportContain, factory_registered=False):
     pass
 
 
-class InternetHackContain(TransportContain):
+class InternetHackContain(TransportContain, factory_registered=False):
     pass
 
 
-class RailedTransportContain(TransportContain):
+class RailedTransportContain(TransportContain, factory_registered=False):
     pass
 
 
-class OverlordContain(TransportContain):
+class OverlordContain(TransportContain, factory_registered=False):
     PayloadTemplateName: Object
     ExperienceSinkForRider: Bool
 
@@ -1969,7 +1969,7 @@ class RefundDie(DieBehavior):
     RefundPercent: Float
 
 
-class CreateObjectDieBehavior(DieBehavior):
+class CreateObjectDieBehavior(DieBehavior, factory_registered=False):
     CreationList: ObjectCreationList
 
 
@@ -2009,13 +2009,13 @@ class KeepObjectDie(DieBehavior):
     StayOnRadar: Bool
 
 
-class EjectPilotDie(DieBehavior):
+class EjectPilotDie(DieBehavior, factory_registered=False):
     GroundCreationList: ObjectCreationList
     AirCreationList: ObjectCreationList
     VeterancyLevels: List[Untyped]
 
 
-class DamDie(DieBehavior):
+class DamDie(DieBehavior, factory_registered=False):
     pass
 
 
@@ -2184,7 +2184,7 @@ class RandomSoundSelectorClientBehavior(Behavior):
     SoundCrushing: Sound
 
 
-class ListUpgradeoundSelectorClientBehavior(Behavior):
+class ListUpgradeoundSelectorClientBehavior(Behavior, factory_registered=False):
     pass
 
 
@@ -2214,7 +2214,7 @@ class AnimatedParticleSysBoneClientUpdate(Behavior):
     pass
 
 
-class SpecialPowerBehavior(Behavior):
+class SpecialPowerBehavior(Behavior, factory_registered=False):
     SpecialPowerTemplate: SpecialPower
     StartAbilityRange: Float
     AbilityAbortRange: Float
@@ -2360,11 +2360,11 @@ class SymbioticStructuresBody(ActiveBody):
     Symbiote: SubObject
 
 
-class UndeadBody(ActiveBody):
+class UndeadBody(ActiveBody, factory_registered=False):
     SecondLifeMaxHealth: Float
 
 
-class HiveStructureBody(ActiveBody):
+class HiveStructureBody(ActiveBody, factory_registered=False):
     PropagateDamageTypesToSlavesWhenExisting: DamageTypeFilter
     SwallowDamageTypesIfSlavesNotExisting: DamageTypeFilter
 
@@ -2456,39 +2456,39 @@ class MoneyCrateCollide(CrateCollide):
     UpgradedBoost: Untyped
 
 
-class ConvertToCarBombCrateCollide(CrateCollide):
+class ConvertToCarBombCrateCollide(CrateCollide, factory_registered=False):
     pass
 
 
-class ConvertToHijackedVehicleCrateCollide(CrateCollide):
+class ConvertToHijackedVehicleCrateCollide(CrateCollide, factory_registered=False):
     pass
 
 
-class SabotageCommandCenterCrateCollide(CrateCollide):
+class SabotageCommandCenterCrateCollide(CrateCollide, factory_registered=False):
     pass
 
 
-class SabotageFakeBuildingCrateCollide(CrateCollide):
+class SabotageFakeBuildingCrateCollide(CrateCollide, factory_registered=False):
     pass
 
 
-class SabotageSuperweaponCrateCollide(CrateCollide):
+class SabotageSuperweaponCrateCollide(CrateCollide, factory_registered=False):
     pass
 
 
-class SabotageInternetCenterCrateCollide(CrateCollide):
+class SabotageInternetCenterCrateCollide(CrateCollide, factory_registered=False):
     SabotageDuration: Int
 
 
-class SabotageMilitaryFactoryCrateCollide(CrateCollide):
+class SabotageMilitaryFactoryCrateCollide(CrateCollide, factory_registered=False):
     SabotageDuration: Int
 
 
-class SabotagePowerPlantCrateCollide(CrateCollide):
+class SabotagePowerPlantCrateCollide(CrateCollide, factory_registered=False):
     SabotagePowerDuration: Int
 
 
-class SabotageSupplyCenterCrateCollide(CrateCollide):
+class SabotageSupplyCenterCrateCollide(CrateCollide, factory_registered=False):
     StealCashAmount: Int
 
 
@@ -3037,7 +3037,7 @@ class WallUpgradeUpdate(Behavior):
     pass
 
 
-class AIUpdateBehavior(Behavior):
+class AIUpdateBehavior(Behavior, factory_registered=False):
     # `Turret`/`AltTurret` are sub-blocks (Turret class in `model.misc_blocks`).
     nested_attributes = {"Turret": ["Turret"], "AltTurret": ["Turret"]}
 
@@ -3175,7 +3175,7 @@ class GiantBirdAIUpdate(AIUpdateBehavior):
     TossFX: FXList
 
 
-class JetAIUpdate(AIUpdateBehavior):
+class JetAIUpdate(AIUpdateBehavior, factory_registered=False):
     OutOfAmmoDamagePerSecond: Float
     TakeoffSpeedForMaxLift: Float
     TakeoffDistForMaxLift: Float
@@ -3192,7 +3192,7 @@ class JetAIUpdate(AIUpdateBehavior):
     ReturnToBaseIdleTime: Int
 
 
-class MissileAIUpdate(AIUpdateBehavior):
+class MissileAIUpdate(AIUpdateBehavior, factory_registered=False):
     TryToFollowTarget: Bool
     FuelLifetime: Int
     DetonateOnNoFuel: Bool
@@ -3211,7 +3211,7 @@ class MissileAIUpdate(AIUpdateBehavior):
     DistanceScatterWhenJammed: Int
 
 
-class DeliverPayloadAIUpdate(AIUpdateBehavior):
+class DeliverPayloadAIUpdate(AIUpdateBehavior, factory_registered=False):
     DoorDelay: Int
     MaxAttempts: Int
     DropOffset: Coords
@@ -3220,7 +3220,7 @@ class DeliverPayloadAIUpdate(AIUpdateBehavior):
     DeliveryDistance: Int
 
 
-class HackInternetAIUpdate(AIUpdateBehavior):
+class HackInternetAIUpdate(AIUpdateBehavior, factory_registered=False):
     UnpackTime: Int
     PackTime: Int
     CashUpdateDelay: Int
@@ -3233,11 +3233,11 @@ class HackInternetAIUpdate(AIUpdateBehavior):
     PackUnpackVariationFactor: Float
 
 
-class RailedTransportAIUpdate(AIUpdateBehavior):
+class RailedTransportAIUpdate(AIUpdateBehavior, factory_registered=False):
     PathPrefixName: Opaque
 
 
-class SupplyAIUpdate(AIUpdateBehavior):
+class SupplyAIUpdate(AIUpdateBehavior, factory_registered=False):
     MaxBoxes: Int
     SupplyCenterActionDelay: Int
     SupplyWarehouseActionDelay: Int
@@ -3249,7 +3249,7 @@ class SupplyTruckAIUpdate(SupplyAIUpdate):
     pass
 
 
-class ChinookAIUpdate(SupplyTruckAIUpdate):
+class ChinookAIUpdate(SupplyTruckAIUpdate, factory_registered=False):
     NumRopes: Int
     PerRopeDelayMin: Int
     PerRopeDelayMax: Int
@@ -3712,7 +3712,7 @@ class QueueProductionExitUpdate(Behavior):
     CanRallyToSlaughter: Bool
 
 
-class GateBehavior(Behavior):
+class GateBehavior(Behavior, factory_registered=False):
     OpenByDefault: Bool
     ResetTimeInMilliseconds: Int
     PercentOpenForPathing: Int

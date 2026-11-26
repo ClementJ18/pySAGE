@@ -15,6 +15,7 @@ from __future__ import annotations
 from sage_patch.addresses import (
     ai,
     living_world,
+    lobby,
     logic,
     objects,
     player,
@@ -28,6 +29,7 @@ from sage_patch.addresses import (
 )
 from sage_patch.addresses.ai import *  # noqa: F403
 from sage_patch.addresses.living_world import *  # noqa: F403
+from sage_patch.addresses.lobby import *  # noqa: F403
 from sage_patch.addresses.logic import *  # noqa: F403
 from sage_patch.addresses.objects import *  # noqa: F403
 from sage_patch.addresses.player import *  # noqa: F403
@@ -42,6 +44,7 @@ from sage_patch.addresses.worldbuilder import *  # noqa: F403
 __all__ = [
     *worldbuilder.__all__,
     *living_world.__all__,
+    *lobby.__all__,
     *scripts.__all__,
     *ai.__all__,
     *ui.__all__,

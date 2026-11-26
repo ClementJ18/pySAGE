@@ -82,7 +82,7 @@ accessors and the view's own position field:
 
 **Each field is read from one accessor and written to another, and they are not the same
 quantity** — so a captured location *cannot* be handed straight back. This was assumed for a
-while and it is false; §7 has the measurements. The names rest on this:
+while and it is false; §6 has the measurements. The names rest on this:
 
 - **`angle`.** The keyboard rotate keys read `+0x100`, add `TheWritableGlobalData+0xC2C`, and
   write `+0xFC` (`0x0083B9AB`–`0x0083B9C6`; the subtract path is at `0x0083B979`). That field is
@@ -193,7 +193,45 @@ camera now is. Nothing wrote it in either direction. A value captured at one pos
 therefore not even meaningful at another, and the relaxation measured above is this same
 mechanism reasserting itself after a write.
 
-## 7. What is still open
+## 7. What the camera sees — `W3DView::m_3DCamera`
+
+A `ViewLocation` says where the camera aims, not how much of the world is on screen. That is the
+WW3D `CameraClass` the view draws the world through, and it can be read without the bridge, so it
+works on an observer's client and in a replay. `MemoryBackend.read_camera_view` reads it into a
+`CameraView`; `sage-live camera` prints it and the objects on screen.
+
+**Which camera.** `W3DView::init` (`0x0048BB6A`, vtable `0x00BDD490` slot `+0x10`) creates two
+0x3FC-byte cameras (constructor `0x00534570`). The first goes to `view+0x104`. The second goes to
+`+0x108`, placed at (0, 0, 1) with `Set_View_Plane((-1, -0.75), (1, 0.75))` (`0x00533AE0`) and clip
+planes 0.995..2 (`0x005337C0`): the 2D overlay camera. So `+0x104` is the 3D one. (`0x00C0C330` is
+the base `View`'s vtable, installed by its constructor at `0x0065EB9B`; the concrete `W3DView` is
+`0x00BDD490`.)
+
+**Its fields**, from the constructor and `Update_Frustum` (`0x00533B70`), which passes exactly
+these to `FrustumClass::Init` (`0x00B32250`):
+
+| offset | field | evidence |
+|---|---|---|
+| `+0x18` | `Transform`, 3 rows × (x, y, z, translation), camera to world | 12 floats copied to the stack for `Init` |
+| `+0xC4` | projection, 0 perspective | `cmp [esi+0xC4], 0` picks `Init`'s ortho flag |
+| `+0xC8` | viewport, normalised min/max | constructor writes 0, 0, 1, 1 |
+| `+0xD8` | view plane at distance 1, min/max | `Set_View_Plane(hfov, vfov)` (`0x00533590`) writes `±tan(fov/2)` |
+| `+0xE8` | aspect ratio | the vertical extent is the horizontal one over this when vfov is -1 |
+| `+0xEC`, `+0xF0` | near, far clip | passed negated to `Init` |
+| `+0xFC` | frustum valid (byte) | cleared by every setter, set by `Update_Frustum` |
+| `+0x100` | `FrustumClass`; world corners at `+0x190` | not read: the transform is current, the frustum lazily so |
+
+A WW3D camera looks down its own -Z, +X right, +Y up; the transform is rigid, so world to camera
+is its transpose.
+
+**Confirmed live** on 2026-11-09, against a paused RotWK 2.01 replay at 1920x1080: `+0x104` held
+an eye at (2224, 1201, 750) pitched 36.5° below horizontal, view plane ±0.4663 × ±0.2623 (50°
+horizontal at aspect 1.778), clip 10..27000, viewport 0..1; `+0x108` held the 2D camera above.
+Projecting the live objects put a Gondor farm at (0.55, 0.51) of the screen, a Rohan stud farm at
+(0.28, 0.16) and both battalions just above and below centre - where they were on screen.
+`tests/sage_live/test_camera_view.py` carries that camera and those objects.
+
+## 8. What is still open
 
 - **The fourth scalar is unnamed** (§4).
 - **The engine's own interpolated move is still unidentified** — the `CAMERA_MOVE_TO_LOCATION`

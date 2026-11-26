@@ -9,6 +9,7 @@ index), `objects` (economy and detail summaries) - over the shared primitives in
 `base`. Everything public is re-exported here; import from `sage_utils.views`.
 """
 
+from sage_utils.views.archetypes import FilterSignature, filter_signature
 from sage_utils.views.base import (
     all_modules,
     find_behavior,
@@ -59,12 +60,10 @@ from sage_utils.views.text import (
     upgrade_toggle_labels,
 )
 from sage_utils.views.weapons import (
-    FilterSignature,
     armorset_view,
     clip_reload_time,
     effective_health,
     effective_health_against,
-    filter_signature,
     weapon_attack_interval,
     weapon_damage_breakdown,
     weapon_damage_per_shot,

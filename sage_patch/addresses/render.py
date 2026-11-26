@@ -20,6 +20,11 @@ __all__ = [
     "D3DPERF_SETOPTIONS_STORE_ENTRY",
     "D3DPERF_SETOPTIONS_STORE_RESUME",
     "D3DPERF_SET_OPTIONS_PTR",
+    "D3D9_LOAD",
+    "D3D9_LOAD_BYTES",
+    "D3D9_LOAD_CALL",
+    "D3D9_LOAD_CALL_BYTES",
+    "D3D9_LOAD_RESUME",
     "DIRECT3D_CREATE9_PTR",
     "DIRECT3D_CREATE9_RESOLVE",
     "DIRECT3D_CREATE9_RESOLVE_BYTES",
@@ -33,6 +38,14 @@ __all__ = [
     "DRAWABLE_GET_SCALE",
     "DRAWABLE_GET_SCALE_BYTES",
     "DRAWABLE_GET_SCALE_OTHER_CALLS",
+    "FLOOR_BUFFER_INDEX_ALLOC",
+    "FLOOR_BUFFER_INDEX_ALLOC_BYTES",
+    "FLOOR_BUFFER_INDEX_LIMIT",
+    "FLOOR_BUFFER_INDEX_LIMIT_BYTES",
+    "FLOOR_BUFFER_VERTEX_ALLOC",
+    "FLOOR_BUFFER_VERTEX_ALLOC_BYTES",
+    "FLOOR_BUFFER_VERTEX_LIMIT",
+    "FLOOR_BUFFER_VERTEX_LIMIT_BYTES",
     "MODEL_CONDITION_BUTTON_IMAGE",
     "MODEL_CONDITION_FIELD_ROWS",
     "MODEL_CONDITION_PORTRAIT_IMAGE",
@@ -271,6 +284,15 @@ PERF_SCOPE_STRNCPY_IAT = 0x00BD0624
 D3DPERF_SETOPTIONS_STORE = 0x00525202
 D3DPERF_SETOPTIONS_STORE_ENTRY = bytes.fromhex("a32836dd00")
 D3DPERF_SETOPTIONS_STORE_RESUME = 0x00525207
+#: The engine's one load of the renderer: `push "D3D9.DLL" / call [LoadLibraryA]`, and the store of
+#: the module into `D3DPERF_MODULE_HANDLE` that every resolve after it reads. A patch that picks
+#: the renderer turns the call into one of its own, which returns the module the engine is to use.
+D3D9_LOAD_CALL = 0x00525176
+D3D9_LOAD_CALL_BYTES = bytes.fromhex("ff158801bd00")
+D3D9_LOAD_RESUME = 0x0052517C
+#: From the name's push to the `je` that leaves when no module came back.
+D3D9_LOAD = 0x00525171
+D3D9_LOAD_BYTES = bytes.fromhex("680472be00ff158801bd003bc3a31036dd000f848f000000")
 #: Where the engine stores the `Direct3DCreate9` it has just resolved from `d3d9.dll`, and the
 #: `accel-module` patch's hook: the one moment the renderer's entry point passes through a writable
 #: slot before first use, on the game thread, with `d3d9.dll` already loaded. The cave re-runs the
@@ -459,3 +481,18 @@ TEXTURE_GET_BY_NAME_RESUME = 0x0053287A
 #: The `".tga"` literal the W3D texture chunk loader compares an authored extension against.
 TEXTURE_EXTENSION_TGA = 0x00BDC7EC
 TEXTURE_EXTENSION_TGA_BYTES = bytes.fromhex("2e74676100")
+#: `W3DFloorBuffer` (vtable `0x00BE49B8`): every `W3DFloorDraw` bib on the map is copied, oldest
+#: first and with no camera culling, into one dynamic vertex buffer and one 16-bit index buffer
+#: each frame (`0x004E51F0`). `0x004E40C2` creates them - FVF `0x152` (36 bytes a vertex) - and the
+#: per-floor copies refuse a floor that would cross the limit, so once the map's bibs fill the
+#: buffers every newer bib draws nothing. Each value is an imm32.
+FLOOR_BUFFER_VERTEX_ALLOC = 0x004E4106
+FLOOR_BUFFER_VERTEX_ALLOC_BYTES = bytes.fromhex("689c3a0000")  # push 15004
+FLOOR_BUFFER_INDEX_ALLOC = 0x004E4134
+FLOOR_BUFFER_INDEX_ALLOC_BYTES = bytes.fromhex("6834750000")  # push 30004
+#: `lea eax, [verts + used + 2]` / `cmp eax, 15000` / `jl` in the vertex copy (`0x004E4D2C`).
+FLOOR_BUFFER_VERTEX_LIMIT = 0x004E4DDC
+FLOOR_BUFFER_VERTEX_LIMIT_BYTES = bytes.fromhex("3d983a0000")
+#: `(tris + 2) * 3 + used` / `cmp esi, 30000` / `jl` in the index copy (`0x004E4FD5`).
+FLOOR_BUFFER_INDEX_LIMIT = 0x004E4FFA
+FLOOR_BUFFER_INDEX_LIMIT_BYTES = bytes.fromhex("81fe30750000")

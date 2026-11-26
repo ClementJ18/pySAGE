@@ -15,6 +15,8 @@ from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.walk import walk_objects
 from sage_lint.rules.base import Rule
 
+__all__ = ["MapBareModuleRule"]
+
 
 def _is_map_file(path: str) -> bool:
     """Whether `path` is map-scoped - under a `maps/` directory (mirrors

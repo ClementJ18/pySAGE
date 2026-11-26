@@ -10,8 +10,10 @@ import pytest
 from sage_w3d.binary import FixedString, Vec3ListChunk
 from sage_w3d.chunks import (
     W3D_CHUNK_HLOD_LOD_ARRAY,
+    W3D_CHUNK_NORMALS_2,
     W3D_CHUNK_VERTEX_NORMALS,
     W3D_CHUNK_VERTICES,
+    W3D_CHUNK_VERTICES_2,
     Version,
 )
 from sage_w3d.hierarchy import Hierarchy, HierarchyHeader, HierarchyPivot, Pivots
@@ -85,12 +87,18 @@ def _hlod_header(lod_count: int, hierarchy_name: str = "skel") -> HLODHeader:
     )
 
 
-def _mesh(header: MeshHeader, vertices, normals, influences=None) -> Mesh:
+def _mesh(
+    header: MeshHeader, vertices, normals, influences=None, vertices_2=None, normals_2=None
+) -> Mesh:
     chunks = [
         header,
         Vec3ListChunk(W3D_CHUNK_VERTICES, False, vertices),
         Vec3ListChunk(W3D_CHUNK_VERTEX_NORMALS, False, normals),
     ]
+    if vertices_2 is not None:
+        chunks.append(Vec3ListChunk(W3D_CHUNK_VERTICES_2, False, vertices_2))
+    if normals_2 is not None:
+        chunks.append(Vec3ListChunk(W3D_CHUNK_NORMALS_2, False, normals_2))
     if influences is not None:
         chunks.append(VertexInfluences(False, influences))
     return Mesh(flagged=True, chunks=chunks)
@@ -153,6 +161,67 @@ class TestSkinTransform:
         scene = build_scene(model)
 
         assert scene.meshes[0].positions == pytest.approx([1.0, 0.0, 0.0])
+
+    def test_each_bone_transforms_its_own_copy_of_the_vertex(self):
+        # The world point (3, 0, 0) stored as W3D stores a two-bone vertex: (3, 0, 0) in
+        # child_a's space (at the origin) and (0, -1, 0) in child_b's (at (2, 0, 0), turned
+        # 90 degrees about Z). Both copies name the same point, so a 30/70 split must land on
+        # it; blending the matrices and applying them to the first copy alone gives
+        # (2.3, 2.1, 0).
+        hierarchy = _hierarchy(
+            "skel",
+            [
+                _pivot("root", -1),
+                _pivot("child_a", 0),
+                _pivot(
+                    "child_b", 0, translation=(2.0, 0.0, 0.0), rotation=(0.0, 0.0, _SIN45, _COS45)
+                ),
+            ],
+        )
+        mesh = _mesh(
+            _mesh_header(),
+            vertices=[(3.0, 0.0, 0.0)],
+            normals=[(0.0, 1.0, 0.0)],
+            vertices_2=[(0.0, -1.0, 0.0)],
+            normals_2=[(1.0, 0.0, 0.0)],
+            influences=[
+                VertexInfluence(bone_idx=1, xtra_idx=2, bone_weight_raw=30, xtra_weight_raw=70)
+            ],
+        )
+        model = W3DFile(chunks=[hierarchy, mesh])
+
+        scene = build_scene(model)
+
+        rm = scene.meshes[0]
+        assert rm.positions == pytest.approx([3.0, 0.0, 0.0])
+        assert rm.normals == pytest.approx([0.0, 1.0, 0.0])
+        skin = rm.skin
+        assert skin is not None
+        assert skin.local_positions_2 == pytest.approx([0.0, -1.0, 0.0])
+        assert skin.local_normals_2 == pytest.approx([1.0, 0.0, 0.0])
+
+    def test_a_zero_weight_first_slot_keeps_the_second_slot_on_its_own_copy(self):
+        hierarchy = _hierarchy(
+            "skel",
+            [
+                _pivot("root", -1),
+                _pivot("child_a", 0),
+                _pivot("child_b", 0, translation=(2.0, 0.0, 0.0)),
+            ],
+        )
+        mesh = _mesh(
+            _mesh_header(),
+            vertices=[(9.0, 9.0, 9.0)],
+            normals=[(0.0, 0.0, 1.0)],
+            vertices_2=[(1.0, 0.0, 0.0)],
+            influences=[
+                VertexInfluence(bone_idx=1, xtra_idx=2, bone_weight_raw=0, xtra_weight_raw=100)
+            ],
+        )
+
+        scene = build_scene(W3DFile(chunks=[hierarchy, mesh]))
+
+        assert scene.meshes[0].positions == pytest.approx([3.0, 0.0, 0.0])
 
 
 class TestRigidTransform:

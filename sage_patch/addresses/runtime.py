@@ -83,18 +83,23 @@ __all__ = [
     "FILE_SYSTEM_GET_FILE_LIST_IN_DIRECTORY",
     "FILE_SYSTEM_OPEN_FILE",
     "FLOAT_HUNDRED",
+    "FIND_CLOSE_IAT",
+    "FIND_FIRST_FILE_W_IAT",
+    "FIND_NEXT_FILE_W_IAT",
     "FLOAT_ONE",
     "FLOAT_ONE_PERCENT",
     "FLOAT_TEN",
     "FLOAT_TWO_PERCENT",
     "FTOL",
     "GET_PROC_ADDRESS_IAT",
+    "GET_SYSTEM_DIRECTORY_A_IAT",
     "GLOBAL_DATA",
     "GLOBAL_DATA_ACTIVE_MAP",
     "GLOBAL_DATA_ASSET_PROFILE",
     "GLOBAL_DATA_FPS_LIMIT",
     "GLOBAL_DATA_MOD_BIG",
     "GLOBAL_DATA_MOD_DIR",
+    "GLOBAL_DATA_SECONDS_BEFORE_BASE_CHECK",
     "GLOBAL_DATA_SHELL_MAP",
     "GLOBAL_DATA_STAGED_MAP",
     "GLOBAL_DATA_USE_FPS_LIMIT",
@@ -105,6 +110,7 @@ __all__ = [
     "IMPORT_FWRITE",
     "IMPORT_GET_LOCAL_TIME",
     "IMPORT_SWPRINTF",
+    "IMPORT_WCSCMP",
     "INI_LOAD",
     "INI_LOAD_DIRECTORY",
     "INI_LOAD_INNER",
@@ -127,6 +133,7 @@ __all__ = [
     "INI_PARSE_STRING_LIST_BYTES",
     "INI_PARSE_UNSIGNED_SHORT",
     "INI_PARSE_UPGRADE_MASK",
+    "INI_PARSE_UPGRADE_TEMPLATE",
     "INI_SCAN_INT",
     "LOAD_LIBRARY_A_IAT",
     "LOCAL_FILE_SYSTEM",
@@ -335,6 +342,9 @@ GLOBAL_DATA_FPS_LIMIT = 0x28
 # The asset-load profiler's switch: in `GlobalData`, but reachable from no INI or command line
 # (`docs/asset-demand-load.md`). Writable at run time.
 GLOBAL_DATA_ASSET_PROFILE = 0x123D
+# `SecondsBeforeBaseCheckActive` (a Real, 5 by default): the skirmish defeat check
+# (`VictoryConditions::update`, `0x00808F53`) does nothing for that many seconds after the start.
+GLOBAL_DATA_SECONDS_BEFORE_BASE_CHECK = 0x110C
 #: Where an `AsciiString`'s characters begin, past its length and reference fields.
 ASCII_STRING_CHARS_OFFSET = 0x08
 #: `INI::parseFields(instance, table)` - the shared driver every block parser hands its field
@@ -539,6 +549,10 @@ ASCII_STRING_COPY = 0x00436030
 GLOBAL_DATA_SHELL_MAP = 0xAEC
 #: `INI::parseUpgradeMask`, the parse function the engine's own `TriggeredBy` row names.
 INI_PARSE_UPGRADE_MASK = 0x0066F603
+#: The parser behind every single-upgrade field (`CommandButton`'s `Upgrade` among them): cdecl,
+#: the usual four arguments, one token looked up with `UpgradeCenter::findUpgrade` and the
+#: `UpgradeTemplate *` stored through `store`. An unknown name stores NULL without complaint.
+INI_PARSE_UPGRADE_TEMPLATE = 0x0073AF89
 #: The duration parser `MinLifetime` and `MaxLifetime` use: **milliseconds in, frames out**, scaled
 #: by the live logic rate (`0x00D9F610`, written from the frame rate at `0x00644F11`). Naming it
 #: here is what makes the bonus authorable in the same units as the lifetime it extends, and
@@ -578,6 +592,9 @@ GET_MODULE_HANDLE_A_IAT = 0x00BD0134
 #: `kernel32!GetProcAddress` in the IAT - how the probe reaches `D3DPERF_GetStatus`, which the
 #: engine itself never resolves.
 GET_PROC_ADDRESS_IAT = 0x00BD018C
+#: `kernel32!GetSystemDirectoryA` in the IAT, which a patch can use to load Windows' own
+#: `d3d9.dll` by its full path past one in the game directory.
+GET_SYSTEM_DIRECTORY_A_IAT = 0x00BD03C8
 #: `kernel32!QueryPerformanceCounter` in the IAT. Already called from seventeen engine sites, so
 #: the indirect-call form a cave needs is a pattern the image already carries.
 QUERY_PERFORMANCE_COUNTER_IAT = 0x00BD02E8
@@ -585,3 +602,10 @@ QUERY_PERFORMANCE_COUNTER_IAT = 0x00BD02E8
 #: `MoveFileExW`, which the engine never imports, through `GetModuleHandleA` + `GetProcAddress`.
 GET_MODULE_HANDLE_A_IAT = 0x00BD0134
 DELETE_FILE_W_IAT = 0x00BD0330
+#: `kernel32!FindFirstFileW` / `FindNextFileW` / `FindClose` in the IAT, all stdcall. The
+#: `skirmish-replay` cave walks `Replays\` with them to keep only the newest recordings.
+FIND_FIRST_FILE_W_IAT = 0x00BD016C
+FIND_NEXT_FILE_W_IAT = 0x00BD035C
+FIND_CLOSE_IAT = 0x00BD0170
+#: `msvcr71!wcscmp` in the IAT, cdecl, caller cleans.
+IMPORT_WCSCMP = 0x00BD04A8

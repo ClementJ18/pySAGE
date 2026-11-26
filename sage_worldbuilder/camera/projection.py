@@ -38,6 +38,8 @@ MAX_DRAPE_POINTS = 400
 _FAR_PIXELS = 1.0e6
 # How far above the ground `height_direction` looks to find which way height goes on screen.
 _HEIGHT_PROBE = 50.0
+# How many times `hit` re-levels its plane to the edge height under the last point off the map.
+_OFF_MAP_STEPS = 8
 
 
 class CameraProjection:
@@ -98,18 +100,25 @@ class CameraProjection:
         return self.camera.pixels_per_unit_at((x, y, self.ground(x, y)))
 
     def hit(self, sx: float, sy: float) -> tuple[float, float, float]:
-        """The ground point under a pixel. A ray that misses the heightmap and never comes down
-        to the fallback plane gives the camera's target."""
+        """The ground point under a pixel. Past the heightmap the ground goes on at its edge's
+        height, as what stands there is drawn. A ray that never comes down to it gives the
+        camera's target."""
         camera = self.camera
         origin, direction = camera.ray(sx, sy)
         found = ray_hit(self.grid, origin, direction) if self.grid is not None else None
         if found is None:
             plane = self.focus[2] if self.focus is not None else camera.target_z
-            t = (plane - origin[2]) / direction[2] if direction[2] < -1e-9 else -1.0
-            if t < 0:
-                return camera.target_x, camera.target_y, camera.target_z
-            point = origin + t * direction
-            found = (float(point[0]), float(point[1]), plane)
+            for _ in range(_OFF_MAP_STEPS if self.grid is not None else 1):
+                t = (plane - origin[2]) / direction[2] if direction[2] < -1e-9 else -1.0
+                if t < 0:
+                    return camera.target_x, camera.target_y, camera.target_z
+                point = origin + t * direction
+                found = (float(point[0]), float(point[1]), plane)
+                ground = self.ground(found[0], found[1])
+                if abs(ground - plane) < 0.01:
+                    break
+                plane = ground
+        assert found is not None  # the loop runs at least once
         self.focus = found
         return found
 

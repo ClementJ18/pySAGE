@@ -128,6 +128,7 @@ def build_cave(base_va: int) -> bytes:
 class AttackRequiresDamagePatch(Patch):
     name = "attack-requires-damage"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "A unit only auto-acquires or right-click-attacks a target its weapon can actually "
         "do something to: one of its nuggets must be a damage, projectile, DOT, "

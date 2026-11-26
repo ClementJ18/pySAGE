@@ -12,6 +12,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sage_ini.model.enums import FactionSide, ModelCondition, ObjectStatus
 from sage_map.assets.player_scripts import (
     OrCondition,
     Script,
@@ -30,6 +31,7 @@ from sage_worldbuilder.templates import (
     ParameterType,
     ScriptTemplate,
     TemplateKind,
+    named_values,
     parameter_values,
     template,
     template_named,
@@ -39,6 +41,8 @@ if TYPE_CHECKING:
     from sage_ini.model.game import Game
 
 __all__ = [
+    "BOUNDARY_COLOURS",
+    "NAMED_INDEX_TYPES",
     "SPECIAL_NAMES",
     "ActiveFlags",
     "ScriptItem",
@@ -47,6 +51,7 @@ __all__ = [
     "active_flags",
     "argument_choices",
     "argument_text",
+    "indexed_names",
     "item_matches",
     "item_template",
     "item_text",
@@ -141,7 +146,9 @@ def new_argument(parameter_type: ParameterType) -> ScriptArgument:
         argument_type = ScriptArgumentType(parameter_type)
     if argument_type is ScriptArgumentType.POSITION_COORDINATE:
         return ScriptArgument(argument_type, position_value=(0.0, 0.0, 0.0))
-    return ScriptArgument(argument_type, int_value=0, float_value=0.0, string_value="")
+    names = indexed_names(argument_type, {}) if argument_type in NAMED_INDEX_TYPES else None
+    name = names[0] if names else ""
+    return ScriptArgument(argument_type, int_value=0, float_value=0.0, string_value=name)
 
 
 def new_item(entry: ScriptTemplate) -> ScriptDerived:
@@ -191,7 +198,9 @@ def argument_text(argument: ScriptArgument) -> str:
         return f"{argument.float_value or 0.0:g}"
     if kind is ScriptArgumentType.ANGLE:
         return f"{argument.float_value or 0.0:g} degrees"
-    names = parameter_values(kind)
+    if kind is ScriptArgumentType.BOUNDARY_NAME:
+        return f"Boundary {BOUNDARY_COLOURS[(argument.int_value or 0) % len(BOUNDARY_COLOURS)]}"
+    names = indexed_names(kind, {})
     if names is not None:
         value = argument.int_value or 0
         return names[value] if 0 <= value < len(names) else str(value)
@@ -314,7 +323,9 @@ def _property_text(properties: dict, name: str) -> str | None:
 def map_symbols(map: Map) -> dict[str, list[str]]:
     """The names a script argument can pick from this map, as written, keyed by the `ARG_SPECS`
     map target they answer for. Teams are listed as `owner/team`, the form scripts store.
-    Counters and flags have no declaration, so theirs are the names the map's scripts use."""
+    Counters, flags, attack priority sets, object type lists and map reveals have no declaration,
+    so theirs are the names the map's scripts use. Boundaries are listed in index order, each by
+    the colour WorldBuilder draws it in."""
     found: dict[str, set[str]] = {
         "teams": set(),
         "players": set(),
@@ -325,7 +336,18 @@ def map_symbols(map: Map) -> dict[str, list[str]]:
         "scripts": set(),
         "counters": set(),
         "flags": set(),
+        "cameras": set(),
+        "camera_animations": set(),
+        "attack_priority_sets": set(),
+        "object_type_lists": set(),
+        "map_reveals": set(),
     }
+    if map.named_cameras is not None:
+        found["cameras"].update(camera.name for camera in map.named_cameras.cameras if camera.name)
+    if map.camera_animation_list is not None:
+        found["camera_animations"].update(
+            animation.name for animation in map.camera_animation_list.animations if animation.name
+        )
     teams = list(map.teams.teams) if map.teams is not None else []
     if map.sides_list is not None:
         teams += map.sides_list.teams
@@ -352,6 +374,9 @@ def map_symbols(map: Map) -> dict[str, list[str]]:
     declared_by_argument = {
         ScriptArgumentType.COUNTER_NAME: "counters",
         ScriptArgumentType.FLAG_NAME: "flags",
+        ScriptArgumentType.ATTACK_PRIORITY_SET_NAME: "attack_priority_sets",
+        ScriptArgumentType.OBJECT_TYPE_LIST_NAME: "object_type_lists",
+        ScriptArgumentType.MAP_REVEAL_NAME: "map_reveals",
     }
     for _, script_list in player_script_lists(map):
         for location in iter_script_items(script_list.items):
@@ -365,7 +390,66 @@ def map_symbols(map: Map) -> dict[str, list[str]]:
                     target = declared_by_argument.get(argument.type)
                     if target is not None and argument.string_value:
                         found[target].add(argument.string_value)
-    return {key: sorted(names, key=str.casefold) for key, names in found.items()}
+    symbols = {key: sorted(names, key=str.casefold) for key, names in found.items()}
+    borders = map.height_map_data.borders if map.height_map_data is not None else []
+    symbols["boundaries"] = [
+        BOUNDARY_COLOURS[index % len(BOUNDARY_COLOURS)] for index in range(len(borders))
+    ]
+    return symbols
+
+
+# The colours WorldBuilder names a boundary by, cycling with its index: the dialog lists them
+# (`0x01DF24F8`) and a sentence prints `Boundary <colour>` (`getUiText`, `0x01E688D0`).
+BOUNDARY_COLOURS = ("Orange", "Green", "Blue", "Cyan", "Magenta", "Yellow", "Purple", "Pink")
+
+# Index-stored types WorldBuilder also writes the chosen value's name beside, so a map holds both
+# (`2` and `Friend`, `4` and `NO_COLLISIONS`).
+NAMED_INDEX_TYPES = frozenset({ScriptArgumentType.RELATION, ScriptArgumentType.OBJECT_STATUS})
+
+# The game tables WorldBuilder lists an asset name from: `enumerateAudioTypes` by audio type,
+# `enumerateAllRealAudio`, `enumerateMovies` and `enumerateEvaEvents`. Picker choices only: the
+# lint scope in `ARG_SPECS` stays literal.
+_ASSET_TABLES: dict[ScriptArgumentType, tuple[str, ...]] = {
+    ScriptArgumentType.SOUND_NAME: ("audioevents", "multisounds"),
+    ScriptArgumentType.SPEECH_NAME: ("dialogevents",),
+    ScriptArgumentType.MUSIC_NAME: ("musictracks",),
+    ScriptArgumentType.AUDIO_NAME: ("audioevents", "multisounds", "dialogevents", "musictracks"),
+    ScriptArgumentType.MOVIE_NAME: ("videos",),
+    ScriptArgumentType.EVA: ("evaevents",),
+}
+
+
+def indexed_names(
+    argument_type: int, symbols: Mapping[str, Sequence[str]]
+) -> tuple[str, ...] | None:
+    """The names of an index-stored argument's values, entry `i` naming value `i`: an engine enum,
+    the engine's object statuses, or the map's boundaries. `None` for a type not stored by index."""
+    if argument_type == ScriptArgumentType.BOUNDARY_NAME:
+        return tuple(symbols.get("boundaries", ()))
+    if argument_type == ScriptArgumentType.OBJECT_STATUS:
+        return tuple(status.name for status in ObjectStatus)
+    return parameter_values(argument_type)
+
+
+def _named_choices(kind: ScriptArgumentType, game: Game | None) -> list[str]:
+    """The names a name-stored enum offers: WorldBuilder's own tables, the engine's model
+    conditions, or what the game defines (sides, notification types)."""
+    names = named_values(kind)
+    if names is not None:
+        return list(names)
+    if kind is ScriptArgumentType.MODEL_CONDITION:
+        return [condition.name for condition in ModelCondition]
+    if game is None:
+        return []
+    if kind is ScriptArgumentType.FACTION_NAME:
+        return sorted(FactionSide.sides(game), key=str.casefold)
+    if kind is ScriptArgumentType.OBJECTIVE_COMPLETE:
+        return [
+            notification.name
+            for box in game.tables.get("ingamenotificationboxs", {}).values()
+            for notification in getattr(box, "NotificationType", None) or ()
+        ]
+    return []
 
 
 # The names WorldBuilder offers for a map symbol on top of the ones the map declares, by the
@@ -407,8 +491,9 @@ def argument_choices(
     argument_type: int, symbols: Mapping[str, Sequence[str]], game: Game | None
 ) -> list[str]:
     """The names an argument of `argument_type` can pick: the map's own symbols, the game's
-    definitions, or its string labels, as `ARG_SPECS` resolves the type. Empty for a free value,
-    or for game names when no game data is loaded.
+    definitions, its audio, movies and EVA events, its string labels, or a closed set stored by
+    name, as `ARG_SPECS` resolves the type. Empty for a free value, or for game names when no game
+    data is loaded.
 
     A map symbol is offered with the run-time names WorldBuilder offers beside it (`SPECIAL_NAMES`)
     - `<This Player>`, `<This Team>`, the skirmish perimeters - ahead of the map's own."""
@@ -425,10 +510,15 @@ def argument_choices(
             if name.casefold() not in {other.casefold() for other in declared}
         ]
         return special + declared
+    if spec.scope is Scope.ENUM and spec.field == "string_value":
+        return _named_choices(kind, game)
     if game is None:
         return []
     if spec.scope is Scope.GAME and spec.target is not None:
         return sorted(game.tables.get(spec.target, {}), key=str.casefold)
+    if kind in _ASSET_TABLES:
+        names = {name for table in _ASSET_TABLES[kind] for name in game.tables.get(table, {})}
+        return sorted(names, key=str.casefold)
     if spec.scope is Scope.STRINGS:
         return sorted(game.strings, key=str.casefold)
     return []

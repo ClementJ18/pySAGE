@@ -147,7 +147,11 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.FLAG_NAME: _map("flags"),
     T.UNIT_NAME: _map("units"),  # a placed object with a name property
     T.UNIT_REFERENCE: _map("units"),
-    T.BOUNDARY_NAME: _map("boundaries"),
+    # Despite its name, the index of one of the map's borders (WorldBuilder labels each by colour,
+    # `Boundary Blue`), not a name to resolve.
+    T.BOUNDARY_NAME: _INT,
+    # WorldBuilder lists and checks a threat finder against the map's named units.
+    T.THREAT_FINDER_NAME: _map("units"),
     # A camera and a camera animation are declared only by the map that uses them, so a miss here
     # is a real dangling reference rather than a name merged in at runtime.
     T.CAMERA_NAME: _map("cameras"),
@@ -158,7 +162,6 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.COMPARISON: _enum("Comparison"),
     T.RELATION: _enum("Relation"),
     T.AI_MOOD: _enum("AiMood"),
-    T.TEAM_STATE: _enum("TeamState"),
     T.RADAR_EVENT_TYPE: _enum("RadarEventType"),
     T.BUILDABILITY: _enum("Buildability"),
     T.SURFACE_TYPE: _enum("SurfaceType"),
@@ -167,15 +170,21 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.UNIT_OR_STRUCTURE_KIND: _enum("KindOf"),
     T.NEAR_OR_FAR: _enum("NearOrFar"),
     T.MATH_OPERATOR: _enum("MathOperator"),
-    T.MODEL_CONDITION: _enum("ModelCondition"),
-    T.REVERB_ROOM_TYPE: _enum("ReverbRoomType"),
     T.EMOTION: _enum("Emotion"),
-    T.OBJECTIVE_COMPLETE: _enum("ObjectiveComplete"),
     # Written by name, not by index: the flags `UNIT_AFFECT_OBJECT_PANEL_FLAGS` toggles
-    # (`Selectable`, `Indestructible`, ... - the `object*` properties a placed object carries) and
-    # the availability `PLAYER_SCIENCE_AVAILABILITY` sets (`Available`, ...).
+    # (`Selectable`, `Indestructible`, ... - the `object*` properties a placed object carries), the
+    # availability `PLAYER_SCIENCE_AVAILABILITY` sets (`Available`, ...), a model condition
+    # (`USER_1`), a reverb room (`Cave`), an `InGameNotificationBox` notification type
+    # (`NewObjective`), a skirmish approach path (`Flank`) and a threat type (`Enemies`).
     T.OBJECT_PANEL_FLAG: _named_enum("ObjectPanelFlag"),
     T.SCIENCE_AVAILABILITY_NAME: _named_enum("ScienceAvailability"),
+    T.MODEL_CONDITION: _named_enum("ModelCondition"),
+    T.REVERB_ROOM_TYPE: _named_enum("ReverbRoomType"),
+    T.OBJECTIVE_COMPLETE: _named_enum("NotificationType"),
+    T.SKIRMISH_APPROACH_PATH: _named_enum("SkirmishApproachPath"),
+    T.UNKNOWN_66: _named_enum("ThreatType"),
+    # A team state is whatever name the map's scripts give it; the editor takes free text.
+    T.TEAM_STATE: _TEXT,
     # deferred: audio/font asset names live in archives the loose-file crawl misses (the same
     # reason sage_lint's asset rule skips audio), so resolving them would only churn false misses.
     T.SOUND_NAME: _TEXT,
@@ -186,8 +195,8 @@ ARG_SPECS: dict[ScriptArgumentType, ArgSpec] = {
     T.FONT_NAME: _TEXT,
     T.EMOTICON_NAME: _TEXT,
     # deferred: these never occur in the 471-map corpus the rest of this table was surveyed
-    # against (BRIDGE_NAME/SKIRMISH_APPROACH_PATH/THREAT_FINDER_NAME/STANCE/EVA and the seven
-    # UNKNOWN_* types), so there is no evidence to scope them by. Left LITERAL until one shows up.
+    # against (BRIDGE_NAME/STANCE/EVA and the remaining UNKNOWN_* types), so there is no evidence
+    # to scope them by. Left LITERAL until one shows up.
     # Every other type in the enum is mapped above.
 }
 

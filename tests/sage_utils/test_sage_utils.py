@@ -56,6 +56,7 @@ from sage_utils.views import (
     weapon_attack_interval,
     weapon_damage_per_shot,
     weapon_dps,
+    weapon_nuggets,
     weapon_top_nugget,
 )
 
@@ -1171,6 +1172,15 @@ def test_filter_signature_is_none_for_an_unscoped_multiplier():
     assert filter_signature(scaled.ObjectFilter) is None
 
 
+def test_weapon_nuggets_read_targets_and_scalar_modifiers():
+    weapon = _weapon_filter_game().weapons["TrollPunch"]
+    damage = [n for n in weapon_nuggets(weapon) if n["type"] == "DamageNugget"]
+    assert [(n["target"], n["modifiers"]) for n in damage] == [
+        ("General", ["+150% vs Single"]),
+        ("Structure", []),
+    ]
+
+
 def test_effective_health_against_specific_type():
     game = _combat_game()
     state = UnitState(game.objects["TestWarrior"])
@@ -1378,3 +1388,22 @@ class TestFactionGraphSeeding:
         game = _vanilla_game()
         points = start_points(game, "VanillaSide", start_flags=("MyCastleFlagNW",))
         assert [p.flag for p in points] == ["MyCastleFlagNW"]
+
+
+def test_user_config_dir_lives_under_pysage(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    from sage_utils.config import user_config_dir
+
+    assert user_config_dir("sage_ui") == tmp_path / "pySAGE" / "sage_ui"
+
+
+def test_user_config_dir_moves_legacy_folder(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    (tmp_path / "sage_ui").mkdir()
+    (tmp_path / "sage_ui" / "sources.json").write_text("[]", encoding="utf-8")
+    from sage_utils.config import user_config_dir
+
+    path = user_config_dir("sage_ui")
+
+    assert (path / "sources.json").read_text(encoding="utf-8") == "[]"
+    assert not (tmp_path / "sage_ui").exists()

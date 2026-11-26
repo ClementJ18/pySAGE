@@ -34,6 +34,7 @@ __all__ = [
     "JNC",
     "JNE",
     "JNZ",
+    "JS",
     "JZ",
     "Asm",
 ]
@@ -45,6 +46,7 @@ JE = JZ = 0x4
 JNE = JNZ = 0x5
 JBE = 0x6
 JA = 0x7
+JS = 0x8
 JP = JPE = 0xA
 JL = 0xC
 JGE = 0xD

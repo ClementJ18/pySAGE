@@ -48,6 +48,7 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QScrollArea,
     QStackedWidget,
     QToolBar,
     QToolButton,
@@ -248,6 +249,7 @@ from sage_worldbuilder.ui.tools import (
 from sage_worldbuilder.ui.validation import MapChecks, ValidationPanel
 from sage_worldbuilder.ui.water_options import WaterOptionsPanel
 from sage_worldbuilder.ui.water_tools import WaterTool
+from sage_worldbuilder.ui.window_sizes import WindowSizes, panel_key
 from sage_worldbuilder.viewport import PARTIAL_MAP_SIZES
 from sage_worldbuilder.water import DeleteWater, WaterKind, default_height, water_kind
 
@@ -2956,10 +2958,41 @@ class MainWindow(QMainWindow):
         dock = QDockWidget(title, self)
         dock.setObjectName(name)
         widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        dock.setWidget(widget)
+        # In a scroll area, so a tall panel (Terrain Material is over 1100 px) scrolls instead of
+        # setting the dock's minimum height: docked beside a bottom panel, that minimum made the
+        # window's contents taller than a maximised window and pushed the bottom docks and the
+        # status bar off the screen.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(widget)
+        dock.setWidget(scroll)
         self.addDockWidget(area, dock)
-        dock.topLevelChanged.connect(partial(_fit_when_floated, dock))
+        dock.topLevelChanged.connect(partial(self._dock_floated, dock))
+        dock.installEventFilter(self)
         return dock
+
+    @property
+    def window_sizes(self) -> WindowSizes:
+        """The sizes the dialogs and floating panels were last left at (`window_sizes`)."""
+        return self.settings.window_sizes
+
+    def _dock_floated(self, dock: QDockWidget, floating: bool) -> None:
+        if floating:
+            # Read now: the panel is resized while Qt makes it a window, before the size it was
+            # last left at would be applied.
+            stored = self.settings.window_sizes.get(panel_key(dock.objectName()))
+            size = QSize(*stored) if stored is not None else None
+            # Size the panel and bring it up once Qt has finished making it a window of its own.
+            QTimer.singleShot(0, partial(_settle_floating_dock, dock, size))
+
+    def _keep_panel_size(self, dock: QDockWidget) -> None:
+        # A panel grouped with others, or docked again, does not have a size of its own.
+        if floating_window(dock) is dock:
+            self.settings.window_sizes[panel_key(dock.objectName())] = (
+                dock.width(),
+                dock.height(),
+            )
 
     @property
     def game(self) -> Game | None:
@@ -4116,6 +4149,14 @@ class MainWindow(QMainWindow):
             and is_group_window(watched)
         ):
             return True
+        if (
+            event is not None
+            and event.type() == QEvent.Type.Resize
+            and isinstance(watched, QDockWidget)
+            and watched.isFloating()
+        ):
+            # Later, so a panel being floated or docked has settled on the size it keeps.
+            QTimer.singleShot(0, partial(self._keep_panel_size, watched))
         return super().eventFilter(watched, event)
 
     def raise_floating_docks(self) -> None:
@@ -4574,14 +4615,8 @@ def _scripts_geometry(editor: QRect) -> QRect:
     return placed
 
 
-def _fit_when_floated(dock: QDockWidget, floating: bool) -> None:
-    # Size the panel and bring it up once Qt has finished making it a window of its own.
-    if floating:
-        QTimer.singleShot(0, partial(_settle_floating_dock, dock))
-
-
-def _settle_floating_dock(dock: QDockWidget) -> None:
-    fit_floating_dock(dock)
+def _settle_floating_dock(dock: QDockWidget, size: QSize | None = None) -> None:
+    fit_floating_dock(dock, size)
     window = floating_window(dock)
     if window is not None:
         window.raise_()
@@ -4604,22 +4639,24 @@ def floating_window(dock: QDockWidget) -> QWidget | None:
     return None if isinstance(window, QMainWindow) else window
 
 
-def fit_floating_dock(dock: QDockWidget) -> None:
-    """Size a floating panel to what its contents ask for: at least a readable minimum, at most
-    most of the screen, and moved back onto the screen if that made it hang off an edge. A panel
-    grouped with others is sized through the window they share."""
+def fit_floating_dock(dock: QDockWidget, size: QSize | None = None) -> None:
+    """Size a floating panel to `size`, the size it was last left at, or else to what its
+    contents ask for: at least a readable minimum, at most most of the screen (all of it for a
+    size the user chose), and moved back onto the screen if that made it hang off an edge. A
+    panel grouped with others is sized through the window they share, to its contents."""
     window = floating_window(dock)
     if window is None:
         return
-    size = window.sizeHint().expandedTo(window.minimumSizeHint()).expandedTo(_FLOATING_MINIMUM)
+    share = 1.0
+    if size is None or window is not dock:
+        size = window.sizeHint().expandedTo(window.minimumSizeHint())
+        share = _FLOATING_SCREEN_SHARE
+    size = size.expandedTo(_FLOATING_MINIMUM)
     screen = window.screen()
     if screen is not None:
         available = screen.availableGeometry()
         size = size.boundedTo(
-            QSize(
-                int(available.width() * _FLOATING_SCREEN_SHARE),
-                int(available.height() * _FLOATING_SCREEN_SHARE),
-            )
+            QSize(int(available.width() * share), int(available.height() * share))
         )
         window.resize(size)
         frame = window.frameGeometry()

@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 
 from sage_worldbuilder.exchange import DuplicateKind, DuplicatePolicy, ExportOptions, ScriptsMode
 from sage_worldbuilder.heightmap_io import Anchor
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 __all__ = ["ExportOptionsDialog", "ReanchorDialog", "ask_duplicate", "ask_team_player"]
 
@@ -74,6 +75,7 @@ class ExportOptionsDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Export Options")
         layout = QVBoxLayout(self)
         self.includes: dict[str, QCheckBox] = {}
@@ -147,6 +149,7 @@ class ReanchorDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Reanchor Import")
         layout = QVBoxLayout(self)
         message = QLabel(

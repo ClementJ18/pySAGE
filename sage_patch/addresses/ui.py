@@ -164,6 +164,10 @@ __all__ = [
     "CONTROL_BAR_SPECIAL_POWER_PAUSE_ANCHORS",
     "CONTROL_BAR_SPECIAL_POWER_PERCENT_CALL",
     "CONTROL_BAR_SPECIAL_POWER_PERCENT_CALL_BYTES",
+    "APT_GEOMETRY_DIR",
+    "APT_GEOMETRY_DIR_BYTES",
+    "APT_GEOMETRY_DIR_PUSH",
+    "APT_GEOMETRY_DIR_PUSH_BYTES",
     "APT_INIT_GADGETS_EPILOGUE",
     "APT_INIT_GADGETS_LADDER",
     "APT_INIT_GADGETS_LADDER_BYTES",
@@ -178,6 +182,37 @@ __all__ = [
     "APT_OPTIONS_SAVE_PREFS_EBP",
     "APT_OPTIONS_SAVE_RESUME",
     "APT_PLAYER_MODE",
+    "BORDERLESS_GLOBAL_DATA_ANCHOR",
+    "BORDERLESS_GLOBAL_DATA_ANCHOR_BYTES",
+    "BORDERLESS_LADDER_HOOK",
+    "BORDERLESS_LADDER_HOOK_BYTES",
+    "BORDERLESS_LADDER_DETAIL_ARM",
+    "BORDERLESS_LADDER_NEXT_ARM",
+    "BORDERLESS_LADDER_NEXT_ARM_BYTES",
+    "BORDERLESS_RESOLUTION_STORE",
+    "BORDERLESS_RESOLUTION_STORE_BYTES",
+    "BORDERLESS_RESOLUTION_STORE_RESUME",
+    "BORDERLESS_RESOLUTION_STORE_PREFS_EBP",
+    "BORDERLESS_RESOLUTION_STORE_X_EBP",
+    "BORDERLESS_RESOLUTION_STORE_Y_EBP",
+    "BORDERLESS_SAVE_HOOK",
+    "BORDERLESS_SAVE_HOOK_BYTES",
+    "BORDERLESS_SAVE_RESUME",
+    "APPLICATION_HWND",
+    "APPLICATION_WINDOWED",
+    "GET_SYSTEM_METRICS_IAT",
+    "SET_WINDOW_POS_IAT",
+    "GLOBAL_DATA_WINDOWED",
+    "DISPLAY_MODE_ASPECT",
+    "DISPLAY_MODE_COUNT",
+    "DISPLAY_MODE_COUNT_BYTES",
+    "DISPLAY_MODE_COUNT_ASPECT_TEST",
+    "DISPLAY_MODE_COUNT_ASPECT_FSUB",
+    "DISPLAY_MODE_DESCRIPTION",
+    "DISPLAY_MODE_DESCRIPTION_BYTES",
+    "DISPLAY_MODE_DESCRIPTION_ASPECT_TEST",
+    "DISPLAY_MODE_DESCRIPTION_ASPECT_FSUB",
+    "DISPLAY_MODE_ASPECT_FSUB_BYTES",
     "AUDIO_MANAGER",
     "AUDIO_STOP_SLOT",
     "BATTLE_SCHOOL_BLINK_REGISTRATION",
@@ -362,11 +397,24 @@ __all__ = [
     "MAIN_MENU_CAMPAIGN_REGISTRATION",
     "MAIN_MENU_CAMPAIGN_REGISTRATION_BYTES",
     "MAIN_MENU_CAMPAIGN_SELECTION_ID",
+    "MAIN_MENU_LEVEL_SELECT_HANDLER_IMM",
+    "MAIN_MENU_LEVEL_SELECT_NAME_IMM",
+    "MAIN_MENU_LEVEL_SELECT_REGISTRATION",
+    "MAIN_MENU_LEVEL_SELECT_REGISTRATION_BYTES",
+    "MINIMIZE_GAME_WINDOW",
+    "MINIMIZE_GAME_WINDOW_BYTES",
+    "SHELL_EXECUTE_W_IAT",
     "MAIN_MENU_PHASE_LEAVING",
     "MAIN_MENU_SCREEN_DIFFICULTY",
     "MAIN_MENU_SCREEN_PHASE",
     "MAIN_MENU_SCREEN_SELECTION",
     "MAP_LIST_ANCHORS",
+    "MESSAGE_LOG_APPEND",
+    "MESSAGE_LOG_CLEAR",
+    "MESSAGE_LOG_ENTRY_COLOR",
+    "MESSAGE_LOG_ENTRY_SIZE",
+    "MESSAGE_LOG_ENTRY_TEXT",
+    "MESSAGE_LOG_IN_GAME",
     "MAP_LIST_COMPARE_KEY",
     "MAP_LIST_COMPARE_KEY_BYTES",
     "MAP_LIST_COMPARE_KEY_RESUME",
@@ -442,6 +490,23 @@ __all__ = [
     "MP_SETUP_SLOT_COMBO_WOTR_OPEN_JE",
     "MP_SETUP_START_GATE_LOOP_INIT",
     "MP_SETUP_START_GATE_LOOP_INIT_BYTES",
+    "MP_SETUP_COMMAND_BLOCK",
+    "MP_SETUP_CURRENT",
+    "WINDOW_MANAGER_PROCESS_MOUSE",
+    "WINDOW_MANAGER_PROCESS_MOUSE_BYTES",
+    "WINDOW_MANAGER_PROCESS_MOUSE_RESUME",
+    "WINDOW_MANAGER_PROCESS_KEY",
+    "WINDOW_MANAGER_PROCESS_KEY_BYTES",
+    "WINDOW_MANAGER_PROCESS_KEY_RESUME",
+    "KEY_ESC",
+    "KEY_STATE_UP",
+    "MP_SETUP_COMMAND_BLOCK_BYTES",
+    "MP_SETUP_COMMAND_BLOCK_RESUME",
+    "MP_SETUP_COMMAND_FUNCTOR_CTOR",
+    "MP_SETUP_COMMAND_MAP",
+    "MP_SETUP_COMMAND_MAP_INSERT",
+    "MP_SETUP_EXTERN_MAP",
+    "MP_SETUP_EXTERN_MAP_INSERT",
     "MP_SETUP_STRATEGY",
     "MP_SETUP_STRATEGY_REQUEST_TEMPLATE_SLOT",
     "MP_SETUP_SYNC_FACTION",
@@ -453,6 +518,7 @@ __all__ = [
     "MP_SETUP_VALIDATE_LOOP_INIT_BYTES",
     "MP_SETUP_WOTR",
     "MP_SETUP_WOTR_IS_HISTORICAL",
+    "MP_SETUP_WOTR_SCENARIO_INDEX",
     "MULTIPLAYER_COLOR_VALUE",
     "MULTIPLAYER_SETTINGS_GET_COLOR",
     "OBJECT_TOOLTIP_APPEND_LINE",
@@ -554,10 +620,30 @@ __all__ = [
     "UNICODE_STRING_FORMAT",
     "UNICODE_STRING_FROM_WIDE",
     "USER_PREFERENCES_WRITE",
+    "VIEW_CAMERA_LIMITS",
     "VIEW_GET_LOCATION_VTABLE_SLOT",
+    "VIEW_HEIGHT_ABOVE_GROUND",
     "VIEW_LOCATION_SIZE",
     "VIEW_POSITION_OFFSET",
+    "VIEW_SET_HEIGHT_ABOVE_GROUND",
+    "VIEW_SET_HEIGHT_ABOVE_GROUND_VTABLE_SLOT",
+    "VIEW_SET_HEIGHT_CLAMP_ANCHOR",
+    "VIEW_SET_HEIGHT_CLAMP_ANCHOR_BYTES",
+    "VIEW_SET_HEIGHT_CLAMP_END",
+    "VIEW_SET_HEIGHT_MAX_CALL",
+    "VIEW_SET_HEIGHT_MAX_CALL_BYTES",
+    "VIEW_SET_HEIGHT_MAX_CLAMP",
+    "VIEW_SET_HEIGHT_MAX_CLAMP_BYTES",
     "VIEW_SET_LOCATION_VTABLE_SLOT",
+    "VIEW_ZOOM_LIMITED",
+    "CAMERA_LIMITS_MAX_HEIGHT_SLOT",
+    "W3DVIEW_VTABLE",
+    "W3DVIEW_3D_CAMERA_OFFSET",
+    "CAMERA_TRANSFORM_OFFSET",
+    "CAMERA_PROJECTION_OFFSET",
+    "CAMERA_VIEWPORT_OFFSET",
+    "CAMERA_VIEW_PLANE_OFFSET",
+    "CAMERA_CLIP_PLANES_OFFSET",
     "WINDOW_ENABLE",
     "WINDOW_HIDE",
     "WINDOW_STATUS",
@@ -674,6 +760,150 @@ __all__ = [
     "PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE",
     "PLAYER_COUNT_OBJECTS_BY_THING_TEMPLATE_ENTRY",
     "THING_TEMPLATE_MAX_SIMULTANEOUS_OF_TYPE",
+    "THE_CREATE_A_HERO_MANAGER",
+    "CREATE_A_HERO_MANAGER_CLASSES",
+    "CREATE_A_HERO_CLASS_SIZE",
+    "CREATE_A_HERO_CLASS_SUBCLASSES",
+    "CREATE_A_HERO_SUBCLASS_SIZE",
+    "CREATE_A_HERO_HERO_CLASS",
+    "CREATE_A_HERO_HERO_SUBCLASS",
+    "CREATE_A_HERO_HERO_CHECKSUM_OK",
+    "CREATE_A_HERO_CLASS_LOOKUP",
+    "CREATE_A_HERO_CLASS_LOOKUP_BYTES",
+    "CREATE_A_HERO_SUBCLASS_LOOKUP",
+    "CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES",
+    "CREATE_A_HERO_SUBCLASS_FLAGS_ADD",
+    "CREATE_A_HERO_SUBCLASS_FLAGS_ADD_BYTES",
+    "CREATE_A_HERO_LOBBY_INDEX_READ",
+    "CREATE_A_HERO_LOBBY_INDEX_READ_BYTES",
+    "CREATE_A_HERO_CHECKSUM_STORE",
+    "CREATE_A_HERO_CHECKSUM_STORE_BYTES",
+    "CREATE_A_HERO_LOAD",
+    "CREATE_A_HERO_LOAD_ENTRY",
+    "CREATE_A_HERO_LOAD_THIS",
+    "CREATE_A_HERO_LOAD_THIS_BYTES",
+    "CREATE_A_HERO_LOAD_VERDICT",
+    "CREATE_A_HERO_LOAD_VERDICT_BYTES",
+    "CREATE_A_HERO_LOAD_RESUME",
+    "CREATE_A_HERO_LOAD_RESUME_BYTES",
+    "CREATE_A_HERO_REFRESH_POWER_COST",
+    "CREATE_A_HERO_REFRESH_POWER_COST_ENTRY",
+    "CREATE_A_HERO_LIST_LOAD_CALL",
+    "CREATE_A_HERO_LIST_LOAD_CALL_BYTES",
+    "CREATE_A_HERO_DAT_LOAD_CALL",
+    "CREATE_A_HERO_DAT_LOAD_CALL_BYTES",
+    "STATS_SCREEN_SIDE_TABLE_REF",
+    "STATS_SCREEN_REGISTER_LOOP_HEAD",
+    "STATS_SCREEN_REGISTER_LOOP_TAIL",
+    "STATS_SCREEN_REGISTER_LOOP_TAIL_BYTES",
+    "STATS_SCREEN_REGISTER_LOOP_EXIT",
+    "STATS_SCREEN_REFRESH_LOOP_HEAD",
+    "STATS_SCREEN_REFRESH_LOOP_TAIL",
+    "STATS_SCREEN_REFRESH_LOOP_TAIL_BYTES",
+    "STATS_SCREEN_REFRESH_LOOP_EXIT",
+    "STATS_SCREEN_REFRESH_TEMPLATE_LOOKUP",
+    "STATS_SCREEN_REFRESH_TEMPLATE_LOOKUP_BYTES",
+    "STATS_SCREEN_COLUMN_COUNT_PUSH",
+    "STATS_SCREEN_COLUMN_COUNT_PUSH_BYTES",
+    "STATS_SCREEN_OVERALL_COLUMN",
+    "STATS_SCREEN_OVERALL_COLUMN_BYTES",
+    "STATS_SOURCE_RTS_SIDE_TABLE_REF",
+    "STATS_SOURCE_RTS_LOOP_HEAD",
+    "STATS_SOURCE_RTS_LOOP_TAIL",
+    "STATS_SOURCE_RTS_LOOP_TAIL_BYTES",
+    "STATS_SOURCE_RTS_LOOP_EXIT",
+    "STATS_SOURCE_STRATEGIC_SIDE_TABLE_REF",
+    "STATS_SOURCE_STRATEGIC_LOOP_HEAD",
+    "STATS_SOURCE_STRATEGIC_LOOP_TAIL",
+    "STATS_SOURCE_STRATEGIC_LOOP_TAIL_BYTES",
+    "STATS_SOURCE_STRATEGIC_LOOP_EXIT",
+    "STATS_OVERALL_COLUMN_INDEX",
+    "STATS_ROW_SUM",
+    "STATS_ROW_SUM_BYTES",
+    "STATS_ROW_MAX",
+    "STATS_ROW_MAX_BYTES",
+    "STATS_ROW_MIN_NONZERO",
+    "STATS_ROW_MIN_NONZERO_BYTES",
+    "FLOAT_MINUS_MAX",
+    "FLOAT_MAX",
+    "WIDE_DASH",
+    "COMBO_BOX_SET_ITEM_DISABLED",
+    "COMBO_BOX_DISABLED_COLOR",
+    "MP_SETUP_CLAN_GAME_READS",
+    "THE_GAME_CLIENT",
+    "GAME_CLIENT_COMMAND_TRANSLATOR",
+    "COMMAND_TRANSLATOR_VTABLE",
+    "COMMAND_TRANSLATOR_EVALUATE_CONTEXT_COMMAND",
+    "COMMAND_TRANSLATOR_EVALUATE_CONTEXT_COMMAND_ENTRY",
+    "COMMAND_TRANSLATOR_ISSUE_SPECIAL_POWER",
+    "COMMAND_EVALUATE_DO_COMMAND",
+    "COMMAND_EVALUATE_HINT",
+    "COMMAND_EVALUATE_ONLY",
+    "MSG_INVALID_GUI_COMMAND_HINT",
+    "IN_GAME_UI_SET_GUI_COMMAND_SLOT",
+    "IN_GAME_UI_GET_GUI_COMMAND_SLOT",
+    "DRAWABLE_GET_POSITION",
+    "DRAWABLE_GET_POSITION_ENTRY",
+    "HERO_BAR_CLICK",
+    "HERO_BAR_CLICK_SLOT_SCALE",
+    "HERO_BAR_CLICK_SLOT_SCALE_BYTES",
+    "HERO_BAR_CLICK_DISPATCH",
+    "HERO_BAR_CLICK_DONE",
+    "HERO_BAR_CLICK_DONE_BYTES",
+    "HERO_BAR_IS_ELIGIBLE",
+    "HERO_BAR_IS_ELIGIBLE_ENTRY",
+    "HERO_BAR_MODEL",
+    "HERO_BAR_MODEL_HERO_LIST",
+    "HERO_BAR_MODEL_PORTER_LIST",
+    "HERO_BAR_SLOT_ARRAY",
+    "HERO_BAR_SLOT_STRIDE",
+    "HERO_BAR_SLOT_KIND",
+    "HERO_BAR_SLOT_KIND_PORTER",
+    "HERO_BAR_NODE_OBJECT_ID",
+    "HERO_BAR_TOOLTIP_VTABLE",
+    "HERO_BAR_TOOLTIP_VTABLE_SLOTS",
+    "HERO_BAR_TOOLTIP_BAR",
+    "HERO_BAR_TOOLTIP_SLOT",
+    "APT_HAS_HOVERED_BUTTON",
+    "APT_HAS_HOVERED_BUTTON_ENTRY",
+    "APT_HOVERED_BUTTON_PATH",
+    "APT_HOVERED_BUTTON_PATH_ENTRY",
+    "APT_PATH_LEVEL",
+    "APT_PATH_LEVEL_ENTRY",
+    "APT_PATH_STRIP_LEVEL",
+    "APT_PATH_STRIP_LEVEL_ENTRY",
+    "APT_PLAYER_LEVEL_STRIDE",
+    "APT_PLAYER_LEVEL_COUNT",
+    "APT_PLAYER_LEVEL_ID",
+    "APT_PLAYER_LEVEL_BUTTON_TOOLTIP_MAP",
+    "ASCII_STRING_MAP_FIND",
+    "ASCII_STRING_MAP_FIND_ENTRY",
+    "MOUSE_GET_CURSOR_INDEX",
+    "MOUSE_GET_CURSOR_INDEX_ENTRY",
+    "MOUSE_CURSOR_ARROW",
+    "MOUSE_CURSOR_TARGET",
+    "COMMAND_BUTTON_CURSOR_NAME",
+    "COMMAND_BUTTON_INVALID_CURSOR_NAME",
+    "IN_GAME_UI_GUI_COMMAND",
+    "IN_GAME_UI_MOUSE_MODE",
+    "IN_GAME_UI_MOUSE_MODE_GUI_COMMAND",
+    "UI_CURSOR_TRANSLATOR_VTABLE",
+    "UI_CURSOR_TRANSLATOR_UI_CURSOR",
+    "UI_CURSOR_TRANSLATOR_PUSH_CURSOR",
+    "UI_CURSOR_TRANSLATOR_PUSH_CURSOR_BYTES",
+    "UI_CURSOR_TRANSLATOR_PUSH_CURSOR_RESUME",
+    "UI_CURSOR_TRANSLATOR_PUSH_CURSOR_RESUME_BYTES",
+    "TIMELINE_SCREEN_MODE",
+    "TIMELINE_SCREEN_MODE_SKIRMISH",
+    "TIMELINE_SHOW_SAVE_REPLAY_TAIL",
+    "TIMELINE_SHOW_SAVE_REPLAY_TAIL_BYTES",
+    "TIMELINE_SHOW_SAVE_REPLAY_FINGERPRINT",
+    "TIMELINE_SHOW_SAVE_REPLAY_YES",
+    "TIMELINE_SHOW_SAVE_REPLAY_FORMAT",
+    "TIMELINE_EXTERN_GETTER",
+    "REPLAY_SAVE_SOURCE_NAME_CALL",
+    "REPLAY_SAVE_SOURCE_NAME_CALL_BYTES",
+    "REPLAY_SAVE_SOURCE_NAME_CALL_FINGERPRINT",
 ]
 
 # `CostModifierUpgrade`'s Palantir getter. The stock upgrade-mode arm constructs an empty
@@ -708,6 +938,20 @@ TEXT_ENTRY_CLIPBOARD_ANCHORS = {
 }
 
 THE_IN_GAME_UI = 0x00DE4830
+#: The message log the in-game chat window replays when it opens: one `std::vector<{UnicodeString
+#: text; Color color}>` (`first`, `last`, `end`) per kind at `0x00DE7D40 + kind * 0xC`, kind 0 the
+#: lobby's and kind 1 the match's. `MESSAGE_LOG_APPEND` (`0x0078419D`, cdecl `(kind, const
+#: UnicodeString *, Color)`) pushes a line and tells the open chat window; `processChat` calls it
+#: with every chat line after it is shown, already formatted `[sender] text` (`0x008D5661`), in
+#: the sender's colour (`Player+0x2A0`), and a few system lines (`0x005EECEB`, `0x009BE171`) go
+#: there too. `MESSAGE_LOG_CLEAR` (`0x00784148`, cdecl `(kind)`) empties one on the shell's screen
+#: changes, so the match's log starts empty. Append-only in between - nothing trims it.
+MESSAGE_LOG_IN_GAME = 0x00DE7D4C
+MESSAGE_LOG_APPEND = 0x0078419D
+MESSAGE_LOG_CLEAR = 0x00784148
+MESSAGE_LOG_ENTRY_SIZE = 8
+MESSAGE_LOG_ENTRY_TEXT = 0
+MESSAGE_LOG_ENTRY_COLOR = 4
 #: The button-description builder's special-power case (`cmp ecx, 0x18`), which appends the
 #: `UnitCost` line: `_CASE` is the guard, `_BODY` just past it, `_DONE` where the case exits.
 DESCRIPTION_SPECIAL_POWER_CASE = 0x00808675
@@ -954,6 +1198,46 @@ CONTROL_BAR_MAX_VISIBLE = 33
 # 423 xrefs across the client, and none at all from logic - the camera is presentation state
 # that the simulation never reads, which is what makes writing it desync-safe.
 THE_TACTICAL_VIEW = 0x00DE447C
+#: `W3DView`'s primary vtable, installed by its constructor at `0x0048B13B`.
+W3DVIEW_VTABLE = 0x00BDD490
+#: `View::m_heightAboveGround`, the camera height the player asks for: `zoomIn` / `zoomOut`
+#: (vtable `+0x134` / `+0x138`, `0x0065E803` / `0x0065E82A`, reached from the mouse wheel at
+#: `0x0083B21C` and the zoom keys at `0x0083B9DD`) scale it and hand it to the setter below. The
+#: per-frame update eases the zoom toward it, so it is the value that decides how far out the
+#: camera sits.
+VIEW_HEIGHT_ABOVE_GROUND = 0x40
+#: `View::m_zoomLimited` (setter vtable `+0x1C`, getter `+0x20`): the height and zoom setters
+#: clamp only while it is set. `InGameUI`'s free-camera toggle clears it; a new game sets it.
+VIEW_ZOOM_LIMITED = 0x44
+#: The view's camera-height limits, an object with getters `+0x00` (minimum) and `+0x04`
+#: (maximum), filled from the map's camera keys or else `MinCameraHeight` / `MaxCameraHeight`.
+VIEW_CAMERA_LIMITS = 0x24C8
+CAMERA_LIMITS_MAX_HEIGHT_SLOT = 0x04
+#: `W3DView::setHeightAboveGround(Real)`, vtable `+0x130`, `ret 4`. While `VIEW_ZOOM_LIMITED` is
+#: set it clamps the new height to the limits' minimum, then to their maximum. `..._MAX_CALL` is
+#: the maximum's fetch, `mov eax,[edi] / mov ecx,edi / call [eax+4]` with `edi` the limits, whose
+#: result in `st0` the next instructions compare against `VIEW_HEIGHT_ABOVE_GROUND`. The
+#: `..._CLAMP_ANCHOR` is the block from `lea edi,[esi+0x24C8]` to that fetch: the minimum clamp
+#: first, which pins `edi` and `esi`.
+VIEW_SET_HEIGHT_ABOVE_GROUND = 0x0048CBFE
+VIEW_SET_HEIGHT_ABOVE_GROUND_VTABLE_SLOT = 0x130
+VIEW_SET_HEIGHT_MAX_CALL = 0x0048CCBC
+VIEW_SET_HEIGHT_MAX_CALL_BYTES = bytes.fromhex("8b078bcfff5004")
+VIEW_SET_HEIGHT_CLAMP_ANCHOR = 0x0048CC9C
+VIEW_SET_HEIGHT_CLAMP_ANCHOR_BYTES = bytes.fromhex(
+    "8dbec8240000"  # lea edi, [esi+0x24C8]
+    "8b078bcfff10"  # mov eax,[edi] / mov ecx,edi / call [eax]   ; the minimum
+    "d94640d9c9dff1ddd87609"  # fld [esi+0x40] / fxch / fcomip / fstp / jbe
+    "8b078bcfff10d95e40"  # ... call [eax] / fstp [esi+0x40]
+)
+#: What follows the maximum's fetch: compare it with the height, and only above it fetch it
+#: again and store it. Ends at `VIEW_SET_HEIGHT_CLAMP_END`, where the setter's bookkeeping starts.
+VIEW_SET_HEIGHT_MAX_CLAMP = 0x0048CCC3
+VIEW_SET_HEIGHT_MAX_CLAMP_BYTES = bytes.fromhex(
+    "d94640dff1ddd8760a"  # fld [esi+0x40] / fcomip / fstp / jbe end
+    "8b078bcfff5004d95e40"  # mov eax,[edi] / mov ecx,edi / call [eax+4] / fstp [esi+0x40]
+)
+VIEW_SET_HEIGHT_CLAMP_END = 0x0048CCD6
 # `View::getLocation` / `setLocation(ViewLocation *)`, the camera-bookmark pair: thiscall, `ret 4`.
 # The bookmark handler's 32-byte stride gives the struct's size.
 VIEW_GET_LOCATION_VTABLE_SLOT = 0x170
@@ -965,6 +1249,25 @@ VIEW_LOCATION_SIZE = 0x20
 # `View::m_pos`, the camera's look-at point. Writing these twelve bytes moves the camera by itself;
 # `setLocation` always rewrites the zoom too (see `docs/camera-control.md`).
 VIEW_POSITION_OFFSET = 0x0C
+# `W3DView::m_3DCamera`, the WW3D `CameraClass` the world is drawn through. `W3DView::init`
+# (`0x0048BB6A`, vtable slot `+0x10`) creates two 0x3FC-byte cameras: this one, then the 2D camera
+# at `+0x108`, which it places at (0, 0, 1) behind a fixed view plane for screen-space drawing.
+W3DVIEW_3D_CAMERA_OFFSET = 0x104
+# `CameraClass` fields, from its constructor (`0x00534570`) and `Update_Frustum` (`0x00533B70`),
+# which hands exactly these to `FrustumClass::Init` (`0x00B32250`). The transform is
+# `RenderObjClass::Transform`: three rows of four floats, camera space to world. A WW3D camera
+# looks down its own -Z with +X right and +Y up.
+CAMERA_TRANSFORM_OFFSET = 0x18
+# 0 perspective, anything else orthographic: `Update_Frustum` passes `!= 0` as the ortho flag.
+CAMERA_PROJECTION_OFFSET = 0xC4
+# The normalised screen rectangle drawn into, min (x, y) then max (x, y); the constructor's 0..1.
+CAMERA_VIEWPORT_OFFSET = 0xC8
+# The view plane at distance one, min (x, y) then max (x, y): `Set_View_Plane(hfov, vfov)`
+# (`0x00533590`) writes `±tan(fov / 2)`, the vertical one divided by the aspect ratio at `+0xE8`
+# when no vertical fov is given.
+CAMERA_VIEW_PLANE_OFFSET = 0xD8
+# The near and far clip distances, both positive; the constructor's far is 1000.
+CAMERA_CLIP_PLANES_OFFSET = 0xEC
 # `GUICommandType::GUICOMMAND_REVIVE`, entry 46 of the name table at 0x00DA4D10.
 GUICOMMAND_REVIVE = 46
 # The two paging commands (55 and 56): they only change which slice of a `CommandSet` is shown,
@@ -1054,6 +1357,32 @@ MAIN_MENU_SCREEN_SELECTION = 0x28C
 MAIN_MENU_SCREEN_DIFFICULTY = 0x2A8
 MAIN_MENU_PHASE_LEAVING = 9
 MAIN_MENU_CAMPAIGN_SELECTION_ID = 0x0D
+#: `AptMainMenu::LevelSelect`'s registration block: `push <name>` / `lea ecx, [ebp+8]` /
+#: `mov esi, <handler>`. The handler is `0x009F3A3C`, a lone `ret 4` the linker shares with dozens
+#: of other empty functions, so the command does nothing in the retail build and no shipped movie
+#: sends it. `..._NAME_IMM` and `..._HANDLER_IMM` are the two immediates inside the block.
+MAIN_MENU_LEVEL_SELECT_REGISTRATION = 0x0091CF53
+MAIN_MENU_LEVEL_SELECT_REGISTRATION_BYTES = bytes.fromhex("68fcd0c7008d4d08be3c3a9f00")
+MAIN_MENU_LEVEL_SELECT_NAME_IMM = 0x0091CF54
+MAIN_MENU_LEVEL_SELECT_HANDLER_IMM = 0x0091CF5C
+#: `SHELL32!ShellExecuteW`'s import slot. stdcall, six arguments.
+SHELL_EXECUTE_W_IAT = 0x00BD07A4
+#: The online login screen's "get the game out of the way" after it opens a web page: enumerates
+#: the current thread's windows, takes the first and `ShowWindow(hwnd, SW_MINIMIZE)`. cdecl, no
+#: arguments, `ret`; clobbers `eax`, `ecx`, `edx`.
+MINIMIZE_GAME_WINDOW = 0x00977B79
+MINIMIZE_GAME_WINDOW_BYTES = bytes.fromhex(
+    "558bec518365fc008d45fc50686a7b9700ff152c02bd0050ff15f407bd00837dfc00740b6a06ff75fcff15e008bd00c9c3"
+)
+#: An APT movie's mesh loader (`0x004AB23E`) lists `<Movie>` + `APT_GEOMETRY_DIR` + `"*.ru"` and
+#: hands each name to `0x004AAE88`, which skips any name without a backslash before reading the
+#: id out of it. Archive names always have one; a loose file is listed under the directory exactly
+#: as asked, with this forward slash, so a mesh that exists only loose never loads.
+#: `APT_GEOMETRY_DIR_PUSH` is the loader's one reference to the string.
+APT_GEOMETRY_DIR = 0x00BDF47C
+APT_GEOMETRY_DIR_BYTES = b"_geometry/\x00"
+APT_GEOMETRY_DIR_PUSH = 0x004AB264
+APT_GEOMETRY_DIR_PUSH_BYTES = bytes.fromhex("687cf4bd00")
 # The Battle School command and the shell services its exit needs (`docs/battle-school.md`). The
 # exit command was dropped; `battle-school` supplies it through the surviving command's params.
 
@@ -1242,6 +1571,72 @@ GET_CHECKBOX_STATE = 0x00729579
 #: `std::map<AsciiString, AsciiString>::operator[](&key)` - inserts if absent and returns the
 #: value slot. `__thiscall`, `ret 4`, `this` being the map (`OptionPreferences+4`).
 PREFERENCES_MAP_INDEX = 0x00602B76
+# The display-mode list behind the Options screen's resolution combo. Static only.
+
+#: `W3DDisplay::getDisplayModeCount` (vtable `0x00BD9C84`, `TheDisplay` slot `+0x5C`) and
+#: `getDisplayModeDescription(index, &x, &y, &depth)` (`0x00BD9C88`, slot `+0x60`). Both walk the
+#: render device's resolution array and keep a mode only if its depth is at least 24, its width at
+#: least 800, and `|w/h - DISPLAY_MODE_ASPECT| < 0.01` - which is 4:3 and nothing else.
+DISPLAY_MODE_COUNT = 0x00445164
+DISPLAY_MODE_COUNT_BYTES = bytes.fromhex("53555633db53e8b1170d008bf081c6a0")
+DISPLAY_MODE_DESCRIPTION = 0x004451CE
+DISPLAY_MODE_DESCRIPTION_BYTES = bytes.fromhex("558bec5153565733ff57897dfce84017")
+#: The aspect test's `jbe` past the keep: `jbe +1` over `inc ebp` in the count, `jbe +0xB` over
+#: the index match in the getter. NOPing both keeps every mode the other two tests pass, and the
+#: two functions stay in agreement, which the combo needs - it maps its row back to a mode by
+#: index.
+DISPLAY_MODE_COUNT_ASPECT_TEST = 0x004451BB
+DISPLAY_MODE_DESCRIPTION_ASPECT_TEST = 0x00445229
+#: `fsub dword [DISPLAY_MODE_ASPECT]` in each, the instruction that names the test.
+DISPLAY_MODE_COUNT_ASPECT_FSUB = 0x004451A1
+DISPLAY_MODE_DESCRIPTION_ASPECT_FSUB = 0x0044520F
+DISPLAY_MODE_ASPECT_FSUB_BYTES = bytes.fromhex("d825bc88bd00")
+#: `1.3333f`; referenced by the two `fsub`s and nothing else.
+DISPLAY_MODE_ASPECT = 0x00BD88BC
+
+# Window and windowed-mode state.
+
+#: `WinMain`'s window handle and its windowed flag. `0x0040231B` creates the window from the flag
+#: (set by `-win` at `0x004029AB`) before any engine object exists, and the window procedure reads
+#: the flag on activation (`0x00401AA0`).
+APPLICATION_HWND = 0x00DC3C64
+APPLICATION_WINDOWED = 0x00DC3C68
+#: `user32` import slots. Both stdcall.
+GET_SYSTEM_METRICS_IAT = 0x00BD08F4
+SET_WINDOW_POS_IAT = 0x00BD08EC
+#: `GlobalData.Windowed` (`Bool`), from the `GameData` field-parse table at `0x00BFF580`;
+#: `XResolution`/`YResolution` follow at `+0x30`/`+0x34`.
+GLOBAL_DATA_WINDOWED = 0x2C
+#: `GlobalData`'s read of `Options.ini` at engine init (called at `0x006441DE`/`0x00644374`, after
+#: the GameData INI and before the display exists). Its `OptionPreferences` lives at `[ebp-0x28]`
+#: and `esi` is the `GlobalData` throughout.
+BORDERLESS_GLOBAL_DATA_ANCHOR = 0x00641DED
+BORDERLESS_GLOBAL_DATA_ANCHOR_BYTES = bytes.fromhex("b80150b800e8f9b03f0083ec1c568bf1")
+#: Inside it, `mov eax, [ebp-0x10]` / `mov [esi+0x30], eax`: the saved `Resolution` landing in
+#: `XResolution`. The `y` follows from `[ebp-0x14]` at the resume address, so a cave that rewrites
+#: both locals before replaying these six bytes changes the resolution the display is built with.
+BORDERLESS_RESOLUTION_STORE = 0x00641F00
+BORDERLESS_RESOLUTION_STORE_BYTES = bytes.fromhex("8b45f0894630")
+BORDERLESS_RESOLUTION_STORE_RESUME = 0x00641F06
+BORDERLESS_RESOLUTION_STORE_PREFS_EBP = -0x28
+BORDERLESS_RESOLUTION_STORE_X_EBP = -0x10
+BORDERLESS_RESOLUTION_STORE_Y_EBP = -0x14
+#: The ladder's first arm (`Options::Detail`): its no-match `jne 0x009208D5`, six bytes, clear of
+#: `APT_INIT_GADGETS_LADDER_HOOK` so `unit-plate-option` and this row compose. The flags survive
+#: an unconditional `jmp`, as at the ladder head.
+BORDERLESS_LADDER_HOOK = 0x009207A2
+BORDERLESS_LADDER_HOOK_BYTES = bytes.fromhex("0f852d010000")
+BORDERLESS_LADDER_DETAIL_ARM = 0x009207A8
+BORDERLESS_LADDER_NEXT_ARM = 0x009208D5
+BORDERLESS_LADDER_NEXT_ARM_BYTES = bytes.fromhex("6890d8c700ff7508")
+#: In `AptOptions::Save`, `mov eax, [edi+0x2B8]` (the port-number gadget) - six bytes, the last
+#: instruction every save passes before the port block, with the map live until the flush at
+#: `APT_OPTIONS_SAVE_FLUSH`. It is a branch target (`jl` at `0x0092037A`) and nothing branches
+#: inside it. Not `0x009204C7`: that store only runs when the port number changed (`je 0x009204CD`
+#: at `0x009203EB`), so a row saved there was never written.
+BORDERLESS_SAVE_HOOK = 0x00920395
+BORDERLESS_SAVE_HOOK_BYTES = bytes.fromhex("8b87b8020000")
+BORDERLESS_SAVE_RESUME = 0x0092039B
 #: `mov [ebp-0x24], ebx` with `ebx` zero - what establishes the start-game gate's slot counter,
 #: and `push <"GUI:DisabledFaction">`, the message that loop exists to raise. Together they say
 #: the local at `-0x24` really is the slot index of the pass that reads `DisabledFactions`.
@@ -1344,12 +1739,64 @@ MP_SETUP_FACTION_ENABLE_CALL_BYTES = bytes.fromhex("e8f528edff")
 MP_SETUP_GET_GAME_INFO = 0x0083FF11
 MP_SETUP_GAME_INFO = 0x5C
 MP_SETUP_FACTION_REQUEST_PENDING = 0x2C4
+#: One command block of `MpGameSetup`'s constructor, whole: `MpGameSetup::OnSortName` filed into
+#: the screen's command map (`screen+4`), the map the movie's `GameCode` reaches. The block builds
+#: an `AsciiString` of the name at `[ebp-0x10]`, a 16-byte functor of `{screen, handler, 0}` at
+#: `[ebp-0x38]`, copies it onto the stack for `MP_SETUP_COMMAND_FUNCTOR_CTOR`, inserts it with
+#: `MP_SETUP_COMMAND_MAP_INSERT`, and destroys the string; `ebx` is the screen throughout and
+#: `[ebp-4]` the unwind state. Handlers are `thiscall (const char *params)`, `ret 4`. The block
+#: starts with its five-byte `push <name>`, and `..._RESUME` is the instruction after it.
+#: The game-setup screen that is up: its constructor stores itself here (`0x008451DB`) and its
+#: destructor (vtable `0x00C54380`, `0x00845368`) clears it when it still holds itself.
+MP_SETUP_CURRENT = 0x00DE8D78
+#: `GameWindowManager::winProcessMouseEvent(msg, ICoord2D *pos, data)`, `thiscall`, `ret 0xc`, a
+#: virtual (vtables `0x00BDDC70` and `0x00C15978` name it). It finds the window under the mouse
+#: (`0x00715A84`) and hands it the message through the manager's slot `0xEC`, and returns 1 when a
+#: window used it and 0 when none did - and only then does the screen's APT see the click. The
+#: six bytes are its prologue, `push ebp / mov ebp, esp / sub esp, 0x28`.
+WINDOW_MANAGER_PROCESS_MOUSE = 0x006C23AD
+WINDOW_MANAGER_PROCESS_MOUSE_BYTES = bytes.fromhex("558bec83ec28")
+WINDOW_MANAGER_PROCESS_MOUSE_RESUME = 0x006C23B3
+#: `GameWindowManager::winProcessKey(UnsignedByte key, UnsignedByte state)`, `thiscall`, `ret 8`,
+#: the vtable slot after `winProcessMouseEvent` (`0x00BDDC74`, `0x00C1597C`). It sends `GWM_CHAR`
+#: (0x15) to the window with keyboard focus (`manager+0x20`) and up its parents (`0x00715972`)
+#: until one uses it, and returns 1 when one did; with no focus it returns 0 at once. The setup
+#: screens have no window that takes Escape - only the online screens' input callbacks do
+#: (`0x009AFDEC`, `0x009CA27C`, which call their movie's `EscapeKeyPressed`). The five bytes are
+#: `push ebp / mov ebp, esp / push ecx / push ecx`.
+WINDOW_MANAGER_PROCESS_KEY = 0x006C1AF1
+WINDOW_MANAGER_PROCESS_KEY_BYTES = bytes.fromhex("558bec5151")
+WINDOW_MANAGER_PROCESS_KEY_RESUME = 0x006C1AF6
+#: `KeyDefType` / `KeyStateType` as `winProcessKey` gets them: Escape is DirectInput's scan code
+#: 1, and the online screens act on Escape when bit 0 (`KEY_STATE_UP`, released) is set.
+KEY_ESC = 0x01
+KEY_STATE_UP = 0x01
+MP_SETUP_COMMAND_BLOCK = 0x00845C2B
+MP_SETUP_COMMAND_BLOCK_BYTES = bytes.fromhex(
+    "686844c5008d4df0be4301840033ffe8a118bfff8975e0897de4895dd88d75d88d7dc8a5a551a58d45c8"
+    "8965e88bcc50c745fc01000000a5e818d31b008d45f0508d4b04e8ee530e00834dfcff8d4df0e8d000bfff"
+)
+MP_SETUP_COMMAND_BLOCK_RESUME = 0x00845C30
+MP_SETUP_COMMAND_FUNCTOR_CTOR = 0x00A02F80
+MP_SETUP_COMMAND_MAP_INSERT = 0x0092B062
+MP_SETUP_COMMAND_MAP = 0x04
+#: The screen's map of values the movie reads with `_root.GetExtern("<name>")`
+#: (`MpGameSetup::HostMode`, `MpGameSetup::IsInitialized`), and its insert, `thiscall (AsciiString
+#: *name, int index, functor)`, `ret 0xc`, which also registers the name with the APT player. A
+#: handler is `thiscall (int index, char *out, bool flag)`, `ret 0xc`: with `flag` 0 it copies the
+#: value as a C string into `out` (the stock one, `0x00845AE2`, writes "1" or "0").
+MP_SETUP_EXTERN_MAP_INSERT = 0x0092B0C7
+MP_SETUP_EXTERN_MAP = 0x10
 MP_SETUP_STRATEGY = 0x58
 MP_SETUP_STRATEGY_REQUEST_TEMPLATE_SLOT = 0x28
 MP_SETUP_MODE = 0x7C
 MP_SETUP_MODE_WOTR = 1
 MP_SETUP_WOTR = 0x60
 MP_SETUP_WOTR_IS_HISTORICAL = 0x00975942
+#: `getScenarioIndex` on the screen's War of the Ring sub-object (`MP_SETUP_WOTR`): `__thiscall()`,
+#: the chosen campaign's index in `THE_LIVING_WORLD_CAMPAIGN_MANAGER`, or -1. The faction fill reads
+#: the scenario through it before it asks `Scenario::isFactionEnabled` (`0x00844E17`).
+MP_SETUP_WOTR_SCENARIO_INDEX = 0x00975828
 MP_SETUP_HISTORICAL_FLAGS = (0x2BF, 0x2C2, 0x2B9, 0x2BE)
 MP_SETUP_DIRTY = 0x2B9
 MP_SETUP_REDRAW_SLOT = 0x00843B4C
@@ -1367,6 +1814,12 @@ COMBO_BOX_GET_ITEM_DATA = 0x007243CD
 COMBO_BOX_SET_SELECTED = 0x0072437D
 COMBO_BOX_GET_SELECTED = 0x00724337
 COMBO_BOX_SET_DROPDOWN_LINES = 0x0072414F
+#: `SET_ITEM_DISABLED(box, row, Bool)`: a row that cannot be picked, as the stock faction fill
+#: makes a faction the scenario refuses (`0x00844EA7`), after adding it in
+#: `COMBO_BOX_DISABLED_COLOR`.
+COMBO_BOX_SET_ITEM_DISABLED = 0x00724160
+#: The colour such a row is written in: a global `Int`, read (`0x00844E64`).
+COMBO_BOX_DISABLED_COLOR = 0x00DADF20
 #: A combo box's gadget data hangs off its window at `+0x2C` (`0x009A5E08` is that one load), and
 #: holds the entry count at `+0x20` and the drop-down button's window at `+0x24`. The gadget keeps
 #: the button disabled - which draws it without its arrow - whenever it has one entry or none:
@@ -1404,8 +1857,25 @@ MULTIPLAYER_COLOR_VALUE = 0x10
 #: `TheGameText`'s vtable `+0x3C`: `fetch(UnicodeString *out, const char *label, Bool *exists)`,
 #: `__thiscall`, `ret 0xc` - the call behind `GUI:Random` in the faction box.
 GAME_TEXT_FETCH_SLOT = 0x3C
+#: Where the setup screen acts on its own copy of rule 1, the online-only ClanGame rule
+#: (`screen+0x160`, copied from `GameInfo+0x60..` with the other rules by `0x00784208` whenever a
+#: rule changes): set, the screen behaves as a clan match - the seat-state box offers no AI and an
+#: AI seat is closed (`0x00841700`), the Team box is locked (`0x00842BCB`), and four more checks
+#: (`0x00842064`, `0x0084370A`, `0x008456F6`, `0x00845B0A`). Each `(va, stock bytes, bytes that
+#: never see a clan match)`: a `cmp ..., 1` against 0x7F, a load replaced by `mov eax, 0`.
+MP_SETUP_CLAN_GAME_READS = (
+    (0x00841700, bytes.fromhex("83bf6001000001"), bytes.fromhex("83bf600100007f")),
+    (0x00842064, bytes.fromhex("8b8760010000"), bytes.fromhex("b80000000090")),
+    (0x00842BCB, bytes.fromhex("83be6001000001"), bytes.fromhex("83be600100007f")),
+    (0x0084370A, bytes.fromhex("83be6001000001"), bytes.fromhex("83be600100007f")),
+    (0x008456F6, bytes.fromhex("83f801"), bytes.fromhex("83f87f")),
+    (0x00845B0A, bytes.fromhex("83b96001000001"), bytes.fromhex("83b9600100007f")),
+)
 #: The string table label the faction box's Random row is written with.
 GUI_RANDOM_LABEL = 0x00BFDEF8
+#: The wide `L"-"` the stock setup screen writes into a closed seat's faction and hero boxes
+#: (`0x00843DD3`, `0x00842CEE`).
+WIDE_DASH = 0x00C540B0
 #: The tray's class, constructed once, by `StrategicHUD`'s `_OnSelectionDetailsLoaded` handler
 #: (`0x0083A141`). `+0x28` is its state - 0 closed, 1 opening, 2 open, 3 closing - and `+0x2C` says
 #: the selection has something to show.
@@ -2047,3 +2517,288 @@ CONTROL_BAR_DO_COMMAND_COMMAND_LOAD_BYTES = bytes.fromhex("8b461483f817")
 #: the function's body runs at.
 CONTROL_BAR_DO_COMMAND_REFUSE = 0x00940485
 CONTROL_BAR_DO_COMMAND_REFUSE_BYTES = bytes.fromhex("33c08b4df45f5e")
+
+# Create-a-Hero: the class table a saved hero's indices point into, and the `.cah` loader. See
+# `docs/null-guards.md#hero`.
+
+#: `TheCreateAHeroManager`, holding the `CreateAHeroClass` vector at `+0x154` (32-byte entries),
+#: each with its `SubClass` vector at `+0x14` (`0xD8`-byte entries).
+THE_CREATE_A_HERO_MANAGER = 0x00DE3D84
+CREATE_A_HERO_MANAGER_CLASSES = 0x154
+CREATE_A_HERO_CLASS_SIZE = 0x20
+CREATE_A_HERO_CLASS_SUBCLASSES = 0x14
+CREATE_A_HERO_SUBCLASS_SIZE = 0xD8
+#: A loaded `CreateAHeroHero`'s class and subclass indices, exactly as the `.cah` file stores them,
+#: and the byte the loader answers with: the checksum matched.
+CREATE_A_HERO_HERO_CLASS = 0x0C
+CREATE_A_HERO_HERO_SUBCLASS = 0x10
+CREATE_A_HERO_HERO_CHECKSUM_OK = 0x71
+#: The `(class, subclass) -> &SubClass::UsableFactions` getter's class step: `lea eax,
+#: [edi+0x154]` / `mov edx, [eax+4]` / `sub edx, [eax]` / `sar edx, 5`. A bad class index is caught
+#: here and answered with a static dummy.
+CREATE_A_HERO_CLASS_LOOKUP = 0x00619D10
+CREATE_A_HERO_CLASS_LOOKUP_BYTES = bytes.fromhex("8d87540100008b50042b10c1fa05")
+#: The subclass step: `mov eax, [ecx+0x18]` / `sub eax, [ecx+0x14]` / ... / `mov edi, 0xd8`. It
+#: answers NULL for an index past the class's subclasses.
+CREATE_A_HERO_SUBCLASS_LOOKUP = 0x006198F6
+CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES = bytes.fromhex("8b41182b4114565799bfd8000000")
+#: `add eax, 0x68` on that answer with no NULL test, so a foreign subclass index hands the lobby
+#: the pointer `0x68`. **The crash**: every caller reads through it.
+CREATE_A_HERO_SUBCLASS_FLAGS_ADD = 0x006199E4
+CREATE_A_HERO_SUBCLASS_FLAGS_ADD_BYTES = bytes.fromhex("83c068")
+#: `mov eax, [esi+0x10]` / `mov ecx, [esi+0xc]` - a lobby caller reading the hero's two indices.
+CREATE_A_HERO_LOBBY_INDEX_READ = 0x00842E69
+CREATE_A_HERO_LOBBY_INDEX_READ_BYTES = bytes.fromhex("8b46108b4e0c")
+#: `mov [esi+0x71], al` in `CreateAHeroHero::xfer`, after `sete al` on the checksum compare.
+CREATE_A_HERO_CHECKSUM_STORE = 0x0080BA84
+CREATE_A_HERO_CHECKSUM_STORE_BYTES = bytes.fromhex("884671")
+#: `CreateAHeroHero::load(filename, ...)`, thiscall, `ret 0xc`, answering `bl` - true keeps the
+#: hero, false makes both callers drop it.
+CREATE_A_HERO_LOAD = 0x0080C2E8
+CREATE_A_HERO_LOAD_ENTRY = bytes.fromhex("b8b899b900")
+#: `mov edi, ecx` - the hero is `edi` for the whole body.
+CREATE_A_HERO_LOAD_THIS = 0x0080C2F6
+CREATE_A_HERO_LOAD_THIS_BYTES = bytes.fromhex("8bf9")
+#: `call 0x00809CA6` / `mov bl, [edi+0x71]` - the power-cost refresh, then the verdict. **The hook
+#: window**: eight bytes, a `jmp rel32` and three `nop`s. Preceded by `mov ecx, edi`.
+CREATE_A_HERO_LOAD_VERDICT = 0x0080C384
+CREATE_A_HERO_LOAD_VERDICT_BYTES = bytes.fromhex("e81dd9ffff8a5f71")
+#: `or dword [ebp-4], -1` - the shared tail every load path joins; `eax`, `ecx`, `edx` are dead.
+CREATE_A_HERO_LOAD_RESUME = 0x0080C38C
+CREATE_A_HERO_LOAD_RESUME_BYTES = bytes.fromhex("834dfcff")
+#: The refresh the window calls: sums the powers' costs, skipping a `CommandButton` it cannot find.
+CREATE_A_HERO_REFRESH_POWER_COST = 0x00809CA6
+CREATE_A_HERO_REFRESH_POWER_COST_ENTRY = bytes.fromhex("53568bf1")
+#: The loader's two callers: each `MyHero*.cah` the shell lists, and the legacy `MyHero.dat`.
+CREATE_A_HERO_LIST_LOAD_CALL = 0x0061F271
+CREATE_A_HERO_LIST_LOAD_CALL_BYTES = bytes.fromhex("e872d01e00")
+CREATE_A_HERO_DAT_LOAD_CALL = 0x0061A219
+CREATE_A_HERO_DAT_LOAD_CALL_BYTES = bytes.fromhex("e8ca201f00")
+
+# The profile Stats screen (`AptStats`, `Stats.apt`) and the two sources that fill its list.
+# The screen and both sources walk the side name table by index, each loop
+# bounded by a literal 8, and the row model is built with 9 columns: one per side and, at column 8,
+# Overall. Every `*_SIDE_TABLE_REF` is the imm32/disp32 of an instruction indexing that table, which
+# `cah-factions` repoints; a loop tail reads its own loop's reference at run time to find the table.
+#: `mov ebx, [edi*4 + <table>]`'s disp32, in the extern-registration loop.
+STATS_SCREEN_SIDE_TABLE_REF = 0x009F02FF
+#: `AptStats::registerFactionExterns`: per side, the `FactionColor%d` / `FactionLevel%d` externs,
+#: the `Stats:FactionName_%d` string and the `Stats:FactionIcon_%d` / `Stats:FactionImage_%d`
+#: images. The tail is `inc edi` / `cmp edi, 8` / `jl head`; `edi` is the side index.
+STATS_SCREEN_REGISTER_LOOP_HEAD = 0x009F02FC
+STATS_SCREEN_REGISTER_LOOP_TAIL = 0x009F0466
+STATS_SCREEN_REGISTER_LOOP_TAIL_BYTES = bytes.fromhex("4783ff080f8c8cfeffff")
+STATS_SCREEN_REGISTER_LOOP_EXIT = 0x009F0470
+#: `AptStats::refreshLevels`: per side, `Stats:LevelName_%d`, `Stats:RankImage_%d` and
+#: `Stats:PointsNextLevel_%d`. Same tail shape as the registration loop.
+STATS_SCREEN_REFRESH_LOOP_HEAD = 0x009F04A9
+STATS_SCREEN_REFRESH_LOOP_TAIL = 0x009F05BD
+STATS_SCREEN_REFRESH_LOOP_TAIL_BYTES = bytes.fromhex("4783ff080f8ce2feffff")
+STATS_SCREEN_REFRESH_LOOP_EXIT = 0x009F05C7
+#: `mov eax, [esi+0x20]` / `push [eax+edi*4]` / `call PLAYER_TEMPLATE_FIND_BY_INDEX`: the refresh
+#: loop picks side `edi`'s good or evil rank names from the `edi`-th **playable template**, which
+#: lines up with the side table only when `playertemplate.ini` lists the playable sides in the
+#: table's order, and reads past the end of that vector once the table is longer.
+STATS_SCREEN_REFRESH_TEMPLATE_LOOKUP = 0x009F04CC
+STATS_SCREEN_REFRESH_TEMPLATE_LOOKUP_BYTES = bytes.fromhex("8b4620ff34b8e802c6c0ff")
+#: `push 9` in `AptStats::AptStats`: the row model's column count, handed to its constructor.
+STATS_SCREEN_COLUMN_COUNT_PUSH = 0x009F060C
+STATS_SCREEN_COLUMN_COUNT_PUSH_BYTES = bytes.fromhex("6a09")
+#: `lea eax, [edi-1]` in the row model's constructor, stored at `+0x14`: the Overall column is the
+#: last one. The two sources write Overall with a literal 8 instead.
+STATS_SCREEN_OVERALL_COLUMN = 0x009F1E42
+STATS_SCREEN_OVERALL_COLUMN_BYTES = bytes.fromhex("8d47ff")
+#: The Overall column's index, as both sources and `AptStats::selectFaction` (`{side, 8}`) write it.
+STATS_OVERALL_COLUMN_INDEX = 8
+#: The row model's aggregates over a row's cells `[from, to)`, `__thiscall(from, to)`, `ret 8`,
+#: answering on the x87 stack: the sum, the largest (seeded with `FLOAT_MINUS_MAX`) and the
+#: smallest non-zero one (seeded with `FLOAT_MAX`, answering 0 when every cell is 0). A row's cells
+#: are 8 bytes at `[row+4]`, the value a float at `+4`. Their only callers are three wrappers
+#: (`0x009F0DD8`, `0x009F0E0E`, `0x009F0E44`) inside `AptStats::fillOverall` (`0x009F10A5`), which
+#: every stats source calls after its side loop to fill the Overall cells of the rows it does not
+#: set itself - with
+#: `[model+0x14]` as `to`, the Overall column, so it covers sides 0..7. Each entry is `push ebp` /
+#: `mov ebp, esp` and five bytes are free to overwrite.
+STATS_ROW_SUM = 0x009F0C10
+STATS_ROW_SUM_BYTES = bytes.fromhex("558bec518b")
+STATS_ROW_MAX = 0x009F0C4A
+STATS_ROW_MAX_BYTES = bytes.fromhex("558bec518b")
+STATS_ROW_MIN_NONZERO = 0x009F0C8A
+STATS_ROW_MIN_NONZERO_BYTES = bytes.fromhex("558bec8b55")
+FLOAT_MINUS_MAX = 0x00BD190C
+FLOAT_MAX = 0x00BD1910
+#: The real-time source: per side, 37 rows of `PersistentStats` getters into column `[ebp-0x14]`.
+#: Tail `inc [ebp-0x14]` / `cmp [ebp-0x14], 8` / `jl head`.
+STATS_SOURCE_RTS_SIDE_TABLE_REF = 0x009D1043
+STATS_SOURCE_RTS_LOOP_HEAD = 0x009D103D
+STATS_SOURCE_RTS_LOOP_TAIL = 0x009D181B
+STATS_SOURCE_RTS_LOOP_TAIL_BYTES = bytes.fromhex("ff45ec837dec080f8c15f8ffff")
+STATS_SOURCE_RTS_LOOP_EXIT = 0x009D1828
+#: The strategic (War of the Ring) source, counter `[ebp-0x10]`.
+STATS_SOURCE_STRATEGIC_SIDE_TABLE_REF = 0x009D1A60
+STATS_SOURCE_STRATEGIC_LOOP_HEAD = 0x009D1A5A
+STATS_SOURCE_STRATEGIC_LOOP_TAIL = 0x009D21F5
+STATS_SOURCE_STRATEGIC_LOOP_TAIL_BYTES = bytes.fromhex("ff45f0837df0080f8c58f8ffff")
+STATS_SOURCE_STRATEGIC_LOOP_EXIT = 0x009D2202
+
+#: `TheGameClient`, and the `CommandTranslator` it keeps. `GameClient::init` (`0x00646771`, slot 1
+#: of the vtable at `0x00C04898`) builds the translator (`0x0081DED8` installs
+#: `COMMAND_TRANSLATOR_VTABLE`), attaches it to `TheMessageStream` at priority `0x46` and stores
+#: `getTranslator(id)` at `GAME_CLIENT_COMMAND_TRANSLATOR`. Nothing else reads that field; the
+#: translator is otherwise reached only as the message stream's `this`.
+THE_GAME_CLIENT = 0x00DE4388
+GAME_CLIENT_COMMAND_TRANSLATOR = 0xB4
+COMMAND_TRANSLATOR_VTABLE = 0x00C50A08
+#: `CommandTranslator::evaluateContextCommand(Drawable *draw, const Coord3D *pos, evalType)`,
+#: `__thiscall`, `ret 0xc`, answering a `GameMessage` type (0 when it did nothing). What a world
+#: click on a drawable means: with a command armed (`IN_GAME_UI_GET_GUI_COMMAND_SLOT`) it switches
+#: on the button's `COMMAND_BUTTON_COMMAND` and issues the order through the matching helper
+#: (`COMMAND_TRANSLATOR_ISSUE_SPECIAL_POWER` for the special-power family, `0x006A4260`
+#: `canSelectedObjectsDoSpecialPower` for the spellbook ones, ...), and with `evalType` 0 it disarms
+#: the command itself (`0x0081EBD5`: `setGUICommand(NULL)`). An unusable target posts
+#: `MSG_INVALID_GUI_COMMAND_HINT` (`0x0081EBE9`). The left-click case of
+#: `CommandTranslator::translateGameMessage` (`0x0081F8D8`, vtable slot 0) calls it with
+#: `evalType` 0 at `0x0081FD3B`, and on top disarms a `SPECIAL_POWER` (`0x18`) command it answered
+#: with that hint (`0x0081FD40`). Two of its helpers read a byte at `this+8`, so `this` has to be
+#: the real translator.
+COMMAND_TRANSLATOR_EVALUATE_CONTEXT_COMMAND = 0x0081E60B
+COMMAND_TRANSLATOR_EVALUATE_CONTEXT_COMMAND_ENTRY = bytes.fromhex("b8a6adb900e8dbe82100")
+#: `issueSpecialPowerCommand(button, evalType, Drawable *target, const Coord3D *pos,
+#: Object *source)`, `ret 0x14`, `this` unused. Posts `0x412` / `0x411` / `0x410`.
+COMMAND_TRANSLATOR_ISSUE_SPECIAL_POWER = 0x0081E147
+COMMAND_EVALUATE_DO_COMMAND = 0
+COMMAND_EVALUATE_HINT = 1
+COMMAND_EVALUATE_ONLY = 2
+MSG_INVALID_GUI_COMMAND_HINT = 0xAF
+#: `TheInGameUI`'s armed command: `setGUICommand(const CommandButton *)` and `getGUICommand()`.
+IN_GAME_UI_SET_GUI_COMMAND_SLOT = 0xBC
+IN_GAME_UI_GET_GUI_COMMAND_SLOT = 0xC0
+#: `Drawable::getPosition`, `__thiscall`, answering a `const Coord3D *` that outlives the call.
+DRAWABLE_GET_POSITION = 0x00676711
+DRAWABLE_GET_POSITION_ENTRY = bytes.fromhex("558bec83ec18568bf1")
+#: The hero bar's `_OnBttnHeroSelect(const char *name)`, `__thiscall` on the bar, `ret 4`. It
+#: turns `"HeroN"` into a 0-based slot in `eax` and, at `HERO_BAR_CLICK_SLOT_SCALE`, scales it by
+#: the stride into `ecx` (`mov ecx, eax` / `imul ecx, ecx, 0x18`); `HERO_BAR_CLICK_DISPATCH`
+#: branches on the slot's kind byte. `HERO_BAR_CLICK_DONE` is the shared exit, `pop edi` /
+#: `pop esi` / `leave` / `ret 4`, correct to reach before `ebx` is pushed (`0x0092DC06`).
+HERO_BAR_CLICK = 0x0092DB91
+HERO_BAR_CLICK_SLOT_SCALE = 0x0092DBD1
+HERO_BAR_CLICK_SLOT_SCALE_BYTES = bytes.fromhex("8bc86bc918")
+HERO_BAR_CLICK_DISPATCH = 0x0092DBD6
+HERO_BAR_CLICK_DONE = 0x0092DDE1
+HERO_BAR_CLICK_DONE_BYTES = bytes.fromhex("5f5ec9c20400")
+#: Whether the bar shows an object: locally controlled and not `NO_HERO_PROPERTIES`.
+#: `__stdcall(Object *)`, `ret 4`, answering `al`.
+HERO_BAR_IS_ELIGIBLE = 0x0092BBEF
+HERO_BAR_IS_ELIGIBLE_ENTRY = bytes.fromhex("8b4c2404e880fad5ff")
+#: The bar's layout. `bar+0x10` is the shared model, whose `+0x10` (heroes) and `+0x14` (porters)
+#: point at `std::list` sentinels; a node is `{next, prev, ObjectID@+8, ...}` and the hero list's
+#: sentinel is also what an unused slot shows. Slots are `0x18` bytes from `bar+0x48`: `+0x00` the
+#: node shown, `+0x16` the kind (0 one object, `HERO_BAR_SLOT_KIND_PORTER` the porter group).
+HERO_BAR_MODEL = 0x10
+HERO_BAR_MODEL_HERO_LIST = 0x10
+HERO_BAR_MODEL_PORTER_LIST = 0x14
+HERO_BAR_SLOT_ARRAY = 0x48
+HERO_BAR_SLOT_STRIDE = 0x18
+HERO_BAR_SLOT_KIND = 0x16
+HERO_BAR_SLOT_KIND_PORTER = 1
+HERO_BAR_NODE_OBJECT_ID = 0x08
+#: The per-button tooltip functor the bar registers for each `%s/Hero%d/` button in the APT
+#: player's button-tooltip map (`0x0092C385` builds it, `0x0092B319` registers it): `{vtable,
+#: refcount, bar, slot}`, `slot` 0-based. Its one method, through the thunk at `0x0092C420`, shows
+#: the slot's tooltip. Every hero-bar button carries one and nothing else uses the vtable, so a
+#: functor with it names a bar slot. `..._SLOTS` is the vtable's two entries, kept as an anchor.
+HERO_BAR_TOOLTIP_VTABLE = 0x00C7EDFC
+HERO_BAR_TOOLTIP_VTABLE_SLOTS = bytes.fromhex("7c28a00020c49200")
+HERO_BAR_TOOLTIP_BAR = 0x08
+HERO_BAR_TOOLTIP_SLOT = 0x0C
+#: The APT runtime's hovered button (`[0x00DFD428]+0x6C`). `APT_HAS_HOVERED_BUTTON` is cdecl and
+#: answers 0 or 1 in `eax`; `APT_HOVERED_BUTTON_PATH(char *out)` is cdecl and writes the button's
+#: path, `_level<N>/` then one `/`-separated name per instance down to it. The APT player's tooltip
+#: show (`0x00624C68`) reads both, then `APT_PATH_LEVEL(path)` (cdecl, `sscanf` of `_level%d`,
+#: -1 when absent) for the level and `APT_PATH_STRIP_LEVEL(path)` (cdecl) for the key past the
+#: `_level<N>/` prefix, which it looks up in that level's button-tooltip map. `0x00622764`, the
+#: "mouse is over the UI" test `InGameUI::createCommandHint` asks, answers the same hovered-button
+#: flag, latched into `TheAptPlayer+0x329` at `0x00624F85`.
+APT_HAS_HOVERED_BUTTON = 0x00AE1270
+APT_HAS_HOVERED_BUTTON_ENTRY = bytes.fromhex("8b0d28d4df008b516c")
+APT_HOVERED_BUTTON_PATH = 0x00AE1410
+APT_HOVERED_BUTTON_PATH_ENTRY = bytes.fromhex("a128d4df008b406c85c0")
+APT_PATH_LEVEL = 0x008155D9
+APT_PATH_LEVEL_ENTRY = bytes.fromhex("558bec837d080074")
+APT_PATH_STRIP_LEVEL = 0x00815563
+APT_PATH_STRIP_LEVEL_ENTRY = bytes.fromhex("568b74240885f6")
+#: `TheAptPlayer` keeps one `0x28`-byte record per level from `+0xD8`: `+0xD8` the level it holds
+#: (equal to its index while loaded), `+0xDC` the button-tooltip map, a hash map from
+#: `AsciiString` path to a ref-counted functor. 14 levels (`0x00624F25`).
+APT_PLAYER_LEVEL_STRIDE = 0x28
+APT_PLAYER_LEVEL_COUNT = 0x0E
+APT_PLAYER_LEVEL_ID = 0xD8
+APT_PLAYER_LEVEL_BUTTON_TOOLTIP_MAP = 0xDC
+#: `find(iterator *out, const AsciiString *key)` on an `AsciiString`-keyed hash map, `thiscall`,
+#: `ret 8`: writes `{node, map}` to `out` and answers `out`. `node` is 0 when the key is absent,
+#: else its value starts at `node+8`.
+ASCII_STRING_MAP_FIND = 0x005DD47E
+ASCII_STRING_MAP_FIND_ENTRY = bytes.fromhex("56ff74240c8bf1")
+#: `Mouse::getCursorIndex(const AsciiString &name)`, `stdcall`, `ret 4`, `this` unused: the index
+#: of a `MouseCursor` name in the 56-entry table at `0x00D9E108` (`None`, `Normal`, `Arrow`,
+#: `Scroll`, `Target`, ...), -1 for an empty or unknown name.
+MOUSE_GET_CURSOR_INDEX = 0x005EE9CA
+MOUSE_GET_CURSOR_INDEX_ENTRY = bytes.fromhex("8b4c2404e89134e1ff")
+MOUSE_CURSOR_ARROW = 2
+MOUSE_CURSOR_TARGET = 4
+#: `CommandButton.CursorName` and `InvalidCursorName`, `AsciiString`s.
+COMMAND_BUTTON_CURSOR_NAME = 0x50
+COMMAND_BUTTON_INVALID_CURSOR_NAME = 0x54
+#: `InGameUI`'s armed command, what `IN_GAME_UI_GET_GUI_COMMAND_SLOT` answers.
+IN_GAME_UI_GUI_COMMAND = 0x238
+#: `InGameUI`'s mouse mode; `IN_GAME_UI_MOUSE_MODE_GUI_COMMAND` while a GUI command is armed. In
+#: that mode `0x0069B06D`, under every `setMouseCursor`, keeps any cursor but the arrow and `Scroll`
+#: at `+0x800`.
+IN_GAME_UI_MOUSE_MODE = 0x7FC
+IN_GAME_UI_MOUSE_MODE_GUI_COMMAND = 2
+#: The message translator whose vtable is `UI_CURSOR_TRANSLATOR_VTABLE` (`translateGameMessage` at
+#: `0x0083EE14`, built at `0x0083EC83`) sets the cursor over the UI. On a mouse message with the
+#: mouse over a window or APT button it calls `TheMouse->setCursor` with
+#: `[esi+UI_CURSOR_TRANSLATOR_UI_CURSOR]`
+#: (the constructor stores `MOUSE_CURSOR_ARROW`) and marks the message handled, so no hint reaches
+#: `InGameUI::createCommandHint` there and the cursor stays until the mouse leaves the UI.
+#: `UI_CURSOR_TRANSLATOR_PUSH_CURSOR` is that `push dword [esi+0x1F0]`, reached with `ecx` =
+#: `TheMouse` on both paths; `..._RESUME` is `mov eax, [ecx]` / `call [eax+0x4C]`.
+UI_CURSOR_TRANSLATOR_VTABLE = 0x00C53E2C
+UI_CURSOR_TRANSLATOR_UI_CURSOR = 0x1F0
+UI_CURSOR_TRANSLATOR_PUSH_CURSOR = 0x0083EEDF
+UI_CURSOR_TRANSLATOR_PUSH_CURSOR_BYTES = bytes.fromhex("ffb6f0010000")
+UI_CURSOR_TRANSLATOR_PUSH_CURSOR_RESUME = 0x0083EEE5
+UI_CURSOR_TRANSLATOR_PUSH_CURSOR_RESUME_BYTES = bytes.fromhex("8b01ff504c")
+
+#: The end-of-game timeline screen (`TimeLine.apt`, the object at `[0x00DEA384]`). `+0x284` is its
+#: screen mode, chosen as it opens (`0x00927898`): 5 replay playback, 1 campaign, 8, 6 and 7 the
+#: War of the Ring variants, then by `TheGameLogic+0x110`: 4 online (game mode 5), 3 LAN (game
+#: mode 1), 2 skirmish (game mode 2). The movie reads it as `TimeLine:ScreenMode`: `OtherSingle`
+#: for 1, 2 and 8, `OtherOnlineLan` for 3 to 5.
+TIMELINE_SCREEN_MODE = 0x284
+TIMELINE_SCREEN_MODE_SKIRMISH = 2
+#: The screen's extern getter, `thiscall(index, char *out, bool set)`, `ret 0xC`. Case 1 is
+#: `TimeLine:ShowSaveReplay`, which the movie copies into `MainButtons.SaveReplay._visible`: "0"
+#: while `TheGlobalData+0x9D4 & 3`, else 1 for screen modes 3 and 4 only, so a skirmish never
+#: shows the button. `..._TAIL` is the nine bytes after the mode-3 test - `cmp ecx, 4` / `je` /
+#: `xor eax, eax` / `jmp` - entered only by falling through; `..._YES` (`xor eax, eax` / `inc eax`)
+#: and `..._FORMAT` (`push eax`, then `sprintf(out, "%d")`) are both branch targets outside it.
+TIMELINE_EXTERN_GETTER = 0x00925026
+TIMELINE_SHOW_SAVE_REPLAY_TAIL = 0x009250D1
+TIMELINE_SHOW_SAVE_REPLAY_TAIL_BYTES = bytes.fromhex("83f904740433c0eb03")
+#: From the screen-mode load at `0x009250C6` to the `push eax` at `..._FORMAT`.
+TIMELINE_SHOW_SAVE_REPLAY_FINGERPRINT = bytes.fromhex(
+    "8b898402000083f903740983f904740433c0eb0333c04050"
+)
+TIMELINE_SHOW_SAVE_REPLAY_YES = 0x009250DA
+TIMELINE_SHOW_SAVE_REPLAY_FORMAT = 0x009250DD
+#: The replay-save dialog's Save command (`0x00817D0E`) when the dialog was opened without a live
+#: recording to copy (`+0x29C` clear, as the timeline's Save Replay button opens it): it copies
+#: `<Replays>\` + `getLastReplayFileName()` + `.BfME2Replay` to the name typed. This is that
+#: `getLastReplayFileName` call, cdecl with the `UnicodeString` storage as its argument, cleaned by
+#: the `pop ecx` / `pop ecx` after it (the second pop is the extension call's).
+REPLAY_SAVE_SOURCE_NAME_CALL = 0x00817E49
+REPLAY_SAVE_SOURCE_NAME_CALL_BYTES = bytes.fromhex("e8af60f6ff")  # call 0x0077DEFD
+REPLAY_SAVE_SOURCE_NAME_CALL_FINGERPRINT = bytes.fromhex("8d45dc50c645fc06e8af60f6ff59598945d0")

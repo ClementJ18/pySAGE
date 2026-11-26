@@ -148,6 +148,7 @@ def _find_module(a: Asm, name: int) -> None:
 class CastleUnpackButtonsPatch(Patch):
     name = "castle-unpack-buttons"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Hide the command buttons of structures a CastleBehavior flag has just unpacked (the "
         "citadel, its buildings) while they fade in, as they already are during the BASE_BUILD "

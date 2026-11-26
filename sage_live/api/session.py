@@ -18,7 +18,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from sage_live.api import orders as _orders
-from sage_live.api.camera import ViewLocation
+from sage_live.api.camera import CameraView, ViewLocation
+from sage_live.api.chat import ChatLine
 from sage_live.api.observation import (
     GameObject,
     Observation,
@@ -708,6 +709,21 @@ class Session:
         """
         return self.send(_orders.sell(self.player_index))
 
+    def upgrade_selection(self, upgrade: int | str) -> Sent:
+        """Press an unqueued `OBJECT_UPGRADE` button on the selection - see
+        `orders.upgrade_selection`. Select first: every selected object offering it buys it."""
+        return self.send(
+            _orders.upgrade_selection(self.player_index, self.resolve("upgrade", upgrade))
+        )
+
+    def combine_hordes(self, into_id: int) -> Sent:
+        """Merge the selected battalion into `into_id` - see `orders.combine_hordes`."""
+        return self.send(_orders.combine_hordes(self.player_index, into_id))
+
+    def sacrifice(self, target_id: int) -> Sent:
+        """Have the selection consume `target_id` - see `orders.sacrifice`."""
+        return self.send(_orders.sacrifice(self.player_index, target_id))
+
     def start_self_repair(self) -> Sent:
         """Start the selected structure repairing itself - see `orders.start_self_repair`.
 
@@ -810,11 +826,55 @@ class Session:
         reader = getattr(self.backend, "power_cooldowns", None)
         return reader(object_id) if callable(reader) else {}
 
+    def special_ability_target(self, object_id: int) -> tuple[int, Vec3] | None:
+        """`(target id, target position)` one object's `WeaponFireSpecialAbilityUpdate` is aimed
+        at, or None where it has none or the backend cannot say. An id of 0 is a cast aimed at no
+        object - the tell of an AI hook that names no target."""
+        reader = getattr(self.backend, "special_ability_target", None)
+        return reader(object_id) if callable(reader) else None
+
+    def module_vtables(self, object_id: int) -> tuple[tuple[int, int], ...]:
+        """`(vtable, module address)` for each of one object's behaviour modules, or empty where
+        the backend cannot say - what to print when a module that should be there is not."""
+        reader = getattr(self.backend, "module_vtables", None)
+        return reader(object_id) if callable(reader) else ()
+
+    def draw_modules(self, object_id: int) -> tuple[tuple[int, int | None], ...] | None:
+        """`(module address, vtable)` for each of one object's draw modules, None when the
+        object or its drawable is gone or the backend cannot say. A None vtable is a module that
+        no longer reads - freed under its drawable."""
+        reader = getattr(self.backend, "draw_modules", None)
+        return reader(object_id) if callable(reader) else None
+
+    def ai_victim(self, object_id: int) -> int | None:
+        """The object one object's AI is attacking, 0 when none, or None where the backend cannot
+        say. Sees an attack however the engine started it, which a condition flag does not."""
+        reader = getattr(self.backend, "ai_victim", None)
+        return reader(object_id) if callable(reader) else None
+
+    def set_power_ready(self, object_id: int, power: str, frame: int | None = None) -> bool:
+        """Put one object's `power` on `frame` as its next usable frame (now, by default, which
+        takes it off its reload). False where the backend cannot write the process.
+
+        A test tool, not an order: it writes the engine's own recharge clock rather than asking
+        the game for anything, so it is not something a player could do.
+        """
+        writer = getattr(self.backend, "set_power_ready", None)
+        when = self.observe().frame if frame is None else frame
+        return bool(writer(object_id, power, when)) if callable(writer) else False
+
+    def set_power_points(self, points: int) -> bool:
+        """Set the local player's spendable spellbook points, the way a grant does. False where
+        the backend cannot write the process. A test tool, like `set_power_ready`."""
+        writer = getattr(self.backend, "set_power_points", None)
+        return bool(writer(points)) if callable(writer) else False
+
     #
     # The camera is not an order and is kept apart from them on purpose. It never enters the
     # message stream, no logic reads it, and it spends no APM - a policy that frames what it is
-    # doing is not playing faster, it is being watchable. Only a bridge-backed session can move
-    # it; every other backend answers None or False rather than pretending.
+    # doing is not playing faster, it is being watchable. Any process-backed session can read what
+    # the camera sees; only a bridge-backed one can move it. Every other backend answers None or
+    # False rather than pretending.
 
     def camera(self) -> ViewLocation | None:
         """Where the camera is now, or None where the backend cannot say.
@@ -823,6 +883,26 @@ class Session:
         script has no camera, and the client may not have built one yet at a loading screen.
         """
         reader = getattr(self.backend, "capture_camera", None)
+        return reader() if callable(reader) else None
+
+    def chat_log(self, start: int = 0) -> tuple[ChatLine, ...] | None:
+        """The match's chat as the local client received it - every line from `start` on, each
+        `[sender] text` in the sender's colour - or None where the backend cannot say.
+
+        A plain read like `camera_view`, so it works on an observer's client; a replay has no
+        chat. The log empties between matches, so a shorter log than last time is a new one.
+        """
+        reader = getattr(self.backend, "read_chat_log", None)
+        return reader(start) if callable(reader) else None
+
+    def camera_view(self) -> CameraView | None:
+        """What the local client's camera sees right now, or None where the backend cannot say -
+        the one to ask whether a place or an object is on screen.
+
+        A plain read, so unlike `camera` it needs no bridge and works on an observer's client and
+        in a replay.
+        """
+        reader = getattr(self.backend, "read_camera_view", None)
         return reader() if callable(reader) else None
 
     def set_camera(self, location: ViewLocation) -> bool:

@@ -632,9 +632,21 @@ class IniObject:
 
 
 class Module(IniObject):
-    """A sub-object attached to an Object (behaviors, bodies, draws)."""
+    """A sub-object attached to an Object (behaviors, bodies, draws).
+
+    `factory_registered` says whether RotWK's module factory knows the class by its name, so a
+    module header may name it. The schema also models C++ base classes (`W3DModelDraw`,
+    `DieBehavior`) and Generals modules RotWK dropped, for their fields and subclasses; a header
+    naming one of those makes the factory return NULL and the game crash on load. Declared per
+    class (`class W3DModelDraw(Draw, factory_registered=False)`) and not inherited, so a
+    registered subclass of an unregistered base stays registered."""
 
     key = None
+    factory_registered = True
+
+    def __init_subclass__(cls, factory_registered: bool = True, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.factory_registered = factory_registered
 
     @property
     def tag(self) -> str | None:

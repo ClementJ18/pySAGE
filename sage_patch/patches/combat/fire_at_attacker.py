@@ -237,6 +237,7 @@ class FireAtAttackerPatch(Patch):
 
     name = "fire-at-attacker"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a FireAtAttacker boolean to FireWeaponWhenDamagedBehavior, so its ReactionWeapon* "
         "fires at whatever dealt the damage rather than at the damaged object's own position - "

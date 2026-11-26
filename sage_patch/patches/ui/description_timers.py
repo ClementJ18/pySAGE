@@ -722,7 +722,7 @@ class DescriptionTimersPatch(Patch):
 
     name = "description-timers"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "Put a button's timer at the bottom of its description: an ability's cooldown (full "
         "when ready, remaining while recharging), a unit's build time (a hero's recruit or "

@@ -7,14 +7,22 @@ against the shipped `game.dat`.
 reachable. This patch collects the fixes: each guard is one hook into the shared `.nullgd` cave,
 adds the missing null test, and on NULL leaves through the function's own failure or "no" answer,
 so the caller sees an outcome it already handles. On a non-NULL pointer each guard runs the stock
-instructions verbatim. Every guard here was recovered from a real crash dump.
+instructions verbatim. `transfer`, `enter` and `path` were recovered from real crash dumps; `hero`
+from a reproducible user report, read statically.
 
 | guard | site | NULL pointer | answer on NULL | found in |
 |---|---|---|---|---|
 | `transfer` | `0x0066C410`, 5 bytes | a pending AI order's target, across a mount swap | "not worth transferring" | a skirmish: Galadriel takes the One Ring, then transforms |
 | `enter` | `0x00751ACF`, 9 bytes | an Enter order's target, or its contain | the state fails (`-2`) | a replay: a recorded Enter on an object with no contain |
+| `hero` | `0x0080C384`, 8 bytes | a saved hero's subclass, which the lobby reads later | the hero is not loaded | Edain: a hero made under another mod crashes the skirmish menu |
+| `path` | `0x0066A26B`, 6 bytes | a unit's path, dropped while the unit moved along it | skip that frame's progress update | Edain skirmish dump, 2026-11-10: a unit with a NaN transform, following a path tied to a map waypoint |
 
-**Adding a guard.** Only for a site a dump or a live trace shows is reached. Put the addresses in
+`hero` is the one guard that does not sit on the dereference: the NULL is handed out by a lookup
+with four unguarded readers, so the guard refuses the bad indices where they enter, in the `.cah`
+loader, and none of the four ever sees them.
+
+**Adding a guard.** Only for a site a dump or a live trace shows is reached, or one a reproducible
+report leads to and the static reading pins down. Put the addresses in
 `addresses/ai.py` (or the module the function belongs to), add an `_emit_<name>` routine and its
 window to `hooks`, anchor every jump target and every instruction that fixes what a register or
 stack slot holds at the hook, and add a section below. Leave by the function's own tail rather
@@ -344,21 +352,256 @@ logic-side patch.
   would refuse earlier, but it would also change what a recorded order does, which a guard in the
   state avoids.
 
-## 3. Verification
+<a name="hero"></a>
+## 3. `hero` — a Create-a-Hero from another mod crashing the skirmish menu
 
-`apply` asserts both windows and seventeen anchors before writing anything. For `transfer`: the
+A `.cah` stores its class and subclass as bare indices into whatever `CreateAHeroClass` blocks the
+game that wrote it had loaded (see [`sage_cah`](../../sage_cah/README.md)). Nothing checks them on
+load, and the lookup the shell uses hands a bad subclass to four readers as the pointer `0x68`.
+
+### 3.1 The report
+
+Edain: with a hero in the profile that was made under another mod, entering the skirmish menu
+crashes. No dump came with it. The two mods' class tables show how easily it happens. Edain
+declares seven classes with 3, 3, 2, 2, 2, 2 and 3 subclasses. Age of the Ring declares eight,
+with 2, 3, 3, 2, 2, 2, 4 and 1. So an Age of the Ring Hermit (class 2, subclass 2), Gundabad
+Berserker (6, 3) or Mound-dweller (class 7) has no counterpart in Edain.
+
+### 3.2 The loader — `0x0080C2E8`
+
+`CreateAHeroHero::load` is `__thiscall` with `edi` = the hero throughout. It opens the file, runs
+the hero's `xfer` and answers `bl`. Both callers drop the hero on false:
+
+| caller | what it loads | on false |
+|---|---|---|
+| `0x0061F271` | each `MyHero*.cah` the shell lists | deletes the hero, never adds it to `+0x17C` |
+| `0x0061A219` | the legacy `MyHero.dat` | answers NULL |
+
+The verdict is the checksum: `CreateAHeroHero::xfer` compares the stored CRC with the one it
+recomputed, `sete al`, `mov [esi+0x71], al` (`0x0080BA84`). The loader's last act before the
+shared tail is
+
+```
+0080c382  mov  ecx, edi
+0080c384  call 0x00809ca6           ; sum the powers' costs, skipping unknown CommandButtons
+0080c389  mov  bl, [edi+0x71]       ; checksum matched
+0080c38c  or   dword [ebp-4], -1    ; the tail every path joins
+```
+
+The xfer reads the class into `+0x0C` and the subclass into `+0x10`, with no range test.
+
+### 3.3 Where it is dereferenced — `0x006199E4`
+
+The shell asks for a subclass's `UsableFactions` mask through `0x00619CE6`, `(class, subclass) ->
+UsableFactions *`. Its class step is bounds-checked and answers a static dummy for a bad class.
+Its subclass step is not:
+
+```
+006198f6  mov  eax, [ecx+0x18]      ; SubClass vector end
+006198f9  sub  eax, [ecx+0x14]      ;            - begin
+006198fe  cdq
+006198ff  mov  edi, 0xd8
+00619904  idiv edi                  ; count
+0061990c  cmp  edx, eax
+0061990e  jae  -> answer NULL
+...
+006199e4  add  eax, 0x68            ; &SubClass::UsableFactions, NULL or not
+```
+
+Its four callers, `0x0062D66C`, `0x00842E77`, `0x00843BF9` and `0x009326CD`, each read through the
+answer at once. Two are the `cah-factions` gates 2 and 3 (`docs/cah-faction-limit.md`), and
+`0x009326CD` does `mov eax, [eax]` with no side short-circuit at all. A foreign subclass index
+is a read of address `0x68`.
+
+A foreign *class* index survives that path, because of the dummy. It is refused anyway: it names
+no class this mod has, and the class tables' other readers were not audited.
+
+### 3.4 The patch
+
+Eight bytes at `0x0080C384`, the call and the verdict, become a `jmp rel32` and three `nop`s into
+the `hero` guard:
+
+```
+call 0x00809ca6                 ; displaced, relocated
+mov  bl, [edi+0x71]             ; displaced, verbatim
+mov  eax, [0x00de3d84]          ; TheCreateAHeroManager
+test eax, eax
+je   done
+mov  ecx, [eax+0x154]           ; class vector begin
+mov  edx, [eax+0x158]           ;              end
+sub  edx, ecx
+je   done                       ; no classes parsed: nothing to judge against
+sar  edx, 5                     ; class count, 32-byte entries
+mov  eax, [edi+0xc]             ; the hero's class
+cmp  eax, edx
+jae  foreign                    ; unsigned: a negative index is foreign too
+shl  eax, 5
+add  ecx, eax                   ; the class
+mov  eax, [ecx+0x18]
+sub  eax, [ecx+0x14]
+xor  edx, edx
+mov  ecx, 0xd8
+div  ecx                        ; subclass count, as 0x006198F6 takes it
+cmp  [edi+0x10], eax            ; the hero's subclass
+jb   done
+foreign:
+xor  bl, bl                     ; "not loaded", the answer a bad checksum gives
+done:
+jmp  0x0080c38c
+```
+
+**Why the loader.** Rejecting there turns a foreign hero into one with a bad checksum, a case
+both callers and every later list already handle. Guarding the four readers instead would leave
+the hero in the list for whatever reads it next.
+
+**Registers.** From `0x0080C38C` on, the tail reloads `ecx`, calls out and returns `bl`, so `eax`,
+`ecx` and `edx` are dead and `edi` is untouched. EFLAGS are dead too: the next instruction is an
+`or`.
+
+Nothing in the loader branches into `0x0080C385`..`0x0080C38B`, so the window can be taken whole.
+
+### 3.5 Blast radius
+
+The guard runs once per hero file, when the shell lists heroes. A hero whose indices fit is kept
+exactly as before. A foreign hero disappears from the Create-a-Hero screen as well as the skirmish
+lobby; the file on disk is untouched, and it comes back under the mod that made it. The guard only
+decides which heroes the local list holds, and it reads nothing a peer could see differently.
+
+### 3.6 What this does not fix
+
+- **A foreign hero whose indices happen to fit.** Indices are positions, not names, so a hero from
+  another mod that lands on an existing class and subclass still loads. It brings its own
+  `CommandButton` names, bling group names and bling indices. The cost sum skips buttons it cannot
+  find. Whether the spawn and bling paths cope with values this mod does not define was not
+  examined.
+- **A hero received over the network.** How a peer's hero reaches this machine was not traced. If
+  it skips the loader, the guard does not see it. A peer on another mod is a mismatched game
+  anyway.
+
+## 4. `path` — a path dropped while the unit follows it
+
+### 4.1 The crash, as observed
+
+A skirmish played "single-player over network" with Edain, around 3500 CP, shortly after Imladris
+reinforcements arrived. No error box. The dump (`DUMP_2.01.2614.37001_20261110-144605_…`):
+
+```
+ExceptionCode    = 0xc0000005   read at 0x00000004
+ExceptionAddress = 0x0076559c   mov eax, [ecx+4]        ; ecx = 0
+esi = 0x0e225a60  (vtable 0x00C10590: AIUpdateInterface)
+edi = 0x0b282040  (the Object)    ebx = edi+0x38 (its position)
+```
+
+The EBP chain (the raw stack walk is mostly stale return addresses):
+
+```
+0x00765598  PATH_UPDATE_PROGRESS          <- faults on its first read, the path's head
+0x0066A279  AIUpdateInterface::doLocomotor (0x00669932, vtable slot +0x254)
+0x0066CD39  its caller (0x0066C748), through `call [eax+0x254]`
+0x0066E707  AIUpdateInterface's update
+bfme2_accel.dll+0x5BD86                   <- the accelerator's timing wrapper, pass-through
+```
+
+`[esi+0x140]` (`AI_PATH_OFFSET`) is 0 in the dump. The unit's whole transform is NaN: `Object+0x08`
+through `+0x24` and the position at `+0x38`..`+0x40` all hold `0xFFC00000`, with only the matrix's
+`(0, 0, 1)` z axis intact.
+
+### 4.2 Where the NULL comes from
+
+The caller at `0x0066CCED` tests the path before it calls `doLocomotor`: goal type `4` and
+`[esi+0x140] != 0`, then sets the goal type to `1` (follow the path). In `doLocomotor` the `1` arm
+(`0x00669BB2`) tests it again and calls `0x00766173` on it at `0x00669EA2`. So the path was there
+at that point. The arm then reads the id at the next node's `+0x20` (`0x005E2D74`, `0x7FFFFFFF` for none),
+asks TheTerrainLogic for the object with that id (vtable `+0x8C`, `0x00669D30`), and switches on
+its `+0x60`: 3 in the dump, which takes `0x0066A050`. That object is a **waypoint**: vtable
+`0x00C1132C`, stamped by the constructor at `0x006829B0`, which takes an id (`+4`), a name (`+8`)
+and a location (`+0xC`). In the dump it is id `0x165` at (2016, 2014, 87). So the unit was moving
+along a path tied to a map waypoint, the way scripted reinforcements usually enter. That arm sets
+model condition bits and joins the shared tail at `0x0066A23E`:
+
+```
+0066a23e  mov  ecx, [esi+0x1f0] / ... / call 0x005e6810   ; Locomotor: move towards the point
+0066a256  call 0x0070c201                                  ; Object::setPosition
+0066a266  call 0x0068bbf4                                  ; Object::setLayer
+0066a26b  mov  ecx, [esi+0x140]                            ; <- the window: reload the path
+0066a271  push 1 / push ebx / call 0x00765598              ; no test
+0066a279  jmp  0x00669b08
+```
+
+Every arm of that switch except `7` (`0x0066A170`, which leaves through `0x0066A4EA`) ends here.
+Arm `8` (`0x00669F1B`) makes its own calls first and then **re-tests** the path (`0x00669F4F`:
+`mov ecx, [esi+0x140]` / `test ecx, ecx` / `je`) before falling into the same tail. So the engine's
+authors knew a call can drop the path, and did not repeat the test after the tail's own move.
+`AI_DESTROY_PATH` (`0x0066276B`) has 45 direct callers, and this tail reaches several translation
+units, so which callee freed it in this dump was not pinned down. A NaN position is a likely
+trigger: it can make any position or cell validity check fail.
+
+### 4.3 The patch
+
+Six bytes at `0x0066A26B` become `jmp <cave>` / `nop`:
+
+```
+mov   ecx, [esi+0x140]           ; the displaced reload, verbatim
+test  ecx, ecx
+je    .none
+jmp   0x0066a271                 ; push 1 / push ebx / call - unchanged
+.none:
+jmp   0x0066a279                 ; past the call
+```
+
+`.none` lands after the call, before anything was pushed for it, so `PATH_UPDATE_PROGRESS`'s
+`ret 8` has nothing to balance. Its `bool` answer is never read: `0x00669B08` writes a byte and
+jumps to `0x0066A45B`, which sets `eax` before reading it. `ecx` is the only register written, and
+the stock code wrote it too. Nothing in `doLocomotor` branches into `0x0066A26C`..`0x0066A270`.
+
+### 4.4 Blast radius
+
+The guard runs once per path-following unit per frame and adds a `test`. With a path it is the
+stock code. Without one, the unit misses that frame's path progress update, which it has no path
+to make. It reads logic state only, and the outcome depends only on logic state, so peers that all
+have the patch stay in sync.
+
+### 4.5 What this does not fix
+
+- **The NaN transform.** Where it came from is not in the dump. The guard only stops this read
+  crashing. A NaN unit can still crash a later read, or freeze in place. If the guard is installed
+  and the same report comes back, the next dump should be taken with `debug.fulldump +` so the
+  unit's template and locomotor are in it.
+- **What freed the path.** See 4.2.
+- **Stock or `wall-mesh-release`.** The unguarded reload is stock: the bytes at `0x0066A26B` are
+  the same in the shipped `game.dat`, and `wall-mesh-release` hooks only the pathfinder's wall
+  add/remove (`0x00935FAA`..`0x00936B5C`) and the slot release (`0x00768AA7`). The player's build
+  did carry `wall-mesh-release` (Edain image size `0xBC2000`, the size of Edain-Mod `975ceba9d`'s
+  binary, which has it). Whether it set up the NaN or the dropped path is open: it would need a
+  wall that died while this unit's path crossed its layer, and the dump does not hold the path's
+  nodes to say which layer they were on.
+
+## 5. Verification
+
+`apply` asserts all four windows and thirty-three anchors before writing anything. For `transfer`: the
 check's prologue, the seed and the read of `bl`, the object arm's head, the load that fixes which
 frame slot holds the target, both jump targets, and both call sites, whose five bytes *are* their
 displacement, so asserting them asserts that the edited function is the one the swap reaches. For
 `enter`: the vtable slot (its four bytes *are* `onEnter`'s address), the prologue, the `push edi`
 and the goal call before the window, the resume, the `pop edi`, the tail, and `AIEnterState`'s
-`push -2` that fixes the failure value. `verify` locates `.nullgd` by name, rebuilds the cave for
+`push -2` that fixes the failure value. For `hero`: the loader's prologue, its `mov edi, ecx`, the
+tail, the refresh's prologue, both callers' `call`s, the checksum store at `+0x71`, the engine's own
+class and subclass lookups (which fix the `+0x154`, `+0x14` and `0xD8` the guard reads), the
+unguarded `add eax, 0x68`, and a lobby caller's reads of `+0x10` and `+0x0C`. For `path`: the
+vtable slot that proves the function is `doLocomotor`, its prologue, the `push`/`push`/`call`
+resume (the call's bytes fix the callee), the `jmp` after it, and the callee's prologue up to its
+`[ecx+4]` read. `verify` locates `.nullgd` by name, rebuilds the cave for
 the address the layout produced, and checks each window holds a `jmp` to its guard. `detect` takes
 the default, the patch having no parameters.
 
 `tests/sage_patch/test_null_guards.py` disassembles each guard and asserts each edge, the stack
-balance on `enter`'s failure path, and, against the shipped `game.dat`, every stock byte, that
-nothing branches into either window, and that `apply` then `verify` round-trips.
+balance on `enter`'s failure path, the unsigned bounds and the registers `hero` may write, and,
+against the shipped `game.dat`, every stock byte, that nothing branches into any window, and that
+`apply` then `verify` round-trips.
+
+**Runtime status.** `hero` and `path` are verified statically only; `path` has not met a dropped
+path in a running game. `hero` has not been run against a
+foreign hero in the game.
 
 ```sh
 sage-patch apply null-guards --in game.dat.backup --out game.dat   # no parameters

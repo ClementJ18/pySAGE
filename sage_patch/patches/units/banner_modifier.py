@@ -281,6 +281,7 @@ class BannerModifierPatch(Patch):
 
     name = "banner-modifier"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a ModifierList to HordeContain that a horde takes when its banner carrier dies: "
         "BannerCarrierInflictsModifierOnDeath = <ModifierList> beside "

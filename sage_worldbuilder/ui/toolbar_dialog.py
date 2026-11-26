@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sage_worldbuilder.toolbar import CATALOGUE, DEFAULT_ITEMS, ITEMS_BY_ID
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 __all__ = ["CustomizeToolbarDialog"]
 
@@ -40,6 +41,7 @@ _GROUP_WIDTH = max(len(item.group) for item in CATALOGUE) + 2
 class CustomizeToolbarDialog(QDialog):
     def __init__(self, layout_ids: Sequence[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Customize Toolbar")
         self.resize(420, 520)
 

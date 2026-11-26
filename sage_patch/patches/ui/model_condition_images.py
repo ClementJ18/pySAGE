@@ -224,6 +224,7 @@ def _hook_bytes(va: int, stock: bytes, target: int) -> bytes:
 class ModelConditionImagesPatch(Patch):
     name = "model-condition-images"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make ModelConditionState PortraitImageName and ButtonImageName work for every object, not "
         "only Create-a-Hero heroes: the selected portrait and the object's button image follow its "

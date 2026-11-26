@@ -12345,6 +12345,11 @@
    "FALSE",
    "TRUE"
   ],
+  "19": [
+   "Enemy",
+   "Neutral",
+   "Friend"
+  ],
   "20": [
    "Peaceful",
    "Sleep",
@@ -12641,6 +12646,60 @@
    "HoldGround",
    "Porcupine",
    "HoldGroundMoving"
+  ]
+ },
+ "named_values": {
+  "43": [
+   "Center",
+   "Backdoor",
+   "Flank",
+   "Special"
+  ],
+  "46": [
+   "Enabled",
+   "Powered",
+   "Indestructible",
+   "Unsellable",
+   "Selectable",
+   "AI Recruitable",
+   "Player Targetable"
+  ],
+  "50": [
+   "Available",
+   "Disabled",
+   "Hidden"
+  ],
+  "60": [
+   "None",
+   "Padded Cell",
+   "Room",
+   "Bathroom",
+   "Living Room",
+   "Stone Room",
+   "Auditorium",
+   "Concert Hall",
+   "Cave",
+   "Arena",
+   "Hangar",
+   "Carpeted Hallway",
+   "Hallway",
+   "Stone Corridor",
+   "Alley",
+   "Forest",
+   "City",
+   "Mountains",
+   "Quarry",
+   "Plain",
+   "Parking Lot",
+   "Sewer Pipe",
+   "Underwater",
+   "Drugged",
+   "Dizzy",
+   "Psychotic"
+  ],
+  "66": [
+   "Enemies",
+   "Allies"
   ]
  }
 }

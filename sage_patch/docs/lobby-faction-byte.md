@@ -100,9 +100,10 @@ stock code has just read becomes the colour. The arm keeps its cursor in `ebx`, 
 cursor at `[ebp-0x14]` and the payload end at `[ebp-0x10]`, in the same slots in both arms. If
 `ebx < end`, `read` takes the template from `[ebx]` and advances both `ebx` and `[ebp-0x14]`. The
 arm's next read (`0x0084B4E2` / `0x0084B7D9`) pushes `ebx` and checks against `[ebp-0x14]`, so it
-continues after the new byte. If the payload ended first, the template is left at `-128`. The arm's
-own `cmp byte [template], -2 / jl 0x0084B9B5` then rejects the message, the same way it rejects any
-other bad field.
+continues after the new byte. If the payload ended first, the template is left at `127`
+(`MISSING_TEMPLATE`). The arm's own `template < template count` check then rejects the message, the
+same way it rejects any other bad field. That check is the one to lean on: **faction-variants**
+lowers the arm's other bound, `cmp byte [template], -2`, to -128.
 
 Both sides now hold colour -128..127 and template -128..127, far beyond anything a mod defines.
 
@@ -128,8 +129,37 @@ Both sides now hold colour -128..127 and template -128..127, far beyond anything
    window, apply/verify/detect, and the cave listing. It then runs the real arms under unicorn,
    together with the engine's byte writer, its block copy and the nibble helpers. Patched, each arm
    round-trips colour/template pairs up to template 21. Stock, template 14 on blue reads back as an
-   observer on red. A payload that ends after the colour byte is turned away.
+   observer on red. A payload that ends after the colour byte is turned away. A pool crosses each
+   arm as its escape and mask and comes back out of the hand-off as the same pool; one with no room
+   left goes out as -1 and leaves the host's seat on -1.
 2. **In a LAN lobby.** Two machines, both patched. The host sets an AI or a human seat to a faction
    at index ≥ 14. The client should show that faction in the host's colour. Unpatched, the client
    shows an observer in the next colour.
 3. **Negative.** A faction below 14 should look identical on both sides, patched or not.
+
+## 5. Random pools
+
+A **faction-variants** Random pool is a seat template of `0x80000000 | mask`, the mask's 24 bits
+naming template indices ([`faction-variants.md`](faction-variants.md), "Random pools"). No byte
+holds it, so:
+
+- **`write`** sends a pool as `LAN_POOL_ESCAPE` (-128, `0x80`) and the mask's three bytes, low
+  first - four bytes where a template is one. It checks the room first (`end - cursor >= 4`), because
+  `LAN_WRITE_BYTE` drops a byte that does not fit and the rest would be read out of step. With no
+  room left, the seat goes out as -1 and **the host's own seat is set to -1 as well**, so the host
+  and every client draw from the same, full pool. A seat holding the pool tag with an empty mask,
+  which nothing writes, goes the same way.
+- **`read`** takes an escape byte's three mask bytes with it and leaves the pool in the section's
+  first dword. A mask cut off by the payload's end leaves `MISSING_TEMPLATE`, rejected.
+- **`set_template`** stands in for each parser arm's `call GameSlot::setPlayerTemplate`
+  (`0x0084B4D6` human, `0x0084B7CD` AI; both `push edi / mov ecx, esi / call`). An escape byte
+  becomes the pending pool, or -1 if there is none; anything else is handed on as it is. Either way
+  the pending pool is cleared.
+
+Without faction-variants the arm's stock -2 bound refuses the escape byte, and no seat holds a pool
+for `write` to send, so none of this runs.
+
+**What a pool costs the payload:** three more bytes per pooled seat. With eight humans all on pools,
+that is 24 bytes off the map path's ~30, so it leaves about 6 characters. Nothing breaks when it does
+not fit, but a seat's pool is then dropped to plain Random for everyone. Measuring the real map-path
+form is still the open question from §3.

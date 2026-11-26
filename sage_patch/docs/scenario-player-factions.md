@@ -156,6 +156,11 @@ Nothing else in `.text` reaches the function: the byte-wise sweep in
 `TestInstalledBinary::test_those_four_are_every_caller_in_the_image` decodes an `e8` at every
 offset of `.text` and finds exactly those four.
 
+A fifth reader comes from a patch: `faction-variants`' Variant box asks about each row it lists
+for its own slot. It does not call any of the four sites; it carries its own copy of this patch's
+replacement, emitted by the public `emit_is_faction_enabled`, so both read the list the same way
+(`faction-variants.md` §5).
+
 The combo-box fill is worth one more note, because it is the only site a player *sees*. It walks
 `ThePlayerTemplateStore`'s list (`[0x00DE3B10]+0x18`), skips templates that are not playable
 (`+0x151`) or are observers (`+0x150`), and adds each survivor to the list box with

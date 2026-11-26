@@ -194,6 +194,7 @@ class WotrBattleHeroPoolPatch(Patch):
 
     name = "wotr-battle-hero-pool"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a NoBattleHeroPool boolean to a LivingWorldCampaign's Scenario block: Yes keeps the "
         "world-map hero pool (off-map and unrevived heroes) out of that scenario's battles, so a "

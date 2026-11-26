@@ -292,7 +292,7 @@ and the next hit on the rubble called through it (`eip` in the heap, from `0x006
 now stores a stand-in object there whose `vt[0]` is `xor eax,eax; ret 4`, so the epilogue frees
 nothing. It was found with a hardware write watchpoint on the module's vtable
 (pySAGE-edain `tools/live/draw_module_write_trap.py`), which caught its destructor being called
-from `0x00936B63`. Reproduced by Edain-Mod `tests/test_wall_catapult_rubble_crash.py`.
+from `0x00936B63`. Reproduced by Edain-Mod `tests/mordor/test_wall_catapult_rubble_crash.py`.
 
 **Where the hooks go.** Three on the add path, to fill the ledger, and one on the remove path — at
 `0x009362A3`'s `test eax,eax`, the bounds query's early-out, which is the point where a removal

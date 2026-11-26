@@ -271,6 +271,12 @@ that field gates.
 its model gate. Its `verify` rebuilds that cave from the parameters `detect` recovers, so the row's
 name, key and model are checked together rather than assumed.
 
+A second row cannot reuse those sites, because two patches may never edit the same bytes.
+Another row can hook arm 1's no-match `jne` at `0x009207A2` and `mov eax, [edi+0x2B8]` at
+`0x00920395` instead (a save hook has to sit on the path every Accept takes: `0x009204C7` is
+inside the port-changed block), sharing the arm, save and read bodies through
+[`patches/utils/option_row.py`](../patches/utils/option_row.py).
+
 ## 7. What would confirm this
 
 Not yet run. In order of value:

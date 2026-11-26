@@ -45,6 +45,7 @@ class AshWeatherPatch(Patch):
 
     name = "ash-weather"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add an ASH_RAIN global weather type that drives a new ASHEN model condition, the way "
         "the stock SNOWY drives SNOW. A map opts in with weather = 3 in its WorldInfo chunk "

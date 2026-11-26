@@ -456,6 +456,7 @@ def _code(code_va: int, where: dict[str, int]) -> tuple[bytes, dict[str, int]]:
 class SpellRechargeTargetsPatch(Patch):
     name = "spell-recharge-targets"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         f"Let SpellRechargeModifierUpgrade name the special powers it discounts: {KEYWORD} = "
         "<SpecialPower> ... (up to 16). A module that names powers leaves the player-wide "

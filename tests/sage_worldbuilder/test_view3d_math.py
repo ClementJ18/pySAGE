@@ -227,7 +227,7 @@ def test_a_plane_point_ignores_the_ground_under_it():
         )
 
 
-def test_off_the_heightmap_the_projection_falls_back_to_the_last_ground_height():
+def test_off_the_heightmap_the_ground_goes_on_at_the_edge_height():
     view = camera(pitch=60, distance=3000, target_x=50.0, target_y=50.0, target_z=40.0)
     projection = CameraProjection(view, flat())
     projection.screen_to_world(400, 300)
@@ -235,6 +235,20 @@ def test_off_the_heightmap_the_projection_falls_back_to_the_last_ground_height()
     assert z == pytest.approx(40.0)
     assert not (0 <= x <= 100 and 0 <= y <= 100)
     assert projection.world_to_screen(*projection.screen_to_world(0, 0)) == pytest.approx((0, 0))
+
+
+def test_off_the_heightmap_a_point_stays_under_the_cursor_whatever_was_hit_before():
+    # What stands off the map is drawn at the edge height; a cursor there must land on it, not on
+    # the height of the last ground it was over, or a drag moves the thing less than the cursor.
+    view = camera(pitch=50, distance=900, target_x=20.0, target_y=20.0, target_z=0.0)
+    projection = CameraProjection(view, ramp(columns=6, rows=5, border=0))
+    projection.focus = (20.0, 20.0, 0.0)
+    for pixel in ((40, 30), (120, 60), (760, 40)):
+        x, y, z = projection.hit(*pixel)
+        if 0 <= x <= 50 and 0 <= y <= 40:
+            continue
+        assert z == pytest.approx(projection.ground(x, y), abs=0.05)
+        assert projection.world_to_screen(x, y) == pytest.approx(pixel, abs=0.5)
 
 
 def test_a_ground_point_behind_the_camera_is_off_screen():

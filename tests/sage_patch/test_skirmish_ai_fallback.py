@@ -24,6 +24,7 @@ from sage_patch.addresses import (
     DICT_SET_ASCII_STRING,
     PLAYER_INDEX,
     PLAYER_INIT_FROM_DICT,
+    PLAYER_SKIRMISH_AI_TYPE_TEST,
     PLAYER_SKIRMISH_FOUND_EBP,
     PLAYER_SKIRMISH_IMPORT,
     PLAYER_SKIRMISH_IMPORT_BYTES,
@@ -33,6 +34,7 @@ from sage_patch.addresses import (
     PLAYER_SKIRMISH_ROUTE,
     PLAYER_SKIRMISH_ROUTE_BYTES,
     PLAYER_SKIRMISH_ROUTE_RESUME,
+    PLAYER_SKIRMISH_SETTINGS,
     PLAYER_TEMPLATE_DEFAULT_AI_TYPE,
     PLAYER_TEMPLATE_PTR,
     SIDES_INFO_DICT,
@@ -191,14 +193,59 @@ class TestTheCave:
         ]
         assert len(loads) == 2
 
-    def test_the_only_outward_jump_is_the_engines_own_nothing_to_import_edge(self):
+    def test_the_outward_jumps_are_the_engines_settings_and_nothing_to_import_edges(self):
         decoded = instructions()
         outward = [
             ins.op_str
             for ins in decoded.values()
             if ins.mnemonic == "jmp" and not (BASE <= int(ins.op_str, 16) < BASE + 0x200)
         ]
-        assert outward == [hex(PLAYER_SKIRMISH_IMPORT_SKIP)]
+        assert sorted(outward) == sorted(
+            [hex(PLAYER_SKIRMISH_SETTINGS), hex(PLAYER_SKIRMISH_IMPORT_SKIP)]
+        )
+
+    def test_a_synthesised_player_rejoins_the_settings_after_its_library_load(self):
+        """The difficulty and the `Player_N` import are what a matched player gets past its side
+        lookup; the synthesised one has to reach them too, and only once its `playerAIType` is in
+        the dict, or the engine's type test would send it into the matched-side copy."""
+        decoded = instructions()
+        ordered = [decoded[a] for a in sorted(decoded)]
+        load = next(
+            i
+            for i, ins in enumerate(ordered)
+            if ins.mnemonic == "call" and ins.op_str == hex(SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE)
+        )
+        resume = next(
+            i
+            for i, ins in enumerate(ordered)
+            if ins.mnemonic == "jmp" and ins.op_str == hex(PLAYER_SKIRMISH_SETTINGS)
+        )
+        between = [text(ins) for ins in ordered[load + 1 : resume]]
+        assert between == ["pop edi", "pop esi", "pop ebx", "add esp, 4"]
+
+    def test_a_failed_synthesis_still_leaves_by_the_nothing_to_import_edge(self):
+        """Both early exits - no template, no side info - happen before `playerAIType` is written,
+        so they must not reach the type test."""
+        decoded = instructions()
+        ordered = sorted(decoded)
+        skip = next(
+            a
+            for a in ordered
+            if decoded[a].mnemonic == "jmp"
+            and decoded[a].op_str == hex(PLAYER_SKIRMISH_IMPORT_SKIP)
+        )
+        settings = next(
+            a
+            for a in ordered
+            if decoded[a].mnemonic == "jmp" and decoded[a].op_str == hex(PLAYER_SKIRMISH_SETTINGS)
+        )
+        early = [
+            int(decoded[a].op_str, 16)
+            for a in ordered
+            if decoded[a].mnemonic == "je" and int(decoded[a].op_str, 16) > settings
+        ]
+        assert len(early) == 3, "the 0-flag edge, no template and no side info"
+        assert all(settings < target < skip for target in early)
 
     def test_the_matched_case_returns_into_the_stock_import(self):
         """A found flag of 1 must leave the engine's own path alone, which means returning - the
@@ -401,6 +448,37 @@ class TestInstalledBinary:
                 assert int(ins.op_str, 16) not in interior, (
                     f"{ins.address:#010x} branches into the window at {hook:#010x}"
                 )
+
+    def test_the_settings_never_read_the_matched_sides_index(self, stock):
+        """A synthesised player skips the side lookup, so `[ebp-0x18]` - the matched side's index,
+        written only by that lookup - holds nothing. Everything it runs between its resume point and
+        the `playerAIType` test must therefore leave that local alone."""
+        capstone = pytest.importorskip("capstone")
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        start = va_to_offset(stock, PLAYER_SKIRMISH_SETTINGS)
+        body = stock[start : start + (PLAYER_SKIRMISH_AI_TYPE_TEST - PLAYER_SKIRMISH_SETTINGS)]
+        decoded = list(md.disasm(body, PLAYER_SKIRMISH_SETTINGS))
+        assert decoded[-1].address + decoded[-1].size == PLAYER_SKIRMISH_AI_TYPE_TEST
+        assert not [ins for ins in decoded if "ebp - 0x18" in ins.op_str]
+
+    def test_the_type_test_sends_a_named_ai_type_past_the_matched_side_copy(self, stock):
+        """`je` from the test lands on the name-based import, which then falls through to the
+        nothing-to-import continuation - the path the synthesised player is relying on."""
+        capstone = pytest.importorskip("capstone")
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        off = va_to_offset(stock, PLAYER_SKIRMISH_AI_TYPE_TEST)
+        cmp, je = list(md.disasm(stock[off : off + 9], PLAYER_SKIRMISH_AI_TYPE_TEST))
+        assert text(cmp) == "cmp eax, 3"
+        target = int(je.op_str, 16)
+        off = va_to_offset(stock, target)
+        tail = list(md.disasm(stock[off : off + 0x20], target))
+        assert [text(ins) for ins in tail[:3]] == [
+            "lea eax, [ebp - 0x24]",
+            "push eax",
+            "mov ecx, esi",
+        ]
+        assert tail[3].mnemonic == "call"
+        assert tail[4].address == PLAYER_SKIRMISH_IMPORT_SKIP
 
     def test_the_library_loader_has_no_other_caller(self, stock):
         """The whole design rests on `SIDES_LIST_LOAD_AI_LIBRARY_FOR_SIDE` being the engine's own

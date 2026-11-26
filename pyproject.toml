@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pysage-tools"
 version = "0.4.0"
-description = "Python tools for the data formats of the SAGE engine (Battle for Middle-earth): ini game data, binary maps, replays, and UI movies."
+description = "Python tools for the data formats of the SAGE engine (Battle for Middle-earth): ini game data, binary maps, replays, UI movies, and VP6 videos."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -49,6 +49,7 @@ sage-cah = "sage_cah.__main__:main"
 sage-patch = "sage_patch.__main__:main"
 sage-test = "sage_test.__main__:main"
 sage-verify = "sage_verify.__main__:main"
+sage-vp6 = "sage_vp6.__main__:main"
 sage-worldbuilder-mcp = "sage_worldbuilder.mcp_server.__main__:main"
 
 # Desktop apps; each needs its extra installed (ui / wiki / lint-ui / asset-ui / cah-ui).
@@ -125,6 +126,11 @@ worldbuilder-mcp = [
     "numpy>=2",
 ]
 
+# Decoding and encoding .vp6 movies; reading their container needs nothing.
+vp6 = [
+    "numpy>=2",
+]
+
 # Every extra above, by self-reference; tests/test_packaging.py checks none is missing.
 all = [
     "pysage-tools[ui]",
@@ -137,6 +143,7 @@ all = [
     "pysage-tools[patch]",
     "pysage-tools[worldbuilder]",
     "pysage-tools[worldbuilder-mcp]",
+    "pysage-tools[vp6]",
 ]
 
 [dependency-groups]
@@ -148,7 +155,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_test*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_w3d*", "sage_cah*", "sage_verify*", "sage_worldbuilder*"]
+include = ["sage_apt*", "sage_asset*", "sage_ini*", "sage_lint*", "sage_map*", "sage_patch*", "sage_live*", "sage_replay*", "sage_test*", "sage_save*", "sage_utils*", "sage_wiki*", "sage_ui*", "sage_w3d*", "sage_cah*", "sage_verify*", "sage_vp6*", "sage_worldbuilder*"]
 
 [tool.setuptools.package-data]
 # Every file a package opens at runtime; tests/test_packaging.py checks they all ship.
@@ -157,6 +164,7 @@ sage_asset = ["py.typed", "ui/*.ico"]
 sage_w3d = ["py.typed"]
 sage_cah = ["py.typed", "ui/*.ico"]
 sage_verify = ["py.typed"]
+sage_vp6 = ["py.typed"]
 sage_ini = ["py.typed", "skill_assets/**/*"]
 sage_map = ["py.typed"]
 sage_patch = ["py.typed", "scripts/wiki_assets/*"]
@@ -219,7 +227,7 @@ select = [
 
 [tool.mypy]
 python_version = "3.12"  # matches requires-python: catch 3.13-only API use on the lowest floor
-files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_patch", "sage_replay", "sage_save", "sage_test", "sage_utils", "sage_w3d", "sage_cah", "sage_verify", "sage_worldbuilder", "sage_ui", "sage_wiki", "examples/sage_live"]
+files = ["sage_apt", "sage_asset", "sage_ini", "sage_lint", "sage_live", "sage_map", "sage_patch", "sage_replay", "sage_save", "sage_test", "sage_utils", "sage_w3d", "sage_cah", "sage_verify", "sage_vp6", "sage_worldbuilder", "sage_ui", "sage_wiki", "examples/sage_live"]
 # `examples/sage_live` drives a live game the test suite cannot reach, so mypy is its only check.
 disable_error_code = ["annotation-unchecked"]
 # The one-off RE scans ruff skips above.

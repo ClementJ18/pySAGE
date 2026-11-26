@@ -9,7 +9,7 @@ needed for any address below.
 ("could a modified fog of war be made to cause an out of sync?") has a shorter answer than
 expected: for a cheat that changes shroud *state*, it already does. What is not covered is a
 cheat that changes only *code*, and `binary-attest` covers that by folding a hash of the
-image's own executable bytes into the same checksum.
+whole image, taken at the entry point, into the same checksum.
 
 ## 1. Fog of war is already attested
 
@@ -114,7 +114,7 @@ two producing paths above it:
 | | |
 |---|---|
 | patch | `0x0062E7FD`: `8B 0D 98 63 DE 00` → `E9 <rel32> 90` |
-| cave | mix a hash of the image's own code into `edi` |
+| cave | mix the stored image hash into `edi`, then call the hook slot if a patch filled it |
 | tail | re-emit `mov ecx, [0x00DE6398]`, then `jmp 0x0062E803` |
 
 **The six bytes can be taken whole.** `0x0062E7E2` jumps to exactly `0x0062E7FD` — the first byte
@@ -127,34 +127,54 @@ branch target in `0x0062E7FE`..`0x0062E802`. The sixth byte becomes a `nop` so t
 emitter is mid-way through building a message and `ecx` in particular is about to be
 `TheMessageStream`, which is exactly what the re-emitted instruction puts back.
 
-## 4. What is hashed
+## 4. What is hashed, and when
 
-Two ranges, folded with FNV-1a over little-endian 32-bit words:
+**Everything, before anything runs.** The patch moves `AddressOfEntryPoint` to a stub in
+`.attest`. The stub walks the in-memory section table (`[ImageBase+0x3C]` → `NumberOfSections`,
+`SizeOfOptionalHeader`, then 0x28-byte headers), folds every readable section's
+`min(SizeOfRawData, VirtualSize)` bytes in table order, stores the result, and jumps to the entry
+point it replaced. `.text`, `.rdata`, `.data`, the SecuROM-era sections and every patch's cave -
+including `.sgcaves` and its sub-caves, and `.attest` itself - are all in it.
 
-| range | |
-|---|---|
-| `.text` | `0x00401000`, `0x007CF000` bytes |
-| the cave's own code | `.attest + 0x10` through `.attest + 0x200` |
+**Why the entry point and not the first heartbeat.** By the first heartbeat, DLLs loaded into the
+process have had their chance to rewrite memory: `dll-load` runs `game-patcher.dll` at the entry
+point, and `accel-module`'s accelerator patches engine code once it loads (it owns `0x006325C4`,
+see [`accel-module.md`](accel-module.md)). Both are optional, so a hash taken after them would differ between a
+player who has them and one who does not, and the pair would desync with no cheat involved. At
+the entry point only the loader has run.
+
+**What the loader writes first is skipped.** Two kinds of range, read from the image at apply time
+and baked into a table at `.attest + 0x10` (`loader_written_ranges`):
+
+| range | stock build | why it differs per machine |
+|---|---|---|
+| each import's address table | `0x00BD0000`..`0x00BD0BFC` (23 tables, back to back, merged) | the loader writes each DLL's function addresses |
+| the load config's `SecurityCookie` | `0x00DBDB40` | it still holds the default `0xBB40E64E`, which the loader replaces with a random value |
+
+`game.dat` leaves its IAT data directory empty, so the tables are found through the import
+descriptors' `FirstThunk` arrays. There are no TLS callbacks, no bound imports and no `.reloc`.
 
 FNV-1a is chosen for the shape of its inner loop, not its statistics — `xor eax,[esi]` then
 `imul eax, eax, 0x01000193` is two instructions with a carried dependency, so there is no table
 to place in the cave, and unlike an additive sum there is no way to compensate for an edit by
-adjusting bytes elsewhere. The whole fold is ~135 bytes of code.
+adjusting bytes elsewhere. The stub and its walk are ~240 bytes; the fold is ~11 MB on Edain's
+build and runs once.
 
 **The value is a property of the file, not a secret of the process.** The image carries no
-`.reloc` and does not set `DYNAMIC_BASE`, so the loader maps `.text` at `IMAGE_BASE` and never
-rewrites a byte of it: what the running game folds is what is on disk.
-`sage_patch.patches.multiplayer.binary_attest.expected_hash` recomputes it offline, so two people can compare
-binaries without either of them starting a game — and `sage-verify attest` reads the live value
-out of a running process to check that the running game is the file it claims to be.
+`.reloc` and does not set `DYNAMIC_BASE`, so the loader maps every section at its preferred
+address with the file's bytes. `sage_patch.patches.multiplayer.binary_attest.expected_hash`
+recomputes the value offline, so two people can compare binaries without either of them starting
+a game — and `sage-verify attest` reads the live value out of a running process to check that the
+running game is the file it claims to be. With a patched stock `game.dat` mapped in a real
+32-bit process and the skipped ranges filled with random bytes, the stub's walk lands on
+`expected_hash`, and one changed dword elsewhere moves it.
 
-Computed once and cached behind a flag in the section (a flag rather than "nonzero means done",
-so the one image in four billion that folds to zero is not rehashed every heartbeat). The fold is
-~8 MB and costs a few milliseconds, once, at the first heartbeat.
+**A stub that never ran leaves the slot at 0**, which the heartbeat mixes as nothing — so a binary
+whose entry point was redirected around the stub disagrees with every peer whose stub did run.
 
-**Including the cave's own code** means an attacker wanting the honest value back has to edit the
-routine that computes it, rather than nop a branch somewhere in `.text` and leave the attestation
-untouched. It does not make that impossible — see §6.
+**The hook slot.** `.attest + 0x08` holds a routine the heartbeat calls on live frames, with every
+register saved, or 0. A later patch writes its address there in the file, so the slot is part of
+the hashed image.
 
 ## 5. Playback is exempt
 
@@ -181,9 +201,14 @@ to stay quiet. A casually modified binary — a downloaded "no-fog" `game.dat`, 
 branch, a build with a different mod version — fails at the first heartbeat, visibly, through the
 engine's own `GameCRCMismatch` path rather than by nobody noticing.
 
+**Including every cave** means patches are covered too: a player cannot change what a patch's
+cave does, or remove one, without the checksum moving.
+
 **It does not buy:** protection against someone who reads this document. The hash is computed by
 the client it attests; whoever can patch the fog branch can patch this routine to return the
-value an honest build produces. That is one more edit, not a wall. Client-side integrity checks
+value an honest build produces. That is one more edit, not a wall. Nor does it see a DLL that
+changes memory *after* the entry point: hashing once is what lets optional DLLs such as the
+accelerator coexist with it, and a cheat delivered the same way is outside it. Client-side integrity checks
 always lose to a debugger, and the honest claim is that this raises the floor, not the ceiling.
 
 **It buys nothing at all** against an external read-only overlay, for the reason in §2.
@@ -197,17 +222,19 @@ machine after the fact and there is nothing in it for the cheater to patch. That
 - **Every peer must run the byte-identical `game.dat`.** That is the property being enforced, so
   it is not a side effect — but it does mean a mod shipping this patch has committed to
   lockstepping its binary across its whole player base.
+- **Apply it after every patch that moves the entry point or adds an import.** Its stub must be
+  the entry point, so that nothing another patch loads runs before the hash, and its table must
+  name every range the loader fills. `verify` checks both and says which order to fix. `dll-load`
+  recognises its stub sitting second in line behind this one.
 - **Applying any other patch changes the attested value**, including applying the same set in a
   different order: `allocate_section` appends past the highest existing section, so the cave's
   address moves and the hook's relative displacement with it. Two builds with the same patches
   in a different order are different files and are treated as such.
 - **Replays from an attested build carry mixed checksums.** They play back correctly on that
   build (§5) and their `0x44A` values will not match an unpatched build's for the same inputs.
-- **A protector that rewrites `.text` in memory would break this.** The image carries SecuROM-era
-  sections (`stxt774`, `stxt371`, `.mackt`), and the assumption in §4 is that none of them
-  modifies `.text` after load. This holds for the binary measured here — `expected_hash` and the
-  live value agree — and `sage-verify attest` is the check to run if that is ever in doubt on
-  another build.
+- **Runtime status.** The checksum mix and its desync were seen in play on the earlier version,
+  which hashed `.text` at the first heartbeat. The entry-point walk is checked in a real 32-bit
+  process against `expected_hash`, but has not yet been played across two machines.
 
 ## 8. Reproduction
 
@@ -230,3 +257,7 @@ Method, in the order it worked:
    shroud manager's is `0x00DE4358`, already named in [`fog-of-war.md`](fog-of-war.md).
 5. For the hook: linear-disassemble `GameLogic::update` from `0x0062E4E8`, collect every branch
    target, and confirm none lands inside the six bytes at `0x0062E7FD`.
+6. For the entry-point walk: `pefile` on the stock image for the data directories (IAT empty,
+   import and load config present, no TLS, bound imports or relocations), the import descriptors'
+   `FirstThunk` arrays for the tables, and `LoadConfig.SecurityCookie` (`0x00DBDB40`, holding
+   `0xBB40E64E`) for the cookie.

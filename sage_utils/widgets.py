@@ -8,11 +8,13 @@ import traceback
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QStringListModel, Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, QStringListModel, Qt, QThread, QUrl, pyqtSignal
 from PyQt6.QtGui import QAction, QDesktopServices, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
+    QAbstractSpinBox,
     QApplication,
+    QComboBox,
     QCompleter,
     QDialog,
     QDialogButtonBox,
@@ -26,6 +28,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSlider,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -43,6 +46,7 @@ __all__ = [
     "clear_layout",
     "CopyableLabel",
     "getting_started_dialog",
+    "ignore_wheel_on_inputs",
     "make_completer",
     "pil_to_pixmap",
     "report_bug_dialog",
@@ -355,6 +359,37 @@ def resource_path(name: str, anchor: str) -> Path:
     return base / name
 
 
+# What the wheel must never change: a value box scrolled past on the way down a page would
+# otherwise be edited by accident. Scroll bars, lists and views still scroll.
+_WHEEL_INPUTS = (QAbstractSpinBox, QComboBox, QSlider)
+
+
+class _WheelGuard(QObject):
+    """Swallows wheel events aimed at an input and hands them to its parent, so the page under
+    the cursor scrolls instead of the value changing."""
+
+    def eventFilter(self, obj: QObject | None, event: QEvent | None) -> bool:  # noqa: N802 - Qt's name
+        if event is None or event.type() != QEvent.Type.Wheel or not isinstance(obj, _WHEEL_INPUTS):
+            return False
+        # Offered to each ancestor in turn until one takes it, as if the input were not there.
+        # By hand, because Qt only walks up the parents itself for a wheel event the mouse made.
+        parent = obj.parentWidget()
+        while parent is not None:
+            event.accept()
+            QApplication.sendEvent(parent, event)
+            if event.isAccepted():
+                break
+            parent = parent.parentWidget()
+        return True
+
+
+def ignore_wheel_on_inputs(app: QApplication) -> None:
+    """Make the mouse wheel never change a spin box, combo box or slider anywhere in `app`.
+    `run_app` does this for every SAGE app; an app that builds its own QApplication calls it."""
+    if app.findChild(_WheelGuard) is None:
+        app.installEventFilter(_WheelGuard(app))
+
+
 def run_app(
     window_factory,
     *,
@@ -367,6 +402,7 @@ def run_app(
     module's `__file__` (for `resource_path`); `app_name`, if given, sets the application name.
     An app that ships no icon of its own passes neither and keeps the platform default."""
     app = QApplication(sys.argv)
+    ignore_wheel_on_inputs(app)
     if app_name is not None:
         app.setApplicationName(app_name)
     if icon_file is not None and anchor is not None:

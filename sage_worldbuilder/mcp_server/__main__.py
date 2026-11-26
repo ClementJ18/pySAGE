@@ -28,6 +28,9 @@ def main(argv: list[str] | None = None) -> int:
     require_extra("worldbuilder-mcp", "sage-worldbuilder-mcp", "mcp", "numpy")
 
     from sage_worldbuilder.mcp_server.server import build_server  # noqa: PLC0415 - needs mcp
+    from sage_worldbuilder.mcp_server.watchdog import exit_with_client  # noqa: PLC0415
+
+    exit_with_client()
 
     if args.bridge:
         from sage_worldbuilder.mcp_server.bridge import BridgeSession  # noqa: PLC0415

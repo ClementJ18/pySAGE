@@ -14,6 +14,8 @@ constructor) and still returns the caller's argument.
 
 from __future__ import annotations
 
+import argparse
+import faulthandler
 import struct
 
 import pytest
@@ -21,11 +23,30 @@ import pytest
 pytest.importorskip("capstone", reason="the [patch] extra (capstone) is not installed")
 from capstone import CS_ARCH_X86, CS_MODE_32, Cs  # noqa: E402 - after the importorskip guard
 
+pytest.importorskip("unicorn", reason="the [patch] extra (unicorn) is not installed")
+from unicorn import UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_32, Uc  # noqa: E402
+from unicorn.x86_const import (  # noqa: E402
+    UC_X86_REG_EAX,
+    UC_X86_REG_EBP,
+    UC_X86_REG_EBX,
+    UC_X86_REG_ECX,
+    UC_X86_REG_EDI,
+    UC_X86_REG_EDX,
+    UC_X86_REG_EIP,
+    UC_X86_REG_ESI,
+    UC_X86_REG_ESP,
+)
+
 from sage_patch.addresses import (  # noqa: E402
+    DELETE_FILE_W_IAT,
+    FIND_CLOSE_IAT,
+    FIND_FIRST_FILE_W_IAT,
+    FIND_NEXT_FILE_W_IAT,
     GAME_INFO_MAP,
     GAME_MODE_SKIRMISH,
     IMPORT_GET_LOCAL_TIME,
     IMPORT_SWPRINTF,
+    IMPORT_WCSCMP,
     RECORDER_END_WRITE_CALL,
     RECORDER_END_WRITE_CALL_BYTES,
     RECORDER_GAME_MODE,
@@ -42,21 +63,28 @@ from sage_patch.addresses import (  # noqa: E402
     RECORDER_NEW_GAME_BRANCH_BYTES,
     RECORDER_RECORDED_MODES,
     START_RECORDING_MODE_ARG,
+    START_RECORDING_REPLAY_DIR,
     THE_GAME_INFO,
     THE_RECORDER,
     THE_SKIRMISH_GAME_INFO,
     UNICODE_STRING_FROM_WIDE,
 )
+from sage_patch.patches.multiplayer import skirmish_replay  # noqa: E402
 from sage_patch.patches.multiplayer.skirmish_replay import (
+    DEFAULT_KEEP,
     DEFAULT_MODES,
+    DIR_MAX,
     FORMAT,
     GATE_CODE_OFF,
     ILLEGAL_CHARACTERS,
+    KEEP_OFF,
     MAP_MAX,
+    MAX_DELETES,
     MAX_MODES,
     MODE_COUNT_OFF,
     MODE_TABLE_OFF,
     NAME_CODE_OFF,
+    PRUNE_CODE_OFF,
     RENAME_ADDED,
     RENAME_ALL,
     SECTION_NAME,
@@ -126,9 +154,15 @@ def gate_text(base: int = BASE, modes: tuple[int, ...] = DEFAULT_MODES) -> list[
 
 
 def name_text(
-    base: int = BASE, modes: tuple[int, ...] = DEFAULT_MODES, rename_all: bool = True
+    base: int = BASE,
+    modes: tuple[int, ...] = DEFAULT_MODES,
+    rename_all: bool = True,
+    keep: int = 0,
 ) -> list[str]:
-    body = build_section(base, modes, rename_all)[NAME_CODE_OFF:]
+    """The naming routine alone. `keep` defaults to 0 here so the naming tests read the routine
+    without the one `call` pruning puts in front of it; the pruning tests ask for it."""
+    body = build_section(base, modes, rename_all, keep)[NAME_CODE_OFF:PRUNE_CODE_OFF]
+    body = body.rstrip(b"\xcc")
     return [f"{i.mnemonic} {i.op_str}" for i in _disassemble(body, base + NAME_CODE_OFF)]
 
 
@@ -439,7 +473,7 @@ def test_the_cave_is_position_independent_of_its_base():
     same body at a different base differs only in those - not in length or shape."""
     here, elsewhere = build_section(BASE), build_section(BASE + 0x10000)
     assert len(here) == len(elsewhere)
-    for at in (GATE_CODE_OFF, NAME_CODE_OFF):
+    for at in (GATE_CODE_OFF, NAME_CODE_OFF, PRUNE_CODE_OFF):
         mine = _disassemble(bytes(here[at:]), BASE + at)
         theirs = _disassemble(bytes(elsewhere[at:]), BASE + 0x10000 + at)
         assert [i.mnemonic for i in mine] == [i.mnemonic for i in theirs]
@@ -529,3 +563,342 @@ class TestDetect:
 
     def test_detection_never_raises_on_something_that_is_not_a_game_dat(self):
         assert SkirmishReplayPatch.detect(bytearray(b"MZ" + bytes(4096))) is None
+
+
+# --- pruning -------------------------------------------------------------------------------
+#
+# The pruning routine is a loop over four Win32 calls and a `wcscmp`, which is too much logic to
+# trust to a disassembly read. So it is *run*: Unicorn executes the real bytes, with each import
+# slot pointing at a stub that answers from a Python model of the `Replays` folder.
+
+_REPLAY_DIR = "C:\\Users\\me\\Replays\\"
+
+
+def _own(day: int, second: int = 0, map_name: str = "map wor forlindon") -> str:
+    return f"2026-11-{day:02d} 12-00-{second:02d} {map_name}.BfME2Replay"
+
+
+class _FakeReplays:
+    """Runs `_build_prune_code` on a fake replay folder and records what it did."""
+
+    STUBS = 0x00100000
+    STACK = 0x00200000
+    STRING = 0x00300000
+    SENTINEL = 0x00400000
+    DIRECTORY = "<dir>"
+
+    def __init__(
+        self,
+        files: list[str],
+        keep: int = 10,
+        directory: str | None = _REPLAY_DIR,
+        delete_works: bool = True,
+        delete_removes: bool = True,
+    ) -> None:
+        self.files = list(files)  # entries ending in DIRECTORY are folders
+        self.directory = directory
+        self.delete_works = delete_works
+        self.delete_removes = delete_removes
+        self.deleted: list[str] = []
+        self.delete_calls = 0
+        self.scans: list[str] = []
+        self.open_handles = 0
+        self._listing: list[str] = []
+
+        self.section = build_section(BASE, keep=keep)
+        uc = self.uc = Uc(UC_ARCH_X86, UC_MODE_32)
+        size = (len(self.section) + 0xFFF) & ~0xFFF
+        # `mem_map` raises and catches an SEH access violation inside Unicorn 2.1.4 on Windows;
+        # every map succeeds, but the fault handler would print a stack for each one.
+        was_enabled = faulthandler.is_enabled()
+        faulthandler.disable()
+        try:
+            uc.mem_map(BASE, size)
+            uc.mem_map(0x00BD0000, 0x1000)
+            for region in (self.STUBS, self.STACK, self.STRING, self.SENTINEL):
+                uc.mem_map(region, 0x10000)
+        finally:
+            if was_enabled:
+                faulthandler.enable()
+        uc.mem_write(BASE, self.section)
+        uc.mem_write(self.SENTINEL, b"\xc3")
+
+        stubs = {
+            FIND_FIRST_FILE_W_IAT: (self._find_first, 2),
+            FIND_NEXT_FILE_W_IAT: (self._find_next, 2),
+            FIND_CLOSE_IAT: (self._find_close, 1),
+            DELETE_FILE_W_IAT: (self._delete, 1),
+            IMPORT_WCSCMP: (self._wcscmp, 0),  # cdecl: the caller cleans
+        }
+        self._by_address = {}
+        for index, (slot, (handler, stdcall_args)) in enumerate(stubs.items()):
+            address = self.STUBS + index * 0x10
+            uc.mem_write(address, b"\xc3")
+            uc.mem_write(slot, struct.pack("<I", address))
+            self._by_address[address] = (handler, stdcall_args)
+
+        def hook(uc, address, _size, _user):
+            if address not in self._by_address:
+                return
+            handler, stdcall_args = self._by_address[address]
+            esp = uc.reg_read(UC_X86_REG_ESP)
+            ret, *args = struct.unpack("<5I", uc.mem_read(esp, 20))
+            uc.reg_write(UC_X86_REG_EAX, handler(*args) & 0xFFFFFFFF)
+            uc.reg_write(UC_X86_REG_ESP, esp + 4 + 4 * stdcall_args)
+            uc.reg_write(UC_X86_REG_EIP, ret)
+
+        uc.hook_add(UC_HOOK_CODE, hook, begin=self.STUBS, end=self.STUBS + 0x1000)
+
+        # startRecording's frame: [ebp-0x2c] is the replay directory's UnicodeString.
+        ebp = self.STACK + 0x8000
+        if directory is None:
+            uc.mem_write(ebp + START_RECORDING_REPLAY_DIR, struct.pack("<I", 0))
+        else:
+            uc.mem_write(self.STRING + 8, directory.encode("utf-16-le") + b"\x00\x00")
+            uc.mem_write(ebp + START_RECORDING_REPLAY_DIR, struct.pack("<I", self.STRING))
+        esp = ebp - 0x100
+        uc.mem_write(esp, struct.pack("<I", self.SENTINEL))
+        self.before = {
+            UC_X86_REG_EAX: 0x11111111,
+            UC_X86_REG_EBX: 0x22222222,
+            UC_X86_REG_ECX: 0x33333333,
+            UC_X86_REG_EDX: 0x44444444,
+            UC_X86_REG_ESI: 0x55555555,
+            UC_X86_REG_EDI: 0x66666666,
+            UC_X86_REG_EBP: ebp,
+        }
+        for register, value in self.before.items():
+            uc.reg_write(register, value)
+        uc.reg_write(UC_X86_REG_ESP, esp)
+        uc.emu_start(BASE + PRUNE_CODE_OFF, self.SENTINEL, count=50_000_000)
+        self.after = {register: uc.reg_read(register) for register in self.before}
+        self.esp_after = uc.reg_read(UC_X86_REG_ESP)
+        self.esp_expected = esp + 4
+
+    def _read_wide(self, address: int) -> str:
+        raw = bytes(self.uc.mem_read(address, 2 * 600))
+        return raw.decode("utf-16-le").split("\x00", 1)[0]
+
+    def _fill(self, wfd: int) -> None:
+        entry = self._listing.pop(0)
+        folder = entry.endswith(self.DIRECTORY)
+        name = entry.removesuffix(self.DIRECTORY)
+        record = bytearray(0x250)
+        struct.pack_into("<I", record, 0, 0x10 if folder else 0x80)
+        encoded = name.encode("utf-16-le") + b"\x00\x00"
+        record[0x2C : 0x2C + len(encoded)] = encoded
+        self.uc.mem_write(wfd, bytes(record))
+
+    def _find_first(self, path: int, wfd: int, *_rest: int) -> int:
+        pattern = self._read_wide(path)
+        self.scans.append(pattern)
+        assert pattern == f"{self.directory}*.BfME2Replay"
+        self._listing = [
+            entry
+            for entry in self.files
+            if entry.lower().endswith(".bfme2replay") or entry.endswith(self.DIRECTORY)
+        ]
+        if not self._listing:
+            return -1
+        self.open_handles += 1
+        self._fill(wfd)
+        return 0x1234
+
+    def _find_next(self, handle: int, wfd: int, *_rest: int) -> int:
+        assert handle == 0x1234
+        if not self._listing:
+            return 0
+        self._fill(wfd)
+        return 1
+
+    def _find_close(self, handle: int, *_rest: int) -> int:
+        assert handle == 0x1234
+        self.open_handles -= 1
+        return 1
+
+    def _delete(self, path: int, *_rest: int) -> int:
+        self.delete_calls += 1
+        full = self._read_wide(path)
+        assert full.startswith(self.directory)
+        name = full[len(self.directory) :]
+        if not self.delete_works:
+            return 0
+        if self.delete_removes:
+            self.files.remove(name)
+        self.deleted.append(name)
+        return 1
+
+    def _wcscmp(self, left: int, right: int, *_rest: int) -> int:
+        a, b = self._read_wide(left), self._read_wide(right)
+        return (a > b) - (a < b)
+
+
+class TestPruning:
+    def test_the_oldest_go_until_keep_minus_one_remain(self):
+        """Room for the recording about to start: ten kept means nine before it."""
+        own = [_own(day) for day in range(1, 13)]  # 12 files
+        run = _FakeReplays(own, keep=10)
+        assert run.deleted == [_own(1), _own(2), _own(3)]
+        assert sorted(run.files) == own[3:]
+
+    def test_the_order_comes_from_the_name_not_the_listing(self):
+        """NTFS lists alphabetically, but nothing may depend on it."""
+        own = [_own(day) for day in range(1, 13)]
+        shuffled = own[5:] + own[:5][::-1]
+        assert _FakeReplays(shuffled, keep=10).deleted == own[:3]
+
+    def test_the_timestamp_decides_not_the_map(self):
+        names = [_own(2, map_name="aaa"), _own(1, map_name="zzz"), _own(3, map_name="mmm")]
+        assert _FakeReplays(names, keep=2).deleted == [
+            _own(1, map_name="zzz"),
+            _own(2, map_name="aaa"),
+        ]
+
+    def test_nothing_goes_while_there_is_room(self):
+        own = [_own(day) for day in range(1, 10)]  # 9: with the new one, exactly 10
+        run = _FakeReplays(own, keep=10)
+        assert run.deleted == []
+        assert len(run.scans) == 1
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Last Replay.BfME2Replay",
+            "my best game.BfME2Replay",
+            "Game 4.BfME2Replay",
+            "2026-11-01 12-00-00.BfME2Replay",  # no space before the extension: not ours
+            "2026-11-01_12-00-00 map.BfME2Replay",
+            "2026-1x-01 12-00-00 map.BfME2Replay",
+            "x2026-11-01 12-00-00 map.BfME2Replay",  # the rename that keeps a replay
+            "2026-11-01 12-00-0 map.BfME2Replay",
+        ],
+    )
+    def test_names_the_patch_does_not_write_are_never_counted_or_deleted(self, name: str):
+        own = [_own(day) for day in range(10, 20)]
+        run = _FakeReplays([name, *own], keep=10)
+        assert name in run.files
+        assert run.deleted == [_own(10)]
+
+    def test_a_map_less_name_is_still_ours(self):
+        """The format with an empty map ends in the space, which the template includes."""
+        names = ["2026-11-01 12-00-00 .BfME2Replay", _own(2)]
+        assert _FakeReplays(names, keep=2).deleted == ["2026-11-01 12-00-00 .BfME2Replay"]
+
+    def test_a_folder_named_like_a_replay_is_skipped(self):
+        names = [_own(1) + _FakeReplays.DIRECTORY, _own(2), _own(3)]
+        run = _FakeReplays(names, keep=2)
+        assert run.deleted == [_own(2)]
+
+    def test_keep_one_clears_every_old_recording(self):
+        own = [_own(day) for day in range(1, 6)]
+        assert _FakeReplays(own, keep=1).deleted == own
+
+    def test_a_refused_delete_ends_the_pruning(self):
+        """A file in use stays; the recording must still start, so no retry loop."""
+        own = [_own(day) for day in range(1, 15)]
+        run = _FakeReplays(own, keep=10, delete_works=False)
+        assert run.delete_calls == 1
+        assert run.files == own
+
+    def test_a_delete_that_lies_is_bounded(self):
+        """`DeleteFileW` succeeds on a file another process holds with FILE_SHARE_DELETE, and it
+        goes on listing until that handle closes. The budget is what ends that loop."""
+        own = [_own(day) for day in range(1, 15)]
+        run = _FakeReplays(own, keep=10, delete_removes=False)
+        assert run.delete_calls == MAX_DELETES
+
+    def test_a_large_backlog_is_capped_per_recording(self):
+        own = [
+            f"2026-{1 + n // 28 % 12:02d}-{1 + n % 28:02d} {n // 336:02d}-00-00 m.BfME2Replay"
+            for n in range(MAX_DELETES + 40)
+        ]
+        run = _FakeReplays(own, keep=10)
+        assert len(run.deleted) == MAX_DELETES
+        assert run.deleted == sorted(own)[:MAX_DELETES]
+
+    def test_an_empty_folder_is_fine(self):
+        run = _FakeReplays([], keep=10)
+        assert run.deleted == []
+        assert run.open_handles == 0
+
+    def test_every_find_handle_is_closed(self):
+        run = _FakeReplays([_own(day) for day in range(1, 15)], keep=10)
+        assert run.open_handles == 0
+        assert len(run.scans) == len(run.deleted) + 1
+
+    def test_no_directory_means_no_scan(self):
+        assert _FakeReplays([_own(1)], keep=1, directory=None).scans == []
+
+    def test_an_over_long_directory_is_left_alone(self):
+        long_dir = "C:\\" + "d" * DIR_MAX + "\\"
+        assert _FakeReplays([_own(1)], keep=1, directory=long_dir).scans == []
+
+    def test_a_directory_at_the_limit_still_works(self):
+        at_limit = "C:\\" + "d" * (DIR_MAX - 4) + "\\"
+        assert len(at_limit) == DIR_MAX
+        assert _FakeReplays([_own(1), _own(2)], keep=2, directory=at_limit).deleted == [_own(1)]
+
+    def test_every_register_comes_back_and_the_stack_balances(self):
+        run = _FakeReplays([_own(day) for day in range(1, 15)], keep=10)
+        assert run.after == run.before
+        assert run.esp_after == run.esp_expected
+
+
+def test_pruning_is_called_first_when_on():
+    """Ahead of the rename decision, so it runs under both rename scopes."""
+    for rename_all in (True, False):
+        body = name_text(rename_all=rename_all, keep=DEFAULT_KEEP)
+        assert body[0] == f"call {BASE + PRUNE_CODE_OFF:#x}"
+        without = name_text(rename_all=rename_all, keep=0)
+        # every branch target moves by the five-byte call; the instructions do not
+        assert [line.split()[0] for line in body[1:]] == [line.split()[0] for line in without]
+
+
+def test_keep_zero_leaves_the_naming_routine_as_it_was():
+    assert f"call {BASE + PRUNE_CODE_OFF:#x}" not in name_text(keep=0)
+
+
+def test_the_default_keeps_ten():
+    assert DEFAULT_KEEP == 10
+    assert SkirmishReplayPatch().keep == 10
+
+
+@pytest.mark.parametrize("keep", [-1, 0x10000])
+def test_an_unusable_keep_is_refused(keep: int):
+    with pytest.raises(ValueError, match="keep"):
+        SkirmishReplayPatch(keep=keep)
+
+
+def test_verify_rejects_another_keep():
+    data = patched_image(SkirmishReplayPatch(keep=10))
+    assert SkirmishReplayPatch(keep=10).verify(data) == []
+    assert SkirmishReplayPatch(keep=5).verify(data)
+    assert SkirmishReplayPatch(keep=0).verify(data)
+
+
+def test_verify_rejects_a_damaged_pruning_routine():
+    data = patched_image()
+    _, section_off, _ = find_section(data, SECTION_NAME)
+    data[section_off + PRUNE_CODE_OFF + 1] ^= 0xFF
+    assert any("pruning routine" in problem for problem in SkirmishReplayPatch().verify(data))
+
+
+@pytest.mark.parametrize("keep", [0, 1, 10, 500])
+def test_detect_recovers_keep(keep: int):
+    data = patched_image(SkirmishReplayPatch(keep=keep))
+    found = SkirmishReplayPatch.detect(data)
+    assert found is not None
+    assert found.keep == keep
+
+
+def test_a_cave_from_before_pruning_reads_as_keep_zero():
+    """Such a cave ended with the naming routine, so it is too short to hold a keep count."""
+    assert skirmish_replay._stored_keep(bytes(KEEP_OFF), 0, KEEP_OFF) == 0
+
+
+def test_the_keep_option_reaches_the_patch():
+    parser = argparse.ArgumentParser()
+    SkirmishReplayPatch.add_cli_arguments(parser)
+    assert SkirmishReplayPatch.from_cli_args(parser.parse_args([])).keep == DEFAULT_KEEP
+    assert SkirmishReplayPatch.from_cli_args(parser.parse_args(["--keep", "0"])).keep == 0
+    assert SkirmishReplayPatch.from_cli_args(parser.parse_args(["--keep", "25"])).keep == 25

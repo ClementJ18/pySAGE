@@ -375,7 +375,25 @@ the running game. What follows separates what has been *seen working* from what 
 The temporary hook is **still live**: the Create-a-Hero button calls the Battle School. That is a
 test harness, not a design decision, and needs replacing with a real entry point.
 
-### 8.2 The unsolved problem: merged *shape* characters never draw
+### 8.2 Merged *shape* characters never drew - cause found 2026-11-04
+
+**Cause (static, not yet seen in game).** The APT runtime loads shape *i*'s mesh as
+`<Movie>_geometry/<i>.ru`, by **character index**; the shape's own `geometry` field is never read.
+In `AptAnimation.cpp`'s character loop the shape case calls `gAptFuncs.pfnLoadRenderingUnit(movie,
+i)` (`[0x00DFD4F0]`, call at `0x00AF9504`) right after the debug-only assert
+`(int)apCharacters[i]->shape.zID == i` (string `0x00D04C98`); images do the same through
+`pfnLoadTexture(movie, i)` (`[0x00DFD4E4]`, `0x00AF98BC`, assert `bitmap.zID == i`). The game
+side files each mesh under the number in its file name (`0x004AAE88`) and looks it up by that
+number (`0x004AA26A`). So `sage_apt.merge` renumbering the book's meshes to 200-224 while its
+shapes sat at 95-172 left every merged shape looking for a `<index>.ru` that did not exist.
+
+That also explains the one experiment that moved: shape 89 drew stock `89.ru`, a solid grey
+`s:126:137:146` rectangle - not mesh 207 without its texture. **Rule: a shape's mesh file must be
+named after the shape's character index** (and an image's `.dat` row after the image's index).
+
+Fixed in the Edain movie on `battle-school-v2` by renaming each mesh to its shape's index and
+setting `geometry` to match. `sage_apt.merge` still renumbers geometry independently and should be
+changed to keep `geometry == id`. What follows is the original investigation.
 
 Everything the Battle School is missing visually — the parchment page behind the videos, and the
 seven button plates — is one problem. A shape character copied in from BFME1 does not render, while
@@ -415,6 +433,16 @@ confident and wrong "the live install has none of them" mid-session.
 
 ### 8.3 Two other open bugs
 
+**Click-once, cause found 2026-11-04 (static, unplayed).** `MenuExport::GenericButton_Short`
+(sprite 281) calls `OnButtonClick` on its `_release` frame (58) and then returns to `_over`/`_up`
+**only if the instance has `resetOnClick` set**; otherwise it stops there for good and ignores
+further clicks (with `exitOnClick` it plays `_exit` instead). Main-menu buttons never need it
+because every click leaves the screen. The seven Battle School buttons now set
+`resetOnClick = true` in their onLoad clip action. The `_reveal` loop in `TurtorialMovieDone` is no
+longer needed for this. Separately, the topic handlers call `nav.gotoAndPlay("_WorldMap")` etc.,
+but the nav sprite's labels have no underscore (`WorldMap`, `MovesandAttacks`, ...), so that call
+matches nothing. Not changed yet.
+
 - **The book closes itself** a few seconds after reaching the topic list. Frame 52 already carries a
   `stop`, and only frame 53 (`_closeBook`) removes the page depth, so something is actively calling
   the close path rather than the clip running on. Not traced.
@@ -445,16 +473,29 @@ confident and wrong "the live install has none of them" mid-session.
   through `_reveal`. The reset has to live there rather than in the button handler, because a stuck
   button cannot reset itself on a click it never receives.
 
+**Full-screen blackouts, cause found and patched 2026-11-04 (patched statically, not yet played).** Measured live with
+pySAGE-edain's `tools/live/black_screen_monitor.py`: with the book open the whole screen, buttons
+included, goes black for one shell-map camera shot in two (~17 s black, ~17 s normal), with no
+input, steady 60 fps, and the tutorial video still decoding underneath. The spells line up with the
+shell map's `Fade` (`CAMERA_FADE_ADD`, toward white) / `Setup` / `Reset` cycle, to the frame;
+switching the live `Fade` script off stopped them, and the main menu itself runs the same shots
+without a blackout. The accelerator is not involved (its render thread off changed nothing).
+
+No stock menu turns the shell map off: Credits, the closest relative (a full-screen movie in the
+same root depth 3), only stops the music (`0x0075D9B1`) and sets `Shell+0x5D`; `SetBackground`
+(`0x00815507`) only shows or hides the front-end *image* background (`ShowFrontEndBackground` /
+`HideFrontEndBackground` through `[0x00DE3F0C]`); `ShellMapOn` / `-noshellmap` are start-up
+only. So the patch now holds the shell map's scripts itself: the one call to `SCRIPT_IS_DUE`
+(`0x0060A168`, inside `SCRIPT_ENGINE_RUN_SCRIPT`) goes to a stub at the end of the `.btlsch`
+cave that returns "not due" while `[Shell]+0x5D` is set - set by the `enter` arm (stock) and by
+Credits, cleared by `leave` and `CreditsExit` - and otherwise jumps on to `SCRIPT_IS_DUE`.
+Timers keep counting, so the cycle resumes at once on leaving. Untested in game: entering in the
+second or so while a `Fade` is running might still leave that one fade stuck until leaving.
+
 ### 8.4 Where to resume
 
-1. **Run the split-mesh diagnostic.** It is the cheapest decisive test and it was built but never
-   looked at — the answer arrived as "put the background back" first. Give one mesh two fills: a
-   **solid** colour on the left half, the **textured** parchment on the right, and put it on a shape
-   that is known to draw (Edain's 89). Solid-only means textures are the remaining problem; both
-   means it is solved; neither means the donor is not drawing that mesh at all.
-2. **If solid draws and textured does not**, the parchment needs an Edain-owned image id rather than
-   a merged one — or take the proven route and play a one-frame `.vp6` through the `BinkMovie`
-   gadget, which already works on this screen.
+1. **Check the parchment and button plates in game** with the meshes named by index (§8.2).
+2. **Fix `sage_apt.merge`** so merged shapes keep `geometry == id`.
 3. **`SetBackground` cannot help.** `0x00815507` accepts only `fadein`, `fadeout`, `off` and `on` —
    there is no image-name form, so the parchment can never come from that call.
 4. Then the self-close (§8.3), then confirm the replay fix, then replace the Create-a-Hero hook.

@@ -121,6 +121,7 @@ def build_code(cave_va: int) -> bytes:
 class ReplaceSelfRubblePatch(Patch):
     name = "replace-self-rubble"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop a ReplaceSelfUpgrade destroying the rubble its replacement is placed on - a "
         "destroyed citadel waiting to be rebuilt disappeared when a wall or tower overlapping it "

@@ -17,25 +17,28 @@ already has the ordering, the confirmations and the observation queries.
 
 from __future__ import annotations
 
-import math
 import time
-from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext
+from dataclasses import dataclass, field
 
-from sage_live.api.observation import GameObject, Observation
+from sage_live.api.observation import GameObject, Observation, ground_distance
 from sage_live.api.session import Session
 from sage_live.backends import game_speed
 from sage_live.backends.game_speed import FAST_FORWARD
 from sage_live.backends.live_patch import LivePatchError, WindowsProcess
 from sage_test.scenario import Handle, Scenario
+from sage_test.scripts import ScriptControl
 
 __all__ = [
     "DEFAULT_TOLERANCE",
+    "FAST_SLICE_S",
     "BindingError",
     "Match",
+    "ObjectRef",
     "bind_handles",
     "match_from",
+    "recharged",
 ]
 
 #: How far a live object may be from where the scenario placed it and still be it. Generous
@@ -43,15 +46,26 @@ __all__ = [
 #: reasonably place two same-template objects apart.
 DEFAULT_TOLERANCE = 60.0
 
+#: How long `Match.harass` runs fast between orders. Long enough that fast-forwarding pays for
+#: itself, short enough that attackers whose target walked off are pointed at it again.
+FAST_SLICE_S = 3.0
+
+#: Something a `Match` can name an object by: a declared handle, or a live id.
+ObjectRef = Handle | int
+
 
 class BindingError(LookupError):
     """A declared object could not be found in the running match."""
 
 
-def _distance_2d(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
-    """Ground distance. The z the scenario declares is not the z the engine puts the object at -
-    it drops them onto the terrain - so height is not part of the match."""
-    return math.hypot(a[0] - b[0], a[1] - b[1])
+def recharged(before: int | None, now: int | None, frame: int) -> bool:
+    """Whether a power's ready frame says it was cast since `before` was read.
+
+    A cast moves the ready frame into the future. A frame that changed but is not ahead of
+    `frame` is a recharge being rescaled or cleared, not a cast - which is what an AI's cast
+    looks like from outside, since nothing else announces it.
+    """
+    return now is not None and now != before and now > frame
 
 
 def bind_handles(
@@ -67,19 +81,21 @@ def bind_handles(
     claimed: set[int] = set()
     bindings: dict[int, int] = {}
     for index, placement in enumerate(scenario.placements):
+        if not placement.bind:
+            continue
         candidates = [
             obj
             for obj in observation.objects
             if obj.object_id not in claimed
             and obj.template_name.lower() == placement.template.lower()
-            and _distance_2d(obj.position, placement.live_at) <= tolerance
+            and ground_distance(obj.position, placement.live_at) <= tolerance
         ]
         if not candidates:
             raise BindingError(
                 f"placement {index} ({placement.template} at {placement.live_at}) matched no live "
                 f"object within {tolerance} - it may have died, or never been created"
             )
-        nearest = min(candidates, key=lambda obj: _distance_2d(obj.position, placement.live_at))
+        nearest = min(candidates, key=lambda obj: ground_distance(obj.position, placement.live_at))
         claimed.add(nearest.object_id)
         bindings[index] = nearest.object_id
     return bindings
@@ -95,6 +111,27 @@ class Match:
     #: The game's process id, for what the session does not reach - the frame cap `fast` raises.
     #: None for a match built around a session nobody launched here.
     pid: int | None = None
+    _scripts: ScriptControl | None = field(default=None, init=False, repr=False)
+    _process: WindowsProcess | None = field(default=None, init=False, repr=False)
+
+    @property
+    def scripts(self) -> ScriptControl:
+        """The scenario's map scripts in the game: `fire`, `wait_fired`, `run`, `count`, ...
+
+        Opened on first use, over the process handle `close` releases."""
+        if self._scripts is None:
+            if self.pid is None:
+                raise RuntimeError("this match has no process id, so its scripts cannot be reached")
+            self._process = WindowsProcess(self.pid)
+            self._scripts = ScriptControl(self._process)
+        return self._scripts
+
+    def close(self) -> None:
+        """Release the process handle `scripts` opened. The game itself is the runner's to end."""
+        if self._process is not None:
+            self._process.close()
+        self._process = None
+        self._scripts = None
 
     @contextmanager
     def fast(self, multiplier: int = FAST_FORWARD) -> Iterator[None]:
@@ -118,6 +155,15 @@ class Match:
             except LivePatchError:
                 pass  # the game is gone, and with it the speed
             process.close()
+
+    def _id(self, ref: ObjectRef) -> int:
+        return ref if isinstance(ref, int) else self.id_of(ref)
+
+    def alive(self, refs: Iterable[ObjectRef]) -> list[int]:
+        """The ids of `refs` still in the game, in the order given."""
+        observation = self.session.observe()
+        ids = (self._id(ref) for ref in refs)
+        return [object_id for object_id in ids if observation.obj(object_id) is not None]
 
     def id_of(self, handle: Handle) -> int:
         """The live `ObjectId` a handle bound to."""
@@ -164,6 +210,7 @@ class Match:
         source_id: int | None = None,
         timeout: float = 30.0,
         retry_every: float = 2.0,
+        reselect: bool = False,
     ) -> int:
         """Cast `power` from `caster_id` and return the recharge it went onto, or raise.
 
@@ -178,8 +225,10 @@ class Match:
         own module clock is what `power_cooldowns` reads. That is the only signal here that
         distinguishes "the order landed" from "the order vanished".
 
-        The caster is selected once, up front; re-selecting per attempt would be the obvious thing
-        to do and is wrong, because a selection order is itself subject to the same delay.
+        The caster is selected once, up front, because a selection order is itself subject to the
+        same delay. Except right after the launch: a selection sent in a match's first frames is
+        dropped as well, and every attempt after it then has no caster. `reselect` selects again
+        before each attempt, with a second for it to settle.
         """
         self.session.select([caster_id])
         before = self.session.power_cooldowns(caster_id).get(power)
@@ -187,6 +236,9 @@ class Match:
         attempts = 0
         while time.monotonic() < deadline:
             attempts += 1
+            if reselect and attempts > 1:
+                self.session.select([caster_id])
+                time.sleep(1.0)
             self.session.cast(
                 power,
                 form=form,
@@ -204,6 +256,77 @@ class Match:
             f"{power} never went on recharge after {attempts} attempt(s) in {timeout}s - "
             "the ability is paused, out of range, or the cast is malformed"
         )
+
+    def toggle_until(
+        self,
+        ref: ObjectRef,
+        power: str,
+        condition: str,
+        timeout: float = 30.0,
+    ) -> bool:
+        """Cast the self-targeted `power` on an object until it shows `condition`; whether it did.
+
+        For a toggle whose effect is a model condition - a hero's mounted state - where the power's
+        recharge says nothing and casting it again flips it back. So it is cast once per attempt,
+        and the condition checked before each one.
+        """
+        object_id = self._id(ref)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            found = self.session.observe().obj(object_id)
+            if found is not None and found.is_in(condition):
+                return True
+            self.session.select([object_id])
+            time.sleep(1.0)
+            self.session.cast(power, form="self", source_id=object_id)
+            time.sleep(3.0)
+        return False
+
+    def harass(
+        self,
+        attackers: Iterable[ObjectRef] | Callable[[Observation], Iterable[ObjectRef]],
+        target: ObjectRef | Callable[[Observation], GameObject | None],
+        until: Callable[[Observation], bool],
+        timeout: float,
+        *,
+        fast: bool = True,
+        slice_s: float = FAST_SLICE_S,
+        poll: float = 0.1,
+    ) -> str:
+        """Send `attackers` at `target` until `until` holds of an observation; return why it
+        stopped, "" when `until` held.
+
+        How a test makes an AI react - cast a power, swing a weapon - when it only does so under
+        attack. The order is re-sent every `slice_s`, because a target walks and attackers drift
+        onto whatever else is in reach; between orders the game runs fast (`Match.fast`) unless
+        `fast` is off, which is what a check needing every frame - a weapon slot in use - wants.
+
+        Either side may be a function of the observation, for a target chosen as the fight goes
+        (the weakest hero) or attackers released as it goes (a reserve).
+        """
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            observation = self.session.observe()
+            if callable(target):
+                aimed = target(observation)
+            else:
+                aimed = observation.obj(self._id(target))
+            if aimed is None:
+                return "the target is gone"
+            sent = attackers(observation) if callable(attackers) else attackers
+            standing = self.alive(sent)
+            if not standing:
+                return "the attackers are gone"
+            self.session.select(standing)
+            self.session.attack(aimed.object_id, aimed.position)
+            pace: AbstractContextManager[None] = self.fast() if fast else nullcontext()
+            with pace:
+                slice_end = min(time.monotonic() + slice_s, deadline)
+                while time.monotonic() < slice_end:
+                    if until(self.session.observe()):
+                        return ""
+                    time.sleep(poll)
+        return f"nothing within {timeout:.0f}s"
 
     def __getattr__(self, name: str):
         """Everything else is the `sage_live.Session` underneath."""

@@ -163,6 +163,7 @@ class ExperienceAwardPatch(Patch):
 
     name = "experience-award"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "an EXPERIENCE_AWARD ModifierType: name it on a ModifierList's Modifier line and the "
         "experience that object grants when it is killed is multiplied by it - 50% is half, 200% "

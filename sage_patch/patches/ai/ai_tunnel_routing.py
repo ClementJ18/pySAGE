@@ -662,6 +662,7 @@ class AiTunnelRoutingPatch(Patch):
 
     name = "ai-tunnel-routing"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let the skirmish AI route a unit through its own tunnel network: a move or attack-move "
         "the AI gives is replaced by entering the tunnel nearest the unit when the walk from the "

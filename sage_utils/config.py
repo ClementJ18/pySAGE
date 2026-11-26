@@ -1,25 +1,45 @@
-"""Per-user config storage shared by the SAGE front ends: a per-app directory under the
-OS config root, plus best-effort JSON read/write so a missing, unwritable or corrupt file
-degrades to a default rather than aborting an app."""
+"""Per-user config storage shared by the SAGE front ends: one `pySAGE` folder under the OS
+config root with a subfolder per app, plus best-effort JSON read/write so a missing,
+unwritable or corrupt file degrades to a default rather than aborting an app."""
 
 import json
 import os
 from pathlib import Path
 
 __all__ = [
+    "VENDOR",
     "read_json",
     "user_config_dir",
     "user_file",
     "write_json",
 ]
 
+#: The single folder under the config root that every app's subfolder lives in.
+VENDOR = "pySAGE"
+
+
+def _config_root() -> Path:
+    """`%APPDATA%` on Windows, else `~/.config`."""
+    base = os.environ.get("APPDATA")  # Windows
+    return Path(base) if base else Path.home() / ".config"
+
 
 def user_config_dir(app: str) -> Path:
-    """The per-user config directory for `app` (one subfolder per app): under `%APPDATA%`
-    on Windows, else `~/.config`."""
-    base = os.environ.get("APPDATA")  # Windows
-    root = Path(base) if base else Path.home() / ".config"
-    return root / app
+    """The per-user config directory for `app`: `<config root>/pySAGE/<app>`.
+
+    Apps used to keep their folder straight under the config root; the first call after the
+    move renames such a folder into place. Best effort: a folder another process holds open
+    is left where it is, and the app starts from its defaults."""
+    root = _config_root()
+    path = root / VENDOR / app
+    legacy = root / app
+    if not path.exists() and legacy.is_dir():
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(path)
+        except OSError:
+            pass
+    return path
 
 
 def user_file(app: str, name: str) -> Path:

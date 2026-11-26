@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sage_worldbuilder.mapcache import MAX_SYMBOL, MapCacheEntry, build_entry
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
@@ -49,6 +50,7 @@ class MapCacheDialog(QDialog):
         modified: bool = False,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("MapCache Entry")
         self.resize(760, 620)
         self.entry: MapCacheEntry = build_entry(map, path, game=game)

@@ -36,7 +36,7 @@ from sage_lint.rules.map_ini import MapBareModuleRule
 from sage_lint.rules.modifier_fx import ModifierFxDurationRule
 from sage_lint.rules.module_ops import ModuleOperationRule
 from sage_lint.rules.module_refs import ModuleTagReferenceRule
-from sage_lint.rules.modules import UnrecognizedBlockRule
+from sage_lint.rules.modules import UnrecognizedBlockRule, UnregisteredModuleRule
 from sage_lint.rules.references import DanglingAssetReferenceRule, DanglingReferenceRule
 from sage_lint.rules.respawn import RespawnLevelRule, RespawnOrderRule
 from sage_lint.rules.schema import (
@@ -1332,6 +1332,43 @@ class TestUnrecognizedBlockRule:
 
         assert len(diags) == 1
         assert diags[0].extra["suggestion"] is None
+
+
+class TestUnregisteredModuleRule:
+    def test_flags_a_base_class_draw(self):
+        # W3DModelDraw is the C++ base of W3DScriptedModelDraw; RotWK's factory does not know it
+        # by name, so the game crashes loading this object.
+        game = _load(
+            "Object Foo\n    Draw = W3DModelDraw ModuleTag_01\n"
+            "        DefaultModelConditionState\n            Model = foo\n        End\n"
+            "    End\nEnd\n"
+        )
+        with suggestions_enabled():
+            diags = list(run_rules(game, [UnregisteredModuleRule]))
+
+        assert len(diags) == 1
+        assert diags[0].code == "unregistered-module"
+        assert diags[0].severity is Severity.ERROR
+        assert "W3DModelDraw" in diags[0].message
+        assert diags[0].extra["suggestion"] == "W3DScriptedModelDraw"
+
+    def test_flags_a_generals_module_inside_add_module(self):
+        game = _load(
+            "Object Base\nEnd\n"
+            "ChildObject Foo Base\n    AddModule ModuleTag_Add\n"
+            "        Body = UndeadBody ModuleTag_Body\n            MaxHealth = 1\n        End\n"
+            "    End\nEnd\n"
+        )
+        diags = list(run_rules(game, [UnregisteredModuleRule]))
+
+        assert [d.extra["type_name"] for d in diags] == ["UndeadBody"]
+
+    def test_does_not_flag_a_registered_subclass_of_an_unregistered_base(self):
+        game = _load(
+            "Object Foo\n    Draw = W3DScriptedModelDraw ModuleTag_01\n    End\n"
+            "    Behavior = SlowDeathBehavior ModuleTag_02\n    End\nEnd\n"
+        )
+        assert not list(run_rules(game, [UnregisteredModuleRule]))
 
 
 class TestModuleOperationRule:

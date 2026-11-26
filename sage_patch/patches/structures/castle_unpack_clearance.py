@@ -164,6 +164,7 @@ def build_code(base_va: int) -> bytes:
 class CastleUnpackClearancePatch(Patch):
     name = "castle-unpack-clearance"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop a camp or castle unpack silently dropping structures that terrain or a blocking "
         "object vetoed, which is what loses buildings from a rotated camp. No INI change"

@@ -9,6 +9,23 @@ __all__ = [
     "AI_ACTIVE_ATTACK_MACHINE_BYTES",
     "AI_ATTACK_MACHINE_TARGET",
     "AI_ATTACK_MACHINE_TARGET_BYTES",
+    "AI_ATTACK_MOVE_ECONOMY_FILTER",
+    "AI_ATTACK_MOVE_ECONOMY_FILTER_ENTRY",
+    "AI_ATTACK_MOVE_ECONOMY_PASS",
+    "AI_ATTACK_MOVE_ECONOMY_PASS_BYTES",
+    "AI_ATTACK_MOVE_ECONOMY_REJECT",
+    "AI_ATTACK_MOVE_ECONOMY_REJECT_BYTES",
+    "AI_ATTACK_MOVE_ECONOMY_TEST",
+    "AI_ATTACK_MOVE_ECONOMY_TEST_BYTES",
+    "AI_ATTACK_MOVE_TARGET_FILTER",
+    "AI_ATTACK_MOVE_TARGET_FILTER_BYTES",
+    "AI_ATTACK_MOVE_TARGET_FILTER_SLOT",
+    "AI_BASE_POSITION",
+    "AI_BASE_SET_ADD_BASE",
+    "AI_BASE_SET_ADD_BASE_ENTRY",
+    "AI_BASE_SET_ANCHOR",
+    "AI_BASE_SET_BASES",
+    "AI_BASE_SET_LATCHED",
     "AI_COMMAND_OBJECT_EBP",
     "AI_COMMAND_SOURCE_FROM_AI",
     "AI_COMMAND_SOURCE_FROM_PLAYER",
@@ -40,6 +57,7 @@ __all__ = [
     "AI_CURRENT_VICTIM_BYTES",
     "AI_CURRENT_VICTIM_ID_OFFSET",
     "AI_DATA_ARMY_DEFINITION",
+    "AI_DATA_BASE_SET",
     "AI_DATA_SET_VALUE",
     "AI_DATA_SET_VALUE_ENTRY",
     "AI_DESTROY_PATH",
@@ -95,7 +113,11 @@ __all__ = [
     "AI_FLAG_CAPTURE_SQUAD_UPDATE",
     "AI_FLAG_CAPTURE_SQUAD_UPDATE_SLOT",
     "AI_FLAG_CAPTURE_SQUAD_VTABLE",
+    "AI_GET_BASE_POSITION",
+    "AI_GET_BASE_POSITION_ENTRY",
+    "AI_GET_BASE_POSITION_RESUME",
     "AI_GOAL_IS_OBJECT_OFFSET",
+    "AI_GOAL_POSITION_OFFSET",
     "AI_GROUP_DO_OBJECT_UPGRADE",
     "AI_GROUP_ENTER_FILTER",
     "AI_GROUP_ENTER_FILTER_MEMBER_TEST",
@@ -160,6 +182,10 @@ __all__ = [
     "AI_MOVE_UPDATE_UNGUARDED_PATH_READ_BYTES",
     "AI_NEIGHBOUR_LIST_COPY",
     "AI_NEIGHBOUR_LIST_COPY_FAULT",
+    "AI_OBJECT_REGISTER",
+    "AI_OBJECT_REGISTER_ENTRY",
+    "AI_OBJECT_REGISTER_FLAG_TEST",
+    "AI_OBJECT_REGISTER_FLAG_TEST_BYTES",
     "AI_ORDER_PUMP_CAN_START_CALL",
     "AI_ORDER_PUMP_CAN_START_CALL_BYTES",
     "AI_ORDER_PUMP_NO_BUILDER_STOP",
@@ -219,6 +245,7 @@ __all__ = [
     "AI_SET_GOAL_POSITION",
     "AI_SET_GOAL_POSITION_BYTES",
     "AI_STATE_FAILURE",
+    "AI_STATE_ATTACK_MOVE_TO",
     "AI_STATE_NO_PATH_UNSAFE",
     "AI_STATE_ON_ENTER_SLOT",
     "AI_STATE_ON_EXIT_SLOT",
@@ -244,9 +271,20 @@ __all__ = [
     "AI_TEAM_SIZE_MEMBER_BYTES",
     "AI_TEAM_SIZE_NEXT",
     "AI_TEAM_SIZE_NEXT_BYTES",
+    "AI_UPDATE_DO_LOCOMOTOR",
+    "AI_UPDATE_DO_LOCOMOTOR_ENTRY",
+    "AI_UPDATE_DO_LOCOMOTOR_PATH_CALL",
+    "AI_UPDATE_DO_LOCOMOTOR_PATH_CALL_BYTES",
+    "AI_UPDATE_DO_LOCOMOTOR_PATH_DONE",
+    "AI_UPDATE_DO_LOCOMOTOR_PATH_DONE_BYTES",
+    "AI_UPDATE_DO_LOCOMOTOR_PATH_LOAD",
+    "AI_UPDATE_DO_LOCOMOTOR_PATH_LOAD_BYTES",
+    "AI_UPDATE_DO_LOCOMOTOR_SLOT",
+    "AI_UPDATE_DO_LOCOMOTOR_SLOT_BYTES",
     "AI_UPDATE_LOCOMOTOR_SET_SPEED",
     "AI_UPDATE_SET_LOCOMOTOR_SET",
     "AI_UPDATE_SET_LOCOMOTOR_SET_SPEED_STORE",
+    "AI_UPDATE_VTABLE",
     "AI_WAITING_FOR_PATH_OFFSET",
     "AI_WORLD_MODEL",
     "ARMY_DEFINITION_MEMBERS",
@@ -360,8 +398,40 @@ __all__ = [
     "HERO_LEDGER_GET_TEMPLATE_ENTRY",
     "HERO_LEDGER_REVIVE_TIME",
     "HERO_LEDGER_REVIVE_TIME_ENTRY",
+    "LINE_OF_FIRE_CLEAR",
+    "LINE_OF_FIRE_CLEAR_BYTES",
+    "LINE_OF_FIRE_MELEE_EXIT",
+    "LINE_OF_FIRE_MELEE_EXIT_BYTES",
+    "LINE_OF_FIRE_RANGED",
+    "LINE_OF_FIRE_RETURN",
     "PATHFINDER_ADD_OBJECT",
     "PATHFINDER_ADD_OBJECT_BYTES",
+    "PATHFINDER_ATTACK_VIEW_BLOCKED",
+    "PATHFINDER_ATTACK_VIEW_BLOCKED_ENTRY",
+    "ATTACK_VIEW_CELL_BLOCKED",
+    "ATTACK_VIEW_CELL_BLOCKED_BYTES",
+    "ATTACK_VIEW_CELL_CONTINUE",
+    "ATTACK_VIEW_CELL_CONTINUE_BYTES",
+    "ATTACK_VIEW_CELL_OTHER",
+    "ATTACK_VIEW_CELL_OTHER_BYTES",
+    "ATTACK_VIEW_CELL_OTHER_RESUME",
+    "ATTACK_VIEW_CELL_WALL_KINDS",
+    "ATTACK_VIEW_CELL_WALL_KINDS_BYTES",
+    "TRACE_KIND_GATE",
+    "TRACE_KIND_GATE_BYTES",
+    "TRACE_KIND_PASS",
+    "TRACE_KIND_PASS_BYTES",
+    "TRACE_KIND_SHOOT_OVER",
+    "TRACE_KIND_SHOOT_OVER_BYTES",
+    "TRACE_SKIP_CELLS",
+    "TRACE_SKIP_CELLS_BYTES",
+    "TRACE_SKIP_CELLS_CMP",
+    "TRACE_SKIP_CELLS_CMP_BYTES",
+    "TRACE_SKIP_CELLS_DISP",
+    "TRACE_SKIP_CELLS_FALLTHROUGH",
+    "TRACE_SKIP_CELLS_RESUME",
+    "TRACE_SKIP_CELLS_RESUME_BYTES",
+    "TRACE_SKIP_CELLS_TAKEN",
     "PATH_APPEND_NODE_LINK",
     "PATH_APPEND_NODE_LINK_BYTES",
     "PATH_DESTRUCTOR",
@@ -369,6 +439,8 @@ __all__ = [
     "PATH_HEAD_OFFSET",
     "PATH_NODE_NEXT_OFFSET",
     "PATH_NODE_POS_OFFSET",
+    "PATH_UPDATE_PROGRESS",
+    "PATH_UPDATE_PROGRESS_ENTRY",
     "PLAYER_GET_BUILDABLE_HERO",
     "PLAYER_GET_BUILDABLE_HERO_ENTRY",
     "SKIRMISH_AI_ID_LIST_BEGIN",
@@ -751,6 +823,38 @@ AI_TACTIC_PLAYER = 0x24
 # `ArmyDefinition` the player runs on.
 THE_SKIRMISH_AI_MANAGER = 0x00DE4938
 SKIRMISH_AI_MANAGER_PLAYER_DATA = 0x006A950B
+# The skirmish AI's bases. A player's AI record holds, at `AI_DATA_BASE_SET`, the list of its bases
+# and the start position they began from.
+#: Record offset of the base set (`ecx` for `AI_BASE_SET_ADD_BASE`).
+AI_DATA_BASE_SET = 0x04
+#: `std::vector<AIBase *>`: begin here, end four bytes on. Base 0 is the start base.
+AI_BASE_SET_BASES = 0x0C
+#: Byte: the start base has been made (set once, by the first base-position read, `0x0090D6DF`).
+AI_BASE_SET_LATCHED = 0x24
+#: Coord3D: the start position, what `getBasePosition` (`0x008F0284`) returns for the whole match.
+AI_BASE_SET_ANCHOR = 0x28
+#: Coord3D in a base: its centre, written only once an `AIBase` layout was found for it.
+AI_BASE_POSITION = 0x18
+#: `__thiscall(const Coord3D *pos)`, `ret 4`, on the base set: add a base at `pos`, facing the map
+#: centre, pick an `AIBase` layout for the player's side and file a build request per object of it.
+#: The stock callers are the start-base latch and `AISimpleExpansionTactic`.
+AI_BASE_SET_ADD_BASE = 0x0090D3C7
+AI_BASE_SET_ADD_BASE_ENTRY = bytes.fromhex("b87c89ba00e81ffb120083ec2c")
+#: `__thiscall(Coord3D *out)`, `ret 4`, on the AI record: the start position. Every free-build
+#: builder reads it every few seconds; it opens `push ebp` / `mov ebp, esp` / `sub esp, 0xc` /
+#: `xorps xmm0, xmm0`.
+AI_GET_BASE_POSITION = 0x008F0284
+AI_GET_BASE_POSITION_ENTRY = bytes.fromhex("558bec83ec0c0f57c0")
+#: Where the prologue's `xorps` starts, after the six bytes a hook replaces.
+AI_GET_BASE_POSITION_RESUME = 0x008F028A
+#: `__thiscall(Object *)`, `ret 4`, on `THE_SKIRMISH_AI_MANAGER`: an object was created or changed
+#: owner (`0x0068E42D`, `0x00697CBC`), so the AI records learn of it and a `CAPTUREFLAG` joins the
+#: expansion candidates at `+0xA68`. `this` stays in `edi`, the object in `esi`.
+AI_OBJECT_REGISTER = 0x006A9D9C
+AI_OBJECT_REGISTER_ENTRY = bytes.fromhex("558bec568b750880bed004000000578b")
+#: `mov eax, [esi+4]` / `test byte [eax+0x121], 0x10` - the `CAPTUREFLAG` test, `je` after it.
+AI_OBJECT_REGISTER_FLAG_TEST = 0x006A9DE5
+AI_OBJECT_REGISTER_FLAG_TEST_BYTES = bytes.fromhex("8b4604f680210100001074")
 # The `SkirmishAI` team builder's size count, and why a team leaves with one battalion. Derived in
 # `docs/ai-team-size.md`.
 
@@ -939,6 +1043,10 @@ ATTACK_APPROACH_MAY_STOP_GATE_BYTES = bytes.fromhex("80bfb2030000000f94c0807e710
 #: `AIUpdateInterface`'s flag for what the current move goal is: 1 an object, 0 a position. Written
 #: by both setters below, read at 0x00669049 and 0x00749D83.
 AI_GOAL_IS_OBJECT_OFFSET = 0x3B2
+#: `AIUpdateInterface`'s goal position (`Coord3D`), written by `AI_SET_GOAL_OBJECT` and
+#: `AI_SET_GOAL_POSITION`: where an attack-move is headed. Read live as the attack-move goal of AI
+#: hordes (`tools/live/attack_stall_monitor.py`, pySAGE-edain).
+AI_GOAL_POSITION_OFFSET = 0x148
 # `AIUpdateInterface::setGoalObject(ObjectID, const Coord3D *)` - `__thiscall`, the id first. Sets
 # the goal object at `this+0x144`, the position at `+0x148`, and `AI_GOAL_IS_OBJECT_OFFSET` to 1.
 AI_SET_GOAL_OBJECT = 0x00663802
@@ -1218,6 +1326,68 @@ GATE_PATHING_BRACKET_CLOSE_CALL_BYTES = bytes.fromhex("85c07508508bcfe8eef2faff"
 #: `addOrRemoveObjectFromPathfindMap` (`0x00936B7D`) with the add flag set. `__thiscall`, `ret 4`.
 PATHFINDER_ADD_OBJECT = 0x006E85E9
 PATHFINDER_ADD_OBJECT_BYTES = bytes.fromhex("6a006a006a01ff742410e885e52400c20400")
+# `hasClearLineOfFire(attacker, victim, weapon)` at `0x00744AAA` - cdecl, its frame `ebp`-based,
+# `esi` the weapon - answers "clear" at once for a melee weapon, so nothing ever asks whether a
+# wall stands between a melee unit and its target.
+
+#: `mov ecx, [esi+4]` / `call WEAPON_IS_MELEE` / `test al, al` / `jne LINE_OF_FIRE_CLEAR`: the
+#: melee early exit. Twelve bytes with no branch landing inside them.
+LINE_OF_FIRE_MELEE_EXIT = 0x00744AC5
+LINE_OF_FIRE_MELEE_EXIT_BYTES = bytes.fromhex("8b4e04e88cd0cfff84c07545")
+#: Where the stock ranged path carries on after the melee test.
+LINE_OF_FIRE_RANGED = 0x00744AD1
+#: `mov al, 1`, then the shared epilogue at `LINE_OF_FIRE_RETURN`, which returns `al`.
+LINE_OF_FIRE_CLEAR = 0x00744B16
+LINE_OF_FIRE_CLEAR_BYTES = bytes.fromhex("b0018b4df45e")
+LINE_OF_FIRE_RETURN = 0x00744B18
+#: `Pathfinder::isAttackViewBlockedByObstacle(attacker, victim)` - `__thiscall` on the
+#: `Pathfinder` (`TheAI + PATHFINDER_IN_AI`), `ret 8`, `al` non-zero when an obstacle cell lies
+#: between them. Walks the cells with the callback below; no terrain test.
+PATHFINDER_ATTACK_VIEW_BLOCKED = 0x006F4F9D
+PATHFINDER_ATTACK_VIEW_BLOCKED_ENTRY = bytes.fromhex("568b74240c578bf98bce")
+#: The trace's per-cell callback (`0x006F2D31`, `ret 0x10`) returns 0 to keep walking and 1 when
+#: the cell blocks. Its four wall-piece tests on the obstacle's template (`eax`):
+#: `WALK_ON_TOP_OF_WALL`, `WALL_SEGMENT`, `WALL_GATE`, `WALL_UPGRADE`.
+ATTACK_VIEW_CELL_WALL_KINDS = 0x006F2E72
+ATTACK_VIEW_CELL_WALL_KINDS_BYTES = bytes.fromhex(
+    "f6800f010000107535f6801f01000020752cf68021010000087523f6801a01000040751a"
+)
+#: Any other obstacle: `test bl, bl` (the attacker's `CAN_SHOOT_OVER_WALLS`) / `je` blocked. `eax`
+#: is the obstacle's template, `edx` the attacker's. Eight bytes, no branch lands inside them.
+ATTACK_VIEW_CELL_OTHER = 0x006F2E96
+ATTACK_VIEW_CELL_OTHER_BYTES = bytes.fromhex("84db0f84ab000000")
+#: The `ATTACK_NEEDS_LINE_OF_SIGHT` test the other-obstacle branch goes on to.
+ATTACK_VIEW_CELL_OTHER_RESUME = 0x006F2E9E
+#: `xor eax, eax` and the epilogue: the cell does not block.
+ATTACK_VIEW_CELL_CONTINUE = 0x006F2D6B
+ATTACK_VIEW_CELL_CONTINUE_BYTES = bytes.fromhex("33c05f5e5b5dc21000")
+#: `xor eax, eax` / `inc eax` / back to the epilogue: the cell blocks.
+ATTACK_VIEW_CELL_BLOCKED = 0x006F2F49
+ATTACK_VIEW_CELL_BLOCKED_BYTES = bytes.fromhex("33c040e91cfeffff")
+#: The trace setup `0x006F4557` (`edi` the attacker) answers "not blocked" for an attacker with
+#: neither `ATTACK_NEEDS_LINE_OF_SIGHT` nor `CAN_SHOOT_OVER_WALLS`: `mov eax, [edi+4]` / `test
+#: byte [eax+0x10f], 8`, then `jne TRACE_KIND_PASS` / the `CAN_SHOOT_OVER_WALLS` test at
+#: `TRACE_KIND_SHOOT_OVER` / `je` not blocked. Ten bytes, no branch lands inside them.
+TRACE_KIND_GATE = 0x006F4585
+TRACE_KIND_GATE_BYTES = bytes.fromhex("8b4704f6800f01000008")
+TRACE_KIND_SHOOT_OVER = 0x006F458F
+TRACE_KIND_SHOOT_OVER_BYTES = bytes.fromhex("750df68022010000400f84d0010000")
+TRACE_KIND_PASS = 0x006F459E
+TRACE_KIND_PASS_BYTES = bytes.fromhex("6a008bcf")
+#: On the ground layer the trace skips its first three cells (`mov dword [ebp-0x2c], 3`, the
+#: callback's countdown at `+0xC`), so a unit can shoot over a wall it stands right behind. The
+#: flags the `jne` after it reads come from the `cmp` before it.
+TRACE_SKIP_CELLS_CMP = 0x006F46BB
+TRACE_SKIP_CELLS_CMP_BYTES = bytes.fromhex("837df801")
+TRACE_SKIP_CELLS = 0x006F46BF
+TRACE_SKIP_CELLS_BYTES = bytes.fromhex("c745d403000000")
+TRACE_SKIP_CELLS_RESUME = 0x006F46C6
+TRACE_SKIP_CELLS_RESUME_BYTES = bytes.fromhex("750a8bcf")
+#: Where that `jne` goes, and where it falls through to.
+TRACE_SKIP_CELLS_TAKEN = 0x006F46D2
+TRACE_SKIP_CELLS_FALLTHROUGH = 0x006F46C8
+#: The callback's countdown, as a displacement from the setup's `ebp`.
+TRACE_SKIP_CELLS_DISP = -0x2C
 
 #: `AIUpdateInterface::destroyPath` - free `m_path`, clear it, clear `m_waitingForPath`, the
 #: blocked-and-stuck byte and `AI_GOAL_IS_OBJECT_OFFSET`, then tail-jump to vtable `+0x220`
@@ -1235,6 +1405,37 @@ AI_WAITING_FOR_PATH_OFFSET = 0x3B1
 #: `0xF423F` when it has none. `__thiscall`, no arguments, touches only `eax`.
 AI_CURRENT_STATE_ID = 0x00660AC1
 AI_CURRENT_STATE_ID_BYTES = bytes.fromhex("8b41308b400485c074048b4004c3b83f420f00c3")
+#: `AIAttackMoveToState`, as `AI_CURRENT_STATE_ID` reports it; the state
+#: `AI_ATTACK_MOVE_TARGET_FILTER` tests for.
+AI_STATE_ATTACK_MOVE_TO = 0x21
+#: The skirmish AI's attack-move target filter's accept test, `__thiscall bool(searcher)` - slot 1
+#: of the partition filter whose vtable holds `AI_ATTACK_MOVE_TARGET_FILTER_SLOT`. With the
+#: searcher in `AI_STATE_ATTACK_MOVE_TO` (read through `AI_CURRENT_STATE_ID` on `[obj+0x260]`) it
+#: answers `AI_ATTACK_MOVE_ECONOMY_FILTER`; in any other state it rejects. Only units of a skirmish
+#: AI player are scanned through it: a human's attack-move picks economy buildings at once.
+AI_ATTACK_MOVE_TARGET_FILTER = 0x006612CE
+AI_ATTACK_MOVE_TARGET_FILTER_BYTES = bytes.fromhex(
+    "568bf1578b7e088b8f6002000085c9741fe8ddf7ffff83f8217515ff74240c8b460c8b886401000057e8db59"
+    "0600eb0232c05f5ec2"
+)
+AI_ATTACK_MOVE_TARGET_FILTER_SLOT = 0x00C1D67C
+#: `__thiscall bool(Object *searcher, Object *candidate)` on the skirmish AI player, `ret 8`, called
+#: only from `AI_ATTACK_MOVE_TARGET_FILTER`. Its first test rejects any candidate whose template
+#: has `KINDOF_ECONOMY_STRUCTURE`, so an AI unit on attack-move never takes a farm or a mine; the
+#: rest compares the two owners' AI records.
+AI_ATTACK_MOVE_ECONOMY_FILTER = 0x006C6CD7
+AI_ATTACK_MOVE_ECONOMY_FILTER_ENTRY = bytes.fromhex("558bec53568b750c8b4604")  # ...mov eax, [esi+4]
+#: `test byte [eax+0x120], 0x10` (the candidate template's `ECONOMY_STRUCTURE` bit), `push edi`,
+#: `mov edi, ecx`, `jne AI_ATTACK_MOVE_ECONOMY_REJECT`. `esi` is the candidate, `[ebp+8]` the
+#: searcher.
+AI_ATTACK_MOVE_ECONOMY_TEST = 0x006C6CE2
+AI_ATTACK_MOVE_ECONOMY_TEST_BYTES = bytes.fromhex("f6802001000010578bf9757f")
+#: Where a candidate that is not an economy building goes on: `mov ecx, esi`, the owner tests.
+AI_ATTACK_MOVE_ECONOMY_PASS = 0x006C6CEE
+AI_ATTACK_MOVE_ECONOMY_PASS_BYTES = bytes.fromhex("8bce")
+#: The reject exit: `xor al, al` and the epilogue, which pops the `edi` the test window pushed.
+AI_ATTACK_MOVE_ECONOMY_REJECT = 0x006C6D6D
+AI_ATTACK_MOVE_ECONOMY_REJECT_BYTES = bytes.fromhex("32c05f5e5b5dc208")
 #: The one main-machine state in which `AIInternalMoveToState::update` (`0x00748E46`) can reach its
 #: tail with no path: with this state current and the unit near its goal, a missing path skips the
 #: recompute and falls to `0x0074927C`, which reads `[m_path+8]` unguarded. The cave leaves units in
@@ -1250,6 +1451,34 @@ AI_MOVE_UPDATE_UNGUARDED_PATH_READ_BYTES = bytes.fromhex("8b8640010000f30f104720
 #: "no path -> force a recompute" test, which is what turns a destroyed path into a new plan.
 AI_MOVE_UPDATE_NO_PATH_RECOMPUTE = 0x00748F35
 AI_MOVE_UPDATE_NO_PATH_RECOMPUTE_BYTES = bytes.fromhex("837df800c645ff007504c645ff01")
+
+#: `AIUpdateInterface::doLocomotor` - the per-frame locomotor driver, a switch on the goal type at
+#: `+0x1FC` (`1` follows the path). `__EH_prolog` frame. Slot `+0x254` of the `AIUpdateInterface`
+#: vtable at `0x00C10590`; asserting the slot's four bytes proves the function the `path` guard of
+#: `null-guards` edits is that one. Derived in `docs/null-guards.md`.
+AI_UPDATE_VTABLE = 0x00C10590
+AI_UPDATE_DO_LOCOMOTOR_SLOT = 0x00C107E4
+AI_UPDATE_DO_LOCOMOTOR_SLOT_BYTES = bytes.fromhex("32996600")
+AI_UPDATE_DO_LOCOMOTOR = 0x00669932
+AI_UPDATE_DO_LOCOMOTOR_ENTRY = bytes.fromhex("b86c72b800e8b4353d00")
+#: `mov ecx, [esi+0x140]` - the path reload after the path-following arm has moved the unit
+#: (`Locomotor` move, `Object::setPosition`, `Object::setLayer`), any of which can have dropped it.
+#: No test follows. **The hook window**: six bytes, a `jmp rel32` and one `nop`.
+AI_UPDATE_DO_LOCOMOTOR_PATH_LOAD = 0x0066A26B
+AI_UPDATE_DO_LOCOMOTOR_PATH_LOAD_BYTES = bytes.fromhex("8b8e40010000")
+#: `push 1` / `push ebx` / `call PATH_UPDATE_PROGRESS` - where a live path resumes. Its five call
+#: bytes are the displacement, so asserting them asserts the callee.
+AI_UPDATE_DO_LOCOMOTOR_PATH_CALL = 0x0066A271
+AI_UPDATE_DO_LOCOMOTOR_PATH_CALL_BYTES = bytes.fromhex("6a0153e81fb30f00")
+#: `jmp 0x00669B08` - straight after the call, whose `bool` answer nothing reads. A NULL path goes
+#: here, so skipping the call is the only change.
+AI_UPDATE_DO_LOCOMOTOR_PATH_DONE = 0x0066A279
+AI_UPDATE_DO_LOCOMOTOR_PATH_DONE_BYTES = bytes.fromhex("e98af8ffff")
+#: The callee: `push ebp` / `mov ebp, esp` / `push ecx` / `mov eax, [ecx+4]` - a `Path` method
+#: (`__thiscall`, `ret 8`) that projects a position onto the node list. The `[ecx+4]` read
+#: (`PATH_HEAD_OFFSET`) is the faulting instruction on a NULL path. Name ours.
+PATH_UPDATE_PROGRESS = 0x00765598
+PATH_UPDATE_PROGRESS_ENTRY = bytes.fromhex("558bec518b4104")
 
 #: `Path`: `+4` the first `PathNode`, `+8` the last. `PathNode`: `+0` next, `+4` previous, `+0xC`
 #: the position (`Coord3D`), `+0x20` the layer. Read from `Path::appendNode` (`0x00665429`) and the

@@ -19,6 +19,7 @@ from PyQt6.QtGui import QMouseEvent  # noqa: E402
 from PyQt6.QtTest import QTest  # noqa: E402
 from PyQt6.QtWidgets import (  # noqa: E402
     QApplication,
+    QDialog,
     QDockWidget,
     QMainWindow,
     QTreeWidget,
@@ -34,6 +35,7 @@ from sage_worldbuilder.ui.window import (  # noqa: E402
     fit_floating_dock,
     floating_window,
 )
+from sage_worldbuilder.ui.window_sizes import panel_key, remember_size  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -75,6 +77,93 @@ def test_floating_panels_fit_their_contents_within_the_screen(qapp):
         dock.resize(900, 900)
         fit_floating_dock(dock)
         assert (dock.width(), dock.height()) >= (280, 200)
+    finally:
+        window.close()
+
+
+def test_a_floating_panel_opens_at_the_size_it_was_left_at(qapp):
+    window = QMainWindow()
+    try:
+        dock = QDockWidget("Panel", window)
+        tree = QTreeWidget()
+        tree.setMinimumSize(100, 100)
+        dock.setWidget(tree)
+        window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+        window.resize(1200, 900)
+        window.show()
+        qapp.processEvents()
+        dock.setFloating(True)
+        fit_floating_dock(dock, QSize(333, 444))
+        assert (dock.width(), dock.height()) == (333, 444)
+
+        # Even past the share of the screen a panel fitted to its contents may take.
+        available = dock.screen().availableGeometry()
+        tall = QSize(400, available.height())
+        fit_floating_dock(dock, tall)
+        assert dock.height() > available.height() * 0.8
+    finally:
+        window.close()
+
+
+class _Editor(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.window_sizes: dict[str, tuple[int, int]] = {}
+
+
+class _Dialog(QDialog):
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        remember_size(self)
+        self.resize(300, 200)
+
+
+def test_a_dialog_opens_at_the_size_it_was_closed_at(qapp):
+    editor = _Editor()
+    try:
+        first = _Dialog(editor)
+        first.show()
+        qapp.processEvents()
+        assert (first.width(), first.height()) == (300, 200)
+        first.resize(520, 410)
+        first.close()
+        assert editor.window_sizes == {"_Dialog": (520, 410)}
+
+        second = _Dialog(editor)
+        second.show()
+        qapp.processEvents()
+        assert (second.width(), second.height()) == (520, 410)
+        second.close()
+    finally:
+        editor.close()
+
+
+def test_the_editor_keeps_each_floating_panels_size(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    install = tmp_path / "install"
+    install.mkdir()
+    monkeypatch.setattr("sage_worldbuilder.gamedata.user_data_dir", lambda game: tmp_path)
+    key = panel_key("markersDock")
+    window = MainWindow(
+        Settings(install=str(install), window_sizes={key: (450, 456)}), load_game_data=False
+    )
+    try:
+        window.show()
+        qapp.processEvents()
+        dock = window.markers_dock
+        # Open: Qt holds a closed panel's resizes back.
+        dock.show()
+        qapp.processEvents()
+        dock.setFloating(True)
+        qapp.processEvents()
+        qapp.processEvents()
+        assert (dock.width(), dock.height()) == (450, 456)
+
+        dock.resize(500, 520)
+        qapp.processEvents()
+        qapp.processEvents()
+        assert window.settings.window_sizes[key] == (500, 520)
+        assert window.window_sizes is window.settings.window_sizes
     finally:
         window.close()
 

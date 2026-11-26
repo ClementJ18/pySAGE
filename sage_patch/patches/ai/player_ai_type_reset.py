@@ -130,6 +130,7 @@ def _entry_va(base_va: int) -> int:
 class PlayerAiTypeResetPatch(Patch):
     name = "player-ai-type-reset"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Put every PlayerAIType back to its global definition before each map's map.ini is read, "
         "so a map that changes an AI type's LibraryMap - a campaign map's LibraryMap = NONE, a "

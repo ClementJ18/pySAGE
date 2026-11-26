@@ -139,6 +139,7 @@ def build_code(base_va: int) -> bytes:
 class AiReviveGatePatch(Patch):
     name = "ai-revive-gate"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make the AI respect a REVIVE button's NeededUpgrade, as the player already does. No "
         "INI change: what gates the AI is the NeededUpgrade / NeededUpgradeAny already on the "

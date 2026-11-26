@@ -6,6 +6,7 @@ import pytest
 
 from sage_ini.model.enums import LodLevel
 from sage_utils.config import user_file
+from sage_worldbuilder.gamedata import GameLayers
 from sage_worldbuilder.jump import JumpMatch, JumpSeat
 from sage_worldbuilder.settings import (
     APP,
@@ -118,6 +119,18 @@ def test_layers_and_autosave_come_from_the_values():
     assert settings.autosave_settings().interval_seconds == 60
 
 
+def test_a_detected_install_keeps_the_loaded_mods(monkeypatch):
+    monkeypatch.setattr(
+        GameLayers, "detect", classmethod(lambda cls, game="rotwk": cls(Path("C:/Game")))
+    )
+    layers = Settings(mods=["C:/Mod", "C:/Sub"], sagepatch="C:/Mod/.sagepatch").layers()
+
+    assert layers is not None
+    assert layers.install == Path("C:/Game")
+    assert layers.mods == (Path("C:/Mod"), Path("C:/Sub"))
+    assert layers.sagepatch == Path("C:/Mod/.sagepatch")
+
+
 def test_mods_keep_load_order_and_a_reloaded_one_moves_last():
     settings = Settings.from_dict({"mods": ["C:/A", "C:/B", 3, "", "c:\\a\\"], "mod": "C:/Old"})
     assert settings.mods == ["C:/B", "c:\\a\\"]
@@ -218,3 +231,24 @@ def test_named_layouts_round_trip_and_skip_bad_rows():
     )
     assert loaded.layouts == {"ok": SavedLayout("a", "b")}
     assert Settings.from_dict({"layouts": []}).layouts == {}
+
+
+def test_window_sizes_round_trip_and_skip_bad_rows():
+    settings = Settings(window_sizes={"OpenMapDialog": (700, 500), "panel:objects": (300, 900)})
+    assert settings.save()
+    assert Settings.load().window_sizes == settings.window_sizes
+
+    loaded = Settings.from_dict(
+        {
+            "window_sizes": {
+                "ok": [640, 480],
+                "zero": [0, 480],
+                "huge": [10**9, 480],
+                "short": [640],
+                "flag": [True, 480],
+                "": [640, 480],
+            }
+        }
+    )
+    assert loaded.window_sizes == {"ok": (640, 480)}
+    assert Settings.from_dict({"window_sizes": []}).window_sizes == {}

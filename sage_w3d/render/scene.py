@@ -3,7 +3,11 @@ one looked up by name through an `AssetResolver`), places every visible mesh - s
 in world space, and returns a flat, upload-ready `Scene`. Skin meshes store vertices in
 bone-local space (blending the skeleton's rest-pose world matrices by each vertex's 1-2 bone
 influences reproduces the mesh header's own `min_corner`/`max_corner` bounds); rigid HLOD
-sub-object meshes are bone-local too, placed by their sub-object's bone. Normals are
+sub-object meshes are bone-local too, placed by their sub-object's bone. A two-bone vertex is
+stored twice: `VERTICES`/`NORMALS` in its first bone's space and `VERTICES_2`/`NORMALS_2` in its
+extra bone's space, so each bone transforms its own copy and the results are weight-blended -
+blending the two matrices and applying them to `VERTICES` alone puts the vertex in the wrong
+place whenever the two bones differ at rest. Normals are
 transformed by the rotation part of that same matrix, alongside positions, then renormalized -
 reference tool finalBIGv2 transforms positions but leaves normals in bone-local space, and
 since real BFME skeletons carry heavily rotated rest bones, that points normals into the
@@ -28,10 +32,8 @@ from sage_w3d.mesh import (
     VertexMaterial,
 )
 from sage_w3d.render.math3d import (
-    IDENTITY,
     Mat4,
     Vec3,
-    blend_matrices,
     multiply,
     normalize,
     pivot_local_matrix,
@@ -117,7 +119,10 @@ class MeshSkin:
     positions/normals in bone-local space (the values `_transform_mesh` bakes from, before the
     rest-pose blend) and, per vertex, up to two bone indices with normalized weights
     (`bone_indices`/`bone_weights` are flat, 2 entries per vertex, index-aligned with
-    `local_positions`/`local_normals`'s 3-per-vertex layout). Both weights zero means the vertex
+    `local_positions`/`local_normals`'s 3-per-vertex layout). Slot 0 transforms
+    `local_positions`/`local_normals` (`VERTICES`, first-bone space), slot 1 transforms
+    `local_positions_2`/`local_normals_2` (`VERTICES_2`, extra-bone space); a mesh without
+    `VERTICES_2` repeats its `VERTICES` there. Both weights zero means the vertex
     has no valid influence and stays at its rest position under any pose - the same fallback the
     baked rest-pose transform already applies. A rigid mesh's `MeshSkin` is a degenerate
     single-bone case: every vertex weighted 1.0 to its one HLOD sub-object bone."""
@@ -126,6 +131,8 @@ class MeshSkin:
     local_normals: list[float]
     bone_indices: list[int]
     bone_weights: list[float]
+    local_positions_2: list[float]
+    local_normals_2: list[float]
 
 
 @dataclass
@@ -314,7 +321,9 @@ def _select_meshes(model: W3DFile) -> list[tuple[Mesh, int]]:
 
 
 # A vertex's up to two bone influences, already weight-normalized against each other:
-# (bone_idx0, weight0, bone_idx1, weight1). Both weights zero means no valid influence - the
+# (bone_idx0, weight0, bone_idx1, weight1). The slots keep the file's order - slot 0 is the
+# `VERTICES` bone, slot 1 the `VERTICES_2` one - so a slot whose weight is dropped keeps its
+# place with weight 0.0 and index 0, never read. Both weights zero means no valid influence - the
 # vertex stays at its rest position under any pose (bone_worlds/pivot 0 is never read in that
 # case). Shared by the baked rest-pose transform below and the `MeshSkin` `build_scene` emits,
 # so both are the same resolution computed once, not two copies that could drift apart.
@@ -336,20 +345,15 @@ def _influence_pair(influence: VertexInfluence, num_pivots: int) -> _InfluencePa
         return (
             (influence.bone_idx, 1.0, 0, 0.0) if influence.bone_idx < num_pivots else _NO_INFLUENCE
         )
-    weighted: list[tuple[int, float]] = []
-    bone_weight = influence.bone_weight_raw / 10000
-    if bone_weight > 0 and influence.bone_idx < num_pivots:
-        weighted.append((influence.bone_idx, bone_weight))
-    xtra_weight = influence.xtra_weight_raw / 10000
-    if xtra_weight > 0 and influence.xtra_idx < num_pivots:
-        weighted.append((influence.xtra_idx, xtra_weight))
-    if not weighted:
+    idx0, w0 = influence.bone_idx, influence.bone_weight_raw / 10000
+    if w0 <= 0 or idx0 >= num_pivots:
+        idx0, w0 = 0, 0.0
+    idx1, w1 = influence.xtra_idx, influence.xtra_weight_raw / 10000
+    if w1 <= 0 or idx1 >= num_pivots:
+        idx1, w1 = 0, 0.0
+    total = w0 + w1
+    if total <= 0:
         return _NO_INFLUENCE
-    total = sum(w for _, w in weighted)
-    idx0, w0 = weighted[0]
-    if len(weighted) == 1:
-        return (idx0, w0 / total, 0, 0.0)
-    idx1, w1 = weighted[1]
     return (idx0, w0 / total, idx1, w1 / total)
 
 
@@ -384,16 +388,54 @@ def _vertex_bone_pairs(
     return [pair] * vertex_count, diag
 
 
-def _blend_matrix_for_pair(pair: _InfluencePair, bone_worlds: list[Mat4]) -> Mat4:
-    """The linear-blend-skinning matrix for one vertex's `_InfluencePair` - both weights zero
-    (no valid influence) leaves the vertex at rest (`IDENTITY`)."""
+def _skin_vertex(
+    pair: _InfluencePair,
+    bone_worlds: list[Mat4],
+    vertex: Vec3,
+    normal: Vec3,
+    vertex_2: Vec3,
+    normal_2: Vec3,
+) -> tuple[Vec3, Vec3]:
+    """One vertex's world position and normal: slot 0's bone transforms `vertex`/`normal`, slot
+    1's transforms `vertex_2`/`normal_2`, blended by weight. Both weights zero (no valid
+    influence) leaves the vertex at rest."""
     bone0, weight0, bone1, weight1 = pair
     if weight0 <= 0.0 and weight1 <= 0.0:
-        return IDENTITY
-    weighted = [(bone_worlds[bone0], weight0)]
-    if weight1 > 0.0:
-        weighted.append((bone_worlds[bone1], weight1))
-    return blend_matrices(weighted)
+        return vertex, normalize(normal)
+    if weight1 <= 0.0:
+        m = bone_worlds[bone0]
+        return transform_point(m, vertex), normalize(transform_direction(m, normal))
+    if weight0 <= 0.0:
+        m = bone_worlds[bone1]
+        return transform_point(m, vertex_2), normalize(transform_direction(m, normal_2))
+    p0 = transform_point(bone_worlds[bone0], vertex)
+    p1 = transform_point(bone_worlds[bone1], vertex_2)
+    n0 = transform_direction(bone_worlds[bone0], normal)
+    n1 = transform_direction(bone_worlds[bone1], normal_2)
+    position = (
+        p0[0] * weight0 + p1[0] * weight1,
+        p0[1] * weight0 + p1[1] * weight1,
+        p0[2] * weight0 + p1[2] * weight1,
+    )
+    blended_normal = (
+        n0[0] * weight0 + n1[0] * weight1,
+        n0[1] * weight0 + n1[1] * weight1,
+        n0[2] * weight0 + n1[2] * weight1,
+    )
+    return position, normalize(blended_normal)
+
+
+def _second_copies(mesh: Mesh) -> tuple[list[Vec3], list[Vec3]]:
+    """`mesh`'s `VERTICES_2`/`NORMALS_2`, each falling back to the first copy when missing or
+    short - a mesh skinned to one bone per vertex has no second copy, and then both slots
+    transform the same values."""
+    vertices_2 = mesh.vertices_2
+    normals_2 = mesh.normals_2
+    if len(vertices_2) < len(mesh.vertices):
+        vertices_2 = mesh.vertices
+    if len(normals_2) < len(mesh.vertices):
+        normals_2 = mesh.normals
+    return vertices_2, normals_2
 
 
 def _transform_mesh(
@@ -403,11 +445,13 @@ def _transform_mesh(
     positions: list[float] = []
     normals: list[float] = []
     mesh_normals = mesh.normals
+    vertices_2, normals_2 = _second_copies(mesh)
     for i, vertex in enumerate(mesh.vertices):
-        m = _blend_matrix_for_pair(pairs[i], bone_worlds)
-        positions.extend(transform_point(m, vertex))
         n = mesh_normals[i] if i < len(mesh_normals) else (0.0, 0.0, 1.0)
-        normals.extend(normalize(transform_direction(m, n)))
+        n2 = normals_2[i] if i < len(normals_2) else n
+        p, skinned_n = _skin_vertex(pairs[i], bone_worlds, vertex, n, vertices_2[i], n2)
+        positions.extend(p)
+        normals.extend(skinned_n)
     return positions, normals, pairs, diag
 
 
@@ -420,11 +464,16 @@ def _mesh_skin(mesh: Mesh, bone_worlds: list[Mat4], pairs: list[_InfluencePair])
         return None
     local_positions: list[float] = []
     local_normals: list[float] = []
+    local_positions_2: list[float] = []
+    local_normals_2: list[float] = []
     mesh_normals = mesh.normals
+    vertices_2, normals_2 = _second_copies(mesh)
     for i, vertex in enumerate(mesh.vertices):
         local_positions.extend(vertex)
         n = mesh_normals[i] if i < len(mesh_normals) else (0.0, 0.0, 1.0)
         local_normals.extend(n)
+        local_positions_2.extend(vertices_2[i])
+        local_normals_2.extend(normals_2[i] if i < len(normals_2) else n)
     bone_indices: list[int] = []
     bone_weights: list[float] = []
     for bone0, weight0, bone1, weight1 in pairs:
@@ -435,6 +484,8 @@ def _mesh_skin(mesh: Mesh, bone_worlds: list[Mat4], pairs: list[_InfluencePair])
         local_normals=local_normals,
         bone_indices=bone_indices,
         bone_weights=bone_weights,
+        local_positions_2=local_positions_2,
+        local_normals_2=local_normals_2,
     )
 
 

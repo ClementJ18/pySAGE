@@ -100,7 +100,10 @@ Our `game.dat` (11,346,944 bytes) carries `TimeDateStamp 460DA09E`, header check
 and entry RVA `0063D082` — **record 0 on three fields of three**, and record 0 is the only one
 with the flag set. (`size` reads `00AD4000` against our `SizeOfImage` of `00AD3000`; that is the
 one field that does not match exactly and it is not worth chasing, because the fourth check below
-is stronger than all of them.)
+is stronger than all of them.) That fourth check is a hash over the whole of `.text`: on a
+`sage_patch`-patched `game.dat` (2026-09-22) the DLL logged every field above matching record 0
+and only `.text 4404F3C6` against its `5ED63115`, and fell back to an unrecognised build. One patched
+byte anywhere in `.text` is enough.
 
 The decisive check is the addresses. Thirteen engine addresses appear in the DLL's diagnostic
 strings. Every one of them lands where the string says it should, in **our** file:
@@ -198,7 +201,7 @@ ever calls D3D" is something the DLL must arrange, not something the design give
 with one thread-identity rule and one critical section
 ([`accel-thread-identity.md`](accel-thread-identity.md)); on an unrecognised build it guesses the
 game thread wrong and crashes with `D3DERR_INVALIDCALL` on the load-screen thread's own loop at
-`0x0065CE76` ([`accel-port.md`](accel-port.md) §1).
+`0x0065CE76` ([`accel-thread-identity.md`](accel-thread-identity.md) §3).
 
 ### 4.2 The `D3DCREATE_MULTITHREADED` byte
 
@@ -370,11 +373,11 @@ happen once, offline, and be written into the document instead. Low value alone 
 Everything else in §3 needs a companion module. There is no honest way to write a D3D9 command
 queue, an `rpmalloc` and a worker pool as cave assembly.
 
-**That module is OH1A's.** He has given full permission to use his work to recreate a pySAGE patch
-of it, and publishes its source under the MIT licence, but `sage_patch` ships no module of its own:
+**That module is OH1A's.** He publishes its source under the MIT licence, but `sage_patch` ships no
+module of its own:
 [`accel-module`](accel-module.md) makes `game.dat` load `bfme2_accel.dll` itself, and the fixes the
 DLL needs on a patched binary — its build gate is a checksum over the whole of `.text`
-([`accel-port.md`](accel-port.md) §1.1) — live on a fork of his repository, to be offered upstream
+(§2) — live on a fork of his repository, to be offered upstream
 ([`accel-module.md`](accel-module.md) §3). As of 2026-10-15, Accelerator 2.0 does not yet run Edain
 with or without those fixes ([`accel-module.md`](accel-module.md) §4). The technical points that
 shape that arrangement:

@@ -268,6 +268,7 @@ def replacements(base_va: int) -> dict[int, bytes]:
 class BetterHudTogglePatch(Patch):
     name = "better-hud-toggle"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "F9 during replay playback hides the HUD, and any hidden HUD (F9, HIDE_UI, cinematics) "
         "also stops drawing unit occlusion, the top-left text messages, the floating +N "

@@ -34,8 +34,33 @@ from sage_patch.addresses import (
     AI_MOVE_AND_ENTER_RESUME,
     AI_MOVE_AND_ENTER_STATE_VTABLE,
     AI_MOVE_AND_ENTER_TAIL,
+    AI_PATH_OFFSET,
     AI_STATE_FAILURE,
     AI_STATE_ON_ENTER_SLOT,
+    AI_UPDATE_DO_LOCOMOTOR,
+    AI_UPDATE_DO_LOCOMOTOR_PATH_CALL,
+    AI_UPDATE_DO_LOCOMOTOR_PATH_DONE,
+    AI_UPDATE_DO_LOCOMOTOR_SLOT,
+    AI_UPDATE_VTABLE,
+    CREATE_A_HERO_CLASS_SIZE,
+    CREATE_A_HERO_CLASS_SUBCLASSES,
+    CREATE_A_HERO_DAT_LOAD_CALL,
+    CREATE_A_HERO_HERO_CHECKSUM_OK,
+    CREATE_A_HERO_HERO_CLASS,
+    CREATE_A_HERO_HERO_SUBCLASS,
+    CREATE_A_HERO_LIST_LOAD_CALL,
+    CREATE_A_HERO_LOAD,
+    CREATE_A_HERO_LOAD_RESUME,
+    CREATE_A_HERO_LOAD_VERDICT,
+    CREATE_A_HERO_LOBBY_INDEX_READ_BYTES,
+    CREATE_A_HERO_MANAGER_CLASSES,
+    CREATE_A_HERO_REFRESH_POWER_COST,
+    CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES,
+    CREATE_A_HERO_SUBCLASS_SIZE,
+    PATH_HEAD_OFFSET,
+    PATH_UPDATE_PROGRESS,
+    PATH_UPDATE_PROGRESS_ENTRY,
+    THE_CREATE_A_HERO_MANAGER,
 )
 from sage_patch.patcher import apply_patches
 from sage_patch.patches.ai import ai_construction_gate as construction
@@ -43,7 +68,13 @@ from sage_patch.patches.platform.null_guards import (
     ANCHORS,
     ENTER_HOOK_ORIGINAL,
     ENTER_HOOK_VA,
+    HERO_CALL_TARGETS,
+    HERO_HOOK_ORIGINAL,
+    HERO_HOOK_VA,
     NOT_WORTH_TRANSFERRING,
+    PATH_CALL_TARGET,
+    PATH_HOOK_ORIGINAL,
+    PATH_HOOK_VA,
     SECTION_NAME,
     TRANSFER_CALL_TARGETS,
     TRANSFER_HOOK_ORIGINAL,
@@ -67,6 +98,13 @@ _GAME_DAT = Path(__file__).resolve().parents[2] / "game.dat"
 _CHECK_SIZE = 0x0066C495 - AI_COMMAND_TRANSFER_CHECK
 #: `AI_MOVE_AND_ENTER_ON_ENTER` runs to the `ret` at 0x00751B4F.
 _ON_ENTER_SIZE = 0x00751B50 - AI_MOVE_AND_ENTER_ON_ENTER
+#: `CREATE_A_HERO_LOAD` runs to the `ret 0xc` at 0x0080C3A8.
+_LOAD_SIZE = 0x0080C3AB - CREATE_A_HERO_LOAD
+#: `AI_UPDATE_DO_LOCOMOTOR` runs to the `ret` at 0x0066A4FB.
+_DO_LOCOMOTOR_SIZE = 0x0066A4FC - AI_UPDATE_DO_LOCOMOTOR
+#: `doLocomotor` is `__EH_prolog`-framed: `push esi` / `push edi` / `push ebx` after it, all popped
+#: by its own tail. At the window `esi` is the `AIUpdateInterface`, set at 0x00669943.
+_AI_UPDATE_SLOT_OFFSET = 0x254
 
 
 def _entry(site: int, base: int = BASE) -> int:
@@ -88,7 +126,17 @@ def transfer_guard(base: int = BASE):
 
 
 def enter_guard(base: int = BASE):
-    return [i for i in disassemble(base) if i.address >= _entry(ENTER_HOOK_VA, base)]
+    end = _entry(HERO_HOOK_VA, base)
+    return [i for i in disassemble(base) if _entry(ENTER_HOOK_VA, base) <= i.address < end]
+
+
+def hero_guard(base: int = BASE):
+    end = _entry(PATH_HOOK_VA, base)
+    return [i for i in disassemble(base) if _entry(HERO_HOOK_VA, base) <= i.address < end]
+
+
+def path_guard(base: int = BASE):
+    return [i for i in disassemble(base) if i.address >= _entry(PATH_HOOK_VA, base)]
 
 
 def _jump_target(ins) -> int:
@@ -105,14 +153,19 @@ class TestTheCave:
         starts = {i.address for i in disassemble()}
         assert _entry(TRANSFER_HOOK_VA) in starts
         assert _entry(ENTER_HOOK_VA) in starts
+        assert _entry(HERO_HOOK_VA) in starts
+        assert _entry(PATH_HOOK_VA) in starts
 
-    def test_it_calls_nothing(self):
-        assert not [i for i in disassemble() if i.mnemonic == "call"]
+    def test_its_only_call_is_the_displaced_one(self):
+        """The hero window holds a `call`; every other guard runs without calling out."""
+        calls = [i for i in disassemble() if i.mnemonic == "call"]
+        assert [_jump_target(i) for i in calls] == [CREATE_A_HERO_REFRESH_POWER_COST]
+        assert calls[0].address == _entry(HERO_HOOK_VA)
 
     def test_every_conditional_branch_stays_inside_its_own_guard(self):
         """A displacement computed wrong would jump into arbitrary engine code, or into the other
         guard with the wrong registers."""
-        for guard in (transfer_guard(), enter_guard()):
+        for guard in (transfer_guard(), enter_guard(), hero_guard(), path_guard()):
             lo = guard[0].address
             hi = guard[-1].address + guard[-1].size
             for ins in guard:
@@ -275,6 +328,161 @@ class TestTheEnterGuard:
         assert struct.unpack("<I", slot)[0] == AI_MOVE_AND_ENTER_ON_ENTER
 
 
+class TestTheHeroGuard:
+    def test_it_opens_with_the_displaced_window_verbatim(self):
+        """The refresh runs first and the checksum verdict lands in `bl`, as on the stock path."""
+        insns = hero_guard()
+        assert (insns[0].mnemonic, _jump_target(insns[0])) == (
+            "call",
+            CREATE_A_HERO_REFRESH_POWER_COST,
+        )
+        assert (insns[1].mnemonic, insns[1].op_str) == (
+            "mov",
+            f"bl, byte ptr [edi + {CREATE_A_HERO_HERO_CHECKSUM_OK:#x}]",
+        )
+        assert bytes(insns[1].bytes) == HERO_HOOK_ORIGINAL[5:]
+
+    def test_the_relocated_call_reaches_the_stock_target(self):
+        stock = CREATE_A_HERO_LOAD_VERDICT + 5 + struct.unpack("<i", HERO_HOOK_ORIGINAL[1:5])[0]
+        assert stock == CREATE_A_HERO_REFRESH_POWER_COST
+        for base in (BASE, BASE + 0x1000):
+            assert _jump_target(hero_guard(base)[0]) == stock
+
+    def test_it_reads_the_class_table_through_the_manager(self):
+        ops = [(i.mnemonic, i.op_str) for i in hero_guard()]
+        assert ("mov", f"eax, dword ptr [{THE_CREATE_A_HERO_MANAGER:#x}]") in ops
+        assert ("mov", f"ecx, dword ptr [eax + {CREATE_A_HERO_MANAGER_CLASSES:#x}]") in ops
+        assert ("mov", f"edx, dword ptr [eax + {CREATE_A_HERO_MANAGER_CLASSES + 4:#x}]") in ops
+
+    def test_a_missing_manager_or_empty_table_keeps_the_verdict(self):
+        """Both `je`s go straight to the exit without touching `bl`: a table that is not there
+        yet is no evidence that the hero is foreign."""
+        insns = hero_guard()
+        jes = [i for i in insns if i.mnemonic == "je"]
+        assert len(jes) == 2
+        assert all(_jump_target(i) == insns[-1].address for i in jes)
+
+    def test_the_class_bound_is_unsigned_and_uses_the_class_stride(self):
+        insns = hero_guard()
+        ops = [(i.mnemonic, i.op_str) for i in insns]
+        shift = CREATE_A_HERO_CLASS_SIZE.bit_length() - 1
+        assert ("sar", f"edx, {shift}") in ops
+        assert ("mov", f"eax, dword ptr [edi + {CREATE_A_HERO_HERO_CLASS:#x}]") in ops
+        cmp = ops.index(("cmp", "eax, edx"))
+        assert insns[cmp + 1].mnemonic == "jae", "signed would let a negative index through"
+        assert ("shl", f"eax, {shift}") in ops
+
+    def test_the_subclass_count_is_the_engines_own(self):
+        """Span over `0xd8` from the class's `+0x14`/`+0x18`, the same reads the engine's lookup
+        makes - which `CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES` asserts in the image."""
+        ops = [(i.mnemonic, i.op_str) for i in hero_guard()]
+        sub = CREATE_A_HERO_CLASS_SUBCLASSES
+        assert ("mov", f"eax, dword ptr [ecx + {sub + 4:#x}]") in ops
+        assert ("sub", f"eax, dword ptr [ecx + {sub:#x}]") in ops
+        assert ("mov", f"ecx, {CREATE_A_HERO_SUBCLASS_SIZE:#x}") in ops
+        assert ("div", "ecx") in ops
+        assert CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES.startswith(bytes((0x8B, 0x41, sub + 4)))
+        assert bytes((0x2B, 0x41, sub)) in CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES
+        assert struct.pack("<I", CREATE_A_HERO_SUBCLASS_SIZE) in CREATE_A_HERO_SUBCLASS_LOOKUP_BYTES
+
+    def test_an_in_range_subclass_skips_the_rejection(self):
+        insns = hero_guard()
+        ops = [(i.mnemonic, i.op_str) for i in insns]
+        cmp = ops.index(("cmp", f"dword ptr [edi + {CREATE_A_HERO_HERO_SUBCLASS:#x}], eax"))
+        jb = insns[cmp + 1]
+        assert jb.mnemonic == "jb"
+        assert _jump_target(jb) == insns[-1].address
+
+    def test_a_foreign_hero_answers_not_loaded(self):
+        """`xor bl, bl` is the only write to `bl` after the verdict, and it falls into the exit."""
+        insns = hero_guard()
+        clear = insns[-2]
+        assert (clear.mnemonic, clear.op_str) == ("xor", "bl, bl")
+        jae = next(i for i in insns if i.mnemonic == "jae")
+        assert _jump_target(jae) == clear.address
+        assert [i for i in insns[2:] if i.op_str.startswith("bl")] == [clear]
+
+    def test_its_only_exit_is_the_shared_tail(self):
+        insns = hero_guard()
+        assert (insns[-1].mnemonic, _jump_target(insns[-1])) == ("jmp", CREATE_A_HERO_LOAD_RESUME)
+        assert [i for i in insns if i.mnemonic == "jmp"] == [insns[-1]]
+
+    def test_it_writes_only_dead_registers_and_the_answer(self):
+        """`esi`, `edi`, `ebp` and the rest of `ebx` are live across the tail."""
+        for ins in hero_guard():
+            if ins.mnemonic in {"mov", "sub", "add", "shl", "sar", "xor"}:
+                dest = ins.op_str.split(",")[0]
+                assert dest in {"eax", "ecx", "edx", "bl"}, f"{ins.mnemonic} {ins.op_str}"
+
+    def test_the_lobby_reads_the_offsets_the_guard_tests(self):
+        """`mov eax, [esi+0x10]` / `mov ecx, [esi+0xc]` in the lobby are the subclass and class."""
+        assert CREATE_A_HERO_LOBBY_INDEX_READ_BYTES == bytes(
+            (0x8B, 0x46, CREATE_A_HERO_HERO_SUBCLASS, 0x8B, 0x4E, CREATE_A_HERO_HERO_CLASS)
+        )
+
+    def test_both_loader_calls_name_the_hooked_loader(self):
+        assert HERO_CALL_TARGETS == (CREATE_A_HERO_LOAD, CREATE_A_HERO_LOAD)
+        assert CREATE_A_HERO_LOAD < HERO_HOOK_VA < CREATE_A_HERO_LOAD_RESUME
+
+    def test_the_window_is_a_jmp_and_three_nops(self):
+        assert len(HERO_HOOK_ORIGINAL) == 8
+        _stock, patched = hooks(BASE)[HERO_HOOK_VA]
+        assert patched[0] == 0xE9 and patched[5:] == b"\x90" * 3
+        assert HERO_HOOK_VA + len(HERO_HOOK_ORIGINAL) == CREATE_A_HERO_LOAD_RESUME
+
+
+class TestThePathGuard:
+    def test_it_runs_the_displaced_load_verbatim_then_tests_it(self):
+        """The reload is the only instruction moved; `ecx` is the call's `this` either way."""
+        insns = path_guard()
+        assert bytes(insns[0].bytes) == PATH_HOOK_ORIGINAL
+        assert (insns[0].mnemonic, insns[0].op_str) == (
+            "mov",
+            f"ecx, dword ptr [esi + {AI_PATH_OFFSET:#x}]",
+        )
+        assert (insns[1].mnemonic, insns[1].op_str) == ("test", "ecx, ecx")
+        assert insns[2].mnemonic == "je"
+
+    def test_a_live_path_resumes_at_the_pushes_for_the_call(self):
+        insns = path_guard()
+        assert (insns[3].mnemonic, _jump_target(insns[3])) == (
+            "jmp",
+            AI_UPDATE_DO_LOCOMOTOR_PATH_CALL,
+        )
+
+    def test_a_null_path_skips_the_call_whole(self):
+        """It lands after the call, so neither argument was pushed and `ret 8` has nothing to
+        balance - jumping between the pushes and the call would leave two dwords on the stack."""
+        insns = path_guard()
+        none = next(i for i in insns if i.address == _jump_target(insns[2]))
+        assert (none.mnemonic, _jump_target(none)) == ("jmp", AI_UPDATE_DO_LOCOMOTOR_PATH_DONE)
+        assert none is insns[-1] and len(insns) == 5
+
+    def test_it_writes_only_the_register_the_window_wrote(self):
+        written = {
+            i.op_str.split(",")[0] for i in path_guard() if i.mnemonic in {"mov", "xor", "and"}
+        }
+        assert written == {"ecx"}
+
+    def test_the_window_is_a_jmp_and_one_nop(self):
+        assert len(PATH_HOOK_ORIGINAL) == 6
+        _stock, patched = hooks(BASE)[PATH_HOOK_VA]
+        assert patched[0] == 0xE9 and patched[5:] == b"\x90"
+        assert PATH_HOOK_VA + len(PATH_HOOK_ORIGINAL) == AI_UPDATE_DO_LOCOMOTOR_PATH_CALL
+
+    def test_the_call_after_the_window_is_the_faulting_method(self):
+        """Decoded from the anchored call bytes; the callee's first read is the path's head."""
+        assert PATH_CALL_TARGET == PATH_UPDATE_PROGRESS
+        assert AI_UPDATE_DO_LOCOMOTOR_PATH_CALL + 8 == AI_UPDATE_DO_LOCOMOTOR_PATH_DONE
+        assert PATH_UPDATE_PROGRESS_ENTRY.endswith(bytes((0x8B, 0x41, PATH_HEAD_OFFSET)))
+
+    def test_the_anchored_slot_is_do_locomotor(self):
+        assert AI_UPDATE_DO_LOCOMOTOR_SLOT == AI_UPDATE_VTABLE + _AI_UPDATE_SLOT_OFFSET
+        slot = ANCHORS[AI_UPDATE_DO_LOCOMOTOR_SLOT]
+        assert struct.unpack("<I", slot)[0] == AI_UPDATE_DO_LOCOMOTOR
+        assert AI_UPDATE_DO_LOCOMOTOR < PATH_HOOK_VA < AI_UPDATE_DO_LOCOMOTOR + _DO_LOCOMOTOR_SIZE
+
+
 class TestApply:
     def test_apply_then_verify(self):
         data = null_guards_image()
@@ -285,7 +493,7 @@ class TestApply:
         data = null_guards_image()
         NullGuardsPatch().apply(data)
         cave_va, _off, _vsize = find_section(data, SECTION_NAME)
-        for site in (TRANSFER_HOOK_VA, ENTER_HOOK_VA):
+        for site in (TRANSFER_HOOK_VA, ENTER_HOOK_VA, HERO_HOOK_VA, PATH_HOOK_VA):
             off = va_to_offset(data, site)
             assert data[off] == 0xE9
             target = site + 5 + struct.unpack_from("<i", data, off + 1)[0]
@@ -332,6 +540,10 @@ class TestApply:
             AI_COMMAND_TRANSFER_CHECK,
             AI_MOVE_AND_ENTER_RESUME,
             AI_MOVE_AND_ENTER_TAIL,
+            CREATE_A_HERO_LOAD_RESUME,
+            CREATE_A_HERO_REFRESH_POWER_COST,
+            AI_UPDATE_DO_LOCOMOTOR_PATH_CALL,
+            AI_UPDATE_DO_LOCOMOTOR_PATH_DONE,
         ):
             o = va_to_offset(data, va)
             assert data[o : o + 4] == before[o : o + 4], f"{va:#010x} was rewritten"
@@ -387,6 +599,8 @@ class TestTheRealBinary:
         [
             (TRANSFER_HOOK_VA, AI_COMMAND_TRANSFER_CHECK, _CHECK_SIZE),
             (ENTER_HOOK_VA, AI_MOVE_AND_ENTER_ON_ENTER, _ON_ENTER_SIZE),
+            (HERO_HOOK_VA, CREATE_A_HERO_LOAD, _LOAD_SIZE),
+            (PATH_HOOK_VA, AI_UPDATE_DO_LOCOMOTOR, _DO_LOCOMOTOR_SIZE),
         ],
     )
     def test_nothing_branches_into_a_window(
@@ -426,6 +640,32 @@ class TestTheRealBinary:
             assert game_dat[off] == 0xE8
             target = va + 5 + struct.unpack_from("<i", game_dat, off + 1)[0]
             assert target == AI_COMMAND_TRANSFER_CHECK, f"0x{va:08X}"
+
+    def test_the_loader_ends_where_the_sweep_stops(self, game_dat: bytes) -> None:
+        capstone = pytest.importorskip("capstone")
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        off = va_to_offset(game_dat, CREATE_A_HERO_LOAD)
+        insns = list(md.disasm(game_dat[off : off + _LOAD_SIZE], CREATE_A_HERO_LOAD))
+        assert sum(i.size for i in insns) == _LOAD_SIZE
+        assert (insns[-1].mnemonic, insns[-1].op_str) == ("ret", "0xc")
+        assert any(i.address == CREATE_A_HERO_LOAD_RESUME for i in insns)
+
+    def test_do_locomotor_ends_where_the_sweep_stops(self, game_dat: bytes) -> None:
+        capstone = pytest.importorskip("capstone")
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        off = va_to_offset(game_dat, AI_UPDATE_DO_LOCOMOTOR)
+        code = game_dat[off : off + _DO_LOCOMOTOR_SIZE]
+        insns = list(md.disasm(code, AI_UPDATE_DO_LOCOMOTOR))
+        assert sum(i.size for i in insns) == _DO_LOCOMOTOR_SIZE
+        assert insns[-1].mnemonic == "ret"
+        assert {PATH_HOOK_VA, AI_UPDATE_DO_LOCOMOTOR_PATH_CALL} <= {i.address for i in insns}
+
+    def test_both_loader_calls_resolve_to_the_loader(self, game_dat: bytes) -> None:
+        for va in (CREATE_A_HERO_LIST_LOAD_CALL, CREATE_A_HERO_DAT_LOAD_CALL):
+            off = va_to_offset(game_dat, va)
+            assert game_dat[off] == 0xE8
+            target = va + 5 + struct.unpack_from("<i", game_dat, off + 1)[0]
+            assert target == CREATE_A_HERO_LOAD, f"0x{va:08X}"
 
     def test_apply_and_verify_on_the_real_thing(self, game_dat: bytes, tmp_path: Path) -> None:
         src = tmp_path / "game.dat"

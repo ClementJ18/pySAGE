@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from sage_map.assets.player_scripts import (
     PlayerScriptsList,
+    ScriptArgument,
     ScriptArgumentType,
     ScriptList,
 )
@@ -23,6 +24,7 @@ from sage_worldbuilder.scripting import (
     SPECIAL_NAMES,
     argument_choices,
     argument_text,
+    indexed_names,
     item_template,
     item_text,
     iter_script_items,
@@ -303,3 +305,78 @@ def test_a_map_symbol_is_offered_with_worldbuilders_run_time_names():
     ]
     # A type that names nothing the map declares is unchanged.
     assert argument_choices(ScriptArgumentType.INTEGER, {}, None) == []
+
+
+def test_map_symbols_lists_cameras_script_created_names_and_boundaries():
+    """WorldBuilder's dialog lists the map's cameras and camera animations, the attack priority
+    sets, object type lists and reveals its scripts name, and one colour per border."""
+    map = map_with_scripts()
+    map.named_cameras = SimpleNamespace(cameras=[SimpleNamespace(name="Outro")])
+    map.camera_animation_list = SimpleNamespace(animations=[SimpleNamespace(name="Look-at")])
+    map.height_map_data = SimpleNamespace(borders=[object()] * 10)
+    script = map.player_scripts_list.script_lists[0].items[0].items[0]
+    reveal = new_item(action("SET_COUNTER"))
+    reveal.arguments[0] = ScriptArgument(ScriptArgumentType.MAP_REVEAL_NAME, string_value="Sky")
+    script.actions_if_true.append(reveal)
+
+    symbols = map_symbols(map)
+
+    assert symbols["cameras"] == ["Outro"]
+    assert symbols["camera_animations"] == ["Look-at"]
+    assert symbols["map_reveals"] == ["Sky"]
+    assert symbols["boundaries"][:3] == ["Orange", "Green", "Blue"]
+    assert symbols["boundaries"][8:] == ["Orange", "Green"]
+    assert argument_choices(ScriptArgumentType.CAMERA_ANIMATION_NAME, symbols, None) == ["Look-at"]
+
+
+def test_closed_sets_stored_by_name_are_offered_without_game_data():
+    assert argument_choices(ScriptArgumentType.OBJECT_PANEL_FLAG, {}, None)[:2] == [
+        "Enabled",
+        "Powered",
+    ]
+    assert argument_choices(ScriptArgumentType.SKIRMISH_APPROACH_PATH, {}, None) == [
+        "Center",
+        "Backdoor",
+        "Flank",
+        "Special",
+    ]
+    assert "Cave" in argument_choices(ScriptArgumentType.REVERB_ROOM_TYPE, {}, None)
+    assert "USER_1" in argument_choices(ScriptArgumentType.MODEL_CONDITION, {}, None)
+    assert argument_choices(ScriptArgumentType.TEAM_STATE, {}, None) == []
+
+
+def test_game_defined_names_fill_assets_sides_and_notifications():
+    box = SimpleNamespace(
+        NotificationType=[SimpleNamespace(name="Generic"), SimpleNamespace(name="NewObjective")]
+    )
+    game = SimpleNamespace(
+        tables={
+            "audioevents": {"RohanHorn": 1},
+            "multisounds": {"OrcVoice": 1},
+            "dialogevents": {"AngmarVictory01": 1},
+            "musictracks": {"LoseScreenEvil": 1},
+            "factions": {"FactionRohan": SimpleNamespace(Side="Rohan")},
+            "ingamenotificationboxs": {"Box": box},
+        }
+    )
+    assert argument_choices(ScriptArgumentType.SOUND_NAME, {}, game) == ["OrcVoice", "RohanHorn"]
+    assert argument_choices(ScriptArgumentType.SPEECH_NAME, {}, game) == ["AngmarVictory01"]
+    assert len(argument_choices(ScriptArgumentType.AUDIO_NAME, {}, game)) == 4
+    assert argument_choices(ScriptArgumentType.FACTION_NAME, {}, game) == ["Rohan"]
+    assert argument_choices(ScriptArgumentType.OBJECTIVE_COMPLETE, {}, game) == [
+        "Generic",
+        "NewObjective",
+    ]
+
+
+def test_index_stored_values_read_by_name():
+    relation = new_argument(ScriptArgumentType.RELATION)
+    assert (relation.int_value, relation.string_value) == (0, "Enemy")
+    assert indexed_names(ScriptArgumentType.RELATION, {}) == ("Enemy", "Neutral", "Friend")
+    status = ScriptArgument(ScriptArgumentType.OBJECT_STATUS, int_value=4, string_value="")
+    assert argument_text(status) == "NO_COLLISIONS"
+    boundary = ScriptArgument(ScriptArgumentType.BOUNDARY_NAME, int_value=2, string_value="")
+    assert argument_text(boundary) == "Boundary Blue"
+    assert indexed_names(ScriptArgumentType.BOUNDARY_NAME, {"boundaries": ["Orange"]}) == (
+        "Orange",
+    )

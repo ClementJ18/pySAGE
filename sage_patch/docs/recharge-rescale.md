@@ -516,7 +516,7 @@ merges the two implementations, the premise moved and the patch must not apply.
 
 ## 9. What a live test has to settle
 
-Questions 2 and 3 are answered by Edain's engine test `tests/test_recharge_rescale_imrahil.py`,
+Questions 2 and 3 are answered by Edain's engine test `tests/belfalas/test_recharge_rescale_imrahil.py`,
 run through `sage-edain-toolbar-cli test` on 2026-10-18 (9 of 9 passed). Two level 10 Imrahils
 use Disziplin (`ReloadTime` 180000, 900 frames) out of reach of an Atheling Guard, whose
 leadership is `RECHARGE_TIME 67%`; one walks into the aura and back out, the other stays put. It

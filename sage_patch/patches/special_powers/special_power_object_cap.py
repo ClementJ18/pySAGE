@@ -217,7 +217,7 @@ def _check(data: bytes | bytearray, va: int, expected: bytes) -> None:
 
 class SpecialPowerObjectCapPatch(Patch):
     name = "special-power-object-cap"
-    author = "ClementJ18"
+    author = "officialNecro"
     description = (
         "Grey a SPECIAL_POWER CommandButton, and refuse its click, while the player already has "
         "MaxSimultaneousOfType of the object named by the button's Object field - the cap at which "

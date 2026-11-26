@@ -82,16 +82,25 @@ def detect_installed_games() -> dict[str, str]:
     return found
 
 
+def language_archives(root: Path) -> list[Path]:
+    """The `lang/*.big` archives under one game install (an installer ships only the installed
+    language: `English.big` + `englishpatch201.big`, `German.big` + `germanpatch201.big`, ...),
+    ordered case-insensitively so each language's base archive precedes its patch, which
+    overrides it. Empty when the install has no `lang` folder."""
+    lang = root / "lang"
+    if not lang.is_dir():
+        return []
+    return sorted(lang.glob("*.big"), key=lambda path: path.name.lower())
+
+
 def vanilla_archives(root: Path) -> tuple[list[Path], list[Path]]:
     """The `(data archives, texture archives)` present under one game install: `ini.big`
-    plus whatever `lang/*.big` archives exist (an installer ships only the installed
-    language, so globbing adds exactly the right string tables), and the `textures*.big`
+    plus its `language_archives` (exactly the installed language's string tables), and the
+    `textures*.big`
     the portraits / button icons are cropped from. Everything is probed - a missing
     archive is simply not offered - so the one-click vanilla load never errors."""
     data = [path for path in (root / "ini.big",) if path.is_file()]
-    lang = root / "lang"
-    if lang.is_dir():
-        data += sorted(lang.glob("*.big"))
+    data += language_archives(root)
     textures = sorted(root.glob("textures*.big"))
     return data, textures
 

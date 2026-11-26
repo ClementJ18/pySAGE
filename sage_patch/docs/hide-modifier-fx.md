@@ -84,6 +84,20 @@ before, so peers with and without the patch stay in sync.
   conditions set by `ModelCondition =` on the `ModifierList` still apply. Only the list's
   `FX`/`FX2`/`FX3` are gated.
 
+## 4b. `horde_default`: HORDE templates hide by default
+
+With the option on (`--horde-default`, `options = { horde_default = true }`), a template whose
+`KindOf` holds `HORDE` (bit `0x20` of `ThingTemplate+0x115`, `KINDOF_HORDE_BYTE`) and that never
+writes `HideModifierFX` counts as `Yes`. A battalion's container is not drawn, so a modifier FX
+played on it is a glow on empty ground under the formation; the members carry their own.
+
+The flag byte becomes two bits: bit 0 the parsed value, bit 1 "written in INI". The parse function
+calls the engine's `Bool` parser as before, then sets bit 1. The gate reads the byte: bit 1 set ->
+hide when bit 0 is set; bit 1 clear -> hide when the template is `HORDE`. So an explicit
+`HideModifierFX = No` on a horde shows its FX again. The two id-carrying hooks copy the whole byte,
+so a `ChildObject` inherits whether its parent wrote the field. Without the option the code is
+byte-identical to the original patch, and `detect` tries both forms.
+
 ## 5. Verifying it in a game
 
 1. `HideModifierFX = Yes` parses on an `Object` block; an unpatched `game.dat` rejects it.
@@ -92,6 +106,8 @@ before, so peers with and without the patch stay in sync.
 3. A visible unit without the field, in the same aura, still glows.
 4. A `ChildObject`/reskin of a flagged object is also hidden, and an override block that sets
    `HideModifierFX = No` shows the glow again.
+5. With `horde_default`: a battalion in a leadership aura shows no glow on its container; one
+   whose template writes `HideModifierFX = No` does.
 
 ## Addresses
 

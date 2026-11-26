@@ -212,6 +212,7 @@ class AutoDepositInflationPatch(Patch):
 
     name = "auto-deposit-inflation"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make AutoDepositUpdate's deposit obey the faction's ResourceModifierValues inflation, "
         "which the stock engine applies only to TerrainResourceBehavior - so a keep's flat income "

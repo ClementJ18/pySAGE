@@ -24,6 +24,10 @@ fixture depends on it.
 **`--mod` runs against the files you are editing.** Without it the engine loads a mod from its
 built `.big` archives, so a suite would be testing the last release rather than the working tree.
 Point it at the folder holding `data/ini` and the ini on disk is what the test exercises.
+`--extra-mod DIR`, repeatable, mounts more loose trees after it - a mod's movie folders and its
+language half - the way a `multi-mod` launch names them: the engine searches them backwards, so
+the last one named wins. It needs the `multi-mod` patch; `--mod` alone stays the one tree tests
+read files from.
 
 **One game at a time, per process.** The engine refuses to start a second copy of itself unless
 `multi-instance` is applied, so scenarios are serial by nature: each fixture's `with` block ends -
@@ -39,6 +43,11 @@ processes. `pytest-xdist` with `--dist loadscope` groups the same way, and works
 capped rate, but no frame is drawn - which is most of what several copies at once would cost.
 `-headless` itself is not used because it also uncaps the loop, and a match running faster than
 the suite polls it can step over a state a test is waiting to see.
+
+**`@pytest.mark.needs_patch("name")` skips what the install cannot run.** A test of behaviour a
+`sage_patch` patch adds says so, and is skipped - before any fixture launches a game - when the
+`game.dat` at `--install` does not carry that patch. Without it, a stale binary shows up as every
+assertion in the class failing for a reason that has nothing to do with the code under test.
 """
 
 from __future__ import annotations
@@ -46,11 +55,13 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
+from functools import cache
 from pathlib import Path
 
 import pytest
 
 from sage_live.launch.game_info import LobbySettings
+from sage_patch.registry import PATCHES
 from sage_test.run import (
     DEFAULT_TIMEOUT,
     EngineUnavailable,
@@ -104,6 +115,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "built .big archives, so tests exercise the files you are editing",
     )
     group.addoption(
+        "--extra-mod",
+        action="append",
+        default=[],
+        metavar="DIR",
+        help="another loose tree to mount after --mod (repeatable, last wins), as a multi-mod "
+        "launch does with a mod's apt and language folders. Needs the multi-mod patch",
+    )
+    group.addoption(
         "--keep-maps",
         action="store_true",
         help="leave generated maps in the game's map folder instead of removing them, so a "
@@ -137,6 +156,11 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "engine: needs a real game; skipped unless --install names an install",
     )
+    config.addinivalue_line(
+        "markers",
+        "needs_patch(*names): skipped unless the game.dat at --install carries every named "
+        "sage_patch patch",
+    )
     _shard(config)  # a malformed --shard fails here, before anything is collected
 
 
@@ -152,6 +176,36 @@ def _shard(config: pytest.Config) -> tuple[int, int] | None:
     if not 1 <= index <= count:
         raise pytest.UsageError(f"--shard {given}: K has to be between 1 and N")
     return index, count
+
+
+@cache
+def _carries(game_dat: Path, name: str) -> bool:
+    """Whether `game_dat` carries the patch `name`. Cached per run: a suite asks the same few
+    questions of one binary for every test, and each one reads the whole image."""
+    return PATCHES[name].detect(game_dat.read_bytes()) is not None
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Skip a `needs_patch` test whose install lacks a patch it names, before its fixtures run.
+
+    Without `--install` nothing is checked: the `install` fixture skips the test anyway, and
+    saying so is its job. A name `sage_patch` does not know is an error in the test, not a
+    reason to skip it.
+    """
+    given = item.config.getoption("--install")
+    if not given:
+        return
+    game_dat = Path(given) / "game.dat"
+    if not game_dat.is_file():
+        return
+    for mark in item.iter_markers("needs_patch"):
+        for name in mark.args:
+            if name not in PATCHES:
+                raise pytest.UsageError(
+                    f"needs_patch names {name!r}, which sage_patch does not know"
+                )
+            if not _carries(game_dat, name):
+                pytest.skip(f"{game_dat} does not carry {name}")
 
 
 #: Fixture scopes wide enough that every test sharing one of their parameter values shares one
@@ -210,6 +264,17 @@ def _worker_id(config: pytest.Config) -> str:
     if shard is not None and shard[1] > 1:
         return f"shard{shard[0]}"
     return os.environ.get("PYTEST_XDIST_WORKER", "master")
+
+
+def _mod_trees(config: pytest.Config, mod: str | None) -> str | list[str] | None:
+    """`mod` followed by every `--extra-mod`, in the order the launch names them with `-mod`.
+
+    Only a list when there is more than one tree, so a run without `--extra-mod` launches with
+    exactly the command line it always had."""
+    extras = [str(tree) for tree in config.getoption("--extra-mod") or ()]
+    if not extras:
+        return mod
+    return [*([mod] if mod else []), *extras]
 
 
 def _engine_args(config: pytest.Config) -> tuple[str, ...]:
@@ -272,7 +337,7 @@ def scenario_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[S
             timeout=timeout,
             keep_map=keep_map,
             windowed=windowed,
-            mod=mod or mod_tree,
+            mod=_mod_trees(request.config, mod or mod_tree),
             engine_args=engine_args,
         )
 
@@ -316,7 +381,7 @@ def map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[MapRun
             writable=writable,
             timeout=timeout,
             windowed=windowed,
-            mod=mod or mod_tree,
+            mod=_mod_trees(request.config, mod or mod_tree),
             engine_args=engine_args,
         )
 
@@ -368,7 +433,7 @@ def user_map_runner(install: Path, request: pytest.FixtureRequest) -> Iterator[M
             writable=writable,
             timeout=timeout,
             windowed=windowed,
-            mod=mod or mod_tree,
+            mod=_mod_trees(request.config, mod or mod_tree),
             engine_args=engine_args,
         )
 

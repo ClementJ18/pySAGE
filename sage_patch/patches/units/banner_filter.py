@@ -210,6 +210,7 @@ class BannerFilterPatch(Patch):
 
     name = "banner-filter"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add an ObjectFilter to BannerCarrierUpdate's nearby-horde replenish: ReplenishFilter = "
         "<ObjectFilter> beside the ReplenishNearbyHorde that turns the scan on, to say which "

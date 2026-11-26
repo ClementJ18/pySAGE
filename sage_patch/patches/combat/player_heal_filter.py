@@ -184,6 +184,7 @@ class PlayerHealFilterPatch(Patch):
 
     name = "player-heal-filter"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add an ObjectFilter to PlayerHealSpecialPower's heal scan: HealFilter = "
         "<ObjectFilter>, narrowing what the module's HealAffects mask and hardcoded ally test "

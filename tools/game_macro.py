@@ -65,6 +65,7 @@ from skirmish_config import SkirmishConfig  # noqa: E402
 from sage_live.api.connect import AttachError, open_backend  # noqa: E402
 from sage_live.backends.memory import MemoryBackend, find_game_processes  # noqa: E402
 from sage_replay.replay import ReplaySlotType  # noqa: E402
+from sage_test.window import SAGE_WINDOW_CLASS, game_window, windows_of  # noqa: E402
 
 __all__ = [
     "BLIND_MENU_WAIT",
@@ -100,10 +101,6 @@ _KEYS = tuple(range(0x30, 0x5B)) + (0x08, 0x0D, 0x1B, 0x20, 0x09, 0x2E, 0xBD, 0x
 
 _MOVE_HZ = 20.0  # movement samples per second; button transitions are caught by the poll loop
 _POLL_HZ = 200.0
-
-# The engine registers its 3D window under a GUID class name. Stable across runs, and unlike
-# the title it is neither localized nor shared with the `-scriptdebug2` debug dialog.
-SAGE_WINDOW_CLASS = "E99E8455-CC9B-488a-BA22-0E8A8F74F9FA"
 
 # How long to give the main menu when the shell map cannot be watched (an unelevated shell).
 # The window settles to its final size long before the menu accepts input; measured on this
@@ -178,30 +175,6 @@ class Recording:
         )
 
 
-def _class_name(hwnd: int) -> str:
-    buffer = ctypes.create_unicode_buffer(256)
-    user32.GetClassNameW(hwnd, buffer, 256)
-    return buffer.value
-
-
-def windows_of(pid: int) -> list[tuple[int, str, int, int]]:
-    """Every visible top-level window the process owns, as `(hwnd, class, width, height)`."""
-    found: list[tuple[int, str, int, int]] = []
-
-    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def callback(hwnd: int, _: int) -> bool:
-        owner = wintypes.DWORD()
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-        if owner.value == pid and user32.IsWindowVisible(hwnd):
-            rect = wintypes.RECT()
-            user32.GetClientRect(hwnd, ctypes.byref(rect))
-            found.append((hwnd, _class_name(hwnd), rect.right, rect.bottom))
-        return True
-
-    user32.EnumWindows(callback, 0)
-    return found
-
-
 @dataclass(frozen=True)
 class Step:
     """One click at a named UI element, in client coordinates."""
@@ -243,26 +216,6 @@ class Script:
                 for s in raw["steps"]
             ],
         )
-
-
-def game_window(pid: int) -> int | None:
-    """The 3D game window, matched on the engine's own window class.
-
-    **Not the biggest visible window, and not the first.** Launched with `-scriptdebug2` the
-    process also owns `DebugWindowLite` (class `#32770`, a plain dialog), which is visible,
-    comfortably larger than any size threshold, and enumerates *before* the game. Targeting it
-    silently produces a recording whose coordinates are relative to the wrong window - clicks
-    land nowhere near where they were made.
-
-    That debug window is worth keeping, though: it is how the game's speed is controlled during
-    a test. So this identifies the real one positively rather than trying to exclude the others.
-    """
-    for hwnd, class_name, width, height in windows_of(pid):
-        if class_name == SAGE_WINDOW_CLASS:
-            return hwnd
-        if class_name.count("-") == 4 and width > 200 and height > 200:
-            return hwnd  # another SAGE build: the class is a GUID, but a different one
-    return None
 
 
 def client_size(hwnd: int) -> tuple[int, int]:

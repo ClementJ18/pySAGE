@@ -35,10 +35,13 @@ from sage_test.scenario import Scenario, Seat
 __all__ = [
     "DEFAULT_TIMEOUT",
     "EngineUnavailable",
+    "MapIniError",
+    "check_map_ini",
     "read_template",
     "run_map",
     "run_scenario",
     "run_user_map",
+    "write_map_ini",
 ]
 
 #: How long to wait for a launched game to reach frame 1. Measured at roughly 25 s on a shipped
@@ -48,6 +51,66 @@ DEFAULT_TIMEOUT = 120.0
 
 class EngineUnavailable(RuntimeError):
     """The game could not be brought up far enough to run a scenario against it."""
+
+
+class MapIniError(ValueError):
+    """A scenario's `map.ini` would not load, found before the game is launched.
+
+    Checked up front because the engine's own answer to a broken override is an error box that
+    waits for a click, which a test only sees as the launch timing out two minutes later.
+    """
+
+
+def write_map_ini(scenario: Scenario, folder: Path) -> Path | None:
+    """Write `scenario`'s `map.ini` into the generated map's `folder`, includes and all.
+
+    Returns the file written, or None when the scenario has no override. Written with CRLF and
+    a final line ending, as the mod's own map inis are: the engine is known to drop an
+    unterminated last line in other text files it reads.
+    """
+    path = folder / "map.ini"
+    if not scenario.map_ini.strip():
+        # A folder left by `--keep-maps` may still hold an earlier run's override.
+        path.unlink(missing_ok=True)
+        return None
+    for include in scenario.map_ini_includes:
+        source = Path(include)
+        target = folder / source.name
+        if source.is_dir():
+            shutil.copytree(source, target, dirs_exist_ok=True)
+        elif source.is_file():
+            shutil.copy2(source, target)
+        else:
+            raise MapIniError(f"map.ini include {source} does not exist")
+    text = scenario.map_ini.replace("\r\n", "\n").rstrip("\n") + "\n"
+    path.write_bytes(text.replace("\n", "\r\n").encode("cp1252"))
+    return path
+
+
+def check_map_ini(path: Path) -> list[str]:
+    """What would stop the `map.ini` at `path` loading: parse errors and bare modules.
+
+    Each entry is one line, `file:line: [code] message`. Parse errors are what an `End` too few
+    or too many produces; a bare module is what the engine crashes on ("You must use AddModule
+    to add modules in override INI files"). References to definitions elsewhere in the mod are
+    not checked - one file on its own cannot resolve them - so those are left to the engine.
+    """
+    # Imported here: the ini model is a large import, and a scenario without a map.ini never
+    # needs it.
+    from sage_ini.model.game import Game  # noqa: PLC0415
+    from sage_ini.parser.blockparser import parse_file  # noqa: PLC0415
+    from sage_ini.parser.diagnostics import Severity  # noqa: PLC0415
+    from sage_lint.rules.map_ini import MapBareModuleRule  # noqa: PLC0415
+
+    result = parse_file(path, resolve_includes=True, include_layers=(path.parent,))
+    found = [d for d in result.diagnostics.items if d.severity is Severity.ERROR]
+    game = Game()
+    try:
+        game.load_document(result.document)
+    except (ValueError, KeyError, TypeError, IndexError) as exc:
+        return [f"{path}: [load-error] {exc}"]
+    found += list(MapBareModuleRule().check(game))
+    return [f"{d.span.file}:{d.span.line_start}: [{d.code}] {d.message}" for d in found]
 
 
 def read_template(install: Path, name: str) -> bytes:
@@ -122,7 +185,7 @@ def run_map(
     writable: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
     windowed: bool = True,
-    mod: str | Path | None = None,
+    mod: str | Path | Sequence[str | Path] | None = None,
     engine_args: Sequence[str] = (),
 ) -> Iterator[Session]:
     """Start a map that already exists, and yield the running game.
@@ -179,7 +242,7 @@ def run_user_map(
     writable: bool = False,
     timeout: float = DEFAULT_TIMEOUT,
     windowed: bool = True,
-    mod: str | Path | None = None,
+    mod: str | Path | Sequence[str | Path] | None = None,
     engine_args: Sequence[str] = (),
 ) -> Iterator[Session]:
     """Install a map folder into the user files, start it there, and clean up afterwards.
@@ -236,7 +299,7 @@ def run_scenario(
     keep_map: bool = False,
     tolerance: float = DEFAULT_TOLERANCE,
     windowed: bool = True,
-    mod: str | Path | None = None,
+    mod: str | Path | Sequence[str | Path] | None = None,
     engine_args: Sequence[str] = (),
 ) -> Iterator[Match]:
     """Bring `scenario` up as a running match, and take it down again afterwards.
@@ -272,6 +335,15 @@ def run_scenario(
     # Uncompressed: the engine reads either, and compressing a five-megabyte map in pure Python
     # costs far more than the launch it would be shortening.
     map_path, file_argument = install_map(scenario.name, write_map(parsed, compress=False))
+    try:
+        map_ini = write_map_ini(scenario, map_path.parent)
+        problems = check_map_ini(map_ini) if map_ini is not None else []
+        if problems:
+            raise MapIniError(f"{scenario.name}'s map.ini would not load:\n" + "\n".join(problems))
+    except BaseException:
+        if not keep_map:
+            shutil.rmtree(map_path.parent, ignore_errors=True)
+        raise
 
     process = launch(
         file_argument,
@@ -282,12 +354,16 @@ def run_scenario(
         extra=tuple(engine_args),
     )
     session = None
+    match = None
     try:
         session = _await_session(process, timeout, writable)
-        yield Match(
+        match = Match(
             scenario, session, bind_handles(scenario, session.observe(), tolerance), process.pid
         )
+        yield match
     finally:
+        if match is not None:
+            match.close()
         if session is not None:
             session.close()
         process.kill()

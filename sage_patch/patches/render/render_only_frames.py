@@ -398,6 +398,7 @@ class RenderOnlyFramesPatch(Patch):
 
     name = "render-only-frames"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Companion to accel-module: fix what the accelerator's extra render-only frames break, "
         "where a frame is drawn without the client frame advancing. Ships and other rocking "

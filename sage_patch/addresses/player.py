@@ -51,6 +51,8 @@ __all__ = [
     "COMMAND_POINTS_INIT",
     "COMMAND_POINTS_INIT_FACTOR",
     "COMMAND_POINTS_INIT_FACTOR_BYTES",
+    "COMMAND_POINTS_INIT_FACTOR_GATE",
+    "COMMAND_POINTS_INIT_FACTOR_GATE_BYTES",
     "COMMAND_POINTS_INIT_MERGE",
     "COMMAND_POINTS_INIT_MERGE_BYTES",
     "COMMAND_POINTS_INIT_RETURN",
@@ -129,6 +131,7 @@ __all__ = [
     "PLAYER_GET_COST_MODIFIER_PALANTIR_VALUE",
     "PLAYER_GRANT_SCIENCE",
     "PLAYER_GRANT_UPGRADE",
+    "PLAYER_HAS_UPGRADE_COMPLETE",
     "PLAYER_HERO_LEDGER_OFFSET",
     "PLAYER_INDEX",
     "PLAYER_INIT",
@@ -137,6 +140,16 @@ __all__ = [
     "PLAYER_INIT_ENTRY_RESUME",
     "PLAYER_INIT_FROM_DICT",
     "PLAYER_INIT_FROM_DICT_BYTES",
+    "PLAYER_INIT_RANK_RESET",
+    "PLAYER_INIT_RANK_RESET_BYTES",
+    "PLAYER_RANK_RESET",
+    "PLAYER_RANK_INFO",
+    "PLAYER_RANK_INFO_CTOR",
+    "PLAYER_RANK_INFO_RESET",
+    "PLAYER_SKILL_POINTS_MODIFIER",
+    "SCRIPT_ACTION_SET_SKILL_POINTS_MODIFIER",
+    "PLAYER_IS_ACTIVE",
+    "PLAYER_IS_ACTIVE_BYTES",
     "PLAYER_IS_DEFEATED",
     "PLAYER_IS_OBSERVER",
     "PLAYER_KILL_PLAYER",
@@ -165,6 +178,8 @@ __all__ = [
     "PLAYER_SET_SCIENCES",
     "PLAYER_SET_TYPE",
     "PLAYER_SET_TYPE_BYTES",
+    "PLAYER_SKIRMISH_AI_TYPE_TEST",
+    "PLAYER_SKIRMISH_AI_TYPE_TEST_BYTES",
     "PLAYER_SKIRMISH_FOUND_EBP",
     "PLAYER_SKIRMISH_IMPORT",
     "PLAYER_SKIRMISH_IMPORT_BYTES",
@@ -175,6 +190,8 @@ __all__ = [
     "PLAYER_SKIRMISH_ROUTE",
     "PLAYER_SKIRMISH_ROUTE_BYTES",
     "PLAYER_SKIRMISH_ROUTE_RESUME",
+    "PLAYER_SKIRMISH_SETTINGS",
+    "PLAYER_SKIRMISH_SETTINGS_BYTES",
     "PLAYER_TEAM_LIST",
     "PLAYER_TEMPLATE_BLOCK_KEY",
     "PLAYER_TEMPLATE_BLOCK_KEY_BYTES",
@@ -192,6 +209,7 @@ __all__ = [
     "PLAYER_TEMPLATE_FIND_BY_INDEX",
     "PLAYER_TEMPLATE_FIND_BY_KEY",
     "PLAYER_TEMPLATE_GET_DISPLAY_NAME",
+    "PLAYER_TEMPLATE_GET_NAME",
     "PLAYER_TEMPLATE_IS_OBSERVER",
     "PLAYER_TEMPLATE_NAME_KEY",
     "PLAYER_TEMPLATE_PARSED_JOIN",
@@ -490,6 +508,11 @@ COMMAND_BUTTON_SPECIAL_POWER = 0x44
 # call that needs a different answer, never widen the function.
 PLAYER_LIST_LOCAL_IS_NOT_ACTIVE = 0x006A87F5
 PLAYER_LIST_LOCAL_IS_NOT_ACTIVE_BYTES = bytes.fromhex("8b4910e855240000f6d8")
+#: What that predicate asks of the local player: `Player::isPlayerActive` (`__thiscall`, no
+#: arguments), `al = 1` unless `PLAYER_IS_OBSERVER` or `PLAYER_IS_DEFEATED` is set. Touches only
+#: `eax` and the flags. `..._BYTES` is the whole function.
+PLAYER_IS_ACTIVE = 0x006AAC52
+PLAYER_IS_ACTIVE_BYTES = bytes.fromhex("33c038815a0300007509388154070000750140c3")
 PLAYER_LIST_OBSERVE_NEXT_PLAYER = 0x006A8D2B
 # `VictoryConditions`, which decides who is out and who has won (`docs/replay-outcome.md`).
 # `m_players` is compacted, so its index is not a `ThePlayerList` index; `m_isDefeated` latches.
@@ -648,6 +671,10 @@ COMMAND_POINTS_INIT_MERGE_BYTES = bytes.fromhex(
 )
 COMMAND_POINTS_INIT_FACTOR = 0x006A7DE2
 COMMAND_POINTS_INIT_FACTOR_BYTES = bytes.fromhex("a12c89de00")  # mov eax, [THE_GAME_INFO]
+#: The factor's first gate, `je COMMAND_POINTS_INIT_RETURN` when there is no `TheGameInfo`. As an
+#: unconditional `jmp` it removes the lobby factor from command points entirely.
+COMMAND_POINTS_INIT_FACTOR_GATE = 0x006A7DE9
+COMMAND_POINTS_INIT_FACTOR_GATE_BYTES = bytes.fromhex("741f")  # je COMMAND_POINTS_INIT_RETURN
 COMMAND_POINTS_INIT_RETURN = 0x006A7E0A
 COMMAND_POINTS_INIT_RETURN_BYTES = bytes.fromhex("5b5f5ec9c20800")  # pop ebx/edi/esi; leave; ret 8
 #: `CommandPointBookkeeping::override(base, hardCap)`, `ret 8`: stores both and sets `OVERRIDDEN`.
@@ -689,6 +716,10 @@ PLAYER_SET_SCIENCES = 0x006ACEF4
 #: path (sets the bit and runs the effect). The loop at `0x008126E5` is the reference for replaying
 #: a saved mask.
 PLAYER_GRANT_UPGRADE = 0x006AEE22
+#: `Player::hasUpgradeComplete(UpgradeTemplate *)`, `__thiscall`, `ret 4`, NULL-safe on the
+#: argument: the player-side `NeededUpgrade` test `ControlBar::getCommandAvailability` makes at
+#: `0x00942907` (on the *local* player there; logic code passes the object's own).
+PLAYER_HAS_UPGRADE_COMPLETE = 0x006AC2AF
 #: The science grant behind script action 280, `PLAYER_GRANT_SCIENCE`
 #: (`SCRIPT_ACTION_GRANT_SCIENCE`, reached from case arm `0x007CE037` of the action switch).
 #: `ScienceStore::friendlyNameToScience(const AsciiString &)` is `__thiscall` on
@@ -736,6 +767,10 @@ PLAYER_TEMPLATE_EVIL = 0x1BC
 #: `PlayerTemplate::getDisplayName`, which copy-constructs the `DisplayName` `UnicodeString` into
 #: the caller's buffer - `__thiscall(UnicodeString *out)`, `ret 4`.
 PLAYER_TEMPLATE_GET_DISPLAY_NAME = 0x0062772D
+#: `PlayerTemplate::getName`, which constructs the block's name as an `AsciiString` in the caller's
+#: slot - `__thiscall(AsciiString *out)`, `ret 4`, `eax` = `out`. The War of the Ring lobby builds
+#: `Scenario::isFactionEnabled`'s by-value argument with it (`0x00844E2C`).
+PLAYER_TEMPLATE_GET_NAME = 0x00627707
 #: Where `PlayerTemplateStore::parse` writes the block's name key into the template it has just
 #: parsed - the only two places the key and the finished fields meet. A new block is parsed into
 #: a stack temporary that takes the key at `..._NEW_KEY` (`mov [ebp-0x1e4], edi`) before it is
@@ -754,6 +789,25 @@ PLAYER_INIT = 0x006B0239
 PLAYER_INIT_ENTRY = 0x006B0243
 PLAYER_INIT_ENTRY_BYTES = bytes.fromhex("83ec0c8b4508")
 PLAYER_INIT_ENTRY_RESUME = 0x006B0249
+#: `m_skillPointsModifier`, the Real every skill point a player earns is multiplied by - the speed
+#: at which the spellbook fills. Script action 314, `PLAYER_AFFECT_RECEIVING_EXPERIENCE`, writes it
+#: (`SCRIPT_ACTION_SET_SKILL_POINTS_MODIFIER`, case body `0x007CE4B5`, every player of the side).
+#: It sits in the rank sub-object at `PLAYER_RANK_INFO`, whose constructor sets it to 1.0
+#: (`[0x00BD1908]`) once, when the twenty players are allocated. The per-game reset,
+#: `PLAYER_RANK_INFO_RESET`, clears the skill points, rank and purchase points but not this, so a
+#: map's rate outlives the map.
+PLAYER_SKILL_POINTS_MODIFIER = 0x18
+SCRIPT_ACTION_SET_SKILL_POINTS_MODIFIER = 0x007BD6A8
+PLAYER_RANK_INFO = 0x08
+PLAYER_RANK_INFO_CTOR = 0x00782A0C
+PLAYER_RANK_INFO_RESET = 0x00782774
+#: `Player::resetRank`, `__thiscall` on `Player+8`: `PLAYER_RANK_INFO_RESET`, then re-grants the
+#: rank sciences. Its only caller is `Player::init`, at `PLAYER_INIT_RANK_RESET`
+#: (`lea ecx, [ebx+8] / call`, `ebx` the `Player`), which every new game reaches for all twenty
+#: slots through `PlayerList`'s reset.
+PLAYER_RANK_RESET = 0x006AEE11
+PLAYER_INIT_RANK_RESET = 0x006B070E
+PLAYER_INIT_RANK_RESET_BYTES = bytes.fromhex("8d4b08e8fbe6ffff")
 # CommandButton, and the command-point gate a button press meets
 
 #: `CommandButton`, the INI block the ControlBar allocates one of per `CommandButton` definition.
@@ -875,6 +929,20 @@ PLAYER_SKIRMISH_IMPORT_BYTES = bytes.fromhex("807de0000f84d6020000")
 PLAYER_SKIRMISH_IMPORT_RESUME = 0x006B0D58
 PLAYER_SKIRMISH_IMPORT_SKIP = 0x006B102E
 PLAYER_SKIRMISH_IMPORT_SKIP_BYTES = bytes.fromhex("8b8e04030000")
+#: The matched path, past the side lookup: everything a skirmish AI is given whether or not a side
+#: is imported. First the lobby's `skirmishDifficulty` (default `TheGlobalData+0x1A5C4`) into
+#: `[Player+0x2FC]+0x30`, the AI's difficulty - the field the per-object `Upgrade_<D>AI*`, the
+#: difficulty-flagged scripts and the skillset all read; a player that skips this keeps the AI
+#: constructor's 1 (Medium). Opens `lea eax, [ebp-0xD]` / `push eax` / `mov ecx,
+#: &TheKey_skirmishDifficulty`.
+PLAYER_SKIRMISH_SETTINGS = 0x006B0D6B
+PLAYER_SKIRMISH_SETTINGS_BYTES = bytes.fromhex("8d45f350b98c2fda00")
+#: Then `cmp eax, 3` / `je 0x006B1023`: a player whose own dict carries `playerAIType` as an
+#: AsciiString (Dict type 3) skips the matched-side script and team copy and goes straight to the
+#: name-based import (`0x006ADD80`: scripts and teams of the map's side named like the player,
+#: `Player_N`), which the matched path also runs after its copy. Both then reach `..._SKIP`.
+PLAYER_SKIRMISH_AI_TYPE_TEST = 0x006B0DB5
+PLAYER_SKIRMISH_AI_TYPE_TEST_BYTES = bytes.fromhex("83f8030f8465020000")
 # The persistent left spellbook bar, not the purchase-science / spellstore window.
 # Original game.dat, verified against the cache function and its update caller.
 SPELLBOOK_UI_CACHE = 0x00930F96

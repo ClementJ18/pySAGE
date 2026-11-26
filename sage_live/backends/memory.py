@@ -30,33 +30,59 @@ import math
 import struct
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, replace
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
+from sage_live.api.camera import CameraView
+from sage_live.api.chat import ChatLine
 from sage_live.api.observation import (
     GameObject,
     Observation,
     PlayerState,
     ProductionItem,
     SpecialPowerState,
+    Vec3,
 )
 from sage_live.backends.base import ConnectionRefused, GameExited
 from sage_live.backends.identity import ROTWK_201_TIMESTAMP, BuildIdentity, read_identity
 from sage_live.backends.protocol import Diagnostic, DiagnosticLog, Handshake
 from sage_live.backends.shroud import ShroudGrid, read_shroud
 from sage_patch.addresses import (
+    AI_CURRENT_VICTIM_ID_OFFSET,
+    ATTRIBUTE_MODIFIER_CATEGORY_COUNT,
+    ATTRIBUTE_MODIFIER_POOL_ENTRIES,
+    ATTRIBUTE_MODIFIER_POOL_ENTRY_EXPIRY,
+    ATTRIBUTE_MODIFIER_POOL_ENTRY_SIZE,
+    ATTRIBUTE_MODIFIER_POOL_SUPPRESSED,
+    ATTRIBUTE_MODIFIER_POOL_VTABLE,
+    ATTRIBUTE_MODIFIER_STORE_LISTS,
     AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON,
     AUTO_ABILITY_BEHAVIOR_VTABLE,
     BUILD,
+    CAMERA_CLIP_PLANES_OFFSET,
+    CAMERA_PROJECTION_OFFSET,
+    CAMERA_TRANSFORM_OFFSET,
+    CAMERA_VIEW_PLANE_OFFSET,
+    CAMERA_VIEWPORT_OFFSET,
     COMMAND_BUTTON_SPECIAL_POWER,
     DICT_SET_ASCII_STRING_BYTES,
+    DRAWABLE_DRAW_MODULES,
     GLOBAL_DATA,
     GLOBAL_DATA_FPS_LIMIT,
     GLOBAL_DATA_USE_FPS_LIMIT,
     IMAGE_BASE,
     KINDOF_HERO_BIT,
     KINDOF_HERO_BYTE,
+    MESSAGE_LOG_ENTRY_COLOR,
+    MESSAGE_LOG_ENTRY_SIZE,
+    MESSAGE_LOG_ENTRY_TEXT,
+    MESSAGE_LOG_IN_GAME,
+    MODIFIER_LIST_CATEGORY,
+    MODIFIER_LIST_ENTRY_SIZE,
+    MODIFIER_TYPE_PRODUCTION,
+    MODIFIER_TYPE_TABLE_REF,
+    OBJECT_AI_UPDATE,
     OBJECT_CONSTRUCTION_PERCENT,
     OBJECT_KILLS,
     OBJECT_MODULE_LIST,
@@ -82,6 +108,7 @@ from sage_patch.addresses import (
     SHROUD_RECORD_BASE,
     SHROUD_RECORD_STRIDE,
     SPELLBOOK_UI_SLOT_LIMIT,
+    THE_ATTRIBUTE_MODIFIER_STORE,
     THE_COMMAND_SET_STORE,
     THE_GAME_LOGIC,
     THE_GAME_TEXT,
@@ -93,9 +120,11 @@ from sage_patch.addresses import (
     THE_SHROUD_MANAGER,
     THE_SIDES_LIST,
     THE_SPECIAL_POWER_STORE,
+    THE_TACTICAL_VIEW,
     THE_THING_FACTORY,
     THE_UPGRADE_CENTER,
     THING_TEMPLATE_KINDOF,
+    W3DVIEW_3D_CAMERA_OFFSET,
 )
 from sage_patch.patches.utils.model_conditions import MASK_DWORDS as MODEL_CONDITION_DWORDS
 from sage_patch.patches.utils.model_conditions import MASK_OFFSET as MODEL_CONDITION_MASK
@@ -110,6 +139,7 @@ __all__ = [
     "MemorySource",
     "ProcessMemory",
     "UpgradeDefinition",
+    "WritableMemorySource",
     "find_game_processes",
 ]
 
@@ -193,7 +223,8 @@ class EngineLayout:
     player_power_points_total: int = 0x1C
     # The rank ladder: lifetime skill points and the skill needed for the next and current rank
     # (Generals' `Player` order). Not yet confirmed live; `power_point_progress` rejects an
-    # implausible triple.
+    # implausible triple. Seen 2026-11-10: `+0x20` stayed 1 while a `SkillPointsForTriggering =
+    # 250` power fired, so it is likely not the skill total.
     player_skill_points: int = 0x20
     player_rank_next: int = 0x28
     player_rank_floor: int = 0x2C
@@ -210,6 +241,11 @@ class EngineLayout:
     player_units_lost: int = 0x450
     player_structures_created: int = 0x4A4
     player_structures_lost: int = 0x4A8
+    # `SpellRechargeModifierUpgrade`'s per-player state: the discount the spellbook's recharge is
+    # scaled by (`1 + discount`, read at `0x006AAAD2`) and how many of its modifiers stand
+    # (`sage_patch/docs/description-timers.md`, `spell-recharge-reset.md`).
+    player_spell_recharge_discount: int = 0x718
+    player_spell_recharge_level: int = 0x71C
 
     # `TheRecorder`: whether it is playing a replay back, and which file.
     the_recorder: int = THE_RECORDER
@@ -335,6 +371,16 @@ class EngineLayout:
     auto_ability_vtable: int = AUTO_ABILITY_BEHAVIOR_VTABLE
     auto_ability_power: int = 0x18
     auto_ability_button: int = AUTO_ABILITY_BEHAVIOR_ACTIVE_BUTTON
+    # `WeaponFireSpecialAbilityUpdate`, and the target every `SpecialAbilityUpdate`-family module
+    # holds: the object id, then its position. Read live off a Barbed Arrows caster and a spear
+    # throw (2026-10-30, 2026-11-06), where an AI cast with no target left the id at 0.
+    weapon_fire_special_ability_vtable: int = 0x00C64818
+    special_ability_target_id: int = 0x40
+    special_ability_target_position: int = 0x44
+    # The AI update module, and the victim `getCurrentVictim` returns - the one field that sees
+    # an attack however the engine started it.
+    obj_ai_update: int = OBJECT_AI_UPDATE
+    ai_current_victim: int = AI_CURRENT_VICTIM_ID_OFFSET
 
     # Object
     obj_template: int = 0x04
@@ -398,6 +444,9 @@ class EngineLayout:
     # object's own address appears in the drawable at `+0xFC`.
     obj_drawable: int = 0x84
     drawable_object: int = 0xFC
+    # A drawable's draw modules: a NULL-terminated array, as the object's behaviour modules are.
+    drawable_draw_modules: int = DRAWABLE_DRAW_MODULES
+    max_draw_modules: int = 16
     # How much of an `Object` one read takes. Sized to reach past the last field read inline -
     # the team pointer at `+0x31C` - so a single read serves the whole header, upgrade mask
     # included. Widening it costs bytes; narrowing it silently reintroduces per-field reads
@@ -512,6 +561,26 @@ class EngineLayout:
     entry_percent: int = 0x14
     entry_percent_per_frame: int = 0x18
     entry_progress: int = 0x1C
+
+    # AttributeModifierPoolUpdate - an object's live modifiers, for the speed its queue ticks at.
+    # The walk is `getModifierMultiplier`'s, written up on
+    # `sage_patch.addresses.ATTRIBUTE_MODIFIER_POOL_VTABLE`.
+    attribute_modifier_pool_vtable: int = ATTRIBUTE_MODIFIER_POOL_VTABLE
+    pool_entries: int = ATTRIBUTE_MODIFIER_POOL_ENTRIES
+    pool_entry_size: int = ATTRIBUTE_MODIFIER_POOL_ENTRY_SIZE
+    pool_entry_expiry: int = ATTRIBUTE_MODIFIER_POOL_ENTRY_EXPIRY
+    pool_suppressed: int = ATTRIBUTE_MODIFIER_POOL_SUPPRESSED
+    modifier_category_count: int = ATTRIBUTE_MODIFIER_CATEGORY_COUNT
+    the_attribute_modifier_store: int = THE_ATTRIBUTE_MODIFIER_STORE
+    store_lists: int = ATTRIBUTE_MODIFIER_STORE_LISTS
+    modifier_list_category: int = MODIFIER_LIST_CATEGORY
+    modifier_list_entry_size: int = MODIFIER_LIST_ENTRY_SIZE
+    modifier_type_table_ref: int = MODIFIER_TYPE_TABLE_REF
+    modifier_type_production: int = MODIFIER_TYPE_PRODUCTION
+    # Longer than any of these means a corrupt read: refuse rather than spin.
+    max_pool_entries: int = 256
+    max_list_modifiers: int = 64
+    max_modifier_types: int = 256
     # A queue longer than this means a corrupt read rather than a real structure - refuse rather
     # than spin.
     max_queue: int = 64
@@ -531,6 +600,10 @@ LAYOUT_ROTWK_201 = EngineLayout()
 _MAX_UPGRADES = 1 << 14
 # The thing table is an order of magnitude larger - 11,143 on RotWK 2.01 + Edain.
 _MAX_THINGS = 1 << 17
+# A match's message log longer than this is a corrupt read, not hours of chat.
+_MAX_CHAT_LINES = 1 << 14
+# Characters read of one chat line: the chat box takes far fewer.
+_CHAT_LINE_CHARS = 512
 
 
 def _clamp_percent(value: float | None) -> float:
@@ -539,6 +612,13 @@ def _clamp_percent(value: float | None) -> float:
     if value is None or not math.isfinite(value):
         return 0.0
     return min(100.0, max(0.0, value))
+
+
+def _per_frame(value: float | None) -> float:
+    """A production entry's `100 / buildTime`, or 0 where it is unread or not a rate."""
+    if value is None or not math.isfinite(value) or value <= 0.0 or value > 100.0:
+        return 0.0
+    return value
 
 
 def _opaque_rgb(value: int | None) -> int | None:
@@ -574,6 +654,13 @@ class MemorySource(Protocol):
     def read(self, address: int, size: int) -> bytes | None: ...
 
     def close(self) -> None: ...
+
+
+@runtime_checkable
+class WritableMemorySource(MemorySource, Protocol):
+    """A `MemorySource` that can also be written, such as a `ProcessMemory` opened writable."""
+
+    def write(self, address: int, data: bytes) -> bool: ...
 
 
 def find_game_processes(name: str = "game.dat") -> list[int]:
@@ -744,6 +831,10 @@ class MemoryBackend:
         # `{lowercased command set name -> CommandSet*}`, walked once.
         self._command_sets: dict[str, int] | None = None
         self._template_produces: dict[int, bool] = {}
+        # `{queue entry kind -> modifier types its step is scaled by}`, from the live type table.
+        self._step_types: dict[int, tuple[int, ...]] | None = None
+        # `TheGameLogic`'s frame as `read_objects` started, which modifier expiry is tested against.
+        self._logic_frame = 0
         # `{object id -> Object*}`, rebuilt by every `read_objects`. Not a per-template cache
         # like the two above: object ids are reused as objects die and are created, so this is
         # only meaningful for the table walk that filled it.
@@ -1151,6 +1242,10 @@ class MemoryBackend:
                     units_lost=self._i32(ptr + lay.player_units_lost) or 0,
                     structures_created=self._i32(ptr + lay.player_structures_created) or 0,
                     structures_lost=self._i32(ptr + lay.player_structures_lost) or 0,
+                    spell_recharge_discount=(
+                        self._f32(ptr + lay.player_spell_recharge_discount) or 0.0
+                    ),
+                    spell_recharge_level=self._i32(ptr + lay.player_spell_recharge_level) or 0,
                     color=_opaque_rgb(self._u32(ptr + lay.player_color)),
                     command_points=(
                         self._i32(ptr + lay.player_command_points_used) or 0,
@@ -1469,15 +1564,8 @@ class MemoryBackend:
         the callers that only want that; see it for why the recharge is read, not computed.
         """
         lay = self.layout
-        address = self._object_at.get(object_id)
-        modules = None if address is None else self._pointer(address + lay.obj_modules)
-        if modules is None:
-            return ()
         found: list[SpecialPowerState] = []
-        for index in range(lay.max_modules):
-            module = self._pointer(modules + index * 4)
-            if module is None:
-                break
+        for module in self._modules_of(object_id):
             data = self._pointer(module + lay.module_data)
             template = None if data is None else self._pointer(data + lay.module_data_template)
             if template is None:
@@ -1515,6 +1603,79 @@ class MemoryBackend:
         # MAX_PATH wide characters.
         return self._utf16(recorder + lay.recorder_playback_path, limit=520) or None
 
+    def read_chat_log(self, start: int = 0) -> tuple[ChatLine, ...] | None:
+        """The match's message log from line `start` on, or None when it cannot be read or does not
+        make sense as one. The log only grows during a match and is emptied when the shell changes
+        screens, so a reader that remembers how many lines it has seen asks for the rest.
+        """
+        log = MESSAGE_LOG_IN_GAME
+        first, last = self._u32(log), self._u32(log + 4)
+        if first is None or last is None:
+            return None
+        if first == last == 0:
+            return ()
+        count, extra = divmod(last - first, MESSAGE_LOG_ENTRY_SIZE)
+        if extra or not 0 <= count <= _MAX_CHAT_LINES or first < _MIN_PTR:
+            self._diagnostics.append(Diagnostic(f"the message log at {first:#x} does not read"))
+            return None
+        if start >= count:
+            return ()
+        base = first + start * MESSAGE_LOG_ENTRY_SIZE
+        raw = self.source.read(base, (count - start) * MESSAGE_LOG_ENTRY_SIZE)
+        if not raw:
+            return None
+        lines = []
+        for offset in range(0, len(raw), MESSAGE_LOG_ENTRY_SIZE):
+            entry = base + offset
+            (color,) = struct.unpack_from("<I", raw, offset + MESSAGE_LOG_ENTRY_COLOR)
+            text = self._utf16(entry + MESSAGE_LOG_ENTRY_TEXT, limit=_CHAT_LINE_CHARS * 2)
+            lines.append(ChatLine(text, color & 0xFFFFFF))
+        return tuple(lines)
+
+    def read_camera_view(self) -> CameraView | None:
+        """The 3D camera the local client draws the world through, or None when there is none to
+        read (the menus, a loading screen) or what is there does not make sense as a camera.
+
+        Plain reads of `W3DView::m_3DCamera`'s own transform and view plane, so the answer is
+        what the client draws this frame. `TheTacticalView` is re-read every call, because each
+        match builds a new one.
+        """
+        view = self._pointer(THE_TACTICAL_VIEW)
+        camera = None if view is None else self._pointer(view + W3DVIEW_3D_CAMERA_OFFSET)
+        if camera is None:
+            return None
+        transform = self.source.read(camera + CAMERA_TRANSFORM_OFFSET, 48)
+        projection = self._u32(camera + CAMERA_PROJECTION_OFFSET)
+        viewport = self.source.read(camera + CAMERA_VIEWPORT_OFFSET, 16)
+        view_plane = self.source.read(camera + CAMERA_VIEW_PLANE_OFFSET, 16)
+        clip = self.source.read(camera + CAMERA_CLIP_PLANES_OFFSET, 8)
+        if not (transform and viewport and view_plane and clip) or projection is None:
+            return None
+        rows = struct.unpack("<12f", transform)
+        vp = struct.unpack("<4f", viewport)
+        plane = struct.unpack("<4f", view_plane)
+        near, far = struct.unpack("<2f", clip)
+        if (
+            not all(math.isfinite(v) for v in (*rows, *vp, *plane, near, far))
+            or not 0.0 <= near < far
+            or plane[0] >= plane[2]
+            or plane[1] >= plane[3]
+        ):
+            self._diagnostics.append(Diagnostic(f"the camera at {camera:#x} does not read as one"))
+            return None
+        return CameraView(
+            transform=(
+                (rows[0], rows[1], rows[2], rows[3]),
+                (rows[4], rows[5], rows[6], rows[7]),
+                (rows[8], rows[9], rows[10], rows[11]),
+            ),
+            view_plane=(plane[0], plane[1], plane[2], plane[3]),
+            near=near,
+            far=far,
+            viewport=(vp[0], vp[1], vp[2], vp[3]),
+            orthographic=projection != 0,
+        )
+
     def auto_cast_powers(self, object_id: int) -> frozenset[str]:
         """The powers on one object that the engine is casting by itself right now: those of its
         `AutoAbilityBehavior` modules whose auto-cast is switched on.
@@ -1523,15 +1684,8 @@ class MemoryBackend:
         toggling the button's auto-cast. Empty when there are none or the walk fails.
         """
         lay = self.layout
-        address = self._object_at.get(object_id)
-        modules = None if address is None else self._pointer(address + lay.obj_modules)
-        if modules is None:
-            return frozenset()
         found: set[str] = set()
-        for index in range(lay.max_modules):
-            module = self._pointer(modules + index * 4)
-            if module is None:
-                break
+        for module in self._modules_of(object_id):
             if self._u32(module) != lay.auto_ability_vtable:
                 continue
             if not self._ascii(module + lay.auto_ability_button):
@@ -1561,32 +1715,132 @@ class MemoryBackend:
         discounts apply, and survives a consumer restarting. Works on a spellbook or a hero. The id
         must come from the last `read_objects` walk, since ids are reused.
         """
+        found: dict[str, int] = {}
+        for module, name in self._power_modules(object_id):
+            ready = self._i32(module + self.layout.module_ready_frame)
+            if ready is not None:
+                found[name] = ready
+        return found
+
+    def _modules_of(self, object_id: int) -> Iterator[int]:
+        """The addresses of one object's behaviour modules, in list order. Empty for an id the
+        last `read_objects` walk did not see."""
         lay = self.layout
         address = self._object_at.get(object_id)
-        if address is None:
-            return {}
-        modules = self._pointer(address + lay.obj_modules)
+        modules = None if address is None else self._pointer(address + lay.obj_modules)
         if modules is None:
-            return {}
-        found: dict[str, int] = {}
+            return
         for index in range(lay.max_modules):
             module = self._pointer(modules + index * 4)
             if module is None:
                 # A NULL terminates the list, which is what bounds this walk in practice.
-                break
+                return
+            yield module
+
+    def _power_modules(self, object_id: int) -> Iterator[tuple[int, str]]:
+        """`(module, power name)` for each of one object's special-power modules."""
+        lay = self.layout
+        for module in self._modules_of(object_id):
             data = self._pointer(module + lay.module_data)
-            if data is None:
-                continue
-            template = self._pointer(data + lay.module_data_template)
+            template = None if data is None else self._pointer(data + lay.module_data_template)
             if template is None:
                 # Not a special-power module: every other module family leaves this unset, and
                 # the engine's own recharge path bails on exactly this test.
                 continue
             name = self._ascii(template + lay.power_name)
-            ready = self._i32(module + lay.module_ready_frame)
-            if name and ready is not None:
-                found[name] = ready
-        return found
+            if name:
+                yield module, name
+
+    def object_address(self, object_id: int) -> int | None:
+        """The `Object*` behind an id from the last `read_objects` walk, for a read this backend
+        does not decode itself. None for an id that walk did not see."""
+        return self._object_at.get(object_id)
+
+    def module_vtables(self, object_id: int) -> tuple[tuple[int, int], ...]:
+        """`(vtable, module address)` for each of one object's behaviour modules - what to look
+        through when a module this backend does not name has to be found by its class."""
+        return tuple((self._u32(module) or 0, module) for module in self._modules_of(object_id))
+
+    def special_ability_target(self, object_id: int) -> tuple[int, Vec3] | None:
+        """`(target object id, target position)` held by one object's
+        `WeaponFireSpecialAbilityUpdate`, or None when it has none or the read fails.
+
+        The id is 0 for a cast aimed at a position, or at nothing: an AI cast through a hook that
+        names no target leaves it at 0, and the caster then fires at its own feet.
+        """
+        lay = self.layout
+        for vtable, module in self.module_vtables(object_id):
+            if vtable != lay.weapon_fire_special_ability_vtable:
+                continue
+            raw = self.source.read(module + lay.special_ability_target_id, 16)
+            if raw is None or len(raw) != 16:
+                return None
+            target_id, x, y, z = struct.unpack("<Ifff", raw)
+            return target_id, (x, y, z)
+        return None
+
+    def ai_victim(self, object_id: int) -> int | None:
+        """The object id one object's AI is attacking, 0 when none, or None when it has no AI
+        update or the read fails."""
+        lay = self.layout
+        address = self._object_at.get(object_id)
+        ai = None if address is None else self._pointer(address + lay.obj_ai_update)
+        return None if ai is None else self._u32(ai + lay.ai_current_victim)
+
+    def draw_modules(self, object_id: int) -> tuple[tuple[int, int | None], ...] | None:
+        """`(module address, vtable)` for each of one object's draw modules, or None when the
+        object or its drawable is gone. A vtable that does not read is None, which is what a draw
+        module freed under its drawable looks like.
+
+        Only a NULL ends the walk, not an implausible pointer: this is read to find corruption,
+        and a garbage entry is one of the things it has to report."""
+        lay = self.layout
+        address = self._object_at.get(object_id)
+        drawable = None if address is None else self._pointer(address + lay.obj_drawable)
+        array = None if drawable is None else self._pointer(drawable + lay.drawable_draw_modules)
+        if array is None:
+            return None
+        found: list[tuple[int, int | None]] = []
+        for index in range(lay.max_draw_modules):
+            module = self._u32(array + index * 4)
+            if not module:
+                break
+            found.append((module, self._u32(module)))
+        return tuple(found)
+
+    def _local_player(self) -> int | None:
+        lay = self.layout
+        players = self._pointer(lay.the_player_list)
+        return None if players is None else self._pointer(players + lay.pl_local_player)
+
+    def _write(self, address: int, data: bytes) -> bool:
+        """Write through the source, or False when it cannot be written."""
+        return isinstance(self.source, WritableMemorySource) and bool(
+            self.source.write(address, data)
+        )
+
+    def set_power_ready(self, object_id: int, power: str, frame: int) -> bool:
+        """Put one object's `power` on `frame` as its next usable frame - the current frame to
+        take it off its reload. False when the object has no such power or the source cannot be
+        written (a `ProcessMemory` opened read-only).
+
+        For a test that cannot wait a reload out: the frame is the engine's own, so the power then
+        behaves exactly as one whose recharge ran down.
+        """
+        written = False
+        for module, name in self._power_modules(object_id):
+            if name == power:
+                packed = struct.pack("<i", frame)
+                written = self._write(module + self.layout.module_ready_frame, packed) or written
+        return written
+
+    def set_power_points(self, points: int) -> bool:
+        """Set the local player's spendable spellbook points, as a grant does. False when there
+        is no local player or the source cannot be written."""
+        local = self._local_player()
+        return local is not None and self._write(
+            local + self.layout.player_power_points, struct.pack("<i", points)
+        )
 
     def read_objects(self) -> tuple[GameObject, ...]:
         lay = self.layout
@@ -1594,6 +1848,7 @@ class MemoryBackend:
         if gl is None:
             self._diagnostics.append(Diagnostic("TheGameLogic is null"))
             return ()
+        self._logic_frame = self._u32(gl + lay.gl_frame) or 0
         begin = self._pointer(gl + lay.gl_table_begin)
         end = self._u32(gl + lay.gl_table_end)
         if begin is None or end is None or end <= begin:
@@ -1834,25 +2089,110 @@ class MemoryBackend:
             )
         return value if _MIN_PTR <= value <= _MAX_PTR else None
 
-    def _production_module(self, array: int) -> tuple[int | None, bool]:
-        """The `ProductionUpdate` in an object's module array, matched by vtable, and whether the
-        walk was conclusive (only a conclusive "not there" may be cached per template).
+    def _production_module(self, array: int) -> tuple[int | None, int | None, bool]:
+        """The `ProductionUpdate` and the `AttributeModifierPoolUpdate` in an object's module
+        array, matched by vtable, and whether the walk was conclusive (only a conclusive "no
+        production" may be cached per template).
         """
         lay = self.layout
         raw = self.source.read(array, lay.production_scan * 4)
         if raw is None:
-            return None, False
+            return None, None, False
+        production: int | None = None
+        pool: int | None = None
         for module in struct.unpack(f"<{lay.production_scan}I", raw):
-            if module == 0:  # the terminator: the list really does end without one
-                return None, True
+            if module == 0:  # the terminator
+                break
             if not (_MIN_PTR <= module <= _MAX_PTR):
-                return None, False
+                return production, pool, production is not None
             vtable = self._u32(module)
             if vtable is None:
-                return None, False
+                return production, pool, production is not None
             if vtable == lay.production_update_vtable:
-                return module, True
-        return None, True
+                production = module
+            elif vtable == lay.attribute_modifier_pool_vtable:
+                pool = module
+            if production is not None and pool is not None:
+                break
+        return production, pool, True
+
+    def _queue_step_types(self) -> dict[int, tuple[int, ...]]:
+        """The modifier types each queue entry kind's step is scaled by, read once.
+
+        `PRODUCTION` for a unit and an upgrade, and the `PRODUCTION_UNIT` / `PRODUCTION_UPGRADE`
+        the production-split patch appends to the type table - looked up by name in the live
+        table, since an appending patch decides their indices.
+        """
+        if self._step_types is not None:
+            return self._step_types
+        lay = self.layout
+        names: dict[str, int] = {}
+        table = self._pointer(lay.modifier_type_table_ref)
+        raw = None if table is None else self.source.read(table, lay.max_modifier_types * 4)
+        if raw is not None:
+            for index, entry in enumerate(struct.unpack(f"<{len(raw) // 4}I", raw)):
+                if not (_MIN_PTR <= entry <= _MAX_PTR):
+                    break
+                text = self.source.read(entry, 32)
+                if text:
+                    names[text.split(b"\x00")[0].decode("latin-1")] = index
+        production = lay.modifier_type_production
+        unit = names.get("PRODUCTION_UNIT")
+        upgrade = names.get("PRODUCTION_UPGRADE")
+        self._step_types = {
+            1: (production,) if unit is None else (production, unit),
+            2: (production,) if upgrade is None else (production, upgrade),
+        }
+        return self._step_types
+
+    def _modifier_product(self, pool: int, types: tuple[int, ...]) -> float:
+        """The product of an object's live modifiers of `types`, as `getModifierMultiplier` with
+        its last argument 1 works it out: each live, unsuppressed list gives its first modifier
+        of a type. 1.0 for anything unreadable, which is the engine's own seed."""
+        lay = self.layout
+        begin, end = self._u32(pool + lay.pool_entries), self._u32(pool + lay.pool_entries + 4)
+        store = self._pointer(lay.the_attribute_modifier_store)
+        lists = None if store is None else self._pointer(store + lay.store_lists)
+        lists_end = None if store is None else self._u32(store + lay.store_lists + 4)
+        if not begin or not end or lists is None or not lists_end or end <= begin:
+            return 1.0
+        count = min((end - begin) // lay.pool_entry_size, lay.max_pool_entries)
+        raw = self.source.read(begin, count * lay.pool_entry_size)
+        categories = lay.modifier_category_count
+        suppressed_raw = self.source.read(pool + lay.pool_suppressed, categories * 4)
+        if raw is None or suppressed_raw is None:
+            return 1.0
+        suppressed = struct.unpack(f"<{categories}I", suppressed_raw)
+        list_count = (lists_end - lists) // 4
+        frame = self._logic_frame
+        size = lay.modifier_list_entry_size
+        product = 1.0
+        for offset in range(0, len(raw) - lay.pool_entry_size + 1, lay.pool_entry_size):
+            index = struct.unpack_from("<I", raw, offset)[0]
+            expiry = struct.unpack_from("<I", raw, offset + lay.pool_entry_expiry)[0]
+            if frame >= expiry or index >= list_count:
+                continue
+            modifier_list = self._pointer(lists + 4 * index)
+            if modifier_list is None:
+                continue
+            category = self._i32(modifier_list + lay.modifier_list_category)
+            if category is not None and 0 <= category < categories:
+                if frame <= suppressed[category]:
+                    continue
+            first, last = self._u32(modifier_list), self._u32(modifier_list + 4)
+            if not first or not last or last <= first:
+                continue
+            body = self.source.read(first, min(last - first, lay.max_list_modifiers * size))
+            if body is None:
+                continue
+            for wanted in types:
+                for at in range(0, len(body) - size + 1, size):
+                    kind, value = struct.unpack_from("<If", body, at)
+                    if kind == wanted:
+                        if math.isfinite(value):
+                            product *= value
+                        break
+        return product
 
     def _read_production(
         self, obj_ptr: int, template: int, array: int | None
@@ -1865,7 +2205,7 @@ class MemoryBackend:
         lay = self.layout
         if array is None or self._template_produces.get(template) is False:
             return ()
-        module, conclusive = self._production_module(array)
+        module, pool, conclusive = self._production_module(array)
         if module is None:
             if conclusive:
                 self._template_produces[template] = False
@@ -1883,22 +2223,31 @@ class MemoryBackend:
             return ()
 
         items: list[ProductionItem] = []
+        # `{kind -> speed}` for this object, worked out the first time an entry of a kind needs
+        # it. A hero's is 1: his completion is wall clock, whatever the step.
+        speeds: dict[int, float] = {3: 1.0}
         node = self._pointer(module + lay.production_head)
         seen: set[int] = set()
         while node is not None and node not in seen and len(items) < lay.max_queue:
             seen.add(node)
-            kind = self._i32(node + lay.entry_kind)
+            kind = self._i32(node + lay.entry_kind) or 0
             percent = _clamp_percent(self._f32(node + lay.entry_percent))
+            per_frame = _per_frame(self._f32(node + lay.entry_percent_per_frame))
+            if kind in (1, 2) and kind not in speeds:
+                types = self._queue_step_types()[kind]
+                speeds[kind] = 1.0 if pool is None else self._modifier_product(pool, types)
+            speed = speeds.get(kind, 1.0)
             if kind == 2:
                 # Both registry walks are cached and are triggered here rather than up front,
                 # so an observation of a game where nothing is producing never pays for them.
                 self.upgrade_table()
                 name = self._upgrade_at.get(self._u32(node + lay.entry_upgrade) or 0, "")
-                items.append(ProductionItem("upgrade", name, percent))
+                items.append(ProductionItem("upgrade", name, percent, per_frame, speed))
             elif kind in (1, 3):
                 self.thing_order()
                 name = self._thing_at.get(self._u32(node + lay.entry_template) or 0, "")
-                items.append(ProductionItem("unit" if kind == 1 else "revive", name, percent))
+                shown = "unit" if kind == 1 else "revive"
+                items.append(ProductionItem(shown, name, percent, per_frame, speed))
             else:
                 items.append(ProductionItem("unknown"))
             node = self._pointer(node + lay.entry_next)

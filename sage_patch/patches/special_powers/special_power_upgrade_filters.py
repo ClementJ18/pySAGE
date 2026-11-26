@@ -398,7 +398,7 @@ class SpecialPowerUpgradeFiltersPatch(Patch):
 
     name = "special-power-upgrade-filters"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "SpecialPower ForbiddenUpgrades = <Upgrade> ... refuses a targeted cast when any object "
         "within ForbiddenObjectRange of the cast point carries one of the listed upgrades as an "

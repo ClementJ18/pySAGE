@@ -252,6 +252,7 @@ def _edits(section_va: int) -> list[tuple[int, bytes, bytes, str]]:
 class VisibleHotkeysPatch(Patch):
     name = "visible-hotkeys"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make a command button's shortcut letter act on the first visible button that carries "
         "it (preferring an enabled one), not on whichever slot registered the letter first. "

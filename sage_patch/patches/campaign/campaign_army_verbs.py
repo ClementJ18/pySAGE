@@ -1330,6 +1330,7 @@ def _site_bytes(va: int, stock: bytes, target: int) -> bytes:
 class CampaignArmyVerbsPatch(Patch):
     name = "campaign-army-verbs"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Restore BFME1's campaign Act verbs. MergePlayerArmy { SourceArmy, DestArmy, "
         "SplitArmyTemplate, SplitArmy, DespawnSource } moves roster entries from one living-world "

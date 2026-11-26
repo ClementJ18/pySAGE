@@ -9,6 +9,11 @@ and `setLocation` writes all four, visibly disturbing the zoom. So re-aim with `
 (which writes the view's position directly), and use this for reading the camera or restoring a
 whole saved placement. `position` is the look-at point on the terrain, not the camera's eye.
 Details: `sage_patch/docs/camera-control.md`.
+
+`CameraView` - what the camera sees. A `ViewLocation` says where the camera aims but not how much
+of the world fits on screen; that is the 3D camera the view draws through, its transform and view
+plane, read as they are. It answers whether a world point is on the local client's screen and
+where, and which ground the screen covers.
 """
 
 from __future__ import annotations
@@ -21,7 +26,16 @@ from typing import Protocol
 
 from sage_live.api.observation import Vec3
 
-__all__ = ["CameraPan", "ViewLocation"]
+__all__ = ["CameraPan", "CameraView", "ViewLocation"]
+
+# A rectangle as the camera stores one: min x, min y, max x, max y.
+Rect = tuple[float, float, float, float]
+# A rigid transform as three rows of (x, y, z, translation).
+Rows = tuple[
+    tuple[float, float, float, float],
+    tuple[float, float, float, float],
+    tuple[float, float, float, float],
+]
 
 
 @dataclass(frozen=True)
@@ -52,6 +66,109 @@ class ViewLocation:
     def looking_at(self, position: Vec3) -> ViewLocation:
         """This same camera, re-aimed at `position`. Everything else is kept."""
         return replace(self, position=position)
+
+
+@dataclass(frozen=True)
+class CameraView:
+    """The 3D camera the world is drawn through, enough to say what is on screen.
+
+    Screen positions are fractions of the client area, (0, 0) top-left to (1, 1) bottom-right, so
+    they hold at any resolution. The transform is rigid, which is what lets a world point be taken
+    into camera space with its transpose rather than a general inverse.
+    """
+
+    # Camera space to world. The camera looks down its own -Z, with +X right and +Y up.
+    transform: Rows
+    # The view plane at distance one: `±tan(fov / 2)` for a perspective camera, world units for
+    # an orthographic one.
+    view_plane: Rect
+    near: float
+    far: float
+    # The part of the screen drawn into, as fractions; the whole of it in a match.
+    viewport: Rect = (0.0, 0.0, 1.0, 1.0)
+    orthographic: bool = False
+
+    @property
+    def eye(self) -> Vec3:
+        """Where the camera is, in world units."""
+        return (self.transform[0][3], self.transform[1][3], self.transform[2][3])
+
+    @property
+    def forward(self) -> Vec3:
+        """The unit direction the camera looks in, in world space."""
+        return (-self.transform[0][2], -self.transform[1][2], -self.transform[2][2])
+
+    def to_camera(self, point: Vec3) -> Vec3:
+        """`point` in camera space: +X right, +Y up, and -Z its distance in front."""
+        eye = self.eye
+        d = (point[0] - eye[0], point[1] - eye[1], point[2] - eye[2])
+        rows = self.transform
+        return (
+            rows[0][0] * d[0] + rows[1][0] * d[1] + rows[2][0] * d[2],
+            rows[0][1] * d[0] + rows[1][1] * d[1] + rows[2][1] * d[2],
+            rows[0][2] * d[0] + rows[1][2] * d[1] + rows[2][2] * d[2],
+        )
+
+    def project(self, point: Vec3) -> tuple[float, float] | None:
+        """Where `point` falls on screen, or None when it is behind the camera or outside the clip
+        distances. Off to the side still answers, with a fraction outside 0..1, so a caller can
+        tell "just off screen" from "far away"."""
+        x, y, z = self.to_camera(point)
+        depth = -z
+        if not self.near <= depth <= self.far:
+            return None
+        if not self.orthographic:
+            x, y = x / depth, y / depth
+        min_x, min_y, max_x, max_y = self.view_plane
+        across = (x - min_x) / (max_x - min_x)
+        down = (max_y - y) / (max_y - min_y)
+        left, top, right, bottom = self.viewport
+        return (left + across * (right - left), top + down * (bottom - top))
+
+    def sees(self, point: Vec3, margin: float = 0.0) -> bool:
+        """Whether `point` is on screen. `margin`, as a fraction of the screen, widens the test
+        on every side when positive and narrows it when negative."""
+        at = self.project(point)
+        if at is None:
+            return False
+        return -margin <= at[0] <= 1.0 + margin and -margin <= at[1] <= 1.0 + margin
+
+    def ground_footprint(self, height: float = 0.0) -> tuple[tuple[float, float], ...]:
+        """The ground the screen covers: its four corners cast onto the plane at `height`, in the
+        order top-left, top-right, bottom-right, bottom-left.
+
+        A corner looking above the horizon, or reaching the plane only beyond the far clip, stops
+        at the far clip instead, so a tilted view gives a finite shape rather than none. The plane
+        is flat; on hilly ground use `sees` with each point's own height.
+        """
+        min_x, min_y, max_x, max_y = self.view_plane
+        corners = []
+        for plane_x, plane_y in ((min_x, max_y), (max_x, max_y), (max_x, min_y), (min_x, min_y)):
+            if self.orthographic:
+                origin = self._to_world((plane_x, plane_y, 0.0))
+                ray = self._rotate((0.0, 0.0, -1.0))
+            else:
+                origin = self.eye
+                ray = self._rotate((plane_x, plane_y, -1.0))
+            # Either ray advances one unit of depth per unit of `t`, so `t` compares with `far`.
+            t = self.far
+            if ray[2] < 0.0:
+                t = max(0.0, min(t, (height - origin[2]) / ray[2]))
+            corners.append((origin[0] + ray[0] * t, origin[1] + ray[1] * t))
+        return tuple(corners)
+
+    def _rotate(self, v: Vec3) -> Vec3:
+        rows = self.transform
+        return (
+            rows[0][0] * v[0] + rows[0][1] * v[1] + rows[0][2] * v[2],
+            rows[1][0] * v[0] + rows[1][1] * v[1] + rows[1][2] * v[2],
+            rows[2][0] * v[0] + rows[2][1] * v[1] + rows[2][2] * v[2],
+        )
+
+    def _to_world(self, v: Vec3) -> Vec3:
+        r = self._rotate(v)
+        eye = self.eye
+        return (r[0] + eye[0], r[1] + eye[1], r[2] + eye[2])
 
 
 # How often the pan writes, and how quickly it closes on its target. Only needs to be comfortably

@@ -58,7 +58,7 @@ SITES: tuple[tuple[int, bytes, int, int, int, str], ...] = (
 class WotrLobbySlotsPatch(Patch):
     name = "wotr-lobby-slots"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "Let all eight slots of a multiplayer War of the Ring lobby be opened to human players. "
         "Stock, slots 7 and 8 are hidden and only one slot at a time may be set to Open, so the "

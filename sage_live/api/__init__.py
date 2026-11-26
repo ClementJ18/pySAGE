@@ -34,6 +34,7 @@ from sage_live.api.observation import (
     SpecialPowerState,
     Vec3,
     distance,
+    ground_distance,
 )
 from sage_live.api.orders import OrderType
 from sage_live.api.session import (
@@ -70,6 +71,7 @@ __all__ = [
     "Vec3",
     "attach",
     "distance",
+    "ground_distance",
     "open_backend",
     "orders",
 ]

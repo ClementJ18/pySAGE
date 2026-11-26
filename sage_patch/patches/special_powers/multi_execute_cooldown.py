@@ -337,6 +337,7 @@ def _edits(base_va: int) -> list[tuple[int, bytes, bytes, str]]:
 class MultiExecuteCooldownPatch(Patch):
     name = "multi-execute-cooldown"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "With several units selected, show a SPECIAL_POWER button with OK_FOR_MULTI_EXECUTE as "
         "ready and let it be clicked while any selected unit has the power off cooldown; the "

@@ -358,7 +358,12 @@ def _run_view(args: argparse.Namespace) -> int:
         from PyQt6.QtGui import QKeySequence, QShortcut  # noqa: PLC0415 - needs [w3d-view]
         from PyQt6.QtWidgets import QApplication, QMainWindow  # noqa: PLC0415 - needs [w3d-view]
 
-        from sage_utils.widgets import ThemeAction, apply_theme, saved_dark_theme  # noqa: PLC0415
+        from sage_utils.widgets import (  # noqa: PLC0415
+            ThemeAction,
+            apply_theme,
+            ignore_wheel_on_inputs,
+            saved_dark_theme,
+        )
         from sage_w3d.render.viewport import PlaybackController, W3DViewport  # noqa: PLC0415
     except ImportError as exc:
         print(
@@ -372,6 +377,7 @@ def _run_view(args: argparse.Namespace) -> int:
     scene = build_scene(model, DirectoryResolver(*art_dirs))
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
+    ignore_wheel_on_inputs(app)  # type: ignore[arg-type]  # instance() is the QApplication here
     apply_theme(saved_dark_theme(), persist=False)  # the theme the other SAGE apps last used
     window = QMainWindow()
     window.setWindowTitle(args.w3d.name)

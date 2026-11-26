@@ -22,6 +22,7 @@ from sage_map.assets.object_list import Object
 from sage_map.context import AssetPropertyType, Property
 from sage_map.map import Map
 from sage_test.scenario import Placement, Scenario
+from sage_test.script_compile import compile_scripts
 
 __all__ = [
     "OBJECT_VERSION",
@@ -64,6 +65,9 @@ def placement_properties(
     }
     properties["objectInitialHealth"] = _prop(
         "objectInitialHealth", AssetPropertyType.Integer, placement.health
+    )
+    properties["objectIndestructible"] = _prop(
+        "objectIndestructible", AssetPropertyType.Boolean, placement.indestructible
     )
     properties["uniqueID"] = _prop("uniqueID", AssetPropertyType.AsciiString, unique_id)
 
@@ -146,4 +150,8 @@ def compile_into(scenario: Scenario, template: Map) -> Map:
     taken = {_unique_id_of(obj) for obj in template.objects_list.object_list}
     for placement, unique_id in zip(scenario.placements, _unique_ids(scenario, taken), strict=True):
         template.objects_list.object_list.append(placement_object(scenario, placement, unique_id))
+    # Only a scenario that declares them reaches the script lists, so one without writes the map
+    # it always did.
+    if scenario.scripts or scenario.waypoints or scenario.areas:
+        compile_scripts(scenario, template)
     return template

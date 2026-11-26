@@ -5,6 +5,11 @@ first five bytes of `BATTLE_SCHOOL_HANDLER` jump to a cave: a parameter of `l` r
 returns to the main menu, and anything else replays the displaced bytes and continues stock. The
 movie side is in `tools/build_battle_school.py`.
 
+While the screen is up the shell map's scripts are held: the one call to `SCRIPT_IS_DUE` goes
+through the cave, which answers "not due" whenever `Shell+0x5D` (set by the `enter` arm and by
+Credits, cleared by `leave` and by `CreditsExit`) is set. Left running, a shell map's camera fades
+black the whole screen behind the book for one camera shot in two.
+
 Derivation: `../docs/battle-school.md`.
 """
 
@@ -29,6 +34,9 @@ from ...addresses import (
     GAME_ENGINE_SET_FPS_SLOT,
     GLOBAL_DATA,
     GLOBAL_DATA_FPS_LIMIT,
+    SCRIPT_IS_DUE,
+    SCRIPT_IS_DUE_CALL,
+    SCRIPT_IS_DUE_CALL_BYTES,
     SHELL,
     SHELL_MOVIE_ACTIVE,
     SHELL_MUSIC_PLAYING,
@@ -50,9 +58,14 @@ __all__ = [
     "SECTION_NAME",
     "BattleSchoolPatch",
     "build_code",
+    "is_due_va",
     "leaves",
     "params",
 ]
+
+#: `SCRIPT_IS_DUE`'s first instruction and the load of its argument, pinned so the stub that falls
+#: through to it is falling through to the routine it expects.
+_IS_DUE_ENTRY = bytes.fromhex("0f57c0568b742408")
 
 #: 8 chars max: the PE name field truncates silently past 8.
 SECTION_NAME = ".btlsch"
@@ -98,6 +111,16 @@ def leaves(text: str) -> bool:
 
 
 def build_code(code_va: int) -> bytes:
+    """The cave, assembled to run at `code_va`: the replacement callback, then the `is_due` stub."""
+    return _assemble(code_va).finish()
+
+
+def is_due_va(code_va: int) -> int:
+    """Where the `is_due` stub sits in a cave built at `code_va`."""
+    return _assemble(code_va).label_va("is_due")
+
+
+def _assemble(code_va: int) -> Asm:
     """The replacement callback, assembled to run at `code_va`.
 
     Entered by the `jmp` that replaced the handler's first five bytes, so on entry `ecx` is the
@@ -177,7 +200,21 @@ def build_code(code_va: int) -> bytes:
     a.label("enter")
     a.emit(BATTLE_SCHOOL_HANDLER_BYTES[:_DETOUR_LEN])
     a.jmp_absolute(BATTLE_SCHOOL_HANDLER + _DETOUR_LEN)
-    return a.finish()
+
+    # Hold the shell map's scripts while a front-end movie screen is up. Reached by the `call`
+    # that used to go straight to SCRIPT_IS_DUE, so `ecx` is the ScriptEngine, `[esp]` the return
+    # address and `[esp+4]` the Script. Only `eax` is touched before falling through.
+    a.label("is_due")
+    a.emit(0xA1, u32(SHELL))  # mov eax, [SHELL]
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "due")
+    a.emit(0x80, 0x78, SHELL_MOVIE_ACTIVE, 0x00)  # cmp byte ptr [eax+0x5D], 0
+    a.jcc(JE, "due")
+    a.emit(0x33, 0xC0)  # xor eax, eax            ; not due
+    a.emit(0xC2, 0x04, 0x00)  # ret 4
+    a.label("due")
+    a.jmp_absolute(SCRIPT_IS_DUE)
+    return a
 
 
 def build_section(base_va: int) -> bytes:
@@ -195,6 +232,7 @@ ANCHORS = {
     SHELL_MUSIC_PLAYING: SHELL_MUSIC_PLAYING_BYTES,
     SHELL_PLAY_MUSIC: SHELL_PLAY_MUSIC_BYTES,
     WINDOW_TRANSITION_REVERSE: WINDOW_TRANSITION_REVERSE_BYTES,
+    SCRIPT_IS_DUE: _IS_DUE_ENTRY,
 }
 
 
@@ -206,7 +244,9 @@ class BattleSchoolPatch(Patch):
         "Restore the way out of BFME1's Battle School screen: the surviving "
         "AptMainMenu::BattleSchool command reads its unused params argument, so "
         "GameCode('BattleSchool', 'leave') reverses the sound fade ROTWK can currently only "
-        "start. The mod supplies the movie - the tutorial book and its videos"
+        "start. While the screen (or Credits) is up the shell map's scripts are held, so its "
+        "camera fades cannot black out the book. The mod supplies the movie - the tutorial book "
+        "and its videos"
     )
 
     def apply(self, data: bytearray) -> None:
@@ -226,6 +266,18 @@ class BattleSchoolPatch(Patch):
             BATTLE_SCHOOL_HANDLER_BYTES[:_DETOUR_LEN],
             jump,
             "AptMainMenu::BattleSchool -> the callback that also knows how to leave",
+        )
+
+        call_off = va_to_offset(data, SCRIPT_IS_DUE_CALL)
+        if call_off is None:
+            raise ValueError(f"{SCRIPT_IS_DUE_CALL:#010x} is not mapped - not the expected build")
+        call = b"\xe8" + struct.pack("<i", is_due_va(code_va) - (SCRIPT_IS_DUE_CALL + 5))
+        apply_byte_patch(
+            data,
+            call_off,
+            SCRIPT_IS_DUE_CALL_BYTES,
+            call,
+            "ScriptEngine: hold the shell map's scripts while a front-end movie screen is up",
         )
 
     @staticmethod
@@ -288,6 +340,18 @@ class BattleSchoolPatch(Patch):
             if target != code_va:
                 problems.append(
                     f"the Battle School handler jumps to {target:#010x}, expected {code_va:#010x}"
+                )
+
+        call_off = va_to_offset(data, SCRIPT_IS_DUE_CALL)
+        if call_off is None or data[call_off] != 0xE8:
+            problems.append(f"{SCRIPT_IS_DUE_CALL:#010x} is not a call - scripts are not held")
+        else:
+            rel = struct.unpack_from("<i", data, call_off + 1)[0]
+            target = SCRIPT_IS_DUE_CALL + 5 + rel
+            if target != is_due_va(code_va):
+                problems.append(
+                    f"the script due check calls {target:#010x}, expected the cave's "
+                    f"{is_due_va(code_va):#010x}"
                 )
 
         expected = build_code(code_va)

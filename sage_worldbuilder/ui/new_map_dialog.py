@@ -23,6 +23,7 @@ from sage_worldbuilder.heightmap_io import Anchor
 from sage_worldbuilder.new_map import NewMapOptions
 from sage_worldbuilder.resize import ResizeOptions
 from sage_worldbuilder.terrain import FEET_PER_HEIGHT_UNIT, MAX_HEIGHT
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 __all__ = ["NewMapDialog"]
 
@@ -39,6 +40,7 @@ class NewMapDialog(QDialog):
         resize: bool = False,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.resizing = resize
         self.setWindowTitle("Resize Map" if resize else "New Height Map")
         layout = QFormLayout(self)

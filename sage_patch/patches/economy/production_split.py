@@ -443,7 +443,7 @@ class ProductionSplitPatch(Patch):
 
     name = "production-split"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "PRODUCTION_MONEY / _UNIT / _UPGRADE / _CONSTRUCTION modifiers, each affecting only its "
         "own share of what PRODUCTION means today. Name them on a ModifierList's Modifier line; "

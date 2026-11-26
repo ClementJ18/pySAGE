@@ -456,6 +456,7 @@ class RechargeRescalePatch(Patch):
 
     name = "recharge-rescale"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "A running cooldown responds to recharge modifiers granted after the cast. No INI "
         "change - the RECHARGE_TIME modifiers and SpellRechargeModifierUpgrade a mod already "

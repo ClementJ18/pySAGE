@@ -782,7 +782,7 @@ class LargeGroupBonusPatch(Patch):
 
     name = "large-group-bonus"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "Extend LargeGroupBonusUpdate: TriggeredBy / ConflictsWith / RequiresAllTriggers / "
         "RequiresAllConflictingTriggers gate the whole module on upgrades, and a "

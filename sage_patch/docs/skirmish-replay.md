@@ -202,10 +202,11 @@ comparison it is; that context does.
 `0x0077DEFD` falls back to the literal `00000000` when `TheGameText` is null, which is where the
 `00000000.rep` names in older SAGE games come from. Localized, it is `Last Replay`.
 
-**The helper has a second caller.** `0x00817E49` is the replay menu rebuilding exactly
-`Last Replay` + `.BfME2Replay` to find that entry in the list. So the patch retargets the *call
-site* inside `startRecording`, not the helper: the file gets a new name, and the menu goes on
-finding the file it expects.
+**The helper has a second caller.** `0x00817E49` is inside the replay-save dialog's Save command
+(§5.3), rebuilding exactly `Last Replay` + `.BfME2Replay` as the file to copy when the dialog was
+opened without a live recording - which is how the end-of-game screen's Save Replay button opens
+it. So the patch retargets the *call site* inside `startRecording`, not the helper: the file gets
+a new name, and the dialog keeps its stock source.
 
 ### 5.1 The trap: `m_gameMode` is already gone
 
@@ -293,12 +294,41 @@ right setting for someone who wants the skirmish fix and nothing else changed.
 Neither setting affects the header: the replay's `filename` field is a *display* string fetched
 separately at `0x0077EB56` and still reads `Last Replay` in both.
 
+### 5.4 Keeping only the newest — `keep` (default 10)
+
+Unique names mean nothing is ever overwritten, so the folder would grow without bound. Before
+naming, the routine `call`s a pruning routine that deletes the oldest timestamp-named replays
+until `keep - 1` remain; the recording about to start makes `keep`. `0` leaves the call out.
+
+- **Where the directory comes from.** Still on `startRecording`'s frame: its local
+  `UnicodeString` at `[ebp-0x2C]` holds `getReplayDir()` (built at `0x0077EA28`, created on
+  disk by `TheFileSystem` at `0x0077EA3C`), and is not extended with the name and extension
+  until `0x0077EA8E`, after the name call. Characters at `+8`; a null pointer skips the pruning.
+- **What counts.** `FindFirstFileW`/`FindNextFileW` over `<dir>*.BfME2Replay`, skipping
+  directories, and only names whose first 20 characters match `####-##-## ##-##-## ` (`#` = ASCII
+  digit): `FORMAT`'s timestamp and the space before the map. `Last Replay`, a replay saved under a
+  typed name, a download, or any rename (one added letter will do) is never counted or deleted.
+- **What goes.** The lowest such name by `wcscmp`, which is the oldest: the timestamp is
+  zero-padded local time, most significant field first. One delete per scan, then a rescan.
+- **What stops it.** Fewer than `keep` counted; `FindFirstFileW` failing; a refused
+  `DeleteFileW` (a file in use — no retry); a directory over 200 characters; or 256 deletes in
+  one recording start. The last bounds a first run over a large backlog (the rest go over later
+  games) and a `DeleteFileW` that succeeds on a file another process holds with
+  `FILE_SHARE_DELETE`, which goes on listing until that handle closes.
+- `pushad`/`popad` around it, so the naming routine's register contract is unchanged. All five
+  imports are already in the IAT: `FindFirstFileW` `0x00BD016C`, `FindNextFileW` `0x00BD035C`,
+  `FindClose` `0x00BD0170`, `DeleteFileW` `0x00BD0330`, `msvcr71!wcscmp` `0x00BD04A8`.
+
+The tests run the real routine under Unicorn against a modelled `Replays` folder (order, the
+template, folders, refused and lying deletes, the budget, register and stack balance). It has
+not yet run in a game.
+
 ## 6. What this does *not* do
 
 - **It does not add a UI.** Replays appear in the replay list as ordinary files. Under
   `rename="all"` the Save Replay button stops working (§5.3), by design.
-- **It does not clean up.** Uniquely named files are never overwritten, so the Replays folder
-  grows without bound.
+- **It does not sort.** Pruning (§5.4) bounds the folder; nothing moves files into subfolders,
+  and the replay menu would not list them if anything did.
 - **It does not leave a skirmish's message stream identical.** `startRecording` writes the
   clamped `REPLAY_CRC_INTERVAL` into the `GameInfo` (`0x0077ED6B`), so a recorded skirmish
   starts emitting `MSG_LOGIC_CRC` (`0x44A`) every 100 frames — recorded, like every other

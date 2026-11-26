@@ -38,7 +38,9 @@ from sage_map.scripts import Scope, arg_spec
 from sage_utils.widgets import make_completer
 from sage_worldbuilder.script_targets import ScriptTarget, navigable
 from sage_worldbuilder.scripting import (
+    NAMED_INDEX_TYPES,
     argument_choices,
+    indexed_names,
     item_template,
     new_item,
     retarget,
@@ -48,9 +50,9 @@ from sage_worldbuilder.templates import (
     ScriptTemplate,
     TemplateKind,
     offered_templates,
-    parameter_values,
 )
 from sage_worldbuilder.ui.sentences import argument_at, sentence_html, sentence_link_color
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 if TYPE_CHECKING:
     from sage_ini.model.game import Game
@@ -96,6 +98,7 @@ class ScriptItemDialog(QDialog):
         living_world: bool = False,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.kind = kind
         # The Living World templates are offered only on a Living World script map, as
         # WorldBuilder's own tree offers them (`offered_templates`).
@@ -364,7 +367,7 @@ class ScriptItemDialog(QDialog):
 
     def _editor(self, argument: ScriptArgument) -> QWidget:
         kind = argument.type
-        names = parameter_values(kind)
+        names = indexed_names(kind, self.symbols)
         if names is not None:
             return self._value_box(argument, names)
         field = arg_spec(kind).field
@@ -434,8 +437,15 @@ class ScriptItemDialog(QDialog):
         if not 0 <= value < len(names):
             box.addItem(str(value))  # a value outside the table, kept as stored
         box.setCurrentIndex(value if 0 <= value < len(names) else len(names))
-        apply = self._setter(argument, "int_value")
-        box.currentIndexChanged.connect(lambda index: apply(index if index < len(names) else value))
+        writes_name = argument.type in NAMED_INDEX_TYPES
+
+        def apply(index: int) -> None:
+            argument.int_value = index if index < len(names) else value
+            if writes_name and index < len(names):
+                argument.string_value = names[index]
+            self._update_preview()
+
+        box.currentIndexChanged.connect(apply)
         return box
 
     def _position_editor(self, argument: ScriptArgument) -> QWidget:

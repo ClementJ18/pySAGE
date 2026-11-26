@@ -304,6 +304,7 @@ class MaintenanceCostPatch(Patch):
 
     name = "maintenance-cost"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make a negative MaxIncome (TerrainResourceBehavior) or DepositAmount "
         "(AutoDepositUpdate) charge the owning player that much gold per tick instead of being "

@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from sage_worldbuilder.palette import Palette, filter_palette, object_palette
 from sage_worldbuilder.teams import qualified_team_name, team_list
 from sage_worldbuilder.ui.host import PanelHost
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 __all__ = ["ObjectPalettePanel", "ObjectTree", "ReplaceObjectDialog"]
 
@@ -214,6 +215,7 @@ class ReplaceObjectDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Replace Selected")
         self.resize(360, 520)
         layout = QVBoxLayout(self)

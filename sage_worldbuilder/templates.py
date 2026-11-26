@@ -22,6 +22,7 @@ __all__ = [
     "ParameterType",
     "ScriptTemplate",
     "TemplateKind",
+    "named_values",
     "offered_templates",
     "parameter_values",
     "script_templates",
@@ -92,6 +93,14 @@ def parameter_values(parameter_type: int) -> tuple[str, ...] | None:
     """The names of an enum parameter's values, in value order, as WorldBuilder prints them
     (Comparison: `Less Than`, ...), or `None` for a type whose value is not a small enum."""
     names = _catalogue()["parameter_values"].get(str(int(parameter_type)))
+    return tuple(names) if names is not None else None
+
+
+@cache
+def named_values(parameter_type: int) -> tuple[str, ...] | None:
+    """The names WorldBuilder's parameter dialog offers for a type stored by name rather than by
+    index (object panel flags: `Enabled`, ...), or `None` when its own tables list none."""
+    names = _catalogue()["named_values"].get(str(int(parameter_type)))
     return tuple(names) if names is not None else None
 
 

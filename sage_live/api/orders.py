@@ -31,18 +31,21 @@ __all__ = [
     "cast_at_object",
     "cast_self",
     "castle_unpack",
+    "combine_hordes",
     "deselect",
     "move",
     "purchase_power",
     "recruit",
     "recruit_hero",
     "research",
+    "sacrifice",
     "select",
     "set_stance",
     "stop",
     "toggle_formation",
     "toggle_weapon_set",
     "unpack",
+    "upgrade_selection",
 ]
 
 
@@ -59,6 +62,8 @@ class OrderType(IntEnum):
     QUEUE_UPGRADE = 0x415
     QUEUE_UNIT_CREATE = 0x417
     SELL = 0x41C
+    SACRIFICE = 0x420
+    COMBINE_HORDES_WITH_OBJECT = 0x423
     FOUNDATION_CONSTRUCT = 0x419
     DOZER_CONSTRUCT = 0x41A
     DO_ATTACK_OBJECT = 0x425
@@ -224,6 +229,17 @@ def research(player: int, upgrade_id: int, building_id: int) -> Order:
     return Order(player, OrderType.QUEUE_UPGRADE, [_obj(building_id), _int(upgrade_id)])
 
 
+def upgrade_selection(player: int, upgrade_id: int) -> Order:
+    """Press an `OBJECT_UPGRADE` button on the **current selection**, as the click does.
+
+    The same message as `research`, with object id 0: what the click executor sends for a button
+    that is not queued (`NOT_QUEUEABLE` - a horde's banner carrier, a building's evacuate). Every
+    selected object that offers the button buys it. A queued research needs `research` instead,
+    which names its building; sent this way it is discarded.
+    """
+    return Order(player, OrderType.QUEUE_UPGRADE, [_obj(0), _int(upgrade_id)])
+
+
 def purchase_power(player: int, science_id: int) -> Order:
     """Buy a spellbook power.
 
@@ -328,6 +344,18 @@ def toggle_weapon_set(player: int, unit_id: int) -> Order:
     `ObjectId`, the unit (`sage_replay/order_space_map.md`, `0x457`).
     """
     return Order(player, OrderType.TOGGLE_WEAPON_SET, [_obj(unit_id)])
+
+
+def combine_hordes(player: int, into_id: int) -> Order:
+    """Merge the selected battalion into `into_id`, as a horde-combine button does
+    (`MSG_COMBINE_HORDES_WITH_OBJECT`, its one argument the horde to merge into)."""
+    return Order(player, OrderType.COMBINE_HORDES_WITH_OBJECT, [_obj(into_id)])
+
+
+def sacrifice(player: int, target_id: int) -> Order:
+    """Have the selection consume `target_id`, as a `BLOODTHIRSTY`-style button does
+    (`MSG_SACRIFICE`, its one argument the object consumed)."""
+    return Order(player, OrderType.SACRIFICE, [_obj(target_id)])
 
 
 def set_stance(player: int, stance: int) -> Order:

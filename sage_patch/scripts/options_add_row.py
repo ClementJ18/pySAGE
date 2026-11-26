@@ -164,7 +164,10 @@ def main() -> int:
     subprocess.run([*run, "to-apt", str(apt.with_suffix(".xml"))], check=True)
     subprocess.run([*run, "check", str(apt)], check=True)
     print(f"\nrebuilt movie in {args.out}")
-    print(f"add APT:{args.label.lower()} to Lotr.csv, and apply `unit-plate-option` to game.dat")
+    print(
+        f"add APT:{args.label.lower()} to Lotr.csv, and apply the patch that owns {args.gadget} "
+        "(such as unit-plate-option) to game.dat"
+    )
     return 0
 
 

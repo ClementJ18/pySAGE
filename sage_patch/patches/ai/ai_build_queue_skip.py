@@ -42,6 +42,7 @@ ANCHORS: dict[int, bytes] = {
 class AiBuildQueueSkipPatch(Patch):
     name = "ai-build-queue-skip"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "The skirmish AI skips a build order that has no builder it can use instead of ending "
         "its queue walk there, so a farm or structure order that cannot start no longer keeps "

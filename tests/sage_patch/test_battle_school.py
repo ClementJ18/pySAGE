@@ -39,7 +39,11 @@ from sage_patch.addresses import (
     BATTLE_SCHOOL_REGISTRATION_BYTES,
     BATTLE_SCHOOL_TRANSITION_NAME,
     CREDITS_EXIT_AUDIO_TAIL,
+    SCRIPT_IS_DUE,
+    SCRIPT_IS_DUE_CALL,
+    SCRIPT_IS_DUE_CALL_BYTES,
     SHELL,
+    SHELL_MOVIE_ACTIVE,
     SHELL_MUSIC_PLAYING,
     SHELL_PLAY_MUSIC,
     WINDOW_TRANSITION_REVERSE,
@@ -52,6 +56,7 @@ from sage_patch.patches.experimental.battle_school import (
     SECTION_NAME,
     BattleSchoolPatch,
     build_code,
+    is_due_va,
     leaves,
     params,
 )
@@ -190,13 +195,15 @@ class TestStockArm:
         for a position-independent instruction, and this is the check that says so."""
         assert BATTLE_SCHOOL_HANDLER_BYTES[0] == 0xB8
 
-    def test_the_cave_ends_by_re_emitting_them_and_jumping_past_them(self) -> None:
+    def test_the_callback_ends_by_re_emitting_them_and_jumping_past_them(self) -> None:
+        """The stock arm closes the callback, just before the `is_due` stub."""
         code = build_code(_CODE_VA)
-        tail = code[-10:]
+        end = is_due_va(_CODE_VA) - _CODE_VA
+        tail = code[end - 10 : end]
         assert tail[:_DETOUR_LEN] == BATTLE_SCHOOL_HANDLER_BYTES[:_DETOUR_LEN]
         assert tail[_DETOUR_LEN] == 0xE9
         rel = struct.unpack_from("<i", tail, _DETOUR_LEN + 1)[0]
-        assert _CODE_VA + len(code) + rel == BATTLE_SCHOOL_HANDLER + _DETOUR_LEN
+        assert _CODE_VA + end + rel == BATTLE_SCHOOL_HANDLER + _DETOUR_LEN
 
     def test_it_refuses_a_build_whose_handler_does_not_start_that_way(
         self, monkeypatch: pytest.MonkeyPatch
@@ -276,6 +283,47 @@ class TestShape:
     def test_it_is_marked_experimental(self) -> None:
         """Nothing here has been in front of a running game."""
         assert BattleSchoolPatch.experimental
+
+
+class TestScriptHold:
+    """The shell map's scripts are held while `Shell+0x5D` is set, and only then."""
+
+    def _stub(self) -> bytes:
+        return build_code(_CODE_VA)[is_due_va(_CODE_VA) - _CODE_VA :]
+
+    def test_the_due_check_is_redirected_into_the_cave(self) -> None:
+        data = battle_school_image()
+        BattleSchoolPatch().apply(data)
+        located = find_section(data, SECTION_NAME)
+        assert located is not None
+        call = at(data, SCRIPT_IS_DUE_CALL, 5)
+        assert call[0] == 0xE8
+        target = SCRIPT_IS_DUE_CALL + 5 + struct.unpack_from("<i", call, 1)[0]
+        assert target == is_due_va(located[0])
+
+    def test_the_stub_reads_the_flag_the_enter_and_leave_arms_drive(self) -> None:
+        stub = self._stub()
+        assert stub[:5] == b"\xa1" + struct.pack("<I", SHELL)  # mov eax, [SHELL]
+        assert bytes([0x80, 0x78, SHELL_MOVIE_ACTIVE, 0x00]) in stub  # cmp byte [eax+0x5D], 0
+
+    def test_a_held_script_is_not_due_and_the_call_is_balanced(self) -> None:
+        """`xor eax, eax / ret 4`: SCRIPT_IS_DUE is thiscall with one argument, so the stub pops it
+        exactly as the routine it stands in for would."""
+        assert b"\x33\xc0\xc2\x04\x00" in self._stub()
+
+    def test_otherwise_it_falls_through_to_the_stock_check(self) -> None:
+        stub = self._stub()
+        assert stub[-5] == 0xE9
+        rel = struct.unpack_from("<i", stub, len(stub) - 4)[0]
+        assert is_due_va(_CODE_VA) + len(stub) + rel == SCRIPT_IS_DUE
+
+    def test_an_unredirected_due_check_fails_verify(self) -> None:
+        data = battle_school_image()
+        BattleSchoolPatch().apply(data)
+        off = va_to_offset(data, SCRIPT_IS_DUE_CALL)
+        assert off is not None
+        data[off : off + 5] = SCRIPT_IS_DUE_CALL_BYTES
+        assert any("due check" in p for p in BattleSchoolPatch().verify(data))
 
 
 class TestApplyAndVerify:

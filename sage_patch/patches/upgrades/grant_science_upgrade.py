@@ -77,6 +77,7 @@ class GrantScienceUpgradePatch(Patch):
 
     name = "grant-science-upgrade"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Adds a new Behavior GrantScienceUpgrade (Zero Hour's): when its TriggeredBy upgrade "
         "fires, the controlling player is granted the GrantScience science, as script action "

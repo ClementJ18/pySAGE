@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sage_worldbuilder.ui.window_sizes import remember_size
+
 __all__ = ["RemapTexturesDialog"]
 
 
@@ -23,6 +25,7 @@ class RemapTexturesDialog(QDialog):
         self, names: list[str], catalogue: list[str], parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Remap Textures")
         layout = QVBoxLayout(self)
         intro = QLabel(

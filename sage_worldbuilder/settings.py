@@ -32,6 +32,8 @@ __all__ = ["APP", "MAX_RECENT", "RecentMap", "SavedLayout", "Settings", "same_fo
 APP = "sage_worldbuilder"
 SETTINGS_FILE = "settings.json"
 MAX_RECENT = 10
+# The largest width or height kept for a window; anything bigger is a corrupt value.
+MAX_WINDOW_SIDE = 100_000
 RECENT_KINDS = ("file", "game")
 
 
@@ -92,6 +94,9 @@ class Settings:
     window_state: str | None = None
     # Named layouts from Window > Save Layout, in the order they were first saved.
     layouts: dict[str, SavedLayout] = field(default_factory=dict)
+    # Width and height each dialog and floating panel was last left at, by dialog class name or
+    # `window_sizes.panel_key`.
+    window_sizes: dict[str, tuple[int, int]] = field(default_factory=dict)
     # The main toolbar's items, in order. None is the default layout (`toolbar.DEFAULT_ITEMS`); a
     # list, including an empty one, is a user's own choice and must round-trip as given.
     toolbar_items: list[str] | None = None
@@ -174,6 +179,20 @@ class Settings:
                 and isinstance(row.get("state"), str)
             ):
                 settings.layouts[name] = SavedLayout(row["geometry"], row["state"])
+        sizes = data.get("window_sizes")
+        for name, size in sizes.items() if isinstance(sizes, dict) else ():
+            if (
+                name
+                and isinstance(size, list)
+                and len(size) == 2
+                and all(
+                    isinstance(side, int)
+                    and not isinstance(side, bool)
+                    and 0 < side <= MAX_WINDOW_SIDE
+                    for side in size
+                )
+            ):
+                settings.window_sizes[name] = (size[0], size[1])
         toolbar_items = data.get("toolbar_items")
         if isinstance(toolbar_items, list):
             settings.toolbar_items = list(
@@ -211,6 +230,7 @@ class Settings:
                 name: {"geometry": layout.geometry, "state": layout.state}
                 for name, layout in self.layouts.items()
             },
+            "window_sizes": {name: list(size) for name, size in self.window_sizes.items()},
             "toolbar_items": self.toolbar_items,
         }
 
@@ -258,12 +278,17 @@ class Settings:
         """The configured install, mod folders and `.sagepatch`, or the detected install when no
         install is set."""
         sagepatch = Path(self.sagepatch) if self.sagepatch else None
+        mods = tuple(Path(folder) for folder in self.mods)
         if self.install is None:
+            # The detected install comes with no mods: the loaded ones go on top of it, or the
+            # Recent Mods menu shows them ticked while the data loads without them.
             detected = GameLayers.detect()
-            return replace(detected, sagepatch=sagepatch) if detected is not None else None
+            if detected is None:
+                return None
+            return replace(detected, mods=mods, sagepatch=sagepatch)
         return GameLayers(
             Path(self.install),
-            tuple(Path(folder) for folder in self.mods),
+            mods,
             base=base_install("rotwk"),
             sagepatch=sagepatch,
         )

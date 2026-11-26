@@ -690,6 +690,7 @@ class WallMeshReleasePatch(Patch):
 
     name = "wall-mesh-release"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "A destroyed WALK_ON_TOP_OF_WALL wall releases the pathfinding data it registered - its "
         "wall-layer slot, its two ramp records and its walkable cells - instead of leaving them "

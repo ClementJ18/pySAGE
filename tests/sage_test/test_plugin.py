@@ -132,3 +132,47 @@ def test_script_debug_adds_the_debug_window_after_the_headless_flags():
     assert plugin._engine_args(_Config(**{"--script-debug": True})) == ("-scriptDebug2",)
     both = _Config(**{"--headless": True, "--script-debug": True})
     assert plugin._engine_args(both) == ("-renderEvery", "0", "-scriptDebug2")
+
+
+#: One test that needs a patch no blank `game.dat` carries, and one that needs nothing.
+_NEEDS = """
+import pytest
+
+@pytest.mark.needs_patch("live-bridge")
+def test_patched(): pass
+
+def test_plain(): pass
+"""
+
+
+class TestNeedsPatch:
+    def _install(self, pytester: pytest.Pytester) -> str:
+        folder = pytester.mkdir("install")
+        (folder / "game.dat").write_bytes(b"MZ" + bytes(1024))
+        return str(folder)
+
+    def test_a_test_needing_a_patch_the_binary_lacks_is_skipped(self, pytester: pytest.Pytester):
+        pytester.makepyfile(test_suite=_NEEDS)
+        install = self._install(pytester)
+        result = pytester.runpytest("-p", "sage_test.plugin", "-rs", "--install", install)
+        result.assert_outcomes(passed=1, skipped=1)
+        result.stdout.fnmatch_lines(["*does not carry live-bridge*"])
+
+    def test_without_an_install_nothing_is_checked(self, pytester: pytest.Pytester):
+        """The `install` fixture skips engine tests itself; a bare run must not read anything."""
+        pytester.makepyfile(test_suite=_NEEDS)
+        pytester.runpytest("-p", "sage_test.plugin").assert_outcomes(passed=2)
+
+    def test_an_unknown_patch_name_is_an_error_not_a_skip(self, pytester: pytest.Pytester):
+        pytester.makepyfile(
+            test_suite="""
+import pytest
+
+@pytest.mark.needs_patch("no-such-patch")
+def test_typo(): pass
+"""
+        )
+        install = self._install(pytester)
+        result = pytester.runpytest("-p", "sage_test.plugin", "--install", install)
+        assert result.ret != pytest.ExitCode.OK
+        result.stdout.fnmatch_lines(["*no-such-patch*"])

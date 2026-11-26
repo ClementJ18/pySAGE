@@ -51,6 +51,7 @@ __all__ = [
     "SECTION_NAME",
     "ScenarioPlayerFactionsPatch",
     "build_code",
+    "emit_is_faction_enabled",
 ]
 
 SECTION_NAME = ".plyfac"  # 7 chars: the PE name field is 8 bytes and truncates silently
@@ -90,6 +91,125 @@ def _trampoline_label(index: int) -> str:
     return f"site{index}"
 
 
+def emit_is_faction_enabled(a: Asm, label: str) -> None:
+    """`Scenario::isFactionEnabled` with the `:N` qualifier understood, at `label`.
+
+    `__thiscall`: `ecx` the `Scenario`, `[esp+4]` the side name - an `AsciiString` by value, which
+    the routine destroys - and `edx` the 0-based lobby slot asked about. `al` = 1 when that slot
+    may take the faction; `ret 4`. Preserves `ebx`, `esi`, `edi` and `ebp`.
+
+    Public so that a patch with a slot of its own to ask about - `faction-variants`' Variant box -
+    reads `DisabledFactions` exactly as this one does, rather than through a second matcher.
+    """
+    a.label(label)
+    a.emit(0x55)  # push ebp
+    a.emit(b"\x8b\xec")  # mov ebp, esp
+    a.emit(0x52)  # push edx                ; [ebp-4] = the slot
+    a.emit(0x51)  # push ecx                ; [ebp-8], filled in below
+    a.emit(0x53)  # push ebx
+    a.emit(0x56)  # push esi
+    a.emit(0x57)  # push edi
+
+    # `AsciiString::str()`, inlined: the characters live eight bytes into the buffer, and a null
+    # handle reads as the engine's own empty string rather than short-circuiting - an empty entry
+    # matching an empty name is what the stock comparison does.
+    a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]
+    a.emit(b"\x85\xc0")  # test eax, eax
+    a.jcc(JNE, f"{label}_side_chars")
+    a.emit(0xB8, u32(EMPTY_STRING))  # mov eax, EMPTY_STRING
+    a.jmp(f"{label}_side_ready")
+
+    a.label(f"{label}_side_chars")
+    a.emit(b"\x83\xc0", i8(ASCII_STRING_CHARS))  # add eax, 8
+
+    a.label(f"{label}_side_ready")
+    a.emit(b"\x89\x45", i8(_SIDE))  # mov [ebp-8], eax
+    a.emit(b"\x8b\x59", i8(SCENARIO_DISABLED_FACTIONS_BEGIN))  # mov ebx, [ecx+0x40]
+    a.emit(b"\x8b\x79", i8(SCENARIO_DISABLED_FACTIONS_END))  # mov edi, [ecx+0x44]
+
+    a.label(f"{label}_entry")
+    a.emit(b"\x3b\xdf")  # cmp ebx, edi
+    a.jcc(JE, f"{label}_enabled")
+    a.emit(b"\x8b\x03")  # mov eax, [ebx]
+    a.emit(b"\x85\xc0")  # test eax, eax
+    a.jcc(JE, f"{label}_next")
+    a.emit(b"\x83\xc0", i8(ASCII_STRING_CHARS))  # add eax, 8    ; the entry's characters
+    a.emit(b"\x8b\x75", i8(_SIDE))  # mov esi, [ebp-8]
+
+    # The name part of the entry against the whole of the side name, byte for byte. `memcmp` is
+    # what the stock comparison ends in, so this is case-sensitive on purpose.
+    a.label(f"{label}_chars")
+    a.emit(b"\x8a\x10")  # mov dl, [eax]
+    a.emit(b"\x80\xfa", bytes([PLAYER_SEPARATOR]))  # cmp dl, ':'
+    a.jcc(JE, f"{label}_name_end")
+    a.emit(b"\x84\xd2")  # test dl, dl
+    a.jcc(JE, f"{label}_name_end")
+    a.emit(b"\x8a\x0e")  # mov cl, [esi]
+    a.emit(b"\x3a\xd1")  # cmp dl, cl              ; a shorter side name ends on its NUL here
+    a.jcc(JNE, f"{label}_next")
+    a.emit(0x40)  # inc eax
+    a.emit(0x46)  # inc esi
+    a.jmp(f"{label}_chars")
+
+    a.label(f"{label}_name_end")
+    a.emit(b"\x80\x3e\x00")  # cmp byte [esi], 0   ; the entry must not be a mere prefix
+    a.jcc(JNE, f"{label}_next")
+    a.emit(b"\x80\xfa", bytes([PLAYER_SEPARATOR]))  # cmp dl, ':'
+    a.jcc(JNE, f"{label}_disabled")  # no qualifier: scenario-wide, exactly as stock
+
+    # `:N`, the player this entry is written for. Counted from 1 in the INI because that is how
+    # the lobby, `Teams` and everyone reading the file counts players; the engine's slot is 0-based.
+    a.emit(0x40)  # inc eax
+    a.emit(b"\x0f\xb6\x10")  # movzx edx, byte [eax]
+    a.emit(b"\x83\xea\x30")  # sub edx, '0'
+    a.emit(b"\x83\xfa\x09")  # cmp edx, 9
+    a.jcc(JA, f"{label}_next")  # a bare ':' names no player
+    a.emit(b"\x33\xc9")  # xor ecx, ecx
+
+    a.label(f"{label}_digits")
+    a.emit(b"\x6b\xc9\x0a")  # imul ecx, ecx, 10
+    a.emit(b"\x03\xca")  # add ecx, edx
+    a.emit(0x40)  # inc eax
+    a.emit(b"\x0f\xb6\x10")  # movzx edx, byte [eax]
+    a.emit(b"\x83\xea\x30")  # sub edx, '0'
+    a.emit(b"\x83\xfa\x09")  # cmp edx, 9
+    a.jcc(JBE, f"{label}_digits")
+
+    a.emit(b"\x85\xc9")  # test ecx, ecx
+    a.jcc(JE, f"{label}_next")  # ':0' is not a player either
+    a.emit(b"\x8b\x55", i8(_SLOT))  # mov edx, [ebp-4]
+    a.emit(0x42)  # inc edx                 ; the slot, as the INI counts it
+    a.emit(b"\x3b\xca")  # cmp ecx, edx
+    a.jcc(JNE, f"{label}_next")  # written for somebody else
+
+    a.label(f"{label}_disabled")
+    a.emit(b"\x32\xc0")  # xor al, al
+    a.jmp(f"{label}_done")
+
+    a.label(f"{label}_next")
+    a.emit(b"\x83\xc3\x04")  # add ebx, 4
+    a.jmp(f"{label}_entry")
+
+    a.label(f"{label}_enabled")
+    a.emit(b"\xb0\x01")  # mov al, 1
+
+    # The argument came by value and the callee owns it, which is what the stock function's own
+    # tail does before it returns. The destructor clobbers eax, so the answer waits in bl - ebx is
+    # callee-saved, so it survives the call and is restored after.
+    a.label(f"{label}_done")
+    a.emit(b"\x8a\xd8")  # mov bl, al
+    a.emit(b"\x8d\x4d\x08")  # lea ecx, [ebp+8]
+    a.call_absolute(ASCII_STRING_DTOR)
+    a.emit(b"\x8a\xc3")  # mov al, bl
+    a.emit(0x5F)  # pop edi
+    a.emit(0x5E)  # pop esi
+    a.emit(0x5B)  # pop ebx
+    a.emit(0x59)  # pop ecx                 ; [ebp-8]
+    a.emit(0x59)  # pop ecx                 ; [ebp-4]
+    a.emit(0x5D)  # pop ebp
+    a.emit(b"\xc2\x04\x00")  # ret 4
+
+
 def _emit(base_va: int) -> Asm:
     """The four entry trampolines and the replacement they share, laid out but not resolved.
 
@@ -109,114 +229,7 @@ def _emit(base_va: int) -> Asm:
         a.emit(b"\x8b\x55", i8(slot_ebp))  # mov edx, [ebp+<the caller's slot local>]
         a.jmp("match")
 
-    # __thiscall: ecx the Scenario, [esp+4] the side name by value; edx the 0-based lobby slot.
-    a.label("match")
-    a.emit(0x55)  # push ebp
-    a.emit(b"\x8b\xec")  # mov ebp, esp
-    a.emit(0x52)  # push edx                ; [ebp-4] = the slot
-    a.emit(0x51)  # push ecx                ; [ebp-8], filled in below
-    a.emit(0x53)  # push ebx
-    a.emit(0x56)  # push esi
-    a.emit(0x57)  # push edi
-
-    # `AsciiString::str()`, inlined: the characters live eight bytes into the buffer, and a null
-    # handle reads as the engine's own empty string rather than short-circuiting - an empty entry
-    # matching an empty name is what the stock comparison does.
-    a.emit(b"\x8b\x45\x08")  # mov eax, [ebp+8]
-    a.emit(b"\x85\xc0")  # test eax, eax
-    a.jcc(JNE, "side_chars")
-    a.emit(0xB8, u32(EMPTY_STRING))  # mov eax, EMPTY_STRING
-    a.jmp("side_ready")
-
-    a.label("side_chars")
-    a.emit(b"\x83\xc0", i8(ASCII_STRING_CHARS))  # add eax, 8
-
-    a.label("side_ready")
-    a.emit(b"\x89\x45", i8(_SIDE))  # mov [ebp-8], eax
-    a.emit(b"\x8b\x59", i8(SCENARIO_DISABLED_FACTIONS_BEGIN))  # mov ebx, [ecx+0x40]
-    a.emit(b"\x8b\x79", i8(SCENARIO_DISABLED_FACTIONS_END))  # mov edi, [ecx+0x44]
-
-    a.label("entry")
-    a.emit(b"\x3b\xdf")  # cmp ebx, edi
-    a.jcc(JE, "enabled")
-    a.emit(b"\x8b\x03")  # mov eax, [ebx]
-    a.emit(b"\x85\xc0")  # test eax, eax
-    a.jcc(JE, "next")
-    a.emit(b"\x83\xc0", i8(ASCII_STRING_CHARS))  # add eax, 8    ; the entry's characters
-    a.emit(b"\x8b\x75", i8(_SIDE))  # mov esi, [ebp-8]
-
-    # The name part of the entry against the whole of the side name, byte for byte. `memcmp` is
-    # what the stock comparison ends in, so this is case-sensitive on purpose.
-    a.label("chars")
-    a.emit(b"\x8a\x10")  # mov dl, [eax]
-    a.emit(b"\x80\xfa", bytes([PLAYER_SEPARATOR]))  # cmp dl, ':'
-    a.jcc(JE, "name_end")
-    a.emit(b"\x84\xd2")  # test dl, dl
-    a.jcc(JE, "name_end")
-    a.emit(b"\x8a\x0e")  # mov cl, [esi]
-    a.emit(b"\x3a\xd1")  # cmp dl, cl              ; a shorter side name ends on its NUL here
-    a.jcc(JNE, "next")
-    a.emit(0x40)  # inc eax
-    a.emit(0x46)  # inc esi
-    a.jmp("chars")
-
-    a.label("name_end")
-    a.emit(b"\x80\x3e\x00")  # cmp byte [esi], 0   ; the entry must not be a mere prefix
-    a.jcc(JNE, "next")
-    a.emit(b"\x80\xfa", bytes([PLAYER_SEPARATOR]))  # cmp dl, ':'
-    a.jcc(JNE, "disabled")  # no qualifier: scenario-wide, exactly as stock
-
-    # `:N`, the player this entry is written for. Counted from 1 in the INI because that is how
-    # the lobby, `Teams` and everyone reading the file counts players; the engine's slot is 0-based.
-    a.emit(0x40)  # inc eax
-    a.emit(b"\x0f\xb6\x10")  # movzx edx, byte [eax]
-    a.emit(b"\x83\xea\x30")  # sub edx, '0'
-    a.emit(b"\x83\xfa\x09")  # cmp edx, 9
-    a.jcc(JA, "next")  # a bare ':' names no player
-    a.emit(b"\x33\xc9")  # xor ecx, ecx
-
-    a.label("digits")
-    a.emit(b"\x6b\xc9\x0a")  # imul ecx, ecx, 10
-    a.emit(b"\x03\xca")  # add ecx, edx
-    a.emit(0x40)  # inc eax
-    a.emit(b"\x0f\xb6\x10")  # movzx edx, byte [eax]
-    a.emit(b"\x83\xea\x30")  # sub edx, '0'
-    a.emit(b"\x83\xfa\x09")  # cmp edx, 9
-    a.jcc(JBE, "digits")
-
-    a.emit(b"\x85\xc9")  # test ecx, ecx
-    a.jcc(JE, "next")  # ':0' is not a player either
-    a.emit(b"\x8b\x55", i8(_SLOT))  # mov edx, [ebp-4]
-    a.emit(0x42)  # inc edx                 ; the slot, as the INI counts it
-    a.emit(b"\x3b\xca")  # cmp ecx, edx
-    a.jcc(JNE, "next")  # written for somebody else
-
-    a.label("disabled")
-    a.emit(b"\x32\xc0")  # xor al, al
-    a.jmp("done")
-
-    a.label("next")
-    a.emit(b"\x83\xc3\x04")  # add ebx, 4
-    a.jmp("entry")
-
-    a.label("enabled")
-    a.emit(b"\xb0\x01")  # mov al, 1
-
-    # The argument came by value and the callee owns it, which is what the stock function's own
-    # tail does before it returns. The destructor clobbers eax, so the answer waits in bl - ebx is
-    # callee-saved, so it survives the call and is restored after.
-    a.label("done")
-    a.emit(b"\x8a\xd8")  # mov bl, al
-    a.emit(b"\x8d\x4d\x08")  # lea ecx, [ebp+8]
-    a.call_absolute(ASCII_STRING_DTOR)
-    a.emit(b"\x8a\xc3")  # mov al, bl
-    a.emit(0x5F)  # pop edi
-    a.emit(0x5E)  # pop esi
-    a.emit(0x5B)  # pop ebx
-    a.emit(0x59)  # pop ecx                 ; [ebp-8]
-    a.emit(0x59)  # pop ecx                 ; [ebp-4]
-    a.emit(0x5D)  # pop ebp
-    a.emit(b"\xc2\x04\x00")  # ret 4
+    emit_is_faction_enabled(a, "match")
     return a
 
 
@@ -239,6 +252,7 @@ def _trampolines(section_va: int) -> list[int]:
 class ScenarioPlayerFactionsPatch(Patch):
     name = "scenario-player-factions"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let a War of the Ring Scenario disable a faction for one lobby slot instead of for "
         "everybody: an entry in the existing DisabledFactions list may be written Faction<X>:N, "

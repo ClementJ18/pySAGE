@@ -42,6 +42,10 @@ __all__ = [
     "BUILD_GATE_COMMAND_POINTS_BYTES",
     "BUILD_GATE_COMMAND_POINTS_OK",
     "BUILD_GATE_COMMAND_POINTS_REFUSE",
+    "BUILD_GATE_MAX_SIMULTANEOUS_COUNT_READ",
+    "BUILD_GATE_MAX_SIMULTANEOUS_COUNT_READ_BYTES",
+    "BUILD_GATE_MAX_SIMULTANEOUS_TOTAL_READ",
+    "BUILD_GATE_MAX_SIMULTANEOUS_TOTAL_READ_BYTES",
     "BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS",
     "BUILD_GATE_NOT_ENOUGH_MONEY",
     "BUILD_GATE_TEMPLATE_EBP",
@@ -85,6 +89,9 @@ __all__ = [
     "GETTING_BUILT_DISMISS_WORKER_BYTES",
     "GETTING_BUILT_RECENT_DAMAGE_PROBE",
     "GETTING_BUILT_RECENT_DAMAGE_PROBE_BYTES",
+    "GETTING_BUILT_RECENT_DAMAGE_RESULT",
+    "GETTING_BUILT_RECENT_DAMAGE_RESULT_BYTES",
+    "GETTING_BUILT_RECENT_DAMAGE_RESUME",
     "GETTING_BUILT_SPAWN_COUNTDOWN",
     "GETTING_BUILT_SPAWN_TIMER",
     "GETTING_BUILT_START_WORKER_REPAIR",
@@ -98,6 +105,9 @@ __all__ = [
     "MONEY_DEPOSIT",
     "MONEY_WITHDRAW",
     "OBJECT_KILL",
+    "OCL_CREATE_OBJECT_CAP_READ",
+    "OCL_CREATE_OBJECT_CAP_READ_BYTES",
+    "OCL_CREATE_OBJECT_PLAYER_EBP",
     "OBJECT_MODEL_CONDITIONS_CHANGED",
     "OBJECT_PRODUCER",
     "OBJECT_SET_PRODUCER",
@@ -460,6 +470,21 @@ BUILD_GATE_COMMAND_POINTS_BYTES = bytes.fromhex("84c075046a07eb6b")
 BUILD_GATE_COMMAND_POINTS_OK = 0x00794033  # enough: on with the rest of the checks
 BUILD_GATE_COMMAND_POINTS_REFUSE = 0x0079409E  # the `pop eax` that carries the pushed code out
 BUILD_GATE_NOT_ENOUGH_COMMAND_POINTS = 7
+#: The gate's two reads of the built template's `MaxSimultaneousOfType` (`eax` the template, `esi`
+#: the `Player`), after its zero test at `0x0079403C`: one against the objects the player owns,
+#: one against those plus what its queues hold. Refusing there pushes code 6, "maxed out". These
+#: and `OCL_CREATE_OBJECT_CAP_READ` are the engine's only reads of the field that compare a count
+#: against it; the ControlBar's two (`0x00940BCF`, `0x00940CD0`) only test it against zero.
+BUILD_GATE_MAX_SIMULTANEOUS_COUNT_READ = 0x0079405C
+BUILD_GATE_MAX_SIMULTANEOUS_COUNT_READ_BYTES = bytes.fromhex("0fb788f0050000")  # movzx ecx, ...
+BUILD_GATE_MAX_SIMULTANEOUS_TOTAL_READ = 0x00794081
+BUILD_GATE_MAX_SIMULTANEOUS_TOTAL_READ_BYTES = bytes.fromhex("0fb780f0050000")  # movzx eax, ...
+#: The OCL `CreateObject` nugget's read of the same field, `eax` the template, with the
+#: controlling `Player` in the local at `ebp + OCL_CREATE_OBJECT_PLAYER_EBP` (the one its count
+#: call took as `this`). `ecx` is compared with the count straight after.
+OCL_CREATE_OBJECT_CAP_READ = 0x005F126E
+OCL_CREATE_OBJECT_CAP_READ_BYTES = bytes.fromhex("0fb788f0050000")  # movzx ecx, ...
+OCL_CREATE_OBJECT_PLAYER_EBP = -0x38
 #: Where the stock engine already stalls a queue that has outrun the command-point cap (units and
 #: revives). Not patched; named so the claim can be checked.
 PRODUCTION_UPDATE_COMMAND_POINT_STALL = 0x008A1E27
@@ -635,6 +660,15 @@ GETTING_BUILT_RECENT_DAMAGE_PROBE = 0x00857EB0
 GETTING_BUILT_RECENT_DAMAGE_PROBE_BYTES = bytes.fromhex(
     "8365ec00807e250075156a048d45ec508bcfe86c4ae3ff84c0c645ff017504c645ff00"
 )
+#: Inside that probe, where `wasDamagedWithin`'s answer becomes the flag: `test al, al / mov byte
+#: [ebp-1], 1 / jne`. Nothing branches into these eight bytes. The flag's two readers are the
+#: damage cancel at `0x00857F3A` and whatever replaces the cancel's `stopRepair`; the auto-repair
+#: countdown (`0x00857818`) asks `wasDamagedWithin` itself. `edi` is the structure here, and
+#: `eax`, `ecx`, `edx` and the `xmm` registers are free (a call precedes and follows).
+GETTING_BUILT_RECENT_DAMAGE_RESULT = 0x00857EC7
+GETTING_BUILT_RECENT_DAMAGE_RESULT_BYTES = bytes.fromhex("84c0c645ff017504")
+#: The first instruction after the probe's two flag stores, where either branch of it continues.
+GETTING_BUILT_RECENT_DAMAGE_RESUME = 0x00857ED3
 #: The damage cancel: `SpawnTimer` (`ModuleData+0x20`) `>= 0`, damaged recently, and not still
 #: building (`esi+0x26`) -> `0x008580AC`, which calls `stopRepair`.
 GETTING_BUILT_DAMAGE_CANCEL = 0x00857F29

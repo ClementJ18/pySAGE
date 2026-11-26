@@ -294,6 +294,7 @@ class GateCloseRepathPatch(Patch):
 
     name = "gate-close-repath"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop units walking through a gate that closed after they were ordered through it: when a "
         "gate closes, every unit whose current path passes the gate drops that path and plans a "

@@ -37,6 +37,7 @@ from sage_worldbuilder.camera.named import (  # noqa: E402
     LOOK,
     CameraView,
     camera_keys,
+    evaluate,
     focal_length,
     look_at_keys,
 )
@@ -137,6 +138,48 @@ def test_an_animation_is_added_keyed_scrubbed_and_played(window):
     panel._tick()
     panel._tick()
     assert panel.frame == 30 and not panel.play_button.isChecked()
+    # Play at the last frame starts again from the first.
+    panel.play_button.setChecked(True)
+    assert panel.frame == 0
+    panel.play_button.setChecked(False)
+
+
+def test_setting_a_key_keeps_the_frame(window):
+    panel = window.camera_panel
+    panel.tabs.setCurrentIndex(1)
+    panel.add_animation(FREE)  # a one-frame animation first in the list
+    panel.add_animation(LOOK)
+    panel.animation_length.setValue(31)
+    panel.animation_length.editingFinished.emit()
+    panel.frame_slider.setValue(20)
+    panel.set_camera_key()
+    assert panel.frame == 20
+    panel.frame_slider.setValue(12)
+    panel.set_look_key()
+    assert panel.frame == 12
+
+
+def test_keys_can_be_taken_from_the_animation_camera(window):
+    panel = window.camera_panel
+    panel.tabs.setCurrentIndex(1)
+    panel.add_animation(LOOK)
+    (animation,) = window.document.map.camera_animation_list.animations
+    panel.animation_length.setValue(31)
+    panel.animation_length.editingFinished.emit()
+    panel.frame_slider.setValue(30)
+    window.current_view = lambda: CameraView((500.0, 200.0, 0.0), 30.0, 60.0, 500.0, 50.0)
+    panel.set_camera_key()
+    panel.set_look_key()
+    panel.key_from_animation.setChecked(True)
+    window.current_view = lambda: CameraView((900.0, 900.0, 0.0), 30.0, 60.0, 500.0, 50.0)
+    panel.frame_slider.setValue(10)
+    expected = evaluate(animation, 10)
+    panel.set_camera_key()
+    panel.set_look_key()
+    camera = next(key for key in camera_keys(animation) if key.frame_index == 10)
+    look = next(key for key in look_at_keys(animation) if key.frame_index == 10)
+    assert tuple(camera.position) == pytest.approx(expected.position)
+    assert tuple(look.look_at_point) == pytest.approx(expected.target)
 
 
 def test_show_path_draws_the_animation_on_the_map(window):

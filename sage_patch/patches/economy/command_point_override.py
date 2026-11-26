@@ -61,6 +61,7 @@ MERGE = _merge()
 class CommandPointOverridePatch(Patch):
     name = "command-point-override"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Keep the command points a script set with OVERRIDE_PLAYER_COMMAND_POINTS when a player is "
         "defeated. Stock, every defeat recomputes every player's command points, and an override "

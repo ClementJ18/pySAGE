@@ -178,6 +178,7 @@ class TriggerRechargeListPatch(Patch):
 
     name = "trigger-recharge-list"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "OnTriggerRechargeSpecialPower takes a list of special powers, not just one. Write the "
         "SpecialPower names space-separated on the one line, whole tokens and case-sensitive; a "

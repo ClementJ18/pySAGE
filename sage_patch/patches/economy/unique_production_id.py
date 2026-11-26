@@ -55,6 +55,7 @@ def build_body(counter_va: int) -> bytes:
 class UniqueProductionIdPatch(Patch):
     name = "unique-production-id"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Mint production ids game-wide, so a hero recruit from a second building works. No INI "
         "change"

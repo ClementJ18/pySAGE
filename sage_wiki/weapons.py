@@ -9,7 +9,7 @@ into a damage header per nugget, each followed by its modifiers as wiki bullet i
     * Knockback (50R) vs Non-hero
     '''vs Structure''': 240 SIEGE (30R)
 
-Each header names the nugget's primary target archetype (see `sage_wiki.archetypes`, bolded
+Each header names the nugget's primary target archetype (see `sage_utils.views.archetypes`, bolded
 for the wiki), its modified damage, damage type and blast radius; per-archetype bonuses,
 knockback (MetaImpactNugget) and damage-over-time (DOTNugget, e.g. `POISON DoT 20/s for 30s`)
 hang below it as `*` bullets. A `0%` scalar drops an archetype: on an inclusion
@@ -19,7 +19,7 @@ becomes that complement. Weapon-wide effects (knockback, DoT) attach to the broa
 """
 
 from sage_utils.views import weapon_damage_breakdown
-from sage_wiki.archetypes import archetype_key, label_for, label_for_key
+from sage_utils.views.archetypes import nugget_targets
 
 
 def _fmt_num(value) -> str:
@@ -28,24 +28,9 @@ def _fmt_num(value) -> str:
 
 
 def _nugget_render(nugget: dict) -> tuple[str, str, list[str]]:
-    """One damage nugget rendered to `(primary_archetype, header, modifiers)`. The primary is
-    "General" unless a `0%` exclusion narrows the target to its complement; `modifiers` are the
-    per-archetype bonus/penalty strings shown as bullets below the header."""
-    primary = "General"
-    modifiers: list[str] = []
-    for multiplier, object_filter in nugget["scalars"]:
-        if multiplier == 1:
-            continue  # a 100% scalar is a no-op
-        included, excluded = archetype_key(object_filter)
-        if multiplier == 0:
-            # An exclusion (`0% ALL -STRUCTURE`) spares only the excluded set, so that set is
-            # the real target; an inclusion (`0% +STRUCTURE`) just drops it from "All".
-            if not included and excluded:
-                primary = label_for_key((excluded, frozenset()))
-            continue
-        percent = (multiplier - 1) * 100
-        modifiers.append(f"{round(percent):+}% vs {label_for(object_filter)}")
-
+    """One damage nugget rendered to `(primary_archetype, header, modifiers)`; the target
+    reading is `nugget_targets`' (shared with the searcher's weapon card)."""
+    primary, modifiers = nugget_targets(nugget["scalars"])
     header = f"'''vs {primary}''': {_fmt_num(nugget['damage'])}"
     if nugget["damage_type"]:
         header += f" {nugget['damage_type']}"

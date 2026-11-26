@@ -25,6 +25,7 @@ __all__ = [
     "SpecialPowerState",
     "Vec3",
     "distance",
+    "ground_distance",
 ]
 
 # World-space position. The engine stores it as the translation column of the object's
@@ -43,6 +44,16 @@ _LEVEL_PREFIX = "upgrade_objectlevel"
 def distance(a: Vec3, b: Vec3) -> float:
     """Straight-line 3D distance between two world positions, in engine units."""
     return math.dist(a, b)
+
+
+def ground_distance(a: Vec3, b: Vec3) -> float:
+    """Distance across the ground, height ignored, in engine units.
+
+    What "is it at the place I put it" means: the engine drops a placed object onto the terrain
+    and spawns some at their creator's height, so a z that differs from the one declared is not a
+    different place.
+    """
+    return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
 @dataclass(frozen=True)
@@ -113,6 +124,10 @@ class PlayerState:
     units_lost: int = 0
     structures_created: int = 0
     structures_lost: int = 0
+    # `SpellRechargeModifierUpgrade`: the discount the engine adds to 1.0 when it scales this
+    # player's spellbook recharge (-0.2 is 20% faster), and how many of its modifiers stand.
+    spell_recharge_discount: float = 0.0
+    spell_recharge_level: int = 0
 
     @property
     def power_point_progress(self) -> float | None:
@@ -203,10 +218,27 @@ class ProductionItem:
     # from the accumulator that decides completion. Only the head of a queue advances, so every
     # entry behind it reads 0 - and so does a head the engine has not ticked yet.
     percent: float = 0.0
+    # `100 / buildTime`, the engine's own figure, recomputed with `percent`. The build time
+    # already holds the handicap, the player's production bonus and the producer's
+    # `ProductionModifier`; 0 on an entry the engine has not ticked yet.
+    percent_per_frame: float = 0.0
+    # What each frame's step is scaled by on top: the product of the producer's live
+    # `PRODUCTION` modifiers, and `PRODUCTION_UNIT` / `PRODUCTION_UPGRADE` where the image has
+    # them. 1.0 for a hero, who is done when his wall-clock time is up whatever the step.
+    speed: float = 1.0
 
     @property
     def is_upgrade(self) -> bool:
         return self.kind == "upgrade"
+
+    @property
+    def frames_left(self) -> float | None:
+        """Logic frames until the entry is done at the speed it is going now, or None while the
+        engine has not ticked it or it is not advancing."""
+        rate = self.percent_per_frame * self.speed
+        if rate <= 0.0:
+            return None
+        return max(0.0, 100.0 - self.percent) / rate
 
 
 @dataclass(frozen=True)
@@ -215,8 +247,10 @@ class SpecialPowerState:
     own recharge.
 
     It is ready once `ready_frame` is not in the future. `required_sciences` (by id, compared with
-    `PlayerState.sciences`) unlock a spellbook power once all are held; a power asking for none is
-    not a spellbook purchase.
+    `PlayerState.sciences`) unlock a spellbook power once any one is held - a mod lists a power's
+    multiplayer and campaign sciences side by side (Lórien's mist asks for
+    `SCIENCE_EnshroudingMistMP SCIENCE_EnshroudingMistSP`) and a player only ever buys one. A
+    power asking for none is not a spellbook purchase.
     """
 
     name: str
@@ -228,7 +262,7 @@ class SpecialPowerState:
     duration: int = 0
 
     def unlocked_for(self, player: PlayerState) -> bool:
-        return bool(self.required_sciences) and self.required_sciences <= player.sciences
+        return not self.required_sciences.isdisjoint(player.sciences)
 
     def seconds_left(self, frame: int, frames_per_second: float = 5.0) -> float:
         """Seconds of recharge remaining at `frame`, 0 when ready."""
@@ -382,9 +416,11 @@ class GameObject:
                     best = max(best, int(tail))
         return best
 
-    def distance_to(self, other: GameObject | Vec3) -> float:
-        """Distance to another object or a bare world position, in engine units."""
-        return distance(self.position, other.position if isinstance(other, GameObject) else other)
+    def distance_to(self, other: GameObject | Vec3, ground: bool = False) -> float:
+        """Distance to another object or a bare world position, in engine units; `ground`
+        ignores height (`ground_distance`)."""
+        there = other.position if isinstance(other, GameObject) else other
+        return (ground_distance if ground else distance)(self.position, there)
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-safe view, including the computed fields. See `PlayerState.to_dict`."""
@@ -497,11 +533,15 @@ class Observation:
         damaged: bool | None = None,
         near: Vec3 | None = None,
         within: float | None = None,
+        ground: bool = False,
     ) -> tuple[GameObject, ...]:
         """Objects matching every criterion given, in table order.
 
         String matching is case-insensitive. `near` with `within` is a radius query; `near` alone
-        sorts by distance instead of filtering.
+        sorts by distance instead of filtering. Distances are 3D unless `ground` is set, and a
+        point declared at z 0 is often not where the engine put the object in z - a spawn takes
+        its creator's height, a placement drops onto the terrain - so ask `ground` for "near this
+        spot on the map".
         """
         found = list(self.objects)
         if template is not None:
@@ -523,8 +563,8 @@ class Observation:
             found = [o for o in found if o.is_damaged == damaged]
         if near is not None:
             if within is not None:
-                found = [o for o in found if o.distance_to(near) <= within]
-            found.sort(key=lambda o: o.distance_to(near))
+                found = [o for o in found if o.distance_to(near, ground) <= within]
+            found.sort(key=lambda o: o.distance_to(near, ground))
         return tuple(found)
 
     def nearest(self, position: Vec3, **criteria: object) -> GameObject | None:

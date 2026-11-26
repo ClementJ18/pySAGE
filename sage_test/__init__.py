@@ -19,14 +19,37 @@ and not behind an install.
 from __future__ import annotations
 
 from sage_live.launch.maps import MapEntry, load_map_cache, read_map_cache
-from sage_test.scenario import Handle, Placement, Scenario, Seat
+from sage_test.scenario import (
+    Action,
+    AnyOf,
+    Area,
+    Condition,
+    Handle,
+    Placement,
+    Scenario,
+    ScriptDecl,
+    Seat,
+    Waypoint,
+    act,
+    any_of,
+    cond,
+)
 
 __all__ = [
+    "Action",
+    "AnyOf",
+    "Area",
+    "Condition",
     "Handle",
     "MapEntry",
     "Placement",
     "Scenario",
+    "ScriptDecl",
     "Seat",
+    "Waypoint",
+    "act",
+    "any_of",
+    "cond",
     "load_map_cache",
     "read_map_cache",
 ]

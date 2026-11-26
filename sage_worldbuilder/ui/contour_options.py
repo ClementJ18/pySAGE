@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sage_worldbuilder.ui.window_sizes import remember_size
 from sage_worldbuilder.viewport import ContourOptions, ViewOptions
 
 __all__ = ["ContourOptionsDialog"]
@@ -21,6 +22,7 @@ __all__ = ["ContourOptionsDialog"]
 class ContourOptionsDialog(QDialog):
     def __init__(self, options: ViewOptions, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Contour Options")
         contours = options.contours if options.contours is not None else ContourOptions()
         layout = QFormLayout(self)

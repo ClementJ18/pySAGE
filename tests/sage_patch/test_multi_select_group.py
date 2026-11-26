@@ -37,6 +37,7 @@ from sage_patch.addresses import (
     AI_GROUP_UPGRADE_MEMBER_BYTES,
     AI_GROUP_UPGRADE_MEMBER_RESUME,
     AI_GROUP_UPGRADE_MEMBER_SKIP,
+    COMMAND_BUTTON_CONDITION_GATE,
     COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY,
     COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES,
     COMMAND_BUTTON_FIELD_TABLE,
@@ -58,11 +59,17 @@ from sage_patch.addresses import (
     FIELD_PARSE_STRIDE,
     INI_PARSE_BOOL,
     INI_PARSE_UNSIGNED_SHORT,
+    OBJECT_GET_CONTROLLING_PLAYER,
     OBJECT_HAS_UPGRADE,
+    PLAYER_HAS_UPGRADE_COMPLETE,
 )
 from sage_patch.patches.commandbar.multi_select_group import (
     ANCHORS,
     AVAILABILITY,
+    COMMAND_BUTTON_NEEDED_UPGRADE_ANY,
+    COMMAND_BUTTON_NEEDED_UPGRADE_BEGIN,
+    COMMAND_BUTTON_NEEDED_UPGRADE_END,
+    COMMAND_BUTTON_OPTIONS,
     COMMAND_BUTTON_UPGRADE,
     DEFAULT_KEYWORD,
     GET_COMMAND_BUTTON,
@@ -70,6 +77,7 @@ from sage_patch.patches.commandbar.multi_select_group import (
     HOOK_CALL,
     HOOK_JMP,
     MULTI_SELECT_GROUP_OFFSET,
+    OPTION_NEED_UPGRADE,
     ROUTINES,
     SECTION_NAME,
     SLOTS,
@@ -510,13 +518,17 @@ def test_the_displaced_pushes_are_re_emitted_in_order() -> None:
 class Selection:
     """The member hook and the resolver behind it, running over a made-up selection.
 
-    The three engine calls the walk makes are stood in for by stubs that read a toy layout: an
-    object's first dword is its `CommandSet`, and a set is 33 button pointers. Buttons carry only
-    the two fields the cave reads, the upgrade and the group. The run starts at the member hook
+    The engine calls the walk makes are stood in for by stubs that read a toy layout: an
+    object's first dword is its `CommandSet` and its second its player, and a set is 33 button
+    pointers. Buttons carry the fields the cave reads - the upgrade, the group, `Options` and the
+    `NeededUpgrade` list - plus, at `_GATE_VERDICT`, the answer the model-condition gate gives.
+    An upgrade's type is at +4 and two toy bytes say whether the player (+8) or the object (+9)
+    has it. The run starts at the member hook
     with the loop's frame built by hand and stops at whichever of the two engine addresses it
     leaves by."""
 
     _STACK, _STACK_SIZE = 0x02000000, 0x10000
+    _GATE_VERDICT = 0x1E0  # any offset past the fields the cave reads
     _HEAP = 0x01000000
 
     def __init__(self) -> None:
@@ -534,6 +546,12 @@ class Selection:
             COMMAND_SET_STORE_FIND_COMMAND_SET: bytes.fromhex("8b4424048b00c20400"),
             # mov eax, [esp+4] ; mov eax, [ecx+eax*4] ; ret 4
             GET_COMMAND_BUTTON: bytes.fromhex("8b4424048b0481c20400"),
+            # mov eax, [esp+4] ; mov eax, [eax+0x1e0] ; ret 8
+            COMMAND_BUTTON_CONDITION_GATE: bytes.fromhex("8b4424048b80e0010000c20800"),
+            OBJECT_GET_CONTROLLING_PLAYER: bytes.fromhex("8b4104c3"),  # mov eax, [ecx+4] ; ret
+            # mov eax, [esp+4] ; mov al, [eax+8] ; ret 4  - and [eax+9] for the object's
+            PLAYER_HAS_UPGRADE_COMPLETE: bytes.fromhex("8b4424048a4008c20400"),
+            OBJECT_HAS_UPGRADE: bytes.fromhex("8b4424048a4009c20400"),
         }
         pages = {va & ~0xFFF for va in (*stubs, THE_CONTROL_BAR, AI_GROUP_UPGRADE_MEMBER_RESUME)}
         for page in pages:
@@ -542,6 +560,7 @@ class Selection:
             self.uc.mem_write(va, blob)
         self.uc.mem_write(THE_CONTROL_BAR, struct.pack("<I", 0x1))
         self._next = self._HEAP
+        self._player = self._alloc(4)
         self.members: list[int] = []
         self.left_by: int | None = None
         for exit_va in (AI_GROUP_UPGRADE_MEMBER_RESUME, AI_GROUP_UPGRADE_MEMBER_SKIP):
@@ -555,13 +574,33 @@ class Selection:
         va, self._next = self._next, self._next + ((size + 0xF) & ~0xF)
         return va
 
-    def upgrade(self) -> int:
-        return self._alloc(0x10)
+    def upgrade(self, *, player_has: bool = False, object_has: bool = False, kind: int = 1) -> int:
+        va = self._alloc(0x10)
+        self.uc.mem_write(va + 4, struct.pack("<IBB", kind, player_has, object_has))
+        return va
 
-    def button(self, upgrade: int, group: int = 0) -> int:
-        va = self._alloc(MULTI_SELECT_GROUP_OFFSET + 2)
+    def button(
+        self,
+        upgrade: int,
+        group: int = 0,
+        *,
+        needs: tuple[int, ...] = (),
+        any_of: bool = False,
+        gate: int = 2,
+    ) -> int:
+        va = self._alloc(self._GATE_VERDICT + 4)
         self.uc.mem_write(va + COMMAND_BUTTON_UPGRADE, struct.pack("<I", upgrade))
         self.uc.mem_write(va + MULTI_SELECT_GROUP_OFFSET, struct.pack("<H", group))
+        self.uc.mem_write(va + self._GATE_VERDICT, struct.pack("<I", gate))
+        if needs:
+            vector = self._alloc(4 * len(needs))
+            self.uc.mem_write(vector, struct.pack(f"<{len(needs)}I", *needs))
+            self.uc.mem_write(va + COMMAND_BUTTON_OPTIONS, bytes([OPTION_NEED_UPGRADE]))
+            self.uc.mem_write(va + COMMAND_BUTTON_NEEDED_UPGRADE_BEGIN, struct.pack("<I", vector))
+            self.uc.mem_write(
+                va + COMMAND_BUTTON_NEEDED_UPGRADE_END, struct.pack("<I", vector + 4 * len(needs))
+            )
+            self.uc.mem_write(va + COMMAND_BUTTON_NEEDED_UPGRADE_ANY, bytes([any_of]))
         return va
 
     def unit(self, *buttons: int) -> int:
@@ -569,8 +608,8 @@ class Selection:
         command_set = self._alloc(SLOTS * 4)
         slots = list(buttons) + [0] * (SLOTS - len(buttons))
         self.uc.mem_write(command_set, struct.pack(f"<{SLOTS}I", *slots))
-        obj = self._alloc(4)
-        self.uc.mem_write(obj, struct.pack("<I", command_set))
+        obj = self._alloc(8)
+        self.uc.mem_write(obj, struct.pack("<II", command_set, self._player))
         self.members.append(obj)
         return obj
 
@@ -657,6 +696,64 @@ def test_an_upgrade_nobody_selected_names_passes_through() -> None:
     orphan = sel.upgrade()
     unit = sel.unit(sel.button(sel.upgrade(), group=1))
     assert sel.offered(unit, orphan) == orphan
+
+
+def _arrows_selection(**arrows: object) -> tuple[Selection, int, int]:
+    """The reported case: Rivendell swordsmen and archers, blades and golden arrows grouped at
+    slot 3, a click on the blades. Returns the selection, the blades and the archers."""
+    sel = Selection()
+    blades = sel.upgrade()
+    sel.unit(sel.button(blades, group=2))
+    archers = sel.unit(sel.button(sel.upgrade(), group=2, **arrows))  # type: ignore[arg-type]
+    return sel, blades, archers
+
+
+def test_a_member_whose_group_button_lacks_its_research_is_refused() -> None:
+    """Researched blades must not buy unresearched arrows: `NeededUpgrade` on the archers' own
+    button, a PLAYER upgrade the player has not completed."""
+    sel = Selection()
+    blades = sel.upgrade()
+    sel.unit(sel.button(blades, group=2))
+    research = sel.upgrade(kind=0)
+    archers = sel.unit(sel.button(sel.upgrade(), group=2, needs=(research,)))
+    assert sel.offered(archers, blades) is None
+
+
+def test_a_member_whose_group_button_is_researched_takes_it() -> None:
+    sel = Selection()
+    blades = sel.upgrade()
+    sel.unit(sel.button(blades, group=2))
+    arrows = sel.upgrade()
+    research = sel.upgrade(kind=0, player_has=True)
+    archers = sel.unit(sel.button(arrows, group=2, needs=(research,)))
+    assert sel.offered(archers, blades) == arrows
+
+
+def test_needed_upgrade_any_takes_one_of_several() -> None:
+    sel = Selection()
+    blades = sel.upgrade()
+    sel.unit(sel.button(blades, group=2))
+    arrows = sel.upgrade()
+    needs = (sel.upgrade(kind=0), sel.upgrade(kind=1, object_has=True))
+    archers = sel.unit(sel.button(arrows, group=2, needs=needs, any_of=True))
+    assert sel.offered(archers, blades) == arrows
+    none = (sel.upgrade(kind=0), sel.upgrade(kind=1))
+    late = sel.unit(sel.button(sel.upgrade(), group=2, needs=none, any_of=True))
+    assert sel.offered(late, blades) is None
+
+
+def test_a_member_whose_group_button_is_disabled_by_model_condition_is_refused() -> None:
+    """The Eregions stages carry `EnableOnModelCondition` instead of a `NeededUpgrade`."""
+    sel, blades, archers = _arrows_selection(gate=3)
+    assert sel.offered(archers, blades) is None
+
+
+def test_the_prerequisite_test_never_asks_the_local_player() -> None:
+    """`getCommandAvailability` is relative to the local player, a different one per peer; the
+    logic-side resolver must reach the object's own player instead."""
+    calls = _targets(_code(), 0xE8)
+    assert {OBJECT_GET_CONTROLLING_PLAYER, PLAYER_HAS_UPGRADE_COMPLETE} <= calls
+    assert COMMAND_BUTTON_CONDITION_GATE in calls
 
 
 def test_availability_is_asked_with_a_null_window() -> None:

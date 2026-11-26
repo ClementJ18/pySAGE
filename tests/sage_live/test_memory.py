@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 import struct
 from collections.abc import Sequence
+from dataclasses import replace
 
 import pytest
 
@@ -22,7 +23,7 @@ from sage_live.backends.base import ConnectionRefused, GameExited
 from sage_live.backends.identity import ROTWK_201_TIMESTAMP
 from sage_live.backends.memory import LAYOUT_ROTWK_201, EngineLayout, MemoryBackend
 from sage_live.backends.protocol import Handshake
-from sage_patch.addresses import IMAGE_BASE
+from sage_patch.addresses import IMAGE_BASE, MESSAGE_LOG_IN_GAME
 from sage_patch.pe import OPT_IMAGE_BASE, SECTION_HEADER_SIZE
 
 LAY = LAYOUT_ROTWK_201
@@ -118,10 +119,11 @@ class FakeImage:
     def close(self) -> None:
         self.closed = True
 
-    def write(self, address: int, data: bytes) -> None:
+    def write(self, address: int, data: bytes) -> bool:
         buf, offset = self._region(address, len(data))
         assert buf is not None, f"write outside the image at {address:#x}"
         buf[offset : offset + len(data)] = data
+        return True
 
     def u32(self, address: int, value: int) -> None:
         self.write(address, struct.pack("<I", value))
@@ -366,8 +368,8 @@ class FakeImage:
         seat's `PlayerTemplate` - as against the internal `name`/`side`, which several factions
         of one side share. They default to the internal pair rather than to nothing, since a
         seat that has one has both."""
-        # 0x500: the match ledger runs to +0x4AB, past the fields every other test reads.
-        address = self.alloc(0x500)
+        # 0x720: the spell-recharge pair sits at +0x718, past the match ledger at +0x4AB.
+        address = self.alloc(0x720)
         self.u32(address + LAY.player_name, self.ascii(name))
         self.u32(address + LAY.player_side, self.ascii(side))
         self.u32(address + LAY.player_display_name, self.utf16(display or name))
@@ -952,6 +954,152 @@ def test_production_can_be_turned_off_for_a_cheaper_observation():
     assert obj is not None and not obj.producing
 
 
+#
+# The time left, from the engine's own figures: `entry+0x18` is `100 / buildTime`, and each
+# frame's step is scaled by the product of the producer's live modifiers of the step's types,
+# which `getModifierMultiplier` reads off its `AttributeModifierPoolUpdate`.
+
+
+def _queue_entries(img: FakeImage, module: int) -> list[int]:
+    entries = []
+    entry = struct.unpack("<I", img.read(module + LAY.production_head, 4))[0]
+    while entry:
+        entries.append(entry)
+        entry = struct.unpack("<I", img.read(entry + LAY.entry_next, 4))[0]
+    return entries
+
+
+def _ticking(img: FakeImage, entry: int, percent: float, per_frame: float) -> None:
+    img.f32(entry + LAY.entry_percent, percent)
+    img.f32(entry + LAY.entry_percent_per_frame, per_frame)
+
+
+def _modifier_pool(img: FakeImage, lists: list[tuple[list[tuple[int, float]], int, int]]) -> int:
+    """An `AttributeModifierPoolUpdate` holding `(modifiers, expiry frame, category)` lists,
+    each modifier `(type, value)`, and the `TheAttributeModifierStore` they are indexed in."""
+    addresses = []
+    for modifiers, _expiry, category in lists:
+        size = LAY.modifier_list_entry_size
+        body = img.alloc(max(1, len(modifiers)) * size)
+        for i, (kind, value) in enumerate(modifiers):
+            img.u32(body + i * size, kind)
+            img.f32(body + i * size + 4, value)
+        modifier_list = img.alloc(0x20)
+        img.u32(modifier_list, body)
+        img.u32(modifier_list + 4, body + len(modifiers) * size)
+        img.u32(modifier_list + LAY.modifier_list_category, category)
+        addresses.append(modifier_list)
+    vector = img.alloc(max(1, len(addresses)) * 4)
+    for i, address in enumerate(addresses):
+        img.u32(vector + i * 4, address)
+    store = img.alloc(0x20)
+    img.u32(store + LAY.store_lists, vector)
+    img.u32(store + LAY.store_lists + 4, vector + len(addresses) * 4)
+    img.u32(LAY.the_attribute_modifier_store, store)
+
+    entries = img.alloc(max(1, len(lists)) * LAY.pool_entry_size)
+    for i, (_modifiers, expiry, _category) in enumerate(lists):
+        img.u32(entries + i * LAY.pool_entry_size, i)
+        img.u32(entries + i * LAY.pool_entry_size + LAY.pool_entry_expiry, expiry)
+    pool = img.alloc(0x80)
+    img.u32(pool, LAY.attribute_modifier_pool_vtable)
+    img.u32(pool + LAY.pool_entries, entries)
+    img.u32(pool + LAY.pool_entries + 4, entries + len(lists) * LAY.pool_entry_size)
+    return pool
+
+
+def _with_pool(entries, lists) -> tuple[FakeImage, list[int]]:
+    """A barracks queueing `entries`, its modifiers `lists`; the game is at frame 10."""
+    img = producing_game(entries)
+    array = struct.unpack("<I", img.read(_barracks(img) + LAY.obj_modules, 4))[0]
+    module = struct.unpack("<I", img.read(array, 4))[0]
+    img.modules(_barracks(img), [_modifier_pool(img, lists), module])
+    return img, _queue_entries(img, module)
+
+
+def _barracks(img: FakeImage) -> int:
+    table = struct.unpack("<I", img.read(_game_logic(img) + LAY.gl_table_begin, 4))[0]
+    entry = struct.unpack("<I", img.read(table, 4))[0]
+    return struct.unpack("<I", img.read(entry + LAY.entry_object, 4))[0]
+
+
+def _game_logic(img: FakeImage) -> int:
+    return struct.unpack("<I", img.read(LAY.the_game_logic, 4))[0]
+
+
+PRODUCTION = LAY.modifier_type_production
+
+
+def test_an_entry_carries_the_engines_rate_and_the_time_left_follows():
+    img = producing_game([(1, "GondorFighter")])
+    array = struct.unpack("<I", img.read(_barracks(img) + LAY.obj_modules, 4))[0]
+    (entry,) = _queue_entries(img, struct.unpack("<I", img.read(array, 4))[0])
+    _ticking(img, entry, 40.0, 2.0)
+    (item,) = backend(img).observe().obj(77).production
+    assert (item.percent, item.percent_per_frame, item.speed) == (40.0, 2.0, 1.0)
+    assert item.frames_left == pytest.approx(30.0)
+
+
+def test_an_entry_not_yet_ticked_has_no_time_left():
+    (item,) = backend(producing_game([(1, "GondorFighter")])).observe().obj(77).production
+    assert item.percent_per_frame == 0.0
+    assert item.frames_left is None
+
+
+def test_the_speed_is_the_product_of_the_live_production_modifiers():
+    img, (entry,) = _with_pool(
+        [(1, "GondorFighter")],
+        [
+            ([(PRODUCTION, 1.5)], 100, 0),
+            # Only a list's first modifier of a type counts, and other types not at all.
+            ([(1, 0.5), (PRODUCTION, 2.0), (PRODUCTION, 7.0)], 100, 0),
+            # Expired at frame 10, which is now.
+            ([(PRODUCTION, 9.0)], 10, 0),
+        ],
+    )
+    _ticking(img, entry, 40.0, 2.0)
+    (item,) = backend(img).observe().obj(77).production
+    assert item.speed == pytest.approx(3.0)
+    assert item.frames_left == pytest.approx(10.0)
+
+
+def test_a_suppressed_category_does_not_count():
+    img, (entry,) = _with_pool([(1, "GondorFighter")], [([(PRODUCTION, 2.0)], 100, 4)])
+    pool = struct.unpack("<I", img.read(_barracks(img) + LAY.obj_modules, 4))[0]
+    pool = struct.unpack("<I", img.read(pool, 4))[0]
+    img.u32(pool + LAY.pool_suppressed + 4 * 4, 10)
+    _ticking(img, entry, 0.0, 1.0)
+    (item,) = backend(img).observe().obj(77).production
+    assert item.speed == 1.0
+
+
+def test_a_hero_is_timed_by_the_wall_clock_whatever_the_modifiers():
+    img, (_unit, hero) = _with_pool(
+        [(1, "GondorFighter"), (3, "GondorArcher")], [([(PRODUCTION, 2.0)], 100, 0)]
+    )
+    _ticking(img, hero, 50.0, 1.0)
+    unit, revive = backend(img).observe().obj(77).production
+    assert (unit.speed, revive.speed) == (2.0, 1.0)
+    assert revive.frames_left == pytest.approx(50.0)
+
+
+def test_the_split_unit_and_upgrade_types_are_found_by_name():
+    """production-split appends its types to the live name table, so their indices are
+    whatever that table says - here 28 and 29, past a stock table of 28."""
+    names = [f"TYPE_{i}" for i in range(28)] + ["PRODUCTION_UNIT", "PRODUCTION_UPGRADE"]
+    img, (unit, upgrade) = _with_pool(
+        [(1, "GondorFighter"), (2, "Upgrade_GondorHeavyArmor")],
+        [([(PRODUCTION, 1.5), (28, 2.0), (29, 4.0)], 100, 0)],
+    )
+    table = img.bit_names(img.alloc((len(names) + 1) * 4), names)
+    ref = img.alloc(4)
+    img.u32(ref, table)
+    layout = replace(LAYOUT_ROTWK_201, modifier_type_table_ref=ref)
+    unit_item, upgrade_item = backend(img, layout=layout).observe().obj(77).production
+    assert unit_item.speed == pytest.approx(3.0)
+    assert upgrade_item.speed == pytest.approx(6.0)
+
+
 def test_a_horde_member_names_its_container():
     """`Object+0x27C` is what contains this object. Before it was found, `parent_id` was
     always None and a battalion read as unrelated individuals."""
@@ -1281,6 +1429,31 @@ def test_replay_playback_path_is_named_only_while_playing_back():
     assert reader.replay_playback_path() is None
     img.u32(LAY.the_recorder, 0)
     assert reader.replay_playback_path() is None
+
+
+def test_chat_log_reads_the_match_lines_from_where_the_reader_left_off():
+    """Each entry is a `UnicodeString` and a colour; the reader asks for the lines past the ones
+    it has seen, and an empty log - or one that does not read as a vector - is told apart."""
+    img = FakeImage()
+    img.game_logic(5000, [])
+    reader = backend(img)
+    assert reader.read_chat_log() == ()
+    lines = [("[Ben] gl hf", 0xFF3366CC), ("[Ana] you too", 0xFFCC3333)]
+    first = img.alloc(8 * len(lines))
+    for i, (text, color) in enumerate(lines):
+        img.u32(first + 8 * i, img.utf16(text))
+        img.u32(first + 8 * i + 4, color)
+    img.u32(MESSAGE_LOG_IN_GAME, first)
+    img.u32(MESSAGE_LOG_IN_GAME + 4, first + 8 * len(lines))
+    assert [(c.text, c.color) for c in reader.read_chat_log() or ()] == [
+        ("[Ben] gl hf", 0x3366CC),
+        ("[Ana] you too", 0xCC3333),
+    ]
+    assert [c.text for c in reader.read_chat_log(1) or ()] == ["[Ana] you too"]
+    assert reader.read_chat_log(2) == ()
+    # `last` not a whole entry past `first`: not a log.
+    img.u32(MESSAGE_LOG_IN_GAME + 4, first + 5)
+    assert reader.read_chat_log() is None
 
 
 def test_auto_cast_powers_are_the_auto_abilities_holding_a_button():
@@ -1617,3 +1790,142 @@ def test_a_builder_copy_of_a_worker_is_not_selectable():
     objects = {o.object_id: o for o in backend(img).read_objects()}
     assert objects[1].is_selectable and not objects[2].is_selectable
     assert objects[1].build_cost == objects[2].build_cost == 50
+
+
+def _with_modules(img: FakeImage, mods: list[int], object_id: int = 900) -> int:
+    """One object carrying `mods`, in a match; returns the object's address."""
+    obj = img.game_object(img.template("DwarvenDragonSlayer", "Dwarves"), (0.0, 0.0, 0.0))
+    img.modules(obj, mods)
+    img.game_logic(5000, [img.entry(object_id, obj)])
+    return obj
+
+
+def _ability_module(img: FakeImage, target_id: int, position: tuple[float, float, float]) -> int:
+    module = img.alloc(0x60)
+    img.u32(module, LAY.weapon_fire_special_ability_vtable)
+    img.write(module + LAY.special_ability_target_id, struct.pack("<Ifff", target_id, *position))
+    return module
+
+
+def test_special_ability_target_reads_the_weapon_fire_module():
+    """Found by its class, past a module of another family holding the same offsets."""
+    img = FakeImage()
+    other = img.alloc(0x60)
+    img.u32(other, 0x00C00000)
+    img.write(other + LAY.special_ability_target_id, struct.pack("<Ifff", 1, 1.0, 1.0, 1.0))
+    _with_modules(img, [other, _ability_module(img, 77, (10.0, 20.0, 30.0))])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.special_ability_target(900) == (77, (10.0, 20.0, 30.0))
+    assert [vtable for vtable, _ in reader.module_vtables(900)] == [
+        0x00C00000,
+        LAY.weapon_fire_special_ability_vtable,
+    ]
+    assert reader.special_ability_target(4242) is None
+
+
+def test_an_object_without_the_module_has_no_special_ability_target():
+    img = FakeImage()
+    _with_modules(img, [_spell_module(img, "SpecialAbilityTravelSupplies", 4200)])
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.special_ability_target(900) is None
+
+
+def test_ai_victim_reads_through_the_ai_update():
+    img = FakeImage()
+    obj = _with_modules(img, [])
+    ai = img.alloc(0x80)
+    img.u32(obj + LAY.obj_ai_update, ai)
+    img.u32(ai + LAY.ai_current_victim, 31)
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.ai_victim(900) == 31
+    img.u32(obj + LAY.obj_ai_update, 0)
+    assert reader.ai_victim(900) is None, "no AI update is unknown, not 'attacking nothing'"
+
+
+def test_draw_modules_name_each_vtable_and_stop_at_the_null():
+    img = FakeImage()
+    obj = _with_modules(img, [])
+    drawable = img.alloc(0x200)
+    img.u32(obj + LAY.obj_drawable, drawable)
+    first, second = img.alloc(0x10), img.alloc(0x10)
+    img.u32(first, 0x00C10000)
+    img.u32(second, 0x00C20000)
+    array = img.alloc(0x20)
+    img.u32(array, first)
+    img.u32(array + 4, second)
+    img.u32(drawable + LAY.drawable_draw_modules, array)
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.draw_modules(900) == ((first, 0x00C10000), (second, 0x00C20000))
+    img.u32(obj + LAY.obj_drawable, 0)
+    assert reader.draw_modules(900) is None
+
+
+def test_set_power_ready_writes_only_the_named_power():
+    img = FakeImage()
+    _with_modules(
+        img,
+        [
+            _spell_module(img, "SpecialAbilityTravelSupplies", 5600),
+            _spell_module(img, "SpecialAbilitySpear", 6000),
+        ],
+    )
+    reader = backend(img)
+    reader.read_objects()
+    assert reader.set_power_ready(900, "SpecialAbilityTravelSupplies", 5000)
+    assert reader.power_cooldowns(900) == {
+        "SpecialAbilityTravelSupplies": 5000,
+        "SpecialAbilitySpear": 6000,
+    }
+    assert not reader.set_power_ready(900, "SpecialAbilityNotThere", 5000)
+
+
+class _ReadOnly:
+    """A source with no `write`, as a `ProcessMemory` opened read-only is to the caller."""
+
+    def __init__(self, inner: FakeImage) -> None:
+        self.inner = inner
+
+    def read(self, address: int, size: int) -> bytes | None:
+        return self.inner.read(address, size)
+
+    def close(self) -> None:
+        self.inner.close()
+
+
+def test_writes_are_refused_through_a_source_that_cannot_write():
+    img = FakeImage()
+    _with_modules(img, [_spell_module(img, "SpecialAbilitySpear", 6000)])
+    reader = backend(img)
+    reader.source = _ReadOnly(img)
+    reader.read_objects()
+    assert not reader.set_power_ready(900, "SpecialAbilitySpear", 5000)
+    assert reader.power_cooldowns(900) == {"SpecialAbilitySpear": 6000}
+
+
+def test_set_power_points_writes_the_local_players_balance():
+    img = FakeImage()
+    me = img.player("Player_1", "Dwarves", 1000)
+    foe = img.player("Player_2", "Isengard", 1000)
+    img.player_list([me, foe], local=0)
+    img.game_logic(5000, [])
+    reader = backend(img)
+    assert reader.set_power_points(20)
+    players = {p.name: p for p in reader.read_players()}
+    assert players["Player_1"].power_points == 20
+    assert players["Player_2"].power_points == 0
+
+
+def test_spell_recharge_discount_and_level_are_read_per_player():
+    img = FakeImage()
+    me = img.player("Player_1", "Angmar", 1000)
+    img.f32(me + LAY.player_spell_recharge_discount, -0.4)
+    img.write(me + LAY.player_spell_recharge_level, struct.pack("<i", 2))
+    img.player_list([me], local=0)
+    img.game_logic(5000, [])
+    (player,) = backend(img).read_players()
+    assert player.spell_recharge_level == 2
+    assert player.spell_recharge_discount == pytest.approx(-0.4)

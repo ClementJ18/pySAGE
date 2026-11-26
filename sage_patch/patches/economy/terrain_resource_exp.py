@@ -164,6 +164,7 @@ class TerrainResourceExpPatch(Patch):
 
     name = "terrain-resource-exp"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a GiveNoXP boolean to TerrainResourceBehavior, so a resource spot can pay its "
         "owner without levelling its own building. Write GiveNoXP = Yes on the module (No, the "

@@ -28,6 +28,7 @@ from sage_ui.layout import clear_layout
 from sage_ui.object_browser import ObjectBrowser
 from sage_ui.registry import (
     detect_installed_games,
+    language_archives,
     registry_read_paths_bfme2,
     registry_read_paths_rotwk,
     vanilla_archives,
@@ -140,7 +141,7 @@ class Browser(QMainWindow):
         self.edain_button = QPushButton("Load Edain")
         self.edain_button.setToolTip(
             "Load the Edain mod: BfMe II's ini.big, then RotWK's ini.big, "
-            "__edain_data.big and the English patch"
+            "__edain_data.big and the installed language's archives"
         )
         self.edain_button.clicked.connect(self._load_edain)
         header.addWidget(self.edain_button, 0, Qt.AlignmentFlag.AlignTop)
@@ -290,8 +291,9 @@ class Browser(QMainWindow):
 
     def _load_edain(self) -> None:
         """Resolve the installed games and load the Edain mod's .big archives in override
-        order (BfMe II base, then RotWK + Edain data + English patch). Its texture
-        archives are remembered as the extract-image tool's sources."""
+        order (BfMe II base, then RotWK + Edain data + RotWK's language archives, whichever
+        language is installed). Its texture archives are remembered as the extract-image
+        tool's sources."""
         bfme2 = registry_read_paths_bfme2()
         rotwk = registry_read_paths_rotwk()
         if not bfme2 or not rotwk:
@@ -302,7 +304,6 @@ class Browser(QMainWindow):
             Path(bfme2) / "ini.big",
             Path(rotwk) / "ini.big",
             Path(rotwk) / "__edain_data.big",
-            Path(rotwk) / "lang" / "englishpatch201.big",
         ]
         # The mod's texture archives feed the inline portraits / button icons and the
         # extract-image tool, so they are remembered under TEXTURE_SOURCES_APP and indexed
@@ -319,6 +320,8 @@ class Browser(QMainWindow):
                 "These Edain archives were not found:\n\n" + "\n".join(missing),
             )
             return
+        # Globbed rather than named, so a German (or any other) install loads its own strings.
+        archives += language_archives(Path(rotwk))
 
         # The texture loader persists them under TEXTURE_SOURCES_APP as it indexes.
         self.texture_loader.load([("big", str(p)) for p in textures])

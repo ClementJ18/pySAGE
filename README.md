@@ -30,6 +30,7 @@ Can be downloaded pre-packaged from here: https://www.moddb.com/games/battle-for
 | [`sage_replay`](sage_replay/README.md) | Reader for SAGE replay files (Generals `.rep`, BFME / BFME2 / RotWK) - the recorded order stream, decoded into build orders, APM and command timing. |
 | [`sage_save`](sage_save/README.md) | Reader and editor for BFME2/RotWK save games (`.BfME2Skirmish` and friends) - a lossless container round-trip and a JSON view of the decoded chunks. **Work in progress**: most per-object state is still being reverse-engineered. |
 | [`sage_live`](sage_live/README.md) | Python API for a *running* BFME2/RotWK game - attach to the process, read players, objects and upgrades as typed snapshots, and issue orders through the engine's own message stream. |
+| [`sage_vp6`](sage_vp6/README.md) | Decoder and encoder for the EA VP6 movies BFME plays (`.vp6`): inspect a movie, export its frames, or encode any video (through ffmpeg) into a movie the game plays (`sage-vp6`, the `vp6` extra for the codec). |
 | [`sage_apt`](sage_apt/README.md) | Converter, viewer and editor for `.apt` UI movies (the Flash-derived format behind BFME's menus and HUD). **Work in progress**, not yet fully functional. |
 | [`sage_patch`](sage_patch/README.md) | Binary patches for the ROTWK `game.dat` engine, with the reverse-engineering behind them - raising the `CommandSet` button limit from 33 to 64, opening the Create-A-Hero faction enum to mod sides, and making the AI respect a disabled hero-revive button; `verify` re-checks a patched binary without a disassembler. |
 
@@ -85,9 +86,9 @@ DLL is Windows-only, so other platforms use the byte-identical pure-Python compr
 
 Console scripts are installed for the CLI tools: `sage-ini`, `sage-lint`, `sage-live`,
 `sage-replay`, `sage-apt`, `sage-map`, `sage-save`, `sage-asset`, `sage-w3d`, `sage-cah`,
-`sage-patch`, `sage-verify` (and the GUI scripts `sage-ui`, `sage-wiki`, `sage-lint-ui`,
-`sage-asset-ui`, the SAGE Asset builder/combiner window, `sage-cah-ui`, the SAGE Custom
-Hero editor, and `sage-worldbuilder`, the map editor).
+`sage-patch`, `sage-verify`, `sage-vp6` (and the GUI scripts `sage-ui`, `sage-wiki`,
+`sage-lint-ui`, `sage-asset-ui`, the SAGE Asset builder/combiner window, `sage-cah-ui`, the
+SAGE Custom Hero editor, and `sage-worldbuilder`, the map editor).
 
 ### Mod overlays
 

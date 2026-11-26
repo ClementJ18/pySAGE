@@ -212,6 +212,7 @@ def _assemble(base_va: int, percent: float) -> Asm:
 class ConstructionInitialHealthPatch(Patch):
     name = "construction-initial-health"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Start a structure's construction at a percentage of its maximum health instead of at "
         "one hit point, so a foundation is not a free kill for the seconds its builder spends "

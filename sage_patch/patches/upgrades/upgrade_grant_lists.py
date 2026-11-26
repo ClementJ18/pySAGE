@@ -257,6 +257,7 @@ class UpgradeGrantListsPatch(Patch):
 
     name = "upgrade-grant-lists"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "ObjectCreationUpgrade's GrantUpgrade and RemoveUpgrade take lists of upgrades, not "
         "one. Write the upgrade names space-separated on the one line - grants still run before "

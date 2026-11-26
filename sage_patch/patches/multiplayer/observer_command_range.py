@@ -111,6 +111,7 @@ class ObserverCommandRangePatch(Patch):
 
     name = "observer-command-range"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let an observer click a command bar's PUSH_VISIBLE_COMMAND_RANGE and "
         "POP_VISIBLE_COMMAND_RANGE buttons, so the pages behind them can be read while watching "

@@ -389,6 +389,7 @@ def build_section(base_va: int) -> bytes:
 class ReplayAnnotationsPatch(Patch):
     name = "replay-annotations"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Write each player's score-screen counters into the replay - units and structures "
         "built, lost and destroyed (per opponent), money earned and spent. No INI change; read "

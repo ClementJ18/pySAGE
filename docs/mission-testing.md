@@ -68,8 +68,8 @@ Started with `-file`, the same mission latches the player defeated on frame 25: 
 structures removed, the player's objects no longer counted by `PLAYER_HAS_OBJECT_COMPARISON`
 (so the map's own lose condition fires too), and the game exits a few seconds later. Raising
 `SecondsBeforeBaseCheckActive` in the running game before frame 25 (`TheWritableGlobalData`
-`0x00DE4364` `+0x110C`, a float) gives the battle's rule. Edain's harness does this
-(`tests/campaign/mission.py`, `hold_skirmish_defeat`).
+`0x00DE4364` `+0x110C`, a float) gives the battle's rule:
+`sage_test.mission.hold_skirmish_defeat` does this.
 
 **A War of the Ring start gives the player different starting units.** A battle spawns the
 template's `StartingUnitTacticalWOTR` list (Edain's Mordor: Sauron, five porters and an
@@ -96,7 +96,11 @@ Optional, and each one makes a run cheaper or quieter: `quiet-exit`, `render-rat
 `multi-instance` (the engine refuses a second copy of itself, so without it a leaked game turns
 every later test into a failure with an unrelated-looking cause).
 
-## 2. The missing piece: a name-keyed script watch
+## 2. The name-keyed script watch
+
+Written: `sage_test.mission.ScriptWatch`, over `sage_worldbuilder.live.LiveSession` (the
+trace ring for firing, `LiveIndex.at` for the names). What follows is the reasoning it was
+built from.
 
 Everything below is available today **except one join**. The trace ring records
 `(frame, kind, Script *, object id)` — addresses, not names — because a `Script` does not hold its
@@ -338,7 +342,8 @@ Be explicit about this in the test's own docstring, because the gap is easy to f
 
 ## 10. Worked example
 
-The shape a mission test should end up as. `ScriptWatch` is §2, still to be written.
+The shape a mission test should end up as. `ScriptWatch` and `Mission` are in `sage_test.mission`;
+`sage_test.mission_record` records a mission's opening and diffs two of them.
 
 ```python
 import pytest
@@ -391,5 +396,5 @@ Record what each first run actually did, so the next person does not re-derive i
 | 2026-09-22 | `sage-lint lint-maps` on that map, RotWK + `_mod` | 21 warnings, 0 errors; useful before a launch, and none of it is anything the engine would report |
 | 2026-10-23 | Edain `map kampa evil 01` through `user_map_runner` (`tests/campaign/evil_campaign`), seats Elves AI at start 0 and the human on FactionMordor at start 1 | reaches a match; the map's `Player_1`/`Player_2` scripts run for the right seats. Defeated on frame 25 by the skirmish base check (§0); with the check held, the opening matches the same mission loaded through the War of the Ring campaign script for script and gold for gold (`tests/campaign/record.py` recorded both) |
 | 2026-10-23 | mission 1 played by orders, objective by objective | the base stages pass: camp, cave, hordes, fissure, troll, each objective shown and ticked in the mission's order (`ScriptWatch` for the scripts, the objective tracker `0x00DE8C94` for the screen). The fighting has not finished a run: one reached the treehouses and the game process died in round 16 with no report. Orders that differ from `Session`'s defaults, and the accelerator's fixed logic rate that cancels fast-forward, are in pySAGE-edain `docs/` (live testing) |
-| 2026-10-23 | the name-keyed watch of §2 | written in Edain's tests as `campaign.mission.ScriptWatch` over `sage_worldbuilder.live.LiveSession` (recording, `LiveIndex.at`); not yet moved into `sage_test` |
+| 2026-10-23 | the name-keyed watch of §2 | written in Edain's tests as `campaign.mission.ScriptWatch` over `sage_worldbuilder.live.LiveSession` (recording, `LiveIndex.at`); moved into `sage_test.mission` on 2026-11-06 |
 | 2026-09-22 | reading the map's own player setup | it is a **scenario** map: named sides (`PlyrDwarves` human, `PlyrMordor`, `PlyrCivilian`, `PlyrNeutral`), no `Player_N_Start` waypoints. Whether a `-file` skirmish start honours named sides or strands the mission's scripts on a side with no player is **the open question** for §0's fourth fact, and the first thing a launch settles |

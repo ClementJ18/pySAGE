@@ -64,6 +64,7 @@ class DesertWeatherPatch(Patch):
 
     name = "desert-weather"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a DESERT global weather type that drives a new SAND model condition, the way the "
         "stock SNOWY drives SNOW. A map opts in with weather = 2 in its WorldInfo chunk "

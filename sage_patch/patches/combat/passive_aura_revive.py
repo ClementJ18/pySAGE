@@ -155,6 +155,7 @@ class PassiveAuraRevivePatch(Patch):
 
     name = "passive-aura-revive"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "PassiveAreaEffectBehavior and AttributeModifierAuraUpdate stop parking themselves at "
         "UPDATE_SLEEP_FOREVER the first time they tick on a dead object, and return their ordinary "

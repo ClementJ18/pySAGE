@@ -1,9 +1,8 @@
 """Weapon, armor and damage views: per-nugget breakdowns (warheads descended into),
 attack cadence, per-shot damage / DPS, and effective health against each damage type."""
 
-from typing import NamedTuple
-
 from sage_ini.model.nuggets import DamageNugget, DOTNugget, MetaImpactNugget, ProjectileNugget
+from sage_utils.views.archetypes import nugget_targets
 from sage_utils.views.base import safe, upgrade_names
 
 
@@ -30,7 +29,8 @@ def _resolve_warhead(nug):
 def weapon_nuggets(weapon, active_upgrades=frozenset(), _seen=None) -> list[dict]:
     """Per-nugget damage view, filtered to active nuggets. A ProjectileNugget
     contributes its warhead weapon's nuggets (the real damage) instead of itself,
-    recursing with a guard against cycles."""
+    recursing with a guard against cycles. `target` and `modifiers` are the nugget's
+    `SpecialObjectFilter` and `DamageScalar`s read as archetypes (see `nugget_targets`)."""
     seen = set() if _seen is None else _seen
     nuggets = []
     for nug in safe(lambda w=weapon: w.Nuggets, []) or []:
@@ -43,12 +43,19 @@ def weapon_nuggets(weapon, active_upgrades=frozenset(), _seen=None) -> list[dict
                 nuggets.extend(weapon_nuggets(warhead, active_upgrades, seen))
             continue
         damage_type = safe(lambda n=nug: n.DamageType)
+        scalars = [
+            (scaled.Scalar, scaled.ObjectFilter)
+            for scaled in safe(lambda n=nug: n.DamageScalar, []) or []
+        ]
+        target, modifiers = nugget_targets(scalars, safe(lambda n=nug: n.SpecialObjectFilter))
         nuggets.append(
             {
                 "type": type(nug).__name__,
                 "damage_type": getattr(damage_type, "name", None),
                 "damage": safe(lambda n=nug: n.Damage),
                 "radius": safe(lambda n=nug: n.Radius),
+                "target": target,
+                "modifiers": modifiers,
             }
         )
     return nuggets
@@ -113,38 +120,6 @@ def weapon_damage_breakdown(weapon, state, _seen=None) -> dict:
             if radius:
                 knockback = {"radius": radius, "hero_resist": safe(lambda n=nug: n.HeroResist)}
     return {"damage_nuggets": damage_nuggets, "dots": dots, "knockback": knockback}
-
-
-class FilterSignature(NamedTuple):
-    """A hashable, canonical reduction of an `ObjectFilter` - the join key between a parsed
-    filter and a hand-labeled archetype registry (see `sage_wiki.archetypes`). `inclusion`
-    and `exclusion` are the `+`/`-` object/kindof names; `descriptor` is ANY/ALL/NONE;
-    `relations` are ENEMIES/ALLIES/… . Names, not objects, so two filters that mention the
-    same flags compare equal regardless of how each token resolved."""
-
-    descriptor: str | None
-    relations: frozenset[str]
-    inclusion: frozenset[str]
-    exclusion: frozenset[str]
-
-
-def _filter_member_name(member) -> str:
-    """One filter member's name - a KindOf flag's name, an Object's name, or the raw token
-    when it never resolved to either."""
-    return getattr(member, "name", None) or str(member)
-
-
-def filter_signature(object_filter) -> FilterSignature | None:
-    """`object_filter` reduced to a `FilterSignature`, or None when there is no filter (a
-    bare `DamageScalar` multiplier with no scope), which means "everything"."""
-    if object_filter is None:
-        return None
-    return FilterSignature(
-        descriptor=getattr(object_filter.descriptor, "name", None),
-        relations=frozenset(_filter_member_name(r) for r in object_filter.relations),
-        inclusion=frozenset(_filter_member_name(m) for m in object_filter.inclusion),
-        exclusion=frozenset(_filter_member_name(m) for m in object_filter.exclusion),
-    )
 
 
 def _unit_weapon_sets(obj) -> list:

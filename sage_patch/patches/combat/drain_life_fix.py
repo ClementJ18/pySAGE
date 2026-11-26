@@ -256,6 +256,7 @@ STOCK_WINDOWS: dict[int, bytes] = {va: stock for va, stock, _new, _note in _edit
 class DrainLifeFixPatch(Patch):
     name = "drain-life-fix"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Make DamageNugget DrainLife heal for every hit: with DelayTime the stock drain heals for "
         "nothing (the hit is only queued), and a DOTNugget drains on its first tick only. The "

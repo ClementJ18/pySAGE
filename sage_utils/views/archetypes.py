@@ -3,8 +3,9 @@
 A weapon's `DamageScalar` lines scope a multiplier to an object filter (`250% ANY +HERO`).
 To summarise a weapon for an infobox we name the recognisable filter shapes: `+HERO +MACHINE
 +MONSTER` is a "Single" target (a unit not in a horde), `+STRUCTURE` is a "Structure".
-`ARCHETYPES` maps a filter's shape to that label; the renderer interprets the multiplier
-context (0% excludes, >100% is a bonus) on top of the label.
+`ARCHETYPES` maps a filter's shape to that label; `nugget_targets` interprets the multiplier
+context (0% excludes, >100% is a bonus) on top of the label. The wiki infobox (sage_wiki.weapons)
+and the searcher's weapon card both explain a nugget's targets through it.
 
 The key is the `(included, excluded)` pair of object/kindof name sets, so `+INFANTRY -CAVALRY
 -HERO` ("infantry, but not cavalry/hero") stays distinct from `+CAVALRY +HERO +INFANTRY`. The
@@ -15,16 +16,63 @@ hit) is the renderer's job to read as its complement, not a label mapping.
 `ARCHETYPES` is grown by hand. Run this module over a corpus to list the distinct filter
 shapes by frequency, then label the common ones:
 
-    .venv/Scripts/python -m sage_wiki.archetypes <source-folder>...
+    .venv/Scripts/python -m sage_utils.views.archetypes <source-folder>...
 
 Unlabeled shapes fall back to a readable auto-string so nothing breaks while labeling.
 """
 
 from collections import Counter
+from typing import NamedTuple
 
 from sage_ini.model.nuggets import DamageNugget
-from sage_utils.sources import load_sources
-from sage_utils.views import filter_signature, safe
+from sage_utils.views.base import safe
+
+__all__ = [
+    "ARCHETYPES",
+    "ArchetypeKey",
+    "FilterSignature",
+    "archetype_key",
+    "collect_archetypes",
+    "describe_filter",
+    "discovery_report",
+    "filter_signature",
+    "label_for",
+    "label_for_key",
+    "nugget_targets",
+]
+
+
+class FilterSignature(NamedTuple):
+    """A hashable, canonical reduction of an `ObjectFilter` - the join key between a parsed
+    filter and the hand-labeled `ARCHETYPES` registry. `inclusion`
+    and `exclusion` are the `+`/`-` object/kindof names; `descriptor` is ANY/ALL/NONE;
+    `relations` are ENEMIES/ALLIES/… . Names, not objects, so two filters that mention the
+    same flags compare equal regardless of how each token resolved."""
+
+    descriptor: str | None
+    relations: frozenset[str]
+    inclusion: frozenset[str]
+    exclusion: frozenset[str]
+
+
+def _filter_member_name(member) -> str:
+    """One filter member's name - a KindOf flag's name, an Object's name, or the raw token
+    when it never resolved to either."""
+    return getattr(member, "name", None) or str(member)
+
+
+def filter_signature(object_filter) -> FilterSignature | None:
+    """`object_filter` reduced to a `FilterSignature`, or None when there is no filter (a
+    bare `DamageScalar` multiplier with no scope), which means "everything"."""
+    if object_filter is None:
+        return None
+    return FilterSignature(
+        descriptor=getattr(object_filter.descriptor, "name", None),
+        relations=frozenset(_filter_member_name(r) for r in object_filter.relations),
+        inclusion=frozenset(_filter_member_name(m) for m in object_filter.inclusion),
+        exclusion=frozenset(_filter_member_name(m) for m in object_filter.exclusion),
+    )
+
 
 # An archetype key is the `(included, excluded)` pair of a filter's object/kindof names.
 # Label the common ones discovered by `discovery_report`; the empty pair is the unscoped
@@ -132,6 +180,28 @@ def label_for(object_filter) -> str:
     return label_for_key(archetype_key(object_filter))
 
 
+def nugget_targets(scalars, special_filter=None) -> tuple[str, list[str]]:
+    """A nugget's `(primary, modifiers)` read from its `(multiplier, object_filter)` scalars:
+    `primary` is the archetype it hits ("General" when unscoped), `modifiers` its per-archetype
+    bonus/penalty strings (`+150% vs Single`). A `SpecialObjectFilter`, when given, scopes the
+    primary to its archetype. A `0%` scalar drops an archetype: an exclusion (`0% ALL
+    -STRUCTURE`) spares only the excluded set, so that set is the real target; an inclusion
+    (`0% +STRUCTURE`) just drops it from the general target."""
+    primary = "General" if special_filter is None else label_for(special_filter)
+    modifiers: list[str] = []
+    for multiplier, object_filter in scalars:
+        if multiplier == 1:
+            continue  # a 100% scalar is a no-op
+        included, excluded = archetype_key(object_filter)
+        if multiplier == 0:
+            if not included and excluded:
+                primary = label_for_key((excluded, frozenset()))
+            continue
+        percent = (multiplier - 1) * 100
+        modifiers.append(f"{round(percent):+}% vs {label_for(object_filter)}")
+    return primary, modifiers
+
+
 def describe_filter(object_filter) -> str:
     """A filter reconstructed as a readable token string (`ANY ENEMIES +HERO -STRUCTURE`), for
     the discovery report so the descriptor/relation context behind an archetype key is visible."""
@@ -193,8 +263,10 @@ def discovery_report(game) -> str:
 
 def _main(argv: list[str]) -> None:
     if not argv:
-        print("usage: python -m sage_wiki.archetypes <source-folder>...")
+        print("usage: python -m sage_utils.views.archetypes <source-folder>...")
         return
+    from sage_utils.sources import load_sources  # noqa: PLC0415 - lazy: sources imports views
+
     game, _names = load_sources([("folder", path) for path in argv])
     print(discovery_report(game))
 

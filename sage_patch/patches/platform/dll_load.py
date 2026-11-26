@@ -21,6 +21,9 @@ from ...addresses import LOAD_LIBRARY_A_IAT
 from ...asm import Asm
 from ...patcher import Patch, log
 from ...utils import align_up, allocate_section, find_section, image_base, va_to_offset
+from ..multiplayer.binary_attest import ORIGINAL_ENTRY_OFF as ATTEST_ORIGINAL_ENTRY_OFF
+from ..multiplayer.binary_attest import SECTION_NAME as ATTEST_SECTION
+from ..multiplayer.binary_attest import entry_stub_va as attest_entry_stub_va
 
 if TYPE_CHECKING:
     import argparse
@@ -127,6 +130,16 @@ def _read_block(data: bytes | bytearray) -> tuple[int, list[str], int] | None:
     return section_va, names, original_entry
 
 
+def _entry_chain(data: bytes | bytearray) -> list[int]:
+    """The entry point, and the one it goes on to when `binary-attest`'s stub took it over - which
+    that patch requires, so its hash is taken before any DLL this one loads can run."""
+    chain = [_entry_va(data)]
+    attest = find_section(data, ATTEST_SECTION)
+    if attest is not None and chain[0] == attest_entry_stub_va(attest[0]):
+        chain.append(struct.unpack_from("<I", data, attest[1] + ATTEST_ORIGINAL_ENTRY_OFF)[0])
+    return chain
+
+
 def loaded_dlls(data: bytes | bytearray) -> list[str]:
     """The DLLs `data`'s entry point loads through this patch, or none."""
     block = _read_block(data)
@@ -190,7 +203,7 @@ class DllLoadPatch(Patch):
             problems.append(f"the loader loads {names}, expected {list(self.dlls)}")
             return problems
         stub = _stub_va(section_va, names)
-        if _entry_va(data) != stub:
+        if stub not in _entry_chain(data):
             problems.append(f"the entry point is {_entry_va(data):#010x}, expected {stub:#010x}")
         located = find_section(data, SECTION_NAME)
         assert located is not None

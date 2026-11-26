@@ -104,7 +104,7 @@ class SpellRechargeResetPatch(Patch):
         "the module's first Percentage, so the spellbook keeps the first level for the rest of "
         "the match. Logic-side: every peer needs the same binary. No INI change"
     )
-    runtime_verified = "partly"
+    runtime_verified = "yes"
 
     def apply(self, data: bytearray) -> None:
         self._check_sites(data)

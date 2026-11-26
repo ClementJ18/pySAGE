@@ -209,6 +209,7 @@ class ContainedHordeRespawnPatch(Patch):
 
     name = "contained-horde-respawn"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "makes RespawnNearbyHordeMembers work alongside AffectsContained on AutoHealBehavior, so a "
         "garrison tower or transport replenishes the battalion inside it instead of only healing "

@@ -13,7 +13,7 @@ first device call. The DLL has to come from a build that works on a `game.dat` o
 patched (`../docs/accel-module.md` §3): it identifies a build by a hash over all of `.text`,
 which any patch changes.
 
-Derived from OH1A's `bfme2_accel.dll`, with his permission (`../docs/accel-port.md` §3).
+Derived from OH1A's `bfme2_accel.dll`, published under the MIT licence.
 """
 
 from __future__ import annotations
@@ -124,9 +124,8 @@ def hook_va(section_va: int) -> int:
 class AccelModulePatch(Patch):
     name = "accel-module"
     author = "officialNecro"
-    # The loader cave armed in Edain on 2026-09-24 and loads the DLL; the DLL itself does not yet
-    # run Edain (docs/accel-module.md §4.4)
-    runtime_verified = "partly"
+    # Confirmed in live Edain games as of 2026-11-15 (docs/accel-module.md)
+    runtime_verified = "yes"
     description = (
         "Load OH1A's BFME2 Accelerator (bfme2_accel.dll) from the game directory when the engine "
         "resolves Direct3DCreate9, instead of injecting it with its loader. Without the DLL beside "

@@ -71,7 +71,7 @@ times, all inside the library range and the audio layer.
 `0x0065C1BB` after first checking its own two mutex handles at `+0x40`/`+0x44`. So the fourth
 thread genuinely enters the render layer while the main thread is loading a map — which is what the
 whole locking discipline in §3.2 exists for, and the only thing that consumes it in stock. It is
-also what crashes `bfme2_accel.dll` on a patched `game.dat` ([`accel-port.md`](accel-port.md) §1):
+also what crashes `bfme2_accel.dll` on a patched `game.dat` ([`accel-thread-identity.md`](accel-thread-identity.md) §3):
 any design that moves the renderer has to account for this second drawing thread.
 
 ## 2. The frame, and why it is one thread

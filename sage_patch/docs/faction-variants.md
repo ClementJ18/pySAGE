@@ -109,8 +109,8 @@ variants. It is `-16 - index` - faction 5 is -21 - and is settled where `startNe
 occupied slot's template for the Random pass (`mov esi, [ebx+0x18]` at `0x0062D52C`): drawn with
 the same `GameLogicRandomValue`, set on the slot, and handed on in `esi`, so the Random pass finds
 a real template and leaves it alone. The faction box shows it as its faction. The LAN packet
-carries a template as a signed byte, which bounds the index at 112 (-128); a faction past that
-gets no Random row.
+carries a template as a signed byte, which bounds the index at 111 (-127; -128 is the LAN escape
+of a Random pool, below); a faction past that gets no Random row.
 
 -3 to -6 and `-16 - index` have to get through every reader that bounds a template from below at -2, or
 the value is refused - the whole lobby string, the request, the packet:
@@ -121,12 +121,119 @@ the value is refused - the whole lobby string, the request, the packet:
 | `0x0064A271` | the LAN host applying a client's `PlayerTemplate` request |
 | `0x0084B4A6`, `0x0084B79D` | the two LAN packet readers (the template travels as a signed byte) |
 
-Each is a one-byte edit of the immediate, `-2` to `-128`. The online lobby's reader (`0x009AD961`)
+The two LAN packet readers get a one-byte edit of the immediate, `-2` to `-128`; the lobby string
+parser and the host's request check are hooked instead, because they also take Random pools (below)
+and accept down to -127 otherwise. The online lobby's reader (`0x009AD961`)
 is left alone: that screen has no Variant box. A sweep of every `cmp <template>, -1` and `-2` in
 the image found one more reader that would misread it: the map preview's start-position numbers
 (`0x007053DE`, `0x00705457`) skip observers with `cmp [slot+0x18], -2` / `jle`, which would hide a
 -3 slot's number too, so both `jle` become `je`. Every other test is an `== -2` for Observer or a
 `< 0` for "not a real template", and -3 passes both as -1 does.
+
+That sweep looked at the slot's field and missed one reader of the *argument*: `GameSlot::setPlayerTemplate`
+(`0x00802C5A`) ends with `cmp [ebp+8], -2 / pop edi / jg` (`0x00802D50`), and "-2 or below" sets the
+seat's start position (`+0x10`, `+0x14`) to -1, as for an observer. So every one of these
+sentinels, picked in the lobby or read from `Skirmish.ini`, threw away the seat's start position.
+The `jg` becomes `jne` (`0x00802D55`, one byte). Below -2 the values now take Random's path, which
+calls `0x00802876` with the slot, and that routine returns at once for anything `<= -2`
+(`0x00802886`). A second sweep, for `cmp <anything>, -2` followed by a signed branch, found nothing
+else that reads a template.
+
+### Random pools
+
+A slot's template can also name **a pool**: `-0x80000000 | mask`, the top byte `0x80` and bit *n*
+of the 24-bit mask template index *n* (`RANDOM_POOL`, `random_pool()`). 24 bits is what the LAN
+packet has room for (below); Edain's highest playable index is 13. It is drawn among the templates it names,
+variants included, each equally likely, and played as drawn. This is the engine half of a "pick
+which factions Random may give me" panel.
+
+The value lives in the slot's own template, on purpose. A separate store would have to follow
+every copy of a `GameSlot` - the lobby's `GameInfo`, `TheGameInfo`, the replay header's - and
+nothing would carry it from one to the next. In the template, every copy carries it already.
+`GameInfoToAsciiString` writes it as the decimal it is, so `Skirmish.ini` and replay headers keep
+it at no cost. And `startNewGame`'s Random pass is `cmp esi, 0 / jl` (`0x0062D534`), so it takes
+any negative value for Random, a pool included.
+
+Five places had to learn it:
+
+- **The draw** (`0x0062D6D8`, the Good/Evil hook). When the slot holds a pool, count the
+  templates it names that are playable, not observers, and whose faction (the template, or its
+  base for a variant) is among the slot's candidates. The candidates are already filtered by start
+  position, so that filter carries over to variants. Draw one with `GameLogicRandomValue(0, n-1)`
+  and write it over the candidates' first element, then lower the end to one past it. The stock
+  draw that follows (`pool[GameLogicRandomValue(0, 1000) % size]`) can then only take it. The
+  first element exists because the pick's faction is a candidate. A pool that allows nothing
+  leaves the candidates alone and consumes no random number, so the slot draws as Standard.
+  `random_assign` and `slot_template` leave pools alone: the former acts on -3 only, the latter
+  on `-16` to `-127` only.
+- **The lobby string parser** (`0x0080351C`, `0x0080385B`). Each slot arm's check is
+  `cmp eax, -2 / pop ecx / mov [ebp-0x28], eax / jl <reject>`. No immediate can admit a value
+  below -128, so the 13-byte window becomes a jump. The cave accepts -127 and up and pools with
+  a non-empty mask, then rejoins the stock upper-bound check, which reloads the value from
+  `[ebp-0x28]`.
+- **The lobby** reads a pool as Random: `family` returns -1 below -127, so the faction box shows
+  Random. The Variant box lists Random's rows with none selected, since none of them is the pool.
+- **The setup screen's commands.** The movie sends a pool with
+  `_root.GameCodeNoPrefix("MpGameSetup::SetRandomPool", "<slot>:<mask>")`, which reaches
+  `MpGameSetup`'s command map under that name. Not `GameCode`: it prefixes `_root.CodePrefix`,
+  which nothing on this screen sets (the engine has no such string), so it sends
+  `undefined::SetRandomPool` and nothing answers - every stock button here uses
+  `GameCodeNoPrefix` with the whole name. The screen's constructor files each command in a block of ~85
+  bytes: an `AsciiString` of the name at `[ebp-0x10]`, a functor `{screen, -, handler, 0}` built at
+  `[ebp-0x38]` and copied onto the stack for `0x00A02F80`, then `0x0092B062` on `screen+4` and the
+  string's destructor. The patch takes the five-byte `push` that opens the `OnSortName` block
+  (`0x00845C2B`), runs its own copy of a block for `SetRandomPool`, redoes the `push` and goes on.
+  Assembled at `0x00845C2B` with `OnSortName`'s name and handler, `emit_command_block` is that
+  block byte for byte, which the tests check. No stock command is renamed or lost. The handler
+  (`thiscall (const char *)`, `ret 4`) parses the two decimals, refuses a slot past 7, a mask past
+  24 bits or anything malformed, and refuses a seat whose faction box is disabled or hidden - the
+  screen's own "not yours to change". Mask 0 asks for -1. The request then goes the way a Variant
+  box pick does (`request`, split out of `changed` for this): the strategy object at
+  `[screen+0x58]`, which sets it in skirmish and on a LAN host and asks the host from a LAN client.
+- **Reading a pool back.** The movie's variables go with the screen, but the seat keeps its pool
+  across a match and back, so the panel asks the engine as it opens:
+  `_root.GetExtern("MpGameSetup::RandomPool<slot>")` is the seat's mask in decimal, `"0"` for a
+  seat that is not a pool. Externs are the screen's second map, `screen+0x10`, filled like
+  commands but through `0x0092B0C7` (`thiscall (AsciiString *name, int index, functor)`,
+  `ret 0xc`, which also tells the APT player the name), as the stock `MpGameSetup::HostMode` block
+  at `0x00845DD4` does. A handler is `thiscall (int index, char *out, bool flag)`, `ret 0xc`, and
+  copies its value into `out` when `flag` is 0. The patch files eight, `RandomPool0` to `7`, on one
+  handler with the slot as the index (`emit_extern_block`, `get_pool`).
+- **Whether a row button may be used.** The faction box is an engine window, so the movie cannot
+  see it enabled or disabled; `_root.GetExtern("MpGameSetup::RandomPoolSeat<slot>")` says it:
+  `"2"` shown and enabled (the player's seat, or an AI seat for the host), `"1"` shown but
+  disabled (another player's seat), `"0"` hidden or missing. The test is the one
+  `SetRandomPool` refuses a seat by - the box's `WINDOW_STATUS` hidden and enabled bits
+  (`get_seat`, eight more externs on one handler). The panel's row button polls it every other
+  frame from a two-frame looping clip and greys itself on `"1"`, hides on `"0"`.
+- **The panel's mouse gate.** `MpGameSetup::RandomPoolModal` `"1"` / `"0"`, sent as the panel
+  opens and closes, holds `GameWindowManager::winProcessMouseEvent` (`0x006C23AD`) shut while the
+  screen that sent it is up (`MP_SETUP_CURRENT`, `0x00DE8D78`): no engine window takes the mouse,
+  so the clicks reach the panel drawn over them.
+- **Escape closes the panel.** An APT button's key-press action never fires on this screen: keys
+  go to `GameWindowManager::winProcessKey` (`0x006C1AF1`, the vtable slot after
+  `winProcessMouseEvent`), which sends `GWM_CHAR` (0x15) to the window with keyboard focus and up
+  its parents. Only the online screens have a window callback that takes Escape (`0x009AFDEC`,
+  `0x009CA27C`; they call their movie's `EscapeKeyPressed`). The setup screens have none. While
+  the panel holds the mouse gate, a second gate at `winProcessKey`'s entry reports Escape (key 1)
+  used and records its release (`state & 1`). The panel reads it back each frame with
+  `_root.GetExtern("MpGameSetup::RandomPoolEscape")`, which is `"1"` from then on, and closes as
+  Back does. `RandomPoolModal` clears it on open and on close (`key_gate`, `get_escape`).
+- **The LAN host's request check** (`0x0064A271`, `cmp edi, -2 / jl <refuse>`): hooked like the
+  parser, so a client's pool request is accepted.
+
+**Over LAN** the packed `GameInfo` carries a template as one byte, so
+[`lobby-faction-byte`](lobby-faction-byte.md) sends a pool as the escape byte -128
+(`LAN_POOL_ESCAPE`) and the mask's three bytes, and turns them back into the pool where each parser
+arm hands the seat its template. That is why the packet readers' lower bound is -128 while every
+other reader stops at -127. A pool there is no room left for in the 0x186-byte payload becomes
+plain Random on the host too, so every peer still draws alike; see that page, §5.
+
+**The LAN lobby still refuses pools.** The host's request handler (`0x0064A271`) and the packet
+readers keep their -128 bound. That is deliberate: the packet carries a template as one byte, and a
+pool truncated to its low byte would reach every client as a real faction, a desync. Carrying pools
+over LAN needs room in the 0x186-byte payload, which [`lobby-faction-byte.md`](lobby-faction-byte.md)
+§3 shows is already tight with eight humans.
 
 ## 4. What the INI can say
 
@@ -156,6 +263,83 @@ taken with `NAME_KEY_FROM_CSTR` on the raw token, the call the store itself uses
 The two hooks at the store's block key already taken by other patches (`0x005FE880`,
 `second-resource`; `0x005FE886`, `command-point-upkeep`) are not needed.
 
+### `EnabledForPvP`
+
+A second keyword, a `Bool` that is `Yes` when not given:
+
+```
+PlayerTemplate FactionMen_Arnor
+    ...
+    VariantOf     = FactionMen
+    EnabledForPvP = No
+End
+```
+
+It is read through the stock `INI::parseBool` (`0x0042E558`) into a local and kept the same way
+as `VariantOf`: pending until the block's key is written, then filed in the same row - each row is
+`{key, parent key, PvP}`, the last 0 unstated, 1 No, 2 Yes. A block that names only one of the two
+fields changes only that one, so an override can flip `EnabledForPvP` and keep the variant's
+parent. The value is read on variants only: a base faction is always offered, whatever it says.
+
+A variant saying `No` is **held back** unless the lobby's "Enable all variants" rule (§5a) is set.
+Held back means:
+
+- the Variant box lists it in its place but cannot pick it: added in the disabled colour
+  (`[0x00DADF20]`) and passed to `0x00724160(box, row, 1)`, as the stock faction fill does a
+  faction the scenario refuses (`0x00844E64`, `0x00844EA7`); a Random slot's Variants row counts
+  only what may be played;
+- no draw picks it - a faction's Random, Random's second draw, Variants and a Random pool all skip
+  it, so a pool naming only held-back templates draws as Standard;
+- a seat still holding one - picked before the host cleared the box, or restored from
+  `Skirmish.ini` - shows its faction's Standard row in the lobby and is set to that faction where
+  `startNewGame` reads the seat (`0x0062D52C`), before the Random pass.
+
+The lobby never changes a seat on its own: only the start does, and it does it from `TheGameInfo`,
+so every peer and every replay plays the same template.
+
+## 5a. The "Enable all variants" rule
+
+The setup screen's rules are ten `Int`s at `GameInfo+0x60` (`game-info.md` §7).
+Rule set 0 - skirmish, LAN and online - has three checkboxes, bound in order
+to the movie's `RuleCheckBox_0..2`: rule 0 `RULE:AllowCustomHeroes`, rule 2
+`RULE:AllowRingHeroes`, and rule 1 **`RULE:ClanGame`**, default 0 (`{rule, default}` at
+`0x00C82528`, `0x00C82530`, `0x00C82538`). `MpGameSetup`'s constructor gives rule 1 checkbox state
+3 on every screen that is not an online clan match (`test byte [ebx+0x3a4], 0x40` / `jne` /
+`push 3` / `push 1` / `call 0x00986A5C` at `0x00845325`), and the binder (`0x00986873`) skips a
+state-3 rule, leaving its gadget hidden. Edain's movie already has the row: `NumCheckBoxes` is
+`0x00960A5D`'s count, 3, so the third row is placed, blank and empty.
+
+Nothing in the simulation reads rule 1: a scan of every `[TheGameInfo]` load followed by an access
+in `+0x60..+0x70` finds rule 2 (`IS_GAME_MODE_ACTIVE "ringheroes"`), rule 3 (the command-point
+factor), rule 4 (starting resources) and the stats string's rule 0. Yet it travels with the other
+rules - the `GR` string, so the LAN game info, `Skirmish.ini` and the replay header - and only the
+host can tick it (the rules' enable at `0x00986A0B`). So it is the carrier. Showing it is opt-in
+(`all_variants_box`, `--all-variants-box`): without the option both edits below are left out, the
+checkbox stays hidden outside an online clan match, rule 1 stays 0, and an `EnabledForPvP = No`
+variant is never fielded in skirmish or LAN. With it:
+
+| where | what |
+|---|---|
+| `0x0084532C` | `jne` -> `jmp`: rule 1's checkbox is shown on every setup screen |
+| `0x00DB7798` | rule 1's label, `RULE:ClanGame` -> `RULE:EnableAllVariants`, a string in the cave |
+| `0x00841700`, `0x00842064`, `0x00842BCB`, `0x0084370A`, `0x008456F6`, `0x00845B0A` | the screen's own clan-match checks never match (`MP_SETUP_CLAN_GAME_READS`) |
+
+The lobby reads it from the screen's own game info each time it fills a Variant box, and the match
+reads it from `TheGameInfo` at each of the three `startNewGame` hooks; no game info (a campaign)
+holds nothing back. Any nonzero value is "set", so the -1 a lobby without the checkbox leaves there
+(War of the Ring) holds nothing back either.
+
+The setup screen keeps a copy of the rules at `screen+0x15C` (refreshed from the game info by
+`0x00784208` on every rule change), and six places test its rule 1 to act as an online clan match:
+the seat-state box drops its AI entries and closes an AI seat (`0x00841700`), the Team box locks
+(`0x00842BCB`), and `0x00842064`, `0x0084370A`, `0x008456F6`, `0x00845B0A`. Ticking the box did
+exactly that in skirmish (seen in game, 2026-11-18), so with the option each test compares against
+0x7F, or loads 0, and never sees a clan match. An online clan match would show the same box under
+the new label. The online lobby is gone, so
+nothing is lost. `[TheGlobalData]+0x9D4 & 3` makes the binder disable rules 0 and 1
+(`0x0098690D`); what sets it is not traced, and a lobby where Allow Custom Heroes is greyed out
+would show this box greyed out too.
+
 ## 5. What the patch does
 
 "Variant" below means: a template whose `VariantOf` names another template that exists and is not
@@ -175,8 +359,12 @@ is a plain faction, so a typo leaves a faction visible rather than unreachable.
 | `0x00842BB9` | the faction box's `winEnable`, then the Variant box brought into line |
 | `0x0062D71C` | a slot on Random (-3) draws a variant of the faction it was given |
 | `0x0062D52C` | a faction's Random (`-16 - index`) is settled to it or a variant |
-| `0x0062D6D8` | a slot on Good (-5) or Evil (-6) draws only from candidates of that side |
+| `0x0062D6D8` | a slot on Good (-5) or Evil (-6) draws only from candidates of that side; a slot on a pool draws among what it names |
 | the five bounds of §3, `0x007053E2`, `0x0070545B` | -3 to -6 survive the lobby string, LAN and the map preview |
+| `0x0080351C`, `0x0080385B` (in place of their one-byte bound) | the lobby string also takes a Random pool |
+| `0x00802D55` | `setPlayerTemplate` clears the start position for -2 alone, not for every Random below it |
+| `0x0084532C`, `0x00DB7798` | with `all_variants_box`: rule 1 shown on every setup screen as `RULE:EnableAllVariants` (§5a) |
+| (inside the refresh) | War of the Ring: a Variant box row the scenario's `DisabledFactions` refuses the seat is greyed and unpickable |
 
 The fill and the sync are wrapped at their calls rather than hooked at their entries because
 `scenario-player-factions` asserts both entries' bytes; the byte-wise `e8` sweep in
@@ -188,21 +376,22 @@ faction has a playable variant, and then the faction first - labelled `GUI:Facti
 box carries. The first row's text is `GUI:FactionVariantStandard` formatted with one `%s`, the
 faction's display name, through `UnicodeString::format` (`0x00ADF7E0`): a label of `Standard`
 ignores it, `%s (Standard)` shows it, and anything but `%s` would read an argument that is not
-there. Every faction's box leads with a Random row (`-16 - index`, `GUI:Random`). On a Random
-slot the box holds Random (-3, `GUI:Random`) and Standard (-1, the same label
-formatted with `GUI:Random`'s text), then Variants (-4) when the mod has a variant, and Good (-5)
-and Evil (-6) when it has base factions on both sides. The faction box shows every one of these as
-Random. A faction with no variant gets the Standard row alone. The box is shown when it lists anything
-and its faction box is not hidden, and
-enabled when its faction box is, which is what makes another player's variant visible and
-read-only. An enabled box also has its drop-down button enabled: the combo box gadget keeps
-that button disabled - drawn without its arrow - while it lists fewer than two rows, which is every
-faction without variants. `winEnable` (`0x007154B3`) enables the window and its children and then
-sends the gadget `0x1C`, whose handler (`0x0072493B`) returns early only for more than one entry
-and otherwise disables the button (`[data+0x24]`, the data being the window's `+0x2C`); adding an
+there. Every faction's box leads with a Random row (`-16 - index`, `GUI:Random`). A Random
+seat - Random (-1), any of the sentinels -3 to -6, or a Random pool - shows a single `-` row, as a
+closed seat does: what it may draw is its Random pool's to say (§3, "Random pools"). The
+sentinels still draw as below when a seat holds one, from `Skirmish.ini` or an older lobby, but
+the box no longer offers them. A faction with no variant gets the Standard row alone, and a closed seat (slot state 1) a
+single `-` row - the stock wide `L"-"` at `0x00C540B0` that the faction box shows there
+(`0x00843DD3`) - whatever template the seat holds. The box is shown when it lists anything
+and its faction box is not hidden, and enabled when its faction box is and it lists two rows or
+more. Another player's seat, a closed seat and a faction without variants are therefore all drawn
+alike, the box disabled and its arrow greyed: nothing to choose. An enabled box also has its
+drop-down button enabled: the combo box gadget keeps that button disabled while it lists fewer
+than two rows. `winEnable` (`0x007154B3`) enables the window and its children and then sends the
+gadget `0x1C`, whose handler (`0x0072493B`) returns early only for more than one entry and
+otherwise disables the button (`[data+0x24]`, the data being the window's `+0x2C`); adding an
 entry to an enabled box re-enables it for `count > 1` (`0x00724D32`). So the button is enabled
-again after the box is, and the arrow shows as every other column's does. A list of one still does
-not open (`0x00724513`), so the arrow there is only the column's look.
+again after the box is, and the arrow shows as every other column's does.
 
 A **pick** in it is `0x00844177` with the index read from the Variant box: the same "request
 pending" byte (`+0x2C4`) cleared, the same strategy call, the same War of the Ring flags on success
@@ -220,6 +409,28 @@ forces the slot's template - so a LAN client's pick stays on screen until the ho
 
 Picking a faction in the faction box resets the variant to that faction, since the handler asks
 for the base's index.
+
+**The War of the Ring scenario.** In the War of the Ring lobby (screen mode 1, `[screen+0x7C]`)
+the box honours the scenario's `DisabledFactions` as the faction box does. The refresh finds the
+scenario once, the way the stock fill does at `0x00844E17`: `getScenarioIndex` (`0x00975828`) on
+the screen's War of the Ring sub-object (`screen+0x60`), and when that is not -1,
+`LivingWorldCampaignManager::getCampaign` (`0x007B9636` on `[0x00DE87AC]`) and the campaign's
+`+0x1C`. Every row that names a template - the Standard row, alone or ahead of the variants, and
+each variant - is then asked about with that seat: the template's name built in place by
+`PlayerTemplate::getName` (`0x00627707`), as the fill builds `isFactionEnabled`'s by-value argument
+at `0x00844E23`, and handed to `scenario-player-factions`' matcher, which the cave carries a copy
+of (`emit_is_faction_enabled`). So a scenario-wide entry and a `Faction<X>:N` naming this seat both
+refuse it, and the row is added in the disabled colour and made unpickable - the same treatment as
+a held-back variant, which a refused row may also be. The matcher understands `:N` whether or not
+`scenario-player-factions` is installed; a stock scenario never writes one, because without that
+patch the faction box would read `FactionX:1` as a faction named so.
+
+Refusing a base faction greys its Standard row only. The faction box, which the stock fill builds,
+greys and locks the base the same way, so a seat cannot move into that family through it; a seat
+already on one of its variants keeps a Variant box whose permitted variants stay pickable. The
+faction's Random row is not filtered: in a historical scenario the fixup (`0x008445F2`) replaces
+any negative template with a template the scenario allows that seat; outside one, where a War of
+the Ring seat's Random sentinel is settled has not been traced.
 
 ## 6. The movie
 
@@ -250,14 +461,29 @@ What only a play session settles:
    appear in the flat list.
 3. **War of the Ring.** The historical-scenario fixup (`0x008445F2`) makes each player take a
    *different* template; a faction and its variant are different templates, so two players can
-   field the same faction. Its Random pass (`0x008448E1`) is not filtered either.
+   field the same faction. Its Random pass (`0x008448E1`) is not filtered for variants either,
+   though it does ask the scenario, per seat with `scenario-player-factions`. The Variant box's
+   reading of `DisabledFactions` (§5) is emulated only: no War of the Ring lobby has been opened
+   with it.
 4. **The layout.** The row is full, so the Variant box takes its width from the Faction and Hero
    columns. The scales are a first guess.
+5. **Random pools.** Emulated only, like the rest: the draw, the parser and request checks, the
+   `SetRandomPool` command and its registration, the lobby's reading of a pool, and the LAN
+   transport. The movie half is pySAGE-edain's `tools/add_random_pool_panel.py`. A replay of a
+   pooled match should draw the same faction; that hasn't been tried. The start-position fix
+   (`0x00802D55`) changes what picking Good, Evil, Variants or a faction's Random does in a lobby,
+   and that hasn't been seen in game either.
+6. **`EnabledForPvP` and the rule.** Emulated only. Unseen: that the third checkbox appears with
+   its label in skirmish and in the LAN lobby, that only the host can tick it, that a LAN client's
+   Variant boxes follow when the host ticks or clears it (the lobby has to refill them on a rules
+   change, which this patch assumes rather than hooks), and that a match drops a held-back seat to
+   its faction on every peer.
 
 ## 8. Addresses
 
 In [`../addresses/`](../addresses/__init__.py): `MP_SETUP_GADGET_*`, `MP_SETUP_FACTION_*`,
 `MP_SETUP_SYNC_FACTION*`, `MP_SETUP_SELECTION_*`, `MP_SETUP_CTOR_FACTION_WINDOWS_CLEAR`,
-`MP_SETUP_REDRAW_SLOT`, `MP_SETUP_STRATEGY*`, `COMBO_BOX_*`, `WINDOW_ENABLE` / `WINDOW_HIDE` /
+`MP_SETUP_REDRAW_SLOT`, `MP_SETUP_STRATEGY*`, `GAME_RULES_NAMES`, `GAME_RULES_CLAN_GAME_*`,
+`GAME_INFO_RULE_CLAN_GAME`, `INI_PARSE_BOOL`, `COMBO_BOX_*`, `WINDOW_ENABLE` / `WINDOW_HIDE` /
 `WINDOW_STATUS*`, `THE_PLAYER_TEMPLATE_STORE`, `PLAYER_TEMPLATE_FIND_BY_INDEX`,
 `PLAYER_TEMPLATE_PARSED_*`, `PLAYER_TEMPLATE_GET_DISPLAY_NAME` and `GAME_START_RANDOM_POOL*`.

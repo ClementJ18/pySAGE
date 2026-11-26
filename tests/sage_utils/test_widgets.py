@@ -12,17 +12,24 @@ pytestmark = pytest.mark.full
 
 pytest.importorskip("PyQt6", reason="the [ui] extra (PyQt6) is not installed")
 
+from PyQt6.QtCore import QPoint, QPointF, Qt  # noqa: E402
+from PyQt6.QtGui import QWheelEvent  # noqa: E402
 from PyQt6.QtWidgets import (  # noqa: E402
     QApplication,
+    QComboBox,
     QDialog,
     QMainWindow,
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSpinBox,
     QTextBrowser,
+    QVBoxLayout,
+    QWidget,
 )
 
-from sage_utils.widgets import add_help_menu  # noqa: E402
+from sage_utils.widgets import add_help_menu, ignore_wheel_on_inputs  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -160,3 +167,46 @@ def test_the_theme_menu_item_switches_and_follows_the_shared_theme(qapp, tmp_pat
     finally:
         qapp.setStyleSheet(previous)
         win.close()
+
+
+def _scroll_down(widget: QWidget) -> None:
+    centre = QPointF(widget.rect().center())
+    event = QWheelEvent(
+        centre,
+        QPointF(widget.mapToGlobal(centre)),
+        QPoint(0, 0),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    QApplication.sendEvent(widget, event)
+
+
+def test_the_wheel_scrolls_the_page_past_inputs_and_never_changes_them(qapp):
+    ignore_wheel_on_inputs(qapp)
+    ignore_wheel_on_inputs(qapp)  # a second call adds no second guard
+    page = QWidget()
+    layout = QVBoxLayout(page)
+    spin = QSpinBox()
+    spin.setValue(5)
+    combo = QComboBox()
+    combo.addItems(["one", "two", "three"])
+    layout.addWidget(spin)
+    layout.addWidget(combo)
+    layout.addSpacing(2000)
+    scroll = QScrollArea()
+    scroll.setWidget(page)
+    scroll.resize(200, 200)
+    scroll.show()
+    try:
+        for _ in range(3):
+            _scroll_down(spin)
+            _scroll_down(combo)
+        assert spin.value() == 5
+        assert combo.currentIndex() == 0
+        bar = scroll.verticalScrollBar()
+        assert bar is not None and bar.value() > 0
+    finally:
+        scroll.close()

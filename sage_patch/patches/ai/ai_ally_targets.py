@@ -603,7 +603,7 @@ def _verify_table(data: bytes | bytearray, target: _Target, section: str) -> lis
 class AiAllyTargetsPatch(Patch):
     name = "ai-ally-targets"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         f"Add two SpecialPowerAITypes that cast a NEED_TARGET_ALLY_OBJECT power at the AI "
         f"player's own objects anywhere on the map, filtered by the power's ObjectFilter and "

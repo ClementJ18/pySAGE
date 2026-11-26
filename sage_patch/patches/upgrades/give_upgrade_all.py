@@ -373,6 +373,7 @@ class GiveUpgradeAllPatch(Patch):
 
     name = "give-upgrade-all"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "A porter delivers every upgrade it carries instead of only the one the upgrade registry "
         "happens to list first, and is a valid target-of-opportunity for anything that can accept "

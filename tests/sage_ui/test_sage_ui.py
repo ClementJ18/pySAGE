@@ -163,6 +163,30 @@ class TestVanillaLoad:
             str(rotwk / "ini.big"),
         ]
 
+    def test_load_edain_takes_the_installed_language(self, browser, monkeypatch, tmp_path):
+        # A German RotWK ships German.big + germanpatch201.big, not the English patch.
+        bfme2 = self._install(tmp_path, "BFME2", lang=False)
+        rotwk = self._install(tmp_path, "RotWK", lang=False)
+        for name in ("__edain_data.big", "__edain_textures1.big", "__edain_textures2.big"):
+            (rotwk / name).write_bytes(b"")
+        for name in ("germanpatch201.big", "German.big"):
+            (rotwk / "lang" / name).write_bytes(b"")
+        monkeypatch.setattr(browser_module, "registry_read_paths_bfme2", lambda: str(bfme2))
+        monkeypatch.setattr(browser_module, "registry_read_paths_rotwk", lambda: str(rotwk))
+        monkeypatch.setattr(browser.loader, "load", lambda: None)
+        monkeypatch.setattr(browser.texture_loader, "load", lambda sources: None)
+
+        browser._load_edain()
+        queued = [path for _kind, path in browser.sources_panel.sources()]
+        # The language's base archive precedes its patch, which overrides it.
+        assert queued == [
+            str(bfme2 / "ini.big"),
+            str(rotwk / "ini.big"),
+            str(rotwk / "__edain_data.big"),
+            str(rotwk / "lang" / "German.big"),
+            str(rotwk / "lang" / "germanpatch201.big"),
+        ]
+
     def test_ready_message_once_a_source_is_queued(self, browser):
         browser.sources_panel.add_source("folder", r"C:\data")
         browser._show_initial_state()

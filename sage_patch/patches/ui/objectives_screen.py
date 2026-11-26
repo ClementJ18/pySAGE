@@ -125,6 +125,7 @@ def build_code(base_va: int) -> bytes:
 class ObjectivesScreenPatch(Patch):
     name = "objectives-screen"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Open Objectives.apt from the Palantir button on any map that declares objectives, "
         "instead of only in the linear campaign. The opt-in is the map's own "

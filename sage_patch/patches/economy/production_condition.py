@@ -226,6 +226,7 @@ class ProductionConditionPatch(Patch):
 
     name = "production-condition"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a model condition that is active while a building's production queue is non-empty "
         "(training a unit or researching an upgrade). The new PRODUCING token (--condition) "

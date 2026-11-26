@@ -158,6 +158,7 @@ def build_code(base_va: int) -> bytes:
 class RebuildHoleRepairPatch(Patch):
     name = "rebuild-hole-repair"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let a structure destroyed while it is being rebuilt leave its rebuild hole again, and "
         "put that hole on the terrain rather than at the dying structure's own height, so a creep "

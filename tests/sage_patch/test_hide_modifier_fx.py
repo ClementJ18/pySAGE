@@ -23,6 +23,8 @@ from sage_patch.addresses import (
     FIELD_PARSE_STRIDE,
     FX_LIST_PLAY_AT_OBJECT,
     INI_PARSE_BOOL,
+    KINDOF_HORDE_BIT,
+    KINDOF_HORDE_BYTE,
     MODIFIER_HOLDER_APPLY_FX_CALLS,
     OBJECT_FIELD_TABLE,
     OBJECT_FIELD_TABLE_REF_OPCODES,
@@ -220,6 +222,17 @@ def test_ini_surface_is_one_object_bool(image: bytearray) -> None:
     assert (field.block, field.name, field.type) == ("Object", DEFAULT_KEYWORD, "Bool")
 
 
+def test_horde_default_round_trips_through_detect_and_options(image: bytearray) -> None:
+    patch = HideModifierFxPatch(horde_default=True)
+    patch.apply(image)
+    assert patch.verify(image) == []
+    assert HideModifierFxPatch().verify(image) != []  # the gate differs
+    found = HideModifierFxPatch.detect(image)
+    assert found is not None and found.horde_default
+    assert found.options() == {"keyword": DEFAULT_KEYWORD, "horde_default": True}
+    assert HideModifierFxPatch().options() == {"keyword": DEFAULT_KEYWORD}
+
+
 def test_registered_under_its_name() -> None:
     assert PATCHES[HideModifierFxPatch.name] is HideModifierFxPatch
 
@@ -251,9 +264,9 @@ BOOL_TOKEN = HEAP + 0x804
 class Engine:
     """The cave's code, an id table, and stubs for the two engine functions it calls."""
 
-    def __init__(self) -> None:
+    def __init__(self, horde_default: bool = False) -> None:
         self.uc = Uc(UC_ARCH_X86, UC_MODE_32)
-        self.asm = build_code(CODE, IDS)
+        self.asm = build_code(CODE, IDS, horde_default)
         code = self.asm.finish()
         self.uc.mem_map(CODE, 0x1000)
         self.uc.mem_write(CODE, code)
@@ -285,9 +298,10 @@ class Engine:
             + b"\xc3",
         )
 
-    def template(self, slot: int, template_id: int) -> int:
+    def template(self, slot: int, template_id: int, horde: bool = False) -> int:
         va = HEAP + 0x1000 + slot * 0x800
         self.uc.mem_write(va + THING_TEMPLATE_ID, struct.pack("<H", template_id))
+        self.uc.mem_write(va + KINDOF_HORDE_BYTE, bytes([KINDOF_HORDE_BIT if horde else 0]))
         return va
 
     def obj(self, slot: int, template_va: int) -> int:
@@ -400,3 +414,37 @@ def test_the_resume_windows_are_reproduced_verbatim() -> None:
     body = code.finish()
     assert THING_FACTORY_ID_SWAP_BYTES in body
     assert THING_TEMPLATE_COPY_KEEP_ID_BYTES in body
+
+
+# horde_default
+
+
+@pytest.fixture
+def horde_engine() -> Engine:
+    return Engine(horde_default=True)
+
+
+@pytest.mark.parametrize(
+    ("horde", "flag", "played"),
+    [
+        (False, 0, 1),  # ordinary, unwritten: stock
+        (True, 0, 0),  # HORDE, unwritten: hidden by default
+        (True, 0b10, 1),  # HORDE, HideModifierFX = No
+        (True, 0b11, 0),  # HORDE, HideModifierFX = Yes
+        (False, 0b11, 0),  # ordinary, HideModifierFX = Yes
+        (False, 0b10, 1),  # ordinary, HideModifierFX = No
+    ],
+)
+def test_horde_default_gate(horde_engine: Engine, horde: bool, flag: int, played: int) -> None:
+    obj = horde_engine.obj(0, horde_engine.template(0, 0x0300, horde=horde))
+    horde_engine.set_flag(0x0300, flag)
+    assert horde_engine.call("fx_gate", 0xF00D, obj, 0) == 4
+    assert horde_engine.fx_played == played
+
+
+@pytest.mark.parametrize("token", [0, 1])
+def test_horde_default_parse_marks_the_field_written(horde_engine: Engine, token: int) -> None:
+    tmpl = horde_engine.template(0, 0xBEEF, horde=True)
+    horde_engine.uc.mem_write(BOOL_TOKEN, bytes([token]))
+    assert horde_engine.call("parse", 0x1111, tmpl, tmpl, 0) == 4
+    assert horde_engine.flag(0xBEEF) == 0b10 | token

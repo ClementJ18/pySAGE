@@ -52,6 +52,8 @@ from tests.sage_live.fake_process import FakeProcess
 
 CAVE = 0x20000000
 LOGIC = 0x10000000
+#: Where a foreign hook at the site leads, as `bfme2_accel.dll`'s logic-rate predicate does.
+ACCEL_PREDICATE = 0x5CD21230
 
 
 def running_game(game_mode: int = 2, frame: int = 100) -> FakeProcess:
@@ -69,7 +71,7 @@ class TestCave:
     unicorn = pytest.importorskip("unicorn", reason="executing the cave needs unicorn")
 
     def run(
-        self, mode: int, lease: int, frame: int, target: int = 0
+        self, mode: int, lease: int, frame: int, target: int = 0, chain: int = SCRIPT_DEBUG_PAUSED
     ) -> tuple[str, int, dict[str, int]]:
         from unicorn import UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_32, Uc  # noqa: PLC0415
         from unicorn.x86_const import (  # noqa: PLC0415
@@ -90,11 +92,11 @@ class TestCave:
             uc.mem_map(LOGIC, 0x1000)
             uc.mem_map(stack - 0x1000, 0x2000)
             uc.mem_map(ret, 0x1000)
-            uc.mem_map(SCRIPT_DEBUG_PAUSED & ~0xFFF, 0x1000)
+            uc.mem_map(chain & ~0xFFF, 0x1000)
         finally:
             if was_enabled:
                 faulthandler.enable()
-        cave = bytearray(build_gate_cave(CAVE))
+        cave = bytearray(build_gate_cave(CAVE, chain))
         struct.pack_into("<III", cave, 0x08, mode, target, lease)
         uc.mem_write(CAVE, bytes(cave))
         uc.mem_write(THE_GAME_LOGIC, struct.pack("<I", LOGIC))
@@ -105,7 +107,7 @@ class TestCave:
         outcome = {"where": "?"}
 
         def on_code(emu: Uc, address: int, size: int, _: object) -> None:
-            if address == SCRIPT_DEBUG_PAUSED:
+            if address == chain:
                 outcome["where"] = "engine"
                 emu.emu_stop()
             elif address == ret:
@@ -114,7 +116,7 @@ class TestCave:
 
         uc.hook_add(UC_HOOK_CODE, on_code)
         uc.emu_start(CAVE + CODE_OFFSET, 0xFFFFFFFF, count=200)
-        assert uc.reg_read(UC_X86_REG_EIP) in (SCRIPT_DEBUG_PAUSED, ret)
+        assert uc.reg_read(UC_X86_REG_EIP) in (chain, ret)
         block = struct.unpack("<IIII", uc.mem_read(CAVE + 0x08, 0x10))
         fields = dict(zip(("mode", "target", "lease", "hits"), block, strict=True))
         return outcome["where"], uc.reg_read(UC_X86_REG_EAX) & 0xFF, fields
@@ -123,6 +125,14 @@ class TestCave:
         where, _, fields = self.run(Mode.RUN, lease=0, frame=100)
         assert where == "engine"
         assert fields["hits"] == 1
+
+    def test_run_chains_to_a_hook_found_at_the_site(self) -> None:
+        where, _, _ = self.run(Mode.RUN, lease=0, frame=100, chain=ACCEL_PREDICATE)
+        assert where == "engine"
+
+    def test_paused_holds_without_asking_the_chained_hook(self) -> None:
+        where, al, _ = self.run(Mode.PAUSED, lease=5, frame=100, chain=ACCEL_PREDICATE)
+        assert (where, al) == ("returned", 1)
 
     def test_paused_holds_and_spends_the_lease(self) -> None:
         where, al, fields = self.run(Mode.PAUSED, lease=5, frame=100)
@@ -210,6 +220,73 @@ def test_a_second_attach_adopts_the_cave_left_behind() -> None:
     finally:
         second.close()
     assert process.read(FRAME_DISPATCHER_PAUSE_CALL, 5) == FRAME_DISPATCHER_PAUSE_CALL_BYTES
+
+
+def accelerated_game() -> FakeProcess:
+    """A game whose dispatcher call `bfme2_accel.dll` has redirected to its own predicate."""
+    process = running_game()
+    site = FRAME_DISPATCHER_PAUSE_CALL
+    process.write(site, call_bytes(site, ACCEL_PREDICATE))
+    process.write(ACCEL_PREDICATE, b"\xe8")
+    return process
+
+
+def test_attach_chains_to_a_foreign_hook_and_close_puts_it_back() -> None:
+    process = accelerated_game()
+    foreign = process.read(FRAME_DISPATCHER_PAUSE_CALL, 5)
+    gate = FrameGate(process)
+    gate.attach()
+    try:
+        assert gate.chained == ACCEL_PREDICATE
+        assert gate.cave is not None
+        assert process.read(gate.cave + 0x34, 4) == struct.pack("<I", ACCEL_PREDICATE)
+        hooked = process.read(FRAME_DISPATCHER_PAUSE_CALL, 5)
+        assert hooked is not None
+        assert call_target(FRAME_DISPATCHER_PAUSE_CALL, hooked) == gate.cave + CODE_OFFSET
+    finally:
+        assert gate.close() == []
+    assert process.read(FRAME_DISPATCHER_PAUSE_CALL, 5) == foreign
+    assert process.code_writes_while_running == 0
+
+
+def test_an_adopted_gate_puts_back_the_foreign_hook() -> None:
+    process = accelerated_game()
+    foreign = process.read(FRAME_DISPATCHER_PAUSE_CALL, 5)
+    first = FrameGate(process)
+    first.attach()
+    first._stop.set()  # a controller that died without detaching
+    second = FrameGate(process)
+    second.attach()
+    try:
+        assert second.adopted and second.chained == ACCEL_PREDICATE
+    finally:
+        second.close()
+    assert process.read(FRAME_DISPATCHER_PAUSE_CALL, 5) == foreign
+
+
+def test_a_stock_site_chains_to_the_engine() -> None:
+    gate = FrameGate(running_game())
+    gate.attach()
+    try:
+        assert gate.chained is None
+    finally:
+        gate.close()
+
+
+def test_a_site_that_is_no_call_is_refused() -> None:
+    process = running_game()
+    process.write(FRAME_DISPATCHER_PAUSE_CALL, b"\x90" * 5)
+    with pytest.raises(LivePatchError, match="neither the stock call"):
+        FrameGate(process).attach()
+    assert process.read(FRAME_DISPATCHER_PAUSE_CALL, 5) == b"\x90" * 5
+
+
+def test_a_call_into_unmapped_memory_is_refused() -> None:
+    process = running_game()
+    site = FRAME_DISPATCHER_PAUSE_CALL
+    process.write(site, call_bytes(site, 0x7EEE0000))
+    with pytest.raises(LivePatchError, match="neither the stock call"):
+        FrameGate(process).attach()
 
 
 def test_a_network_game_is_refused() -> None:

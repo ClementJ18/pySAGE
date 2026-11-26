@@ -36,6 +36,7 @@ from sage_worldbuilder.categories import MapCategory, MapEntry
 from sage_worldbuilder.gamedata import GameContext
 from sage_worldbuilder.keymap import Accelerator
 from sage_worldbuilder.settings import Settings, same_folder
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 __all__ = ["GameSettingsDialog", "OpenMapDialog", "SaveMapDialog", "ShortcutsDialog"]
 
@@ -83,6 +84,7 @@ class OpenMapDialog(QDialog):
         category: MapCategory = MapCategory.USER,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Open Map")
         self.resize(540, 580)
         self.context = context
@@ -171,6 +173,7 @@ class SaveMapDialog(QDialog):
         category: MapCategory = MapCategory.USER,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Save Map As")
         self.resize(540, 260)
         self.context = context
@@ -248,6 +251,7 @@ class GameSettingsDialog(QDialog):
 
     def __init__(self, settings: Settings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Game Settings")
         self.resize(620, 400)
         layout = QVBoxLayout(self)
@@ -411,6 +415,7 @@ class ShortcutsDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Keyboard Shortcuts")
         self.resize(640, 620)
         layout = QVBoxLayout(self)

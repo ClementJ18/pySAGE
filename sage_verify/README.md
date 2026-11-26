@@ -109,8 +109,9 @@ patched-game.dat
 
 It recomputes the attestation hash from the file and compares it with the one the running process
 computed for itself. The two can agree because the image has no `.reloc` and does not set
-`DYNAMIC_BASE`, so `.text` in memory is `.text` on disk. The value is folded at the first
-`MSG_LOGIC_CRC` heartbeat, so start a match and give it ~100 frames before asking.
+`DYNAMIC_BASE`, so every section in memory is the file's, apart from the import tables and the
+security cookie the hash skips. The value is folded at the entry point, so any running client can
+be asked, at the menu or in a match.
 
 ## Layout
 

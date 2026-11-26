@@ -116,6 +116,7 @@ class InfantryLightingPatch(Patch):
 
     name = "infantry-lighting"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Light CAVALRY (or any KindOf in bits 8..15, or everything) with the map's infantry "
         "light environment instead of the darker object one. No INI change - the kindofs are "

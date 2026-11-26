@@ -156,6 +156,7 @@ class CommandSetLimitPatch(Patch):
 
     name = "commandset-limit"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Raise the CommandSet button limit from 33 to N, so a CommandSet block may list N "
         "buttons. The ControlBar still draws 33 at a time: reach the rest with "

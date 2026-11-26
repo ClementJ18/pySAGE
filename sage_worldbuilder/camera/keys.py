@@ -136,9 +136,8 @@ class CameraScene:
     # The camera's and the look-at point's paths through the animation, or None when not shown.
     camera_path: list[Vec3] | None = None
     look_at_path: list[Vec3] | None = None
-    # The pose the preview looks from, and how far it sees; None with the preview off.
+    # The pose the preview looks from; None with the preview off.
     preview: Pose | None = None
-    far_clip: float = 1000.0
 
     def object(self, key: tuple[str, int] | None) -> CameraObject | None:
         return next((obj for obj in self.objects if obj.key == key), None)

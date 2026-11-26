@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sage_worldbuilder.terrain.apply_texture import ApplyTextureOptions
+from sage_worldbuilder.ui.window_sizes import remember_size
 
 __all__ = ["ApplyTextureDialog"]
 
@@ -23,6 +24,7 @@ __all__ = ["ApplyTextureDialog"]
 class ApplyTextureDialog(QDialog):
     def __init__(self, options: ApplyTextureOptions, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Apply texture to tiles")
         layout = QVBoxLayout(self)
         intro = QLabel(

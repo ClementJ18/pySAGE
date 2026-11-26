@@ -137,6 +137,7 @@ class SummonCarryoverPatch(Patch):
 
     name = "summon-carryover"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Summoned and spawned units with KindOf = ARMY_SUMMARY come home from a War of the Ring "
         "battle instead of being dropped. The post-battle harvest also requires a living-world "

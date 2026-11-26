@@ -14,6 +14,8 @@ the game. It needs an **elevated** shell, because `game.dat` runs as administrat
   object with its id, position and health). `--side`, `--owner`, `--upgrade` and `--damaged`
   filter it; note that `--owner` is real ownership and `--side` is the template's declared
   faction, and the two genuinely disagree.
+- `camera` - what the local client's camera sees: where it is, the ground the screen covers, and
+  the objects on screen with where each one falls on it. Works on an observer and in a replay.
 - `snapshot` - the entire observation as one JSON document, every field of every player and
   object. The export for a consumer that is not Python.
 - `watch` - stream a line per logic frame: frame number, object count, the local player's
@@ -34,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 import sys
 import time
 from collections import Counter
@@ -175,6 +178,63 @@ def cmd_objects(args: argparse.Namespace) -> int:
     for name, n in obs.census(objects).most_common():
         print(f"  {n:>5}  {name}")
     print(f"\n{len(objects)} objects, {len({o.template_name for o in objects})} templates")
+    return 0
+
+
+def cmd_camera(args: argparse.Namespace) -> int:
+    backend, obs = _observe(args)
+    view = backend.read_camera_view()
+    if view is None:
+        print("no camera to read - is a match or replay on screen?")
+        return 1
+    on_screen = [
+        (o, at)
+        for o in obs.objects
+        if (at := view.project(o.position)) is not None
+        and -args.margin <= at[0] <= 1.0 + args.margin
+        and -args.margin <= at[1] <= 1.0 + args.margin
+    ]
+    # Without a height the ground is taken to be where the things on screen stand: a map's
+    # terrain is rarely at zero, and casting the screen onto the wrong plane misplaces every
+    # corner by the height difference over the slope of the view.
+    height = args.height
+    if height is None:
+        height = statistics.median(o.position[2] for o, _ in on_screen) if on_screen else 0.0
+    footprint = view.ground_footprint(height)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "eye": view.eye,
+                    "forward": view.forward,
+                    "view_plane": view.view_plane,
+                    "near": view.near,
+                    "far": view.far,
+                    "orthographic": view.orthographic,
+                    "footprint_height": height,
+                    "footprint": footprint,
+                    "on_screen": [
+                        {"object_id": o.object_id, "template": o.template_name, "screen": at}
+                        for o, at in on_screen
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return 0
+    eye, ahead = view.eye, view.forward
+    print(f"eye             ({eye[0]:.1f}, {eye[1]:.1f}, {eye[2]:.1f})")
+    print(f"looking         ({ahead[0]:.3f}, {ahead[1]:.3f}, {ahead[2]:.3f})")
+    corners = "  ".join(f"({x:.0f}, {y:.0f})" for x, y in footprint)
+    print(f"ground at z={height:.0f}  {corners}")
+    print("                (top-left, top-right, bottom-right, bottom-left)")
+    print(f"\n{len(on_screen)} of {len(obs.objects)} objects on screen")
+    if args.list:
+        for o, at in sorted(on_screen, key=lambda pair: (pair[1][1], pair[1][0])):
+            print(f"{_object_row(o)}  screen ({at[0]:.2f}, {at[1]:.2f})")
+    else:
+        for name, n in obs.census(tuple(o for o, _ in on_screen)).most_common():
+            print(f"  {n:>5}  {name}")
     return 0
 
 
@@ -376,6 +436,18 @@ def build_parser() -> argparse.ArgumentParser:
     objects.add_argument("--upgrade", help="only objects carrying this OBJECT-scoped upgrade")
     objects.add_argument("--damaged", action="store_true", help="only objects that took damage")
     objects.add_argument("--json", action="store_true")
+
+    camera = add("camera", cmd_camera, "what the local camera sees, and the objects on screen")
+    camera.add_argument("--list", action="store_true", help="one row per object on screen")
+    camera.add_argument(
+        "--margin", type=float, default=0.0, help="widen the screen by this fraction on each side"
+    )
+    camera.add_argument(
+        "--height",
+        type=float,
+        help="ground height the footprint is cast onto (default: the median of what is on screen)",
+    )
+    camera.add_argument("--json", action="store_true")
 
     snapshot = add("snapshot", cmd_snapshot, "the whole observation as JSON")
     snapshot.add_argument("--compact", action="store_true", help="one line, for piping")

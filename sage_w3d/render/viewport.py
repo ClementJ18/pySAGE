@@ -194,6 +194,8 @@ class _MeshBuffers:
     skin_local_normals: np.ndarray | None
     skin_bone_indices: np.ndarray | None
     skin_bone_weights: np.ndarray | None
+    skin_local_positions_2: np.ndarray | None
+    skin_local_normals_2: np.ndarray | None
     rigid_bone: int | None
     visible: bool = field(default=True)
     pose_visible: bool = field(default=True)
@@ -235,6 +237,16 @@ def _build_buffers(mesh: RenderMesh) -> _MeshBuffers:
             if skin is not None
             else None
         ),
+        skin_local_positions_2=(
+            np.array(skin.local_positions_2, dtype=np.float32).reshape(-1, 3)
+            if skin is not None
+            else None
+        ),
+        skin_local_normals_2=(
+            np.array(skin.local_normals_2, dtype=np.float32).reshape(-1, 3)
+            if skin is not None
+            else None
+        ),
         rigid_bone=mesh.rigid_bone,
     )
 
@@ -245,29 +257,43 @@ def _skinned_arrays(
     bone_indices: np.ndarray,
     bone_weights: np.ndarray,
     matrices: np.ndarray,
+    local_positions_2: np.ndarray | None = None,
+    local_normals_2: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Linear blend skinning for every vertex at once: `M = w0*B[i0] + w1*B[i1]`, positions
-    transformed by the full `4x4` (rotation and translation), normals by its rotation block
-    only, then renormalized. A row with `w0 + w1 == 0` (`MeshSkin`'s "no valid influence"
-    convention) uses the identity matrix, leaving that vertex at its local position - the same
-    fallback `scene._blend_matrix_for_pair` bakes into the rest pose. `local_positions`/
-    `local_normals` are `(N, 3)`, `bone_indices`/`bone_weights` are `(N, 2)` - `MeshSkin`'s flat
-    per-vertex arrays reshaped for numpy; `matrices` is `(P, 4, 4)`, one row-major matrix per
-    hierarchy pivot (`Pose.world_matrices` as an array). No GL calls, so this is headless-
-    testable without a display or GPU."""
-    idx0, idx1 = bone_indices[:, 0], bone_indices[:, 1]
-    weight0, weight1 = bone_weights[:, 0:1, None], bone_weights[:, 1:2, None]
-    blended = matrices[idx0] * weight0 + matrices[idx1] * weight1  # (N, 4, 4)
+    """Linear blend skinning for every vertex at once: `p = w0*(B[i0] @ v) + w1*(B[i1] @ v2)`.
+    Each slot transforms its own copy of the vertex - `local_positions` (`VERTICES`, first-bone
+    space) by slot 0's bone, `local_positions_2` (`VERTICES_2`, extra-bone space) by slot 1's -
+    because a two-bone W3D vertex is stored once per bone; left out, the second copy is the
+    first. Positions take the full `4x4` (rotation and translation), normals its rotation block
+    only, then are renormalized. A row with `w0 + w1 == 0` (`MeshSkin`'s "no valid influence"
+    convention) stays at its local position - the same fallback `scene._skin_vertex` bakes into
+    the rest pose. Position/normal arrays are `(N, 3)`, `bone_indices`/`bone_weights` are
+    `(N, 2)` - `MeshSkin`'s flat per-vertex arrays reshaped for numpy; `matrices` is `(P, 4, 4)`,
+    one row-major matrix per hierarchy pivot (`Pose.world_matrices` as an array). No GL calls,
+    so this is headless-testable without a display or GPU."""
+    if local_positions_2 is None:
+        local_positions_2 = local_positions
+    if local_normals_2 is None:
+        local_normals_2 = local_normals
+    bone0 = matrices[bone_indices[:, 0]]  # (N, 4, 4)
+    bone1 = matrices[bone_indices[:, 1]]
+    weight0, weight1 = bone_weights[:, 0:1], bone_weights[:, 1:2]
+
+    positions = (
+        np.einsum("nij,nj->ni", bone0[:, :3, :3], local_positions) + bone0[:, :3, 3]
+    ) * weight0 + (
+        np.einsum("nij,nj->ni", bone1[:, :3, :3], local_positions_2) + bone1[:, :3, 3]
+    ) * weight1
+    normals = (
+        np.einsum("nij,nj->ni", bone0[:, :3, :3], local_normals) * weight0
+        + np.einsum("nij,nj->ni", bone1[:, :3, :3], local_normals_2) * weight1
+    )
 
     no_influence = (bone_weights[:, 0] + bone_weights[:, 1]) <= 0.0
     if np.any(no_influence):
-        blended[no_influence] = np.eye(4, dtype=np.float32)
+        positions[no_influence] = local_positions[no_influence]
+        normals[no_influence] = local_normals[no_influence]
 
-    ones = np.ones((local_positions.shape[0], 1), dtype=np.float32)
-    homogeneous = np.concatenate([local_positions, ones], axis=1)
-    positions = np.einsum("nij,nj->ni", blended, homogeneous)[:, :3]
-
-    normals = np.einsum("nij,nj->ni", blended[:, :3, :3], local_normals)
     lengths = np.linalg.norm(normals, axis=1, keepdims=True)
     safe_lengths = np.where(lengths == 0.0, 1.0, lengths)  # a zero-length normal divides by 1
     normals = normals / safe_lengths
@@ -350,6 +376,8 @@ class W3DViewport(QOpenGLWidget):
                     mesh.skin_bone_indices,
                     mesh.skin_bone_weights,
                     matrices,
+                    mesh.skin_local_positions_2,
+                    mesh.skin_local_normals_2,
                 )
             if mesh.rigid_bone is not None and 0 <= mesh.rigid_bone < len(pose.pivot_visible):
                 mesh.pose_visible = pose.pivot_visible[mesh.rigid_bone]

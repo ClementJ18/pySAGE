@@ -741,6 +741,9 @@ _PREVIEW_SHARE = 0.26
 _PREVIEW_MIN, _PREVIEW_MAX = 160, 420
 _PREVIEW_MARGIN = 10
 _PREVIEW_ASPECT = 3 / 4
+# How far the drawn cone of vision reaches, in world units. The preview itself sees as far as the
+# main view; the cone stays short so it does not swallow the map.
+_FRUSTUM_LENGTH = 1000.0
 
 
 class MapView3D(QOpenGLWidget, OverlayPainter):
@@ -1275,7 +1278,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         self._draw_camera_handles(painter, scene)
 
     def _draw_frustum(self, painter: QPainter, scene: CameraScene) -> None:
-        """What the preview sees, as the pyramid out to its far clip distance."""
+        """What the preview sees, as a pyramid of a fixed length."""
         pose = scene.preview
         assert pose is not None
         forward, up = pose_axes(pose)
@@ -1289,7 +1292,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 forward,
                 up,
                 pose.fov if pose.fov > 0 else math.radians(FIELD_OF_VIEW),
-                max(scene.far_clip, 10.0),
+                _FRUSTUM_LENGTH,
                 aspect,
             ),
         )
@@ -1501,7 +1504,7 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
 
     def _draw_preview(self, document: MapDocument, grid: TerrainGrid, ratio: float) -> None:
         """The scene again, in the preview pane, from the pose the Cameras panel asks for: the
-        animation at its frame, seen through its own field of view and out to its far clip."""
+        animation at its frame, seen through its own field of view."""
         scene = self.camera_scene
         rect = self.preview_rect()
         if rect is None or scene is None or scene.preview is None:
@@ -1516,7 +1519,6 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
                 math.degrees(pose.fov) if pose.fov > 0 else FIELD_OF_VIEW,
                 max(int(rect.width()), 1),
                 max(int(rect.height()), 1),
-                far=max(scene.far_clip, 10.0),
             ),
             dtype=np.float32,
         )
@@ -1526,6 +1528,9 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         glViewport(left, bottom, width, height)
         glScissor(left, bottom, width, height)
         glEnable(GL_SCISSOR_TEST)
+        # A clear leaves depth alone while depth writes are off; the main view's depth would
+        # then hide the preview wherever its own scene lies farther away.
+        glDepthMask(GL_TRUE)
         self._clear_to_background()
         self._draw_pass(document, grid, matrix)
         glDisable(GL_SCISSOR_TEST)
@@ -2015,6 +2020,8 @@ class MapView3D(QOpenGLWidget, OverlayPainter):
         glBindTexture(GL_TEXTURE_2D, 0)
         # The water drawn after this, and the terrain of the next frame, have no back to cull.
         glDisable(GL_CULL_FACE)
+        glDisable(GL_BLEND)
+        glDepthMask(GL_TRUE)
 
     def _water_surface_drawn(self, area: object) -> bool:
         return self.options.show_water and id(area) in self._water_drawn

@@ -272,7 +272,7 @@ class ScriptLibrary:
         asset_data = context.stream.getvalue()
         header_stream = BinaryStream(io.BytesIO())
 
-        compression_bytes = self.compression_bytes if self.compression_bytes else "    "
+        compression_bytes = self.compression_bytes or "CkMp"
         header_stream.write_fourcc(compression_bytes)
 
         asset_count = len(context.assets_by_index)

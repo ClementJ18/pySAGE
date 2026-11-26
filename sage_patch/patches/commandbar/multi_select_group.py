@@ -29,6 +29,8 @@ from ...addresses import (
     AI_GROUP_UPGRADE_MEMBER_RESUME,
     AI_GROUP_UPGRADE_MEMBER_SKIP,
     AI_GROUP_UPGRADE_SELF_EBP,
+    COMMAND_BUTTON_CONDITION_DISABLED,
+    COMMAND_BUTTON_CONDITION_GATE,
     COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY,
     COMMAND_BUTTON_CTOR_TRIGGER_WHEN_READY_BYTES,
     COMMAND_BUTTON_FIELD_TABLE_REF_OPCODES,
@@ -50,9 +52,11 @@ from ...addresses import (
     CONTROL_BAR_MERGE_SLOT_EBP,
     FIELD_PARSE_STRIDE,
     INI_PARSE_UNSIGNED_SHORT,
+    OBJECT_GET_CONTROLLING_PLAYER,
     OBJECT_HAS_UPGRADE,
+    PLAYER_HAS_UPGRADE_COMPLETE,
 )
-from ...asm import JE, JL, JNE, Asm
+from ...asm import JAE, JE, JL, JNE, Asm
 from ...patcher import Patch
 from ...utils import (
     allocate_section,
@@ -111,6 +115,18 @@ COMMAND_BUTTON_UPGRADE = 0x24
 #: draws 33 slots and this record is one byte per drawn slot.
 SLOTS = 33
 
+#: The `CommandButton` fields `usable` reads: `Options` (whose `NEED_UPGRADE` is bit 6), the
+#: `NeededUpgrade` vector's begin and end, and `NeededUpgradeAny`. Offsets from the field table at
+#: `0x00C2BAC8`; the bit from `getCommandAvailability`'s own `test al, 0x40` at `0x009428CE`.
+COMMAND_BUTTON_OPTIONS = 0x1C
+OPTION_NEED_UPGRADE = 0x40
+COMMAND_BUTTON_NEEDED_UPGRADE_BEGIN = 0x28
+COMMAND_BUTTON_NEEDED_UPGRADE_END = 0x2C
+COMMAND_BUTTON_NEEDED_UPGRADE_ANY = 0x34
+#: `UpgradeTemplate::m_type`: 0 is PLAYER, 1 is OBJECT; `doObjectUpgrade` tests it at `0x0076FC33`.
+UPGRADE_TYPE = 0x04
+UPGRADE_TYPE_OBJECT = 1
+
 #: `ControlBar::getCommandAvailability` - `stdcall`, `ret 0x14`, `ecx` the `ControlBar`. Verdicts 1
 #: and 2 mean usable; the cave asks for nothing else. Arguments right to left are
 #: `(button, window, object, float *, recursing)`, and **a NULL window is supported** - the click
@@ -127,7 +143,18 @@ THE_CONTROL_BAR = 0x00DE7744
 
 #: The cave's routines, in the order they are laid out. The first four are hook targets; the rest
 #: are helpers they share.
-ROUTINES = ("reset", "seed", "merge", "member", "avail", "setof", "bybtn", "bygroup", "resolve")
+ROUTINES = (
+    "reset",
+    "seed",
+    "merge",
+    "member",
+    "avail",
+    "usable",
+    "setof",
+    "bybtn",
+    "bygroup",
+    "resolve",
+)
 
 #: The first bytes at every address the cave jumps to or calls, plus the windows that prove the
 #: hook sits inside the function this patch believes it does. A build whose layout moved fails here
@@ -186,6 +213,11 @@ ANCHORS: dict[int, bytes] = {
     OBJECT_HAS_UPGRADE: bytes.fromhex("8b44240485c07504"),
     GET_COMMAND_SET_STRING: bytes.fromhex("568bf1578dbe3804"),
     GET_COMMAND_BUTTON: bytes.fromhex("558bec568bf1"),
+    # What `usable` calls: the model-condition gate, and the two halves of the `NeededUpgrade`
+    # test - each asked of the object it is about, never of the local player.
+    COMMAND_BUTTON_CONDITION_GATE: bytes.fromhex("5356578b7c2410"),
+    OBJECT_GET_CONTROLLING_PLAYER: bytes.fromhex("8b891c030000"),
+    PLAYER_HAS_UPGRADE_COMPLETE: bytes.fromhex("8b44240485c07504"),
     COMMAND_SET_STORE_FIND_COMMAND_SET: bytes.fromhex("558bec"),
     INI_PARSE_UNSIGNED_SHORT: bytes.fromhex("558bec5151"),
 }
@@ -276,6 +308,7 @@ def _assemble(code_va: int, flags_va: int) -> Asm:
     _emit_merge(a, flags_va)
     _emit_member(a)
     _emit_avail(a)
+    _emit_usable(a)
     _emit_setof(a)
     _emit_bybtn(a)
     _emit_bygroup(a)
@@ -512,6 +545,86 @@ def _emit_avail(a: Asm) -> None:
     a.emit(0xC3)  # ret
 
 
+def _emit_usable(a: Asm) -> None:
+    """`int usable(CommandButton *btn, Object *obj)` - cdecl, 1 when the button's own
+    prerequisites hold for this object: its `Enable`/`DisableOnModelCondition`, and with
+    `NEED_UPGRADE` its `NeededUpgrade` list, all of them or (`NeededUpgradeAny`) one.
+
+    `avail` cannot answer this from the member loop: `getCommandAvailability` tests a PLAYER
+    upgrade on `ThePlayerList`'s *local* player (`0x00942756`), which is a different player on
+    every peer. This asks the object's controlling player instead, and reads nothing that is not
+    logic state, so every peer agrees. The loop mirrors the stock one at `0x009428CB`, except that
+    an OBJECT upgrade still in production counts as missing, which is all a purchase needs."""
+    a.label("usable")
+    a.emit(0x55)  # push ebp
+    a.emit(0x8B, 0xEC)  # mov ebp, esp
+    a.emit(0x53, 0x56, 0x57)  # push ebx / push esi / push edi
+    a.emit(0x8B, 0x7D, 0x08)  # mov edi, [ebp+8]     ; the CommandButton
+    a.emit(0x8B, 0x5D, 0x0C)  # mov ebx, [ebp+0xc]   ; the Object
+    a.emit(0x53)  # push ebx
+    a.emit(0x57)  # push edi
+    a.call_absolute(COMMAND_BUTTON_CONDITION_GATE)  # stdcall, ret 8
+    a.emit(0x83, 0xF8, COMMAND_BUTTON_CONDITION_DISABLED)  # cmp eax, 3
+    a.jcc(JE, "usable_no")
+    a.emit(0xF6, 0x47, COMMAND_BUTTON_OPTIONS, OPTION_NEED_UPGRADE)  # test byte [edi+0x1c], 0x40
+    a.jcc(JE, "usable_yes")
+    a.emit(0x8B, 0xCB)  # mov ecx, ebx
+    a.call_absolute(OBJECT_GET_CONTROLLING_PLAYER)  # thiscall, no arguments
+    a.emit(0x50)  # push eax                         ; [ebp-0x10]: the player, maybe NULL
+    a.emit(0x8B, 0x77, COMMAND_BUTTON_NEEDED_UPGRADE_BEGIN)  # mov esi, [edi+0x28]
+    a.label("usable_next")
+    a.emit(0x3B, 0x77, COMMAND_BUTTON_NEEDED_UPGRADE_END)  # cmp esi, [edi+0x2c]
+    a.jcc(JAE, "usable_end")
+    a.emit(0x8B, 0x06)  # mov eax, [esi]
+    a.emit(0x83, 0xC6, 0x04)  # add esi, 4
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "usable_next")
+    a.emit(0x8B, 0x48, UPGRADE_TYPE)  # mov ecx, [eax+4]
+    a.emit(0x85, 0xC9)  # test ecx, ecx
+    a.jcc(JNE, "usable_object")
+    a.emit(0x8B, 0x4D, 0xF0)  # mov ecx, [ebp-0x10]  ; PLAYER: asked of the object's own player
+    a.emit(0x85, 0xC9)  # test ecx, ecx
+    a.jcc(JNE, "usable_player")
+    a.emit(0x32, 0xC0)  # xor al, al                 ; no player counts as missing
+    a.jmp("usable_judge")
+    a.label("usable_player")
+    a.emit(0x50)  # push eax
+    a.call_absolute(PLAYER_HAS_UPGRADE_COMPLETE)  # thiscall, ret 4
+    a.jmp("usable_judge")
+    a.label("usable_object")
+    a.emit(0x83, 0xF9, UPGRADE_TYPE_OBJECT)  # cmp ecx, 1
+    a.jcc(JNE, "usable_next")  # neither type: stock skips it too
+    a.emit(0x50)  # push eax
+    a.emit(0x8B, 0xCB)  # mov ecx, ebx
+    a.call_absolute(OBJECT_HAS_UPGRADE)  # thiscall, ret 4
+    a.label("usable_judge")
+    a.emit(0x80, 0x7F, COMMAND_BUTTON_NEEDED_UPGRADE_ANY, 0x00)  # cmp byte [edi+0x34], 0
+    a.jcc(JE, "usable_all")
+    a.emit(0x84, 0xC0)  # test al, al                ; any: one is enough
+    a.jcc(JNE, "usable_yes_framed")
+    a.jmp("usable_next")
+    a.label("usable_all")
+    a.emit(0x84, 0xC0)  # test al, al                ; all: one missing is too many
+    a.jcc(JE, "usable_no_framed")
+    a.jmp("usable_next")
+    a.label("usable_end")
+    a.emit(0x80, 0x7F, COMMAND_BUTTON_NEEDED_UPGRADE_ANY, 0x00)  # cmp byte [edi+0x34], 0
+    a.jcc(JNE, "usable_no_framed")  # any, and none was there (stock refuses an empty list too)
+    a.label("usable_yes_framed")
+    a.emit(0x59)  # pop ecx                          ; drop the player
+    a.label("usable_yes")
+    a.emit(0xB8, u32(1))  # mov eax, 1
+    a.jmp("usable_out")
+    a.label("usable_no_framed")
+    a.emit(0x59)  # pop ecx
+    a.label("usable_no")
+    a.emit(0x33, 0xC0)  # xor eax, eax
+    a.label("usable_out")
+    a.emit(0x5F, 0x5E, 0x5B)  # pop edi / pop esi / pop ebx
+    a.emit(0x5D)  # pop ebp
+    a.emit(0xC3)  # ret
+
+
 def _emit_setof(a: Asm) -> None:
     """`CommandSet *setof(Object *obj)` - cdecl, 0 when the object names no known set.
 
@@ -608,7 +721,9 @@ def _emit_resolve(a: Asm) -> None:
     The member's own set offering `u` means it is at the right stage, and it takes `u` - which is
     every single-unit click. Otherwise `u`'s group is found from whichever member of the selection
     *does* name it - the click came from one of them - and the member's own button in that group
-    supplies the upgrade instead.
+    supplies the upgrade instead - provided that button is `usable`: the click executor only ever
+    checked the *clicked* button's prerequisites, so without this a group click on researched
+    blades bought unresearched arrows for the archers selected with them.
 
     A member whose set offers neither `u` nor a button in its group is refused, even though
     `canAcceptUpgrade` might take it: the union half of the merge shows a button only some of the
@@ -665,7 +780,14 @@ def _emit_resolve(a: Asm) -> None:
     a.emit(0x83, 0xC4, 0x08)  # add esp, 8
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JE, "resolve_none")  # no button in the group: not this member's to buy
-    a.emit(0x8B, 0x40, COMMAND_BUTTON_UPGRADE)  # mov eax, [eax+0x24]
+    a.emit(0x8B, 0xF0)  # mov esi, eax              ; the member's own button
+    a.emit(0xFF, 0x75, 0x08)  # push [ebp+8]        ; the member
+    a.emit(0x56)  # push esi
+    a.call("usable")
+    a.emit(0x83, 0xC4, 0x08)  # add esp, 8
+    a.emit(0x85, 0xC0)  # test eax, eax
+    a.jcc(JE, "resolve_none")  # its prerequisites do not hold: never its click to take
+    a.emit(0x8B, 0x46, COMMAND_BUTTON_UPGRADE)  # mov eax, [esi+0x24]
     a.emit(0x85, 0xC0)  # test eax, eax
     a.jcc(JNE, "resolve_out")
 
@@ -715,6 +837,7 @@ class MultiSelectGroupPatch(Patch):
 
     name = "multi-select-group"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a MultiSelectGroup number to CommandButton. Two buttons carrying the same non-zero "
         "value merge as if they were one when several units are selected, instead of blanking the "

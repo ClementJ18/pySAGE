@@ -114,8 +114,8 @@ def _attest(args: argparse.Namespace) -> int:
         return 2
     if not int.from_bytes(ready, "little"):
         print(
-            f"  pid {pid}: the hash has not been computed yet - it is folded at the first "
-            "MSG_LOGIC_CRC heartbeat, so start a match and wait ~100 frames"
+            f"  pid {pid}: the hash was never computed - the entry point did not run the attest "
+            "stub, so this client is not the binary it claims to be"
         )
         return 2
 

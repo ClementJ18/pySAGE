@@ -128,12 +128,19 @@ __all__ = [
     "AUTO_ABILITY_BEHAVIOR_VTABLE",
     "AUTO_HEAL_AFFECTS_CONTAINED",
     "AUTO_HEAL_ANCHORS",
+    "AUTO_HEAL_BUTTON_TRIGGERED",
     "AUTO_HEAL_CONTAINED_EXIT",
     "AUTO_HEAL_CONTAINED_EXIT_BYTES",
     "AUTO_HEAL_CONTAINED_ITERATE",
+    "AUTO_HEAL_HEAL_OBJECT",
+    "AUTO_HEAL_HEAL_PICK",
+    "AUTO_HEAL_HEAL_PICK_BYTES",
+    "AUTO_HEAL_HEAL_PICK_HOOK",
+    "AUTO_HEAL_HEAL_PICK_HOOK_BYTES",
     "AUTO_HEAL_LAST_RESPAWN_FRAME",
     "AUTO_HEAL_MODULE_BASE_SLOT",
     "AUTO_HEAL_MODULE_NAME_STRING",
+    "AUTO_HEAL_RADIUS",
     "AUTO_HEAL_RESPAWN_BLOCK",
     "AUTO_HEAL_RESPAWN_FX_LIST",
     "AUTO_HEAL_RESPAWN_MEMBER_FIXUP",
@@ -147,6 +154,7 @@ __all__ = [
     "BEHAVIOR_MODULE_INTERFACE",
     "BODY_GET_HEALTH_RATIO_SLOT",
     "BODY_GET_HEALTH_SLOT",
+    "BODY_GET_LAST_DAMAGE_INFO_SLOT",
     "BODY_GET_MAX_HEALTH_SLOT",
     "CASTLE_BEHAVIOR_DESTRUCTOR",
     "CASTLE_BEHAVIOR_FACTION_PREFAB",
@@ -245,6 +253,16 @@ __all__ = [
     "HORDE_CONTAIN_PRODUCED_GATE_BYTES",
     "HORDE_CONTAIN_PRODUCED_GATE_TEST",
     "HORDE_CONTAIN_PRODUCED_GATE_TEST_BYTES",
+    "HORDE_CONTAIN_RESPAWN_BANNER",
+    "HORDE_CONTAIN_RESPAWN_BANNER_ADDED",
+    "HORDE_CONTAIN_RESPAWN_BANNER_ADDED_BYTES",
+    "HORDE_CONTAIN_RESPAWN_BANNER_ADDED_CALL",
+    "HORDE_CONTAIN_RESPAWN_BANNER_ADDED_CALLEE",
+    "HORDE_CONTAIN_SETTLE_MEMBERS",
+    "HORDE_CONTAIN_SETTLE_SLOT_CLEAR",
+    "HORDE_CONTAIN_SETTLE_SLOT_CLEAR_BYTES",
+    "HORDE_CONTAIN_SETTLE_RANK_CLEAR",
+    "HORDE_CONTAIN_SETTLE_RANK_CLEAR_BYTES",
     "HORDE_GARRISON_CONTAIN_INTERFACE_VTABLE",
     "HORDE_IFACE_ANY_MEMBER_ACCEPTS_SLOT",
     "HORDE_IFACE_ASSIGN_SLOT",
@@ -267,6 +285,8 @@ __all__ = [
     "KINDOF_ARMY_SUMMARY_BYTE",
     "KINDOF_BASE_SITE",
     "KINDOF_DEAD_SLOTS",
+    "KINDOF_DEFENSIVE_WALL",
+    "KINDOF_ECONOMY_STRUCTURE",
     "KINDOF_HERO_BIT",
     "KINDOF_HERO_BYTE",
     "KINDOF_HORDE_BIT",
@@ -362,6 +382,18 @@ __all__ = [
     "MODIFIER_HOLDER_APPLY_REFUSE_CATEGORY",
     "MODIFIER_HOLDER_APPLY_REFUSE_LOOKUP",
     "MODIFIER_LIST_GET_VALUE",
+    "ATTRIBUTE_MODIFIER_POOL_VTABLE",
+    "ATTRIBUTE_MODIFIER_POOL_ENTRIES",
+    "ATTRIBUTE_MODIFIER_POOL_ENTRY_SIZE",
+    "ATTRIBUTE_MODIFIER_POOL_ENTRY_EXPIRY",
+    "ATTRIBUTE_MODIFIER_POOL_SUPPRESSED",
+    "ATTRIBUTE_MODIFIER_CATEGORY_COUNT",
+    "THE_ATTRIBUTE_MODIFIER_STORE",
+    "ATTRIBUTE_MODIFIER_STORE_LISTS",
+    "MODIFIER_LIST_CATEGORY",
+    "MODIFIER_LIST_ENTRY_SIZE",
+    "MODIFIER_TYPE_TABLE_REF",
+    "MODIFIER_TYPE_PRODUCTION",
     "MODIFIER_LIST_IGNORE_IF_ANTICATEGORY_ACTIVE",
     "MODIFIER_LIST_REPLACE_IN_CATEGORY_IF_LONGEST",
     "MODIFIER_TYPE_COMMAND_POINT_BONUS",
@@ -680,6 +712,19 @@ __all__ = [
     "TUNNEL_CONTAIN_UPDATE",
     "TUNNEL_CONTAIN_UPDATE_ENTRY",
     "TUNNEL_CONTAIN_UPDATE_VTABLE_SLOT",
+    "MODEL_CONDITION_FORTRESS_IMPROVEMENT_1",
+    "MODEL_CONDITION_UPGRADE_GARRISON",
+    "MODEL_CONDITION_UPGRADE_POSTERN_GATE",
+    "MODEL_CONDITION_UPGRADE_TREBUCHET",
+    "WALL_UPGRADE_UPDATE_FIND",
+    "WALL_UPGRADE_UPDATE_FIND_ENTRY",
+    "WALL_UPGRADE_UPDATE_IS_BUILT",
+    "WALL_UPGRADE_UPDATE_IS_BUILT_BYTES",
+    "WALL_UPGRADE_UPDATE_IS_BUILT_VTABLE_SLOT",
+    "WALL_UPGRADE_UPDATE_ATTACK_GATE",
+    "WALL_UPGRADE_UPDATE_ATTACK_GATE_BYTES",
+    "WALL_UPGRADE_UPDATE_HEALTH_BAR_GATE",
+    "WALL_UPGRADE_UPDATE_HEALTH_BAR_GATE_BYTES",
 ]
 
 # `ThePartitionManager` and `TheShroudManager`, the two subsystems holding visibility state
@@ -839,6 +884,12 @@ OBJECT_STATUS_UNSELECTABLE = 3
 # raised on, so an enemy-held one has to be destroyed rather than walked onto) from a plain
 # capture flag (recaptured by standing on it, which is the tactic's real purpose).
 KINDOF_BASE_SITE = 120
+# `KindOf ECONOMY_STRUCTURE`, bit 196 (`test byte [template+0x120], 0x10`): Edain's farms and
+# mines. `AI_ATTACK_MOVE_ECONOMY_FILTER` rejects it.
+KINDOF_ECONOMY_STRUCTURE = 196
+# `KindOf DEFENSIVE_WALL`, bit 61 (`template + 0x10F`, `0x20`): fences, palisades and camp walls,
+# the obstacles that are not castle wall pieces.
+KINDOF_DEFENSIVE_WALL = 61
 # `ObjectStatus::UNDER_CONSTRUCTION`, bit 2 of the mask at `OBJECT_STATUS`, tested through
 # `OBJECT_TEST_STATUS`. Index 2 of the name table at `OBJECT_STATUS_NAMES`, and confirmed on
 # live-captured bytes: the half-built `ElvenMallornTree_Extern` in
@@ -913,6 +964,34 @@ ACTIVE_BODY_INTERNAL_CHANGE_HEALTH_SLOT = 0x84
 OBJECT_HAS_MODIFIER = 0x0068C818
 OBJECT_GET_MODIFIER_MULTIPLIER = 0x0068C82D
 MODIFIER_LIST_GET_VALUE = 0x00805268
+#: What `getModifierMultiplier` walks, for a reader working out the same product from outside.
+#:
+#: The holder `Object::getModifierHolder` (`0x0068C4A6`) finds is the object's
+#: `AttributeModifierPoolUpdate` module, told apart by its primary vtable (written by its ctor at
+#: `0x008055DA`). Its live lists are `0x10`-byte entries from `+0x20` to `+0x24`: the list's index
+#: into `TheAttributeModifierStore`'s vector at `+0x0C`, and at `+0x08` the frame it expires on -
+#: `0x00804FFF` takes an entry only while `TheGameLogic+0x40` is below it. `0x00804D27` then drops
+#: a list whose category (`ModifierList+0x0C`, 0-14) is suppressed until a frame at or past now,
+#: the frame being at `+0x30 + 4 * category` on the pool. With the query's last argument 0 it also
+#: drops categories 10-14; the production queue passes 1.
+#:
+#: Each surviving list gives the value (`+0x04`) of its **first** `0x14`-byte modifier of the
+#: asked type (`+0x00`), and the lists' values multiply.
+ATTRIBUTE_MODIFIER_POOL_VTABLE = 0x00C4EA04
+ATTRIBUTE_MODIFIER_POOL_ENTRIES = 0x20
+ATTRIBUTE_MODIFIER_POOL_ENTRY_SIZE = 0x10
+ATTRIBUTE_MODIFIER_POOL_ENTRY_EXPIRY = 0x08
+ATTRIBUTE_MODIFIER_POOL_SUPPRESSED = 0x30
+ATTRIBUTE_MODIFIER_CATEGORY_COUNT = 15
+THE_ATTRIBUTE_MODIFIER_STORE = 0x00DE3C14
+ATTRIBUTE_MODIFIER_STORE_LISTS = 0x0C
+MODIFIER_LIST_CATEGORY = 0x0C
+MODIFIER_LIST_ENTRY_SIZE = 0x14
+#: The imm32 operand of `mov esi, table` in the modifier-type name walk (`0x00804CAD`): where the
+#: live `const char *[]` of type names is, wherever a type-appending patch has moved it.
+MODIFIER_TYPE_TABLE_REF = 0x00804CBA
+#: `PRODUCTION`'s index in that table, which appending patches leave where it is.
+MODIFIER_TYPE_PRODUCTION = 13
 #: `Object::m_position`, three floats. The floating-text sites read it as `[obj+0x38]`,
 #: `[obj+0x3c]`, `[obj+0x40]` and hand `addFloatingText` a `Coord3D` copy.
 OBJECT_POSITION = 0x38
@@ -1007,6 +1086,46 @@ KINDOF_DEAD_SLOTS = {
 #: `KindOf HERO` is index 90 - bit `0x04` of KindOf byte `+0xB`, which is `template + 0x113`.
 KINDOF_HERO_BYTE = 0x113
 KINDOF_HERO_BIT = 0x04
+# Banner respawn upgrades
+# A horde rebuilds a lost banner carrier through one
+# routine, which adds the new object to the horde and raises it to the horde's level but gives it
+# none of the horde's object upgrades.
+
+#: `HordeContain`'s banner-carrier respawn, `__thiscall` on the module, no arguments. Leaves at
+#: once while the banner slot (`module+0x26C`) is filled; otherwise builds the first
+#: `BannerCarriersAllowed` template (`ModuleData+0x218`) and adds it through the horde interface's
+#: `+0x74`. Its one caller is `0x00871A65`.
+HORDE_CONTAIN_RESPAWN_BANNER = 0x00870204
+#: `push edi / mov ecx, ebx / call 0x0086CC84` straight after the add: `edi` is the new banner and
+#: `ebx` the module, and the call is `__thiscall(Object *banner)`, `ret 4`.
+HORDE_CONTAIN_RESPAWN_BANNER_ADDED = 0x0087040C
+HORDE_CONTAIN_RESPAWN_BANNER_ADDED_BYTES = bytes.fromhex("578bcbe870c8ffff")
+#: Where the `call` sits inside that sequence, and the routine it reaches.
+HORDE_CONTAIN_RESPAWN_BANNER_ADDED_CALL = 0x0087040F
+HORDE_CONTAIN_RESPAWN_BANNER_ADDED_CALLEE = 0x0086CC84
+# Horde drag MOVING
+# Every horde AI update strips `MOVING` from the members
+# that have no order of their own, and the contain's slot move gives it back a few sub-frames later,
+# so a member the horde drags (cavalry in a direct attack's approach) runs without its run cycle.
+
+#: `__thiscall` on the horde interface (`HordeContain+0x11C`), no arguments: caches the horde AI's
+#: state id at `+0x80`, then walks the member list `0x00865598` returns and the id map at its own
+#: `+0x54` and, for each member whose AI is not busy (`0x00664485`), clears `MOVING` and calls the
+#: contain's `+0x80`.
+#: Reached as interface slot `+0xDC` from the end of `HordeAIUpdate::update` (`0x0089E40D`); the
+#: same function sits in the `HordeContain`, `HorseHordeContain` and `AODHordeContain` tables.
+HORDE_CONTAIN_SETTLE_MEMBERS = 0x0086F7A3
+#: The `MOVING` clear for a listed member (`ebx`) and for a mapped one (`edi`): read the condition
+#: dword `+0x110`, test bit 29 twice, `and byte [m+0x113], 0xDF`, notify the drawable. `ebp` is the
+#: `HordeContain` in both, so `[ebp+8]` is the horde. Each skips to the `+0x80` call after it.
+HORDE_CONTAIN_SETTLE_SLOT_CLEAR = 0x0086F801
+HORDE_CONTAIN_SETTLE_SLOT_CLEAR_BYTES = bytes.fromhex(
+    "8b83100100008bc8c1e91df6c1017415a900000020740e80a313010000df8bcbe816bde1ff"
+)
+HORDE_CONTAIN_SETTLE_RANK_CLEAR = 0x0086F874
+HORDE_CONTAIN_SETTLE_RANK_CLEAR_BYTES = bytes.fromhex(
+    "8b87100100008bc8c1e91df6c1017415a900000020740e80a713010000df8bcfe8a3bce1ff"
+)
 # Combo-horde recruitment
 # Derived in `docs/combo-horde-recruitment.md`. A horde produced by a building never fills itself:
 # `HordeContain::onObjectCreated` returns at its second instruction when the object has a
@@ -2044,6 +2163,35 @@ AUTO_HEAL_ANCHORS: dict[int, bytes] = {
     AUTO_HEAL_UPDATE_VTABLE: AUTO_HEAL_UPDATE.to_bytes(4, "little"),
     AUTO_HEAL_MODULE_NAME_STRING: b"AutoHealBehavior\x00",
 }
+#: `AutoHealBehavior::healObject(Object *target, Bool playFX)` - `__thiscall` on the module base,
+#: `ret 8`. Every arm of the update heals through it. It returns at once while module `+0x30` is
+#: set, which the constructor copies from `ButtonTriggered` (`0x00855687`), the special-ability
+#: trigger clears for one pulse (`0x00855431`, reached from `0x00854882`) and its stop sets again
+#: (`0x0085541B`); so a `ButtonTriggered` module only ever heals inside a button burst.
+AUTO_HEAL_HEAL_OBJECT = 0x00855761
+#: `ModuleData` offsets `healObject` chooses its heal by. `ButtonTriggered` is read only by the
+#: constructor in the stock image; `Radius` decides between the plain heal and the held one.
+AUTO_HEAL_BUTTON_TRIGGERED = 0x139
+AUTO_HEAL_RADIUS = 0x148
+#: The choice inside `healObject`, `esi` the `ModuleData` and `ebx` zero throughout:
+#:
+#:     008557b9  cmp  [esi+0x148], ebx    ; Radius vs 0
+#:     ...                                ; the amount, in SSE: no flag is written
+#:     008557d4  jne  0x008557E9          ; Radius != 0 -> attemptHealingFromSoleBenefactor
+#:     008557e2  call 0x00690532          ; Radius == 0 -> Object::attemptHealing
+#:
+#: `attemptHealingFromSoleBenefactor` (`0x00690584`) refuses a healer while another one's claim on
+#: the target (`Object+0x3D4` id, `+0x3D8` end frame) runs, so a burst is wasted on any unit a
+#: banner's pulse holds.
+AUTO_HEAL_HEAL_PICK = 0x008557A8
+AUTO_HEAL_HEAL_PICK_BYTES = bytes.fromhex(
+    "8b4f0833db538d45fc506a13e85f70e3ff399e48010000f30f2a863c010000f30f5845fcf30f2cc0f30f2ac0"
+    "7513ff7708518b4d08f30f110424e84bade3ffeb17ffb640010000ff7708518b4d08f30f110424e884ade3ff"
+)
+#: The `cmp [esi+0x148], ebx` at `AUTO_HEAL_HEAL_PICK + 0x11`: six bytes, one whole instruction,
+#: and nothing in the image branches into it or into the SSE run up to the `jne`.
+AUTO_HEAL_HEAL_PICK_HOOK = 0x11
+AUTO_HEAL_HEAL_PICK_HOOK_BYTES = bytes.fromhex("399e48010000")
 #: `Object+0x25C` - the object's `BodyModule`, and the three getter slots on its vtable that the
 #: construction arithmetic reads. `+0x10` is `getHealth`, `+0x14` `getHealthRatio` (health over
 #: maximum, so `[0, 1]`) and `+0x1C` `getMaxHealth`; all three are `__thiscall`, take no argument
@@ -2053,6 +2201,14 @@ OBJECT_BODY_MODULE = 0x25C
 BODY_GET_HEALTH_SLOT = 0x10
 BODY_GET_HEALTH_RATIO_SLOT = 0x14
 BODY_GET_MAX_HEALTH_SLOT = 0x1C
+#: Body vtable `+0x40`, `getLastDamageInfo`: `__thiscall`, no argument, returns the `DamageInfo` of
+#: the last hit the body recorded (`ActiveBody+0x30`, copied at `0x008C42F5`; its frame follows at
+#: `+0xAC`, slot `+0x44`), or NULL from `InactiveBody` (`0x00851E97`). Its
+#: `DAMAGE_INFO_DAMAGE_DEALT` is the armour-adjusted amount times the body's damage scalar
+#: (`0x008C4068`-`0x008C4086`).
+#: Within one frame, and the one after, a later hit only replaces the record under conditions on the
+#: two attackers (`0x008C429C`-`0x008C42EF`).
+BODY_GET_LAST_DAMAGE_INFO_SLOT = 0x40
 #: `Object+0x288` - the construction percent, `0` to `100`, or `-1.0` for "not being built".
 OBJECT_CONSTRUCTION_PERCENT = 0x288
 #: `GettingBuiltBehavior::update`'s self-build heal, the path taken when no builder is driving the
@@ -2839,3 +2995,37 @@ COST_MODIFIER_UPGRADE_CAPTURE = 0x008B9C4D
 COST_MODIFIER_UPGRADE_APPLY = 0x008B9CD9
 COST_MODIFIER_UPGRADE_STARTS_ACTIVE = 0x008B9D0F
 COST_MODIFIER_UPGRADE_FIELD_PARSE_BUILDER = 0x008B9EB6
+
+# --- WallUpgradeUpdate: when a castle wall plot counts as built ---------------------------------
+#: `ModelConditionFlags` indices the wall-plot "is built" predicate reads.
+MODEL_CONDITION_UPGRADE_GARRISON = 0x107
+MODEL_CONDITION_UPGRADE_POSTERN_GATE = 0x108
+MODEL_CONDITION_UPGRADE_TREBUCHET = 0x109
+MODEL_CONDITION_FORTRESS_IMPROVEMENT_1 = 0x10F
+#: `WallUpgradeUpdate *findWallUpgradeUpdate(Object *)` - `__cdecl`, caller pops; finds the module
+#: by its class-name key (literal `0x00C0B0C0`) through `OBJECT_FIND_MODULE`, NULL when absent.
+WALL_UPGRADE_UPDATE_FIND = 0x008AE8F0
+WALL_UPGRADE_UPDATE_FIND_ENTRY = bytes.fromhex("b82e28ba00e8f6e5")
+#: The plot's "is built" predicate, the only slot of the interface vtable the module stores at
+#: `+0x24` (`0x00C6B27C`, which is its only reference). `__thiscall(ecx = module+0x24) -> 0/1` in
+#: `eax`; reads the object at `[ecx-0x1c]` and answers 1 only when it carries `UPGRADE_TREBUCHET`,
+#: `UPGRADE_POSTERN_GATE` or `UPGRADE_GARRISON`. A plot built into anything else (an add-on that
+#: plays `FORTRESS_IMPROVEMENT_1`) stays "unbuilt": no health bar, and nothing may attack it.
+WALL_UPGRADE_UPDATE_IS_BUILT = 0x008AEAA9
+WALL_UPGRADE_UPDATE_IS_BUILT_BYTES = bytes.fromhex(
+    "568b71e468090100008bcee85ffebbff84c0752468080100008bcee84ffebbff84c0751468070100008bce"
+    "e83ffebbff84c0750433c05ec333c0405ec3"
+)
+WALL_UPGRADE_UPDATE_IS_BUILT_VTABLE_SLOT = 0x00C6B27C
+#: `Object::getAbleToAttackSpecificObject`: a `WALL_UPGRADE` victim with the module and the
+#: predicate false returns "cannot attack" (`je 0x0068D78D`). From `push ebx` (the victim).
+WALL_UPGRADE_UPDATE_ATTACK_GATE = 0x0068D703
+WALL_UPGRADE_UPDATE_ATTACK_GATE_BYTES = bytes.fromhex(
+    "53e8e711220085c059740b8d48248b01ff1084c07474"
+)
+#: The drawable's health-bar pass: a `WALL_UPGRADE` (`ThingTemplate+0x118` bit `0x400000`) with
+#: the predicate false draws no bar (`je 0x00676519`). From `push esi` (the object).
+WALL_UPGRADE_UPDATE_HEALTH_BAR_GATE = 0x00676474
+WALL_UPGRADE_UPDATE_HEALTH_BAR_GATE_BYTES = bytes.fromhex(
+    "56e87684230085c059740f8d48248b01ff1084c00f84"
+)

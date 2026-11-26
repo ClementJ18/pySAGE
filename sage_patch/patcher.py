@@ -18,6 +18,7 @@ from sage_ini.engine import STOCK, Engine
 
 __all__ = [
     "apply_patches",
+    "application_order",
     "EXPERIMENTAL_WARNING",
     "log",
     "Patch",
@@ -52,6 +53,9 @@ class Patch:
        original bytes, so the second patch to reach a site raises.
     3. **Do not derive output from bytes another patch rewrites.** The framework cannot catch this;
        if a patch must, say so in its docstring and treat the pair as ordered.
+
+    A pair that is ordered names its predecessors in `apply_after`; `application_order` puts them
+    first wherever a build is applied or listed.
     """
 
     name: str = ""
@@ -70,6 +74,9 @@ class Patch:
     #: Whether the patch has been observed working in a running game: `"yes"`, `"partly"` (some of
     #: it has), or `""` (not yet). The patch's write-up has the details.
     runtime_verified: str = ""
+    #: Patches that must be applied before this one when a build carries both - by name, so a
+    #: patch can name one it does not import. Honoured by `application_order`.
+    apply_after: tuple[str, ...] = ()
 
     @property
     def credit(self) -> str:
@@ -145,12 +152,33 @@ class Patch:
         return self.name or type(self).__name__
 
 
+def application_order(patches: Iterable[Patch]) -> list[Patch]:
+    """`patches` in the order they have to be applied: each after every patch it names in
+    `apply_after`, and otherwise as given, so a list with no such constraint comes back unchanged.
+
+    Raises `ValueError` for a cycle, which no build can satisfy."""
+    pending = list(patches)
+    ordered: list[Patch] = []
+    while pending:
+        waiting = {patch.name for patch in pending}
+        ready = next(
+            (patch for patch in pending if not waiting.intersection(patch.apply_after)), None
+        )
+        if ready is None:
+            names = ", ".join(patch.name for patch in pending)
+            raise ValueError(f"these patches each wait for another to be applied first: {names}")
+        ordered.append(ready)
+        pending.remove(ready)
+    return ordered
+
+
 def apply_patches(
     game_dat: str | Path,
     patches: Iterable[Patch],
     output: str | Path | None = None,
 ) -> Path:
-    """Apply `patches`, in order, to a copy of `game_dat` and write the result.
+    """Apply `patches` to a copy of `game_dat` and write the result, in the order given except
+    where `application_order` has to move one after a patch it names in `apply_after`.
 
     `output` defaults to `game_dat` itself (overwriting it); pass a path to keep the original.
     Returns the path written. Raises before writing anything if any patch fails.
@@ -159,7 +187,7 @@ def apply_patches(
     data = bytearray(src.read_bytes())
     orig_len = len(data)
 
-    patches = list(patches)
+    patches = application_order(patches)
     for patch in patches:
         # Warn *before* the applying line, not after and not in a summary at the end, because a
         # patch that raises halfway has still been warned about - and because the last thing on

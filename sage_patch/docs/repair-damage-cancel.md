@@ -13,6 +13,9 @@ its repair stopped. It misses two cases:
 2. **A structure with `SpawnTimer < 0`** (auto-heal off): castles, walls, gates, camps, outposts.
    The cancel is behind a `SpawnTimer >= 0` test.
 
+And any hit counts, however small: an arrow that a building's armour turns into a point of damage
+stops a repair as surely as a ram. `--min-damage` sets the least damage a hit must deal (§7).
+
 ## 1. The interface
 
 A structure's repair belongs to its `GettingBuiltBehavior`. The module exposes a
@@ -180,7 +183,116 @@ Every worker-using `GettingBuiltBehavior` in Edain has a positive `SpawnTimer`: 
 180 s default, 31 leave it at the 30 s field default, and 6 set 120 or 15. So the rewind never
 stores a value that would spawn at once. Structures with `SpawnTimer = -1` have no worker.
 
-## 7. What the player gets
+## 7. `--min-damage`: only a heavy hit counts
+
+### 7.1 Where "damaged recently" is decided
+
+The probe of §2 turns `wasDamagedWithin`'s answer into the flag `[ebp-1]`:
+
+```
+00857ec2  call 0x0068c933               ; Object::wasDamagedWithin(&attacker, 4 s)
+00857ec7  test al, al                   ; <-- min-damage hook: 8 bytes, to 0x00857ECF
+00857ec9  mov  byte [ebp-1], 1
+00857ecd  jne  0x857ed3
+00857ecf  mov  byte [ebp-1], 0
+00857ed3  lea  ecx, [esi-0x10]          ; resume
+```
+
+`[ebp-1]` has two readers: the stock cancel at `0x00857F3A`, and this patch's cave. The auto-repair
+countdown (`0x00857818`) calls `wasDamagedWithin` itself, so a light hit still holds a new worker
+back for four seconds.
+
+### 7.2 The last hit's damage
+
+The body keeps the whole `DamageInfo` of its last hit. Body vtable slot `+0x40`,
+`getLastDamageInfo`, is `lea eax, [ecx+0x30]; ret` (`0x00715914`) on every `ActiveBody` vtable,
+and `xor eax, eax; ret` (`0x00851E97`) on `InactiveBody`'s. The `DamageInfo` is `0x7C` bytes, so
+the last-hit frame at `+0xAC` that slot `+0x44` reads directly follows it.
+
+`ActiveBody::attemptDamage` (`0x008C3FA3`) fills `DamageInfo+0x70` and then copies the info:
+
+```
+008c4063  call 0x5d893c                 ; Armor::adjustDamage
+008c4068  fstp dword [ebp-0x18]
+008c407c  movss xmm0, [esi+4]           ; the body's damage scalar
+008c4081  mulss xmm0, [ebp-0x18]
+008c4086  movss [ebp-0x18], xmm0
+...
+008c4280  movss [ebx+0x70], xmm0        ; dealt = [ebp-0x18]
+008c428f  movss [ebx+0x74], xmm0        ; health actually lost
+...
+008c42f5  call 0x7441e0                 ; body+0x30 = this DamageInfo
+008c4309  mov  [esi+0xac], eax          ; and its frame
+```
+
+So `+0x70` is the hit after armour and the body's damage scalar, not clipped to the health left.
+Within one frame, and the frame after it, a later hit only replaces the record under conditions on
+the two attackers (`0x008C429C`-`0x008C42EF`).
+
+### 7.3 The edit
+
+With `min_damage` above zero, the eight bytes at `0x00857EC7` become a `jmp` and three `nop`s to a
+routine placed in `.rdcan` after the dismissal cave. Nothing branches into those eight bytes. With
+`min_damage` 0 (the default) they are left alone and the cave is the dismissal alone, byte for byte
+the patch as it was before the option.
+
+```asm
+    test al, al                     ; hit in the last four seconds?
+    je   quiet
+    mov  ecx, [edi+0x25c]           ; body
+    test ecx, ecx
+    je   recent                     ; no body: stock answer
+    mov  eax, [ecx]
+    call [eax+0x40]                 ; getLastDamageInfo
+    test eax, eax
+    je   recent                     ; no record: stock answer
+    movss xmm0, [eax+0x70]          ; dealt
+    mov  eax, <min_damage as float>
+    movd xmm1, eax
+    comiss xmm0, xmm1
+    jp   recent                     ; NaN: stock answer
+    jb   quiet
+recent:
+    mov  byte [ebp-1], 1
+    jmp  0x00857ed3
+quiet:
+    mov  byte [ebp-1], 0
+    jmp  0x00857ed3
+```
+
+`eax`, `ecx`, `edx` and `xmm0`/`xmm1` are free here, since a call comes before the hook and another
+follows at `0x00857ED9`. `edi` (the structure) and `esi` are untouched. The rubble case
+(`[esi+0x25]` set) branches straight to `0x00857ECF` and never reaches the hook.
+
+### 7.4 Choosing the value
+
+Edain uses 5, measured over Edain-Mod `main` on 2026-11-20 from each object's default `WeaponSet`
+`PRIMARY` weapon (through its warhead, without `RequiredUpgradeNames` nuggets) against the default
+`ArmorSet` of every object with a `GettingBuiltBehavior` (726):
+
+| Damage type | Units | Raw damage | Building armour | Hits that still cancel at 5 |
+|---|---|---|---|---|
+| `PIERCE` | 86 | 1-200 (half at 57 or less) | 0% or 1% | none |
+| `CAVALRY_RANGED` | 9 | 50-125, one wagon 400 | 0% or 1% (`HouseofElrondArmor` 25%) | 0.4% |
+| `HERO_RANGED` | 38 | 50-500 (most 225 or less) | 0-2%, a few 10% | 6.9% |
+
+Two buildings, `DolGoldurPrison` and `IsengardEconomyKeep`, carry `NoArmor` and take everything
+at 100%. They are left out above.
+
+At 5, other damage types lose these shares of their hits against repairable buildings: `SLASH`
+22%, `CAVALRY` 23%, `URUK` 20%, `SPECIALIST` 14%, `HERO` 4%, `SIEGE` 5% (its 0% armours). Those are
+weak units against high-armour buildings (walls, fortresses), which deal under 5 per hit after
+armour.
+
+### 7.5 Limits
+
+- **One hit is measured: the last.** A light hit after a heavy one, before the next update reads
+  it, hides the heavy one. The update runs about once a second (§4), so a ram hitting alongside
+  many archers cancels less often than it would alone.
+- **Unupgraded weapons.** Fire arrows, forged blades and rank bonuses raise `+0x70`, and can lift
+  an archer's hit over the threshold.
+
+## 8. What the player gets
 
 - A hit stops a worker's repair or rubble rebuild immediately. The worker fades out as it would on
   finishing.
@@ -190,23 +302,28 @@ stores a value that would spawn at once. Structures with `SpawnTimer = -1` have 
   cancel, which now also reaches `SpawnTimer < 0`.
 - The repair cost is not refunded. `canStartRepair` refuses a manual restart for
   `TimeAfterDamageUntilRepairAllowed` (10 s) after the last hit.
-- Any damage counts, including a burning DOT.
+- Any damage counts, including a burning DOT, unless `--min-damage` is set: then only a hit
+  dealing at least that much after armour (§7).
 - A structure still being built (`isStillBuilding`, `+0x16`) is not interrupted. A non-worker
   repair out of rubble (`startRepair` with `+0x15`) is not interrupted either, because the probe
   reports no damage for it.
 
-## 8. Determinism and composition
+## 9. Determinism and composition
 
 Everything here is logic state, so every peer must run the same patched binary. The edited engine
-bytes are the two at `0x00857F38` and the eight at `0x008580AC`. The nearest other patched site in
+bytes are the two at `0x00857F38` and the eight at `0x008580AC`, and with `--min-damage` the
+eight at `0x00857EC7`. The nearest other patched site in
 the function is the self-build heal at `0x00857FC1` (`construction-initial-health`), outside both.
 
-## 9. Status
+## 10. Status
 
 - The worker dismissal and the countdown rewind have been played: the cave was installed in a
   running game with `sage_live`'s live patcher (§5), not from a patched `game.dat`. A hit faded
   the worker, nothing respawned, and auto-repair came back when the rewound countdown ran out.
 - Still to watch: the gate erase on a castle wall with no worker, a manual repair restarted after
   the 10 s lockout, and one run from a patched `game.dat` on disk.
+- `--min-damage` has been run under Unicorn over the real probe
+  (`tests/sage_patch/test_repair_damage_cancel_min_damage.py`), not yet in a game: archers alone
+  should no longer stop a worker, a ram or a battalion of swordsmen still should.
 - The `wasDamagedWithin` probe has a second arm (`0x0068C94E`) for an object with a module at
   `Object+0x258` whose slot `+0x7C` answers non-NULL. Which structures take it is not established.

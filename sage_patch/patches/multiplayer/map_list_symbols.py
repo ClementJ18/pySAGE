@@ -561,6 +561,7 @@ class MapListSymbolsPatch(Patch):
 
     name = "map-list-symbols"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add mapSymbol to a MapCache entry, a number from 1 to the installed count that gives the "
         "map its own icon in the skirmish and multiplayer map list instead of the stock star or "

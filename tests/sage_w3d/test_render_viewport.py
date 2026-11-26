@@ -122,6 +122,32 @@ class TestSkinnedArrays:
 
         assert float(np.linalg.norm(normals[0])) == pytest.approx(1.0)
 
+    def test_second_slot_transforms_the_second_copy(self):
+        # Bone 0 at the origin, bone 1 at (2, 0, 0): the world point (3, 0, 0) is (3, 0, 0) in
+        # bone 0's space and (1, 0, 0) in bone 1's. Each bone must move its own copy, so a 30/70
+        # split stays on the point; applying both bones to the first copy gives (4.4, 0, 0).
+        local_positions = np.array([[3.0, 0.0, 0.0]], dtype=np.float32)
+        local_positions_2 = np.array([[1.0, 0.0, 0.0]], dtype=np.float32)
+        local_normals = np.array([[0.0, 0.0, 1.0]], dtype=np.float32)
+        bone_indices = np.array([[0, 1]], dtype=np.int32)
+        bone_weights = np.array([[0.3, 0.7]], dtype=np.float32)
+        moved = np.eye(4, dtype=np.float32)
+        moved[0, 3] = 2.0
+        matrices = np.stack([np.eye(4, dtype=np.float32), moved])
+
+        positions, normals = _skinned_arrays(
+            local_positions,
+            local_normals,
+            bone_indices,
+            bone_weights,
+            matrices,
+            local_positions_2,
+            local_normals,
+        )
+
+        assert positions[0] == pytest.approx([3.0, 0.0, 0.0])
+        assert normals[0] == pytest.approx([0.0, 0.0, 1.0])
+
 
 class TestPlaybackController:
     def test_is_a_qobject(self):

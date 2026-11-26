@@ -1,8 +1,6 @@
 # How `bfme2_accel.dll` decides which thread may draw
 
-*How does the recognised build keep the load-screen thread out of the moved renderer?*
-([`accel-port.md`](accel-port.md) §1.3.) Read 2026-09-22 from the DLL's machine code, with the author's
-permission, using `pefile` + `capstone`. DLL addresses are `bfme2_accel.dll` at its ImageBase
+*How does the recognised build keep the load-screen thread out of the moved renderer?* Read 2026-09-22 from the DLL's machine code, using `pefile` + `capstone`. DLL addresses are `bfme2_accel.dll` at its ImageBase
 `0x10000000`; engine addresses are ROTWK `game.dat` `2.01.2614.37001` at `0x400000`.
 
 ## TL;DR
@@ -182,7 +180,7 @@ Three things, none of which needs an engine address:
 3. **A positive identity for the game thread**, established before the first hooked call can matter.
 
 Item 3 is the one the DLL does worst. Its two mechanisms are a guess (64 calls) and a set of hooks
-that a whole-image checksum gates off ([`accel-port.md`](accel-port.md) §1.1). Two positive
+that a whole-image checksum gates off ([`render-thread.md`](render-thread.md) §2). Two positive
 identities exist that neither of those is:
 
 - **The owner of the device's focus window.** The engine creates that window on the game thread, and

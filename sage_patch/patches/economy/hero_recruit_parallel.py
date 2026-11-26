@@ -121,6 +121,7 @@ def build_code(base_va: int) -> bytes:
 class HeroRecruitParallelPatch(Patch):
     name = "hero-recruit-parallel"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop a hero being recruited from freezing the units and upgrades queued behind it at "
         "the same building. The hero's own revive time is unchanged; a ready hero still jumps "

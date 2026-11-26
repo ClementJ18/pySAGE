@@ -1,19 +1,20 @@
-"""Unit tests for the object-filter archetype registry (sage_wiki.archetypes)."""
+"""Unit tests for the object-filter archetype registry (sage_utils.views.archetypes)."""
 
 import pytest
 
 import sage_ini.model.definitions  # noqa: F401  (register classes)
 from sage_ini.model.game import Game
 from sage_ini.parser.blockparser import parse
-from sage_wiki.archetypes import (
+from sage_utils.views.archetypes import (
     archetype_key,
     collect_archetypes,
     describe_filter,
     discovery_report,
     label_for,
+    nugget_targets,
 )
 
-# Peripheral package (sage_wiki, deferred project): full suite only.
+# Peripheral package (not the sage_ini/sage_lint engine): full suite only.
 pytestmark = pytest.mark.full
 
 FIXTURE = """
@@ -120,3 +121,37 @@ def test_discovery_report_marks_unlabeled_shapes():
     report = discovery_report(game)
     assert "UNLABELED" in report
     assert "HARVESTER" in report
+
+
+def _nugget_scalars(game, weapon: str, index: int):
+    nugget = [n for n in game.weapons[weapon].Nuggets if type(n).__name__ == "DamageNugget"][index]
+    return [(scaled.Scalar, scaled.ObjectFilter) for scaled in nugget.DamageScalar]
+
+
+def test_nugget_targets_reads_bonuses_and_dropped_archetypes():
+    game = _game()
+    # A bonus becomes a modifier; a 0% inclusion just drops Structure from the general target.
+    assert nugget_targets(_nugget_scalars(game, "TrollPunch", 0)) == (
+        "General",
+        ["+150% vs Single"],
+    )
+    # A 0% exclusion spares only structures, so they are the target.
+    assert nugget_targets(_nugget_scalars(game, "TrollPunch", 1)) == ("Structure", [])
+
+
+def test_nugget_targets_scopes_the_target_to_the_special_object_filter():
+    game = Game()
+    result = parse(
+        "Weapon W\n  DamageNugget\n    Damage = 1\n"
+        "    SpecialObjectFilter = NONE +INFANTRY -CAVALRY\n"
+        "    DamageScalar = 50% ANY +PIKE\n  End\nEnd\n",
+        file="t.ini",
+    )
+    assert not result.diagnostics
+    game.load_document(result.document)
+    nugget = game.weapons["W"].Nuggets[0]
+    scalars = [(scaled.Scalar, scaled.ObjectFilter) for scaled in nugget.DamageScalar]
+    assert nugget_targets(scalars, nugget.SpecialObjectFilter) == (
+        "Infantry",
+        ["-50% vs Pikemen"],
+    )

@@ -2,7 +2,7 @@
 
 The enqueue (`0x1003E240`), the worker
 (`0x100448B0`) and the dispatch (`0x1003F590`) that [`accel-thread-identity.md`](accel-thread-identity.md)
-§5 left unread. Read 2026-09-24 from the DLL's machine code, with the author's permission, using
+§5 left unread. Read 2026-09-24 from the DLL's machine code, using
 `pefile` + `capstone`. DLL addresses are `bfme2_accel.dll` at its ImageBase `0x10000000`.
 
 ## TL;DR

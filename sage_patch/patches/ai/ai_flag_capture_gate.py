@@ -112,6 +112,7 @@ def build_code(base_va: int) -> bytes:
 class AiFlagCaptureGatePatch(Patch):
     name = "ai-flag-capture-gate"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop the skirmish AI's flag-capture squads targeting build plots that are already "
         "claimed, which they can never capture and stall on forever. No INI change: what the "

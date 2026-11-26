@@ -48,7 +48,8 @@ The live layouts these backends read are documented in `sage_patch/docs/engine-g
 """
 
 from sage_live.api import orders
-from sage_live.api.camera import CameraPan, ViewLocation
+from sage_live.api.camera import CameraPan, CameraView, ViewLocation
+from sage_live.api.chat import ChatLine
 from sage_live.api.connect import (
     AttachError,
     NoGameRunning,
@@ -72,6 +73,7 @@ from sage_live.api.observation import (
     SpecialPowerState,
     Vec3,
     distance,
+    ground_distance,
 )
 from sage_live.api.orders import OrderType
 from sage_live.api.session import (
@@ -134,6 +136,8 @@ __all__ = [
     "BridgeBackend",
     "BridgeUnavailable",
     "CameraPan",
+    "CameraView",
+    "ChatLine",
     "ConnectionRefused",
     "Diagnostic",
     "DiagnosticLog",
@@ -183,6 +187,7 @@ __all__ = [
     "encode_handshake",
     "encode_observation",
     "find_game_processes",
+    "ground_distance",
     "open_backend",
     "orders",
     "read_log",

@@ -43,8 +43,9 @@ ANCHORS: dict[int, bytes] = {
 class OsNameFallbackPatch(Patch):
     name = "os-name-fallback"
     author = "officialNecro"
-    # The game starts without compatibility mode on Windows 11 (2026-10-15); no full match yet
-    runtime_verified = "partly"
+    # The game starts without compatibility mode on Windows 11; confirmed in live Edain games as
+    # of 2026-11-15
+    runtime_verified = "yes"
     description = (
         "Name an unknown Windows version in the startup hardware report instead of printing an "
         "uninitialised pointer, so game.dat starts on Windows 10 and 11 without the Windows XP "

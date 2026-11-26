@@ -14,7 +14,7 @@ leaves every other level stock.
 - **Status:** built ([`patches/special_powers/spell_recharge_reset.py`](../patches/special_powers/spell_recharge_reset.py)).
   The stock bodies run under unicorn, stock and patched, in
   `tests/sage_patch/test_spell_recharge_reset.py`. **Runtime-verified for `onDelete`**
-  (2026-10-28): Edain-Mod's `tests/test_angmar_sorcery_tower_recharge.py` sells two towers of
+  (2026-10-28): Edain-Mod's `tests/angmar/test_angmar_sorcery_tower_recharge.py` sells two towers of
   sorcery one at a time. Stock reads level 0 with -0.2, patched level 0 with 0.0. `onCapture` is
   checked only under emulation.
 

@@ -141,7 +141,32 @@ Several enum types print a value name from a table inside `getUiText`: Compariso
 buildability (36), surface (37), camera shake (38), emotion (63) and stance (68) by indexing a
 string array; Boolean (8) and near/far (56) by comparison.
 
-## 6. Validation
+## 6. The parameter dialog's value lists
+
+`EditParameter::OnInitDialog` (jump table `0x004F65E9`, the same 78 types) fills the editor's
+control per type. It shows a combo for every reference and closed set, and a free edit box only
+for numbers, text, colour and team state (18). The combos are filled in two ways:
+
+- **Literals pushed after the label.** Relation (19: `Enemy`, `Neutral`, `Friend`) is stored by
+  index, with the name written beside it. Skirmish approach path (43) and threat type (66) are
+  stored by name: `getUiText` prints their string slot.
+- **`ScriptParameterEnumerators.cpp`.** Object panel flags (46) and science availability (50)
+  walk null-terminated string tables. Reverb rooms (60) come through the audio manager from
+  `{name, id}` pairs at `0x01E31708`, ids 0-25 with no terminator. Model conditions (58) and
+  object status (41) are the engine's own name tables; a mod build extends the first.
+
+The extractor writes the index-stored relation list into `parameter_values` and the name-stored
+lists into `named_values`. Map symbols (cameras, camera animations, the attack priority sets,
+object type lists and reveals its scripts name) and game definitions (audio by type, movies, EVA
+events, sides, `InGameNotificationBox` notification types) are listed by the editor at run time.
+A boundary (35) is an index, offered and printed by colour (`Boundary %s`, eight colours cycling,
+`0x01DF24F8`).
+
+The map corpus agrees on storage. Model condition, reverb room and notification type arguments
+hold names only; relation and object status hold the index and the name; boundaries hold only
+the index.
+
+## 7. Validation
 
 - **Maps.** All 464 distinct `(kind, content_type)` pairs in 476 maps (the `sage_map` fixtures and
   the Edain `_mod\maps` tree) resolve to a template whose internal name matches the name the map

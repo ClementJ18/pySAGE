@@ -125,6 +125,7 @@ def _call_to(va: int, target: int) -> bytes:
 class PlayerUpgradeDiscountPatch(Patch):
     name = "player-upgrade-discount"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let CostModifierUpgrade's UpgradeDiscount reduce the price of a Type = PLAYER upgrade, "
         "which the stock engine applies to OBJECT upgrades only. A PLAYER upgrade takes a "

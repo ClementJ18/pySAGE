@@ -17,7 +17,8 @@ without the DLL beside it the game runs as stock, but do not ship the DLL.
   findings (§5).
 - **The DLL has to be a build with the §3 fixes.** Stock `bfme2_accel.dll` identifies its build by a
   hash over all of `.text`. Any `sage_patch` edit makes that hash unknown, and on an unknown build
-  it guesses the game thread and leaves the engine-specific features off ([`accel-port.md`](accel-port.md) §1).
+  it guesses the game thread and leaves the engine-specific features off (§4.1; the crash that guess causes is
+  [`accel-thread-identity.md`](accel-thread-identity.md) §3).
 - **Windows 10/11 rewrite the device's vtable on every `BeginStateBlock`** (§4.2), so the DLL has to
   re-hook the device after every call, not once a second.
 - **Edain's XP compatibility mode wraps the device in a shim** that defeats the hooks a second way
@@ -267,7 +268,8 @@ can still be renamed, so rename the old one aside before copying a new build in.
 ## 7. Decisions
 
 1. **Credit** (2026-09-24). `author = "officialNecro"`, who is asked for fixes to the patch; OH1A is
-   credited in the patch's credit line and description for the DLL it loads.
+   credited in the patch's credit line and description for the DLL it loads. Every patch derived from
+   the DLL names him beside its `author`.
 2. **No module of our own** (2026-10-01). The fixes go to the accelerator's repository, and this
    repository keeps only the loader patch. The DLL is not committed here.
 3. **Report rather than keep patching** (2026-10-15). The §4.4 failure happens in stock 2.0 too, and

@@ -159,7 +159,7 @@ next - and differently on each peer, which is a desync.
 
 ## 6. What a running game showed, and what it has not settled
 
-Watched in Edain's `tests/test_ai_tunnel_routing.py` (2026-10-23): a Brutal Dwarves AI with two
+Watched in Edain's `tests/dwarves/test_ai_tunnel_routing.py` (2026-10-23): a Brutal Dwarves AI with two
 `DwarvenMineShaft_Extern` sent three `DwarvenGuardianLangbarteHorde` in at one shaft and out by the
 other, ~2,100 units on, in 22-30 logic frames where the walk took ~180. Counters in an
 instrumented copy of the cave settled what this section used to open with:

@@ -6,8 +6,8 @@ trigger areas, scripts, named units, named cameras and camera animations - keyed
 ask `MapSymbols.resolve(target, name)` to tell a dangling map-local reference (a script targeting
 a team the map never defines) from a valid one.
 
-Counters, flags and boundaries are referenced by scripts but never *declared* - the engine creates
-them on first use - so they are deliberately untracked: a reference to one cannot be dangling, and
+Counters and flags are referenced by scripts but never *declared* - the engine creates them on
+first use - so they are deliberately untracked: a reference to one cannot be dangling, and
 `resolve` returns `None` (skip) for those targets rather than a membership answer.
 
 `iter_script_arguments` walks the script tree and pairs every argument with its `ResolvedArg`
@@ -85,7 +85,7 @@ class MapSymbols:
     def resolve(self, target: str, name: str) -> bool | None:
         """Whether `name` is defined for `target`: True/False when tracked, None when not.
 
-        `None` means the target (counters, flags, boundaries) is referenced but never declared, so
+        `None` means the target (counters, flags) is referenced but never declared, so
         a rule must not treat a miss as dangling."""
         table = self._table(target)
         if table is None:

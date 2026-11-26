@@ -133,6 +133,7 @@ def build_code(cave_va: int) -> bytes:
 class TextureAnyExtensionPatch(Patch):
     name = "texture-any-extension"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let a model (or anything else that names a texture) reference it with any extension, or "
         "none: a name the asset cache does not hold is retried as <stem>.tga, the name asset.dat "

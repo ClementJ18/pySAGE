@@ -752,9 +752,16 @@ def skirmish_ai_fallback_image() -> bytearray:
 def lobby_faction_byte_image() -> bytearray:
     """A stand-in carrying the LAN packer's and parser's two seat arms, each as the whole window
     whose registers the caves read, plus the byte writer, the two nibble helpers and each parser
-    arm's next read. Sparse: the arms sit at `0x0084AB40`-`0x0084B7DF` and the helpers at
-    `0x009738A5`."""
-    return _sparse_image({**dict(lfb.WRITE_SITES), **dict(lfb.READ_SITES), **lfb.ANCHORS})
+    arm's next read and template hand-off. Sparse: the arms sit at `0x0084AB40`-`0x0084B7DF` and
+    the helpers at `0x009738A5`."""
+    return _sparse_image(
+        {
+            **dict(lfb.WRITE_SITES),
+            **dict(lfb.READ_SITES),
+            **dict(lfb.SET_TEMPLATE_SITES),
+            **lfb.ANCHORS,
+        }
+    )
 
 
 def crash_dump_image() -> bytearray:
@@ -797,15 +804,22 @@ def desync_debug_image() -> bytearray:
 
 
 def null_guards_image() -> bytearray:
-    """A stand-in carrying both guarded windows and every site the null guards depend on.
+    """A stand-in carrying every guarded window and every site the null guards depend on.
 
     Sparse for the usual reason: the transfer check and its two jump targets share a page, its two
     `ToggleMountedSpecialAbilityUpdate` call sites are two megabytes away, and the enter state's
-    `onEnter` and its vtable slot sit apart again. Everything not planted reads as zero, so a hook
-    aimed one instruction to either side of a window would find nothing there.
+    `onEnter` and its vtable slot sit apart again, as do the Create-a-Hero loader and lookups, and
+    `doLocomotor`, its vtable slot and the `Path` method it calls.
+    Everything not planted reads as zero, so a hook aimed one instruction to either side of a
+    window would find nothing there.
     """
     return _sparse_image(
-        {ng.TRANSFER_HOOK_VA: ng.TRANSFER_HOOK_ORIGINAL, ng.ENTER_HOOK_VA: ng.ENTER_HOOK_ORIGINAL}
+        {
+            ng.TRANSFER_HOOK_VA: ng.TRANSFER_HOOK_ORIGINAL,
+            ng.ENTER_HOOK_VA: ng.ENTER_HOOK_ORIGINAL,
+            ng.HERO_HOOK_VA: ng.HERO_HOOK_ORIGINAL,
+            ng.PATH_HOOK_VA: ng.PATH_HOOK_ORIGINAL,
+        }
         | ng.ANCHORS
     )
 
@@ -1463,6 +1477,7 @@ def battle_school_image() -> bytearray:
     return _sparse_image(
         {
             ad.BATTLE_SCHOOL_HANDLER: ad.BATTLE_SCHOOL_HANDLER_BYTES,
+            ad.SCRIPT_IS_DUE_CALL: ad.SCRIPT_IS_DUE_CALL_BYTES,
             **bs.ANCHORS,
         }
     )
@@ -1623,35 +1638,62 @@ def stock_modifier_name(index: int) -> str:
     return ps.TABLE_FINGERPRINT.get(index, f"MODTYPE_{index}")
 
 
-def binary_attest_image(text_va: int = ad.TEXT_SECTION_VA) -> bytearray:
-    """A stand-in carrying a full-size `.text` plus the two sites `binary-attest` reads.
+#: Where `binary_attest_image` plants what the loader reads: the entry point, the import
+#: descriptors and their two address tables (back to back, so they merge), the load config and the
+#: security cookie it names. The stock build's own addresses, to keep the stand-in recognisable.
+ATTEST_ENTRY_VA = 0x00A3D082
+ATTEST_IMPORTS_VA = 0x00EC6000
+ATTEST_IAT_VA = 0x00BD0000
+ATTEST_LOAD_CONFIG_VA = 0x00D0C548
+ATTEST_COOKIE_VA = 0x00DBDB40
 
-    **Not sparse, and it cannot be.** Every other stand-in here maps only the pages its patch
-    touches, because the addresses are what the test is about. This patch's subject is the
-    *whole* code section: it hashes `TEXT_SECTION_LEN` bytes and the property under test is that
-    one changed byte anywhere in that range changes the published value. A sparse image would
-    read past its own section and answer a different question.
 
-    The content is a cheap deterministic filler rather than zeros, so that a fold over it is a
-    real mixing test - an all-zero range makes FNV-1a's `xor` a no-op and would hide a swapped
-    operand. `text_va` is a parameter so a test can build the "`.text` moved" build that the
-    patch must refuse.
+def binary_attest_image() -> bytearray:
+    """A stand-in carrying the sites `binary-attest` and its hook-slot users read, an entry point,
+    two imports and a load config with a security cookie.
+
+    Sparse: the patch hashes whatever sections the image has, so the property under test - one
+    changed byte anywhere moves the value, the loader's ranges do not - holds for a few pages as
+    well as for the whole binary, and the live probe test covers the real one.
     """
-    text = bytearray(ad.TEXT_SECTION_LEN)
-    for index in range(0, ad.TEXT_SECTION_LEN, 4):
-        struct.pack_into("<I", text, index, (index * 2654435761) & 0xFFFFFFFF)
-
-    def plant(va: int, blob: bytes) -> None:
-        start = va - text_va
-        assert 0 <= start and start + len(blob) <= len(text), f"0x{va:08x} is outside .text"
-        text[start : start + len(blob)] = blob
-
-    plant(ad.LOGIC_CRC_EMIT, ad.LOGIC_CRC_EMIT_BYTES)
-    plant(ad.LOGIC_CRC_SHROUD_XFER, ad.LOGIC_CRC_SHROUD_XFER_BYTES)
-    return _pe32(
-        [(".text", text_va - IMAGE_BASE, bytes(text))],
-        text_va - IMAGE_BASE + ad.TEXT_SECTION_LEN,
-    )
+    planted = {
+        ad.LOGIC_CRC_EMIT: ad.LOGIC_CRC_EMIT_BYTES,
+        ad.LOGIC_CRC_SHROUD_XFER: ad.LOGIC_CRC_SHROUD_XFER_BYTES,
+        ad.NETWORK_VTABLE + ad.NETWORK_SEND_CHAT_SLOT: struct.pack("<I", ad.NETWORK_SEND_CHAT),
+        ad.UNICODE_STRING_FROM_WIDE: bytes.fromhex("56578b7c240c"),
+        ad.PROCESS_CHAT_TEXT: ad.PROCESS_CHAT_TEXT_BYTES,
+        ATTEST_ENTRY_VA: bytes.fromhex("e8d1640000"),
+        # Two descriptors (OriginalFirstThunk, TimeDateStamp, ForwarderChain, Name, FirstThunk)
+        # and the terminator. The names are never read, only tested for zero.
+        ATTEST_IMPORTS_VA: struct.pack(
+            "<5I5I5I",
+            *(0, 0, 0, 0x10, ATTEST_IAT_VA - IMAGE_BASE),
+            *(0, 0, 0, 0x20, ATTEST_IAT_VA + 0xC - IMAGE_BASE),
+            *(0, 0, 0, 0, 0),
+        ),
+        ATTEST_IAT_VA: struct.pack("<IIIIII", 0x100, 0x200, 0, 0x300, 0, 0),
+        ATTEST_LOAD_CONFIG_VA: struct.pack("<I", 0x48)
+        + bytes(0x38)
+        + struct.pack("<I", ATTEST_COOKIE_VA)
+        + bytes(8),
+        ATTEST_COOKIE_VA: struct.pack("<I", 0xBB40E64E),
+    }
+    # Filler in the last 256 bytes of every page, so a fold over it is a real mixing test -
+    # FNV-1a's `xor` is a no-op on zeros and would hide a swapped operand.
+    assert all((va & 0xFFF) + len(blob) <= 0xF00 for va, blob in planted.items())
+    image = _sparse_image(planted)
+    e_lfanew = struct.unpack_from("<I", image, 0x3C)[0]
+    opt = e_lfanew + 24
+    struct.pack_into("<I", image, opt + 16, ATTEST_ENTRY_VA - IMAGE_BASE)
+    struct.pack_into("<II", image, opt + 96 + 8 * 1, ATTEST_IMPORTS_VA - IMAGE_BASE, 0x3C)
+    struct.pack_into("<II", image, opt + 96 + 8 * 10, ATTEST_LOAD_CONFIG_VA - IMAGE_BASE, 0x48)
+    count = struct.unpack_from("<H", image, e_lfanew + 6)[0]
+    for index in range(count):
+        header = opt + 0xE0 + index * 40
+        raw_offset = struct.unpack_from("<I", image, header + 20)[0]
+        for at in range(raw_offset + 0xF00, raw_offset + 0x1000, 4):
+            struct.pack_into("<I", image, at, (at * 2654435761) & 0xFFFFFFFF)
+    return image
 
 
 #: Where the `lifetime-fields` stand-in parks the five field-name strings: a page in the

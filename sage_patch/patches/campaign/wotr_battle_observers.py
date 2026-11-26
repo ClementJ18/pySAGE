@@ -792,7 +792,7 @@ class WotrBattleObserversPatch(Patch):
 
     name = "wotr-battle-observers"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "Stop multiplayer War of the Ring auto-resolving a battle just because not everyone is "
         "in it, and seat the players who are not as observers instead of on somebody else's "

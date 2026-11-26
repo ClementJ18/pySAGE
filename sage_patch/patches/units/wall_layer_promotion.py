@@ -143,6 +143,7 @@ def build_code(base_va: int) -> bytes:
 class WallLayerPromotionPatch(Patch):
     name = "wall-layer-promotion"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop siege engines being teleported onto walls they walked past. Ramps still work. No "
         "INI change"

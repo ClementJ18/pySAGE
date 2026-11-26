@@ -94,18 +94,15 @@ def test_script_created_targets_are_not_resolvable():
 
 def test_every_argument_type_is_accounted_for():
     """A type absent from ARG_SPECS falls back to a plain string literal, which silently skips
-    it. Only the types with no corpus evidence may do that."""
+    it. Only the types with no corpus or editor evidence may do that."""
     unmapped = {t.name for t in ScriptArgumentType if t not in ARG_SPECS}
     assert unmapped == {
         "BRIDGE_NAME",
-        "SKIRMISH_APPROACH_PATH",
-        "THREAT_FINDER_NAME",
         "STANCE",
         "EVA",
         "UNKNOWN_29",
         "UNKNOWN_53",
         "UNKNOWN_65",
-        "UNKNOWN_66",
         "UNKNOWN_69",
         "UNKNOWN_70",
         "UNKNOWN_71",

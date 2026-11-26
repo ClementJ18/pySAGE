@@ -11,6 +11,7 @@ __all__ = [
     "WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL",
     "WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_APPEND_CALL_BYTES",
     "WORLDBUILDER_COST_MODIFIER_UPGRADE_FIELD_TABLE",
+    "WORLDBUILDER_EDIT_PARAMETER_INIT_SWITCH",
     "WORLDBUILDER_GRANT_SCIENCE_UPGRADE_REGISTER_CALL",
     "WORLDBUILDER_INI_PARSE_PERCENT_TO_REAL",
     "WORLDBUILDER_INI_GET_NEXT_TOKEN",
@@ -26,6 +27,7 @@ __all__ = [
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_REGISTER_CLEANUP",
     "WORLDBUILDER_OBJECT_IMAGE_UPGRADE_RUNTIME_FACTORY_STOCK",
     "WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH",
+    "WORLDBUILDER_REVERB_ROOM_NAMES",
     "WORLDBUILDER_SCRIPT_ACTION_TEMPLATES_INIT",
     "WORLDBUILDER_SCRIPT_ACTION_TEMPLATE_LAST_SET",
     "WORLDBUILDER_SCRIPT_CONDITION_TEMPLATES_INIT",
@@ -76,6 +78,13 @@ WORLDBUILDER_STRLEN = 0x016C368C
 # `Parameter::getUiText`'s jump table over the 78 parameter types (`cmp type, 0x4d`); each case
 # prints one argument, and the enum cases hold their value names.
 WORLDBUILDER_PARAMETER_UI_TEXT_SWITCH = 0x00AAE408
+# `EditParameter::OnInitDialog`'s jump table over the same 78 types (`cmp type, 0x4d`); each case
+# fills the dialog's control, either from literals it pushes after its label or by calling a
+# `ScriptParameterEnumerators.cpp` enumerator.
+WORLDBUILDER_EDIT_PARAMETER_INIT_SWITCH = 0x004F65E9
+# The reverb room table `enumerateReverbRoomTypes` lists through the audio manager: `{name, id}`
+# pairs from `None` (0) to `Psychotic` (25), with no terminator.
+WORLDBUILDER_REVERB_ROOM_NAMES = 0x01E31708
 
 
 #: Final string assignment in the action-template initializer, followed by mov esp,ebp /

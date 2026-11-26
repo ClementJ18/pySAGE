@@ -348,6 +348,29 @@ def test_item_dialog_edits_a_copy_and_keeps_fitting_arguments(qapp):
     assert all("threat level" in leaf.data(0, 256).ui_name.casefold() for leaf in leaves)
 
 
+def test_item_dialog_picks_camera_animations_relations_and_boundaries(qapp):
+    symbols = {"camera_animations": ["Intro", "Outro"], "boundaries": ["Orange", "Green"]}
+    dialog = ScriptItemDialog(TemplateKind.ACTION, None, symbols, None)
+    dialog.select_template(entry(TemplateKind.ACTION, "MOVE_CAMERA_BY_ANIMATION"))
+    animation = dialog.argument_editor(0)
+    assert isinstance(animation, QComboBox)
+    assert [animation.itemText(i) for i in range(animation.count())] == ["Intro", "Outro"]
+
+    dialog.select_template(entry(TemplateKind.ACTION, "PLAYER_RELATES_PLAYER"))
+    relation = dialog.argument_editor(2)
+    assert isinstance(relation, QComboBox) and relation.itemText(2) == "Friend"
+    relation.setCurrentIndex(2)
+    dialog.accept()
+    assert dialog.item is not None
+    chosen = dialog.item.arguments[2]
+    assert (chosen.int_value, chosen.string_value) == (2, "Friend")
+
+    dialog = ScriptItemDialog(TemplateKind.ACTION, None, symbols, None)
+    dialog.select_template(entry(TemplateKind.ACTION, "MAP_SWITCH_BORDER"))
+    border = dialog.argument_editor(0)
+    assert isinstance(border, QComboBox) and border.itemText(1) == "Green"
+
+
 def test_link_rows_paint_and_a_real_click_opens_the_argument(panel, qapp):
     document = panel.host.document
     script: Script = document.map.player_scripts_list.script_lists[0].items[0].items[0]

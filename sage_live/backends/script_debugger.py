@@ -8,6 +8,13 @@ normally answers for `DebugWindowLite.dll`. This redirects the dispatcher's call
 that answers for us instead, so no DLL, no debug window and no command-line flag are involved,
 and it attaches to a game that is already running (`sage_patch/docs/script-debugger.md` §1).
 
+**Another tool may own the call already.** `bfme2_accel.dll` redirects the same call to its own
+predicate when `[Engine] LogicHz` is set, to hold the logic at a fixed rate. The gate then chains:
+while it runs (mode 0) it jumps on to whatever the call reached before, so that tool's pacing goes
+on as it was; while it holds the game it answers "render only" itself; and closing writes back the
+call it found, not the stock one. The control block keeps that target, so a later attach that
+adopts the cave restores the same call.
+
 The same call is the game's own thread, once a frame, between two logic ticks, paused or not - so
 it is also where a **command** runs: evaluate a script's conditions, or run its true or false
 actions, with that script's player put in scope exactly as the engine's per-frame driver does it
@@ -29,6 +36,7 @@ The cave reads a control block at its own head:
     +0x28  side       whose scope it runs in: a side index, which is also its player's index
     +0x2C  name       the script's name `AsciiString *`, as the engine passes it
     +0x30  result     the evaluation (0 / 1), 1 for actions run, -1 for a side with no player
+    +0x34  chain      what mode 0 jumps on to: the engine's predicate, or the hook found there
     +0x40  the scope guard's 12 bytes
     +0x60  code
 
@@ -96,7 +104,7 @@ __all__ = [
 ]
 
 MAGIC = b"SDBG"
-VERSION = 2
+VERSION = 3
 CODE_OFFSET = 0x60
 CAVE_SIZE = 0x400
 
@@ -111,6 +119,7 @@ _SCRIPT = 0x24
 _SIDE = 0x28
 _NAME = 0x2C
 _RESULT = 0x30
+_CHAIN = 0x34
 _GUARD = 0x40
 
 # At 30 client frames a second, about fifteen seconds of grace.
@@ -135,9 +144,14 @@ class NetworkGameRefused(LivePatchError):
     """Pausing one peer of a network game stalls or drops it for everyone."""
 
 
-def build_gate_cave(base: int) -> bytes:
-    """The control block and the predicate replacement, laid out for address `base`."""
+def build_gate_cave(base: int, chain: int = SCRIPT_DEBUG_PAUSED) -> bytes:
+    """The control block and the predicate replacement, laid out for address `base`.
+
+    `chain` is where the cave defers to while the game runs: the engine's predicate on a stock
+    site, or the function another tool's hook at the site called.
+    """
     head = MAGIC + struct.pack("<IIIII", VERSION, Mode.RUN, 0, 0, 0)
+    head = head.ljust(_CHAIN, b"\x00") + struct.pack("<I", chain)
     head = head.ljust(CODE_OFFSET, b"\x00")
 
     def at(offset: int) -> bytes:
@@ -180,8 +194,9 @@ def build_gate_cave(base: int) -> bytes:
     a.label("expired")
     a.emit(0xC7, 0x05, at(_MODE), u32(Mode.RUN))  # mov dword [mode], 0
     a.label("engine")
-    # Mode 0 defers to the engine's own predicate, so a real debug DLL still works.
-    a.jmp_absolute(SCRIPT_DEBUG_PAUSED)
+    # Mode 0 defers to what the call reached before: the engine's own predicate, so a real debug
+    # DLL still works, or another tool's hook (the accelerator's logic rate), so it still paces.
+    a.jmp_absolute(chain)
 
     # One command, in the scope of its side's player - what the per-frame driver sets up around
     # each player's scripts: the current player, no current object, and the scope string.
@@ -280,6 +295,9 @@ class FrameGate:
         self.lease = lease
         self.cave: int | None = None
         self.adopted = False
+        #: The foreign hook the gate chains to while the game runs (the accelerator's logic-rate
+        #: predicate); None when the site held the stock call.
+        self.chained: int | None = None
         self._renewer: threading.Thread | None = None
         self._stop = threading.Event()
         # One command at a time: the renewer thread and a caller must not interleave the fields.
@@ -326,27 +344,52 @@ class FrameGate:
         base = self._existing_cave(current)
         if base is not None and current is not None:
             if self._u32(base + 4) == VERSION:
+                chain = self._u32(base + _CHAIN)
+                if chain is None:
+                    raise LivePatchError("the gate left behind is unreadable")
                 self.cave = base
                 self.adopted = True
+                self._note_chain(chain)
                 self.patcher.adopt(base)
-                self.patcher.hook(site, FRAME_DISPATCHER_PAUSE_CALL_BYTES, current)
+                self.patcher.hook(site, call_bytes(site, chain), current)
                 self._start_renewing()
                 return
-            # Another version's cave: put the call back, let it go, and lay out this one.
+            # Another version's cave: put the call back, let it go, and lay out this one. Every
+            # earlier version went only over the stock call, so that is what it leaves.
             old = LivePatcher(self.process)
             old.adopt(base)
             old.hook(site, FRAME_DISPATCHER_PAUSE_CALL_BYTES, current)
             notes = old.close()
             if notes:
                 raise LivePatchError("an older gate could not be removed: " + "; ".join(notes))
+            current = self.process.read(site, 5)
+        found, chain = self._site_owner(current)
         base = self.patcher.allocate(CAVE_SIZE)
-        if not self.process.write(base, build_gate_cave(base)):
+        if not self.process.write(base, build_gate_cave(base, chain)):
             raise LivePatchError("writing the gate cave failed")
         self.cave = base
-        self.patcher.hook(
-            site, FRAME_DISPATCHER_PAUSE_CALL_BYTES, call_bytes(site, base + CODE_OFFSET)
-        )
+        self._note_chain(chain)
+        self.patcher.hook(site, found, call_bytes(site, base + CODE_OFFSET))
         self._start_renewing()
+
+    def _site_owner(self, current: bytes | None) -> tuple[bytes, int]:
+        """What the site holds and where that call goes: the stock call to the engine's
+        predicate, or another tool's call (the accelerator's) that the gate chains to."""
+        site = FRAME_DISPATCHER_PAUSE_CALL
+        if current == FRAME_DISPATCHER_PAUSE_CALL_BYTES:
+            return current, SCRIPT_DEBUG_PAUSED
+        target = call_target(site, current) if current is not None else None
+        # A foreign hook is chained only if its target can be read - a call into unmapped memory
+        # is not a hook, it is a site this build does not have.
+        if current is None or target is None or self.process.read(target, 1) is None:
+            found = current.hex() if current else "unreadable"
+            raise LivePatchError(
+                f"0x{site:08X} holds {found}: neither the stock call nor another tool's call"
+            )
+        return current, target
+
+    def _note_chain(self, chain: int) -> None:
+        self.chained = None if chain == SCRIPT_DEBUG_PAUSED else chain
 
     @property
     def mode_address(self) -> int:

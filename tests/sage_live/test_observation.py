@@ -18,6 +18,7 @@ from sage_live.api.observation import (
     ProductionItem,
     SpecialPowerState,
     distance,
+    ground_distance,
 )
 
 
@@ -420,10 +421,12 @@ def test_power_point_progress_is_unknown_rather_than_invented(skill, floor, upco
     assert _ranked(skill, floor, upcoming).power_point_progress is None
 
 
-def test_a_power_is_unlocked_once_every_science_it_asks_for_is_held():
+def test_a_power_is_unlocked_once_any_science_it_asks_for_is_held():
     player = PlayerState(index=0, name="p", faction="Men", resources=0, sciences=frozenset({1, 2}))
     assert SpecialPowerState("Heal", 0, frozenset({1, 2})).unlocked_for(player)
-    assert not SpecialPowerState("Eagles", 0, frozenset({1, 3})).unlocked_for(player)
+    # The multiplayer and campaign sciences of one power, of which a player buys only one.
+    assert SpecialPowerState("Mist", 0, frozenset({1, 3})).unlocked_for(player)
+    assert not SpecialPowerState("Eagles", 0, frozenset({3, 4})).unlocked_for(player)
     # Asking for nothing is not a spellbook purchase - a hero ability, or scenery's power.
     assert not SpecialPowerState("Ability", 0).unlocked_for(player)
 
@@ -447,3 +450,17 @@ def test_an_opponent_keeps_everything_on_screen():
     ).as_opponent()
     assert (seen.display_name, seen.faction_name, seen.color) == ("Ben", "Mordor", 0x3366CC)
     assert seen.resources == 0
+
+
+def test_a_ground_query_ignores_height():
+    """A spawn takes its creator's height and a placement drops onto terrain, so a z-0 point is
+    not where the object is in z: only `ground` finds it."""
+    raised = Observation(
+        frame=1,
+        local_player=0,
+        objects=(obj(1, "LootPing", "Civilian", 0, (3400.0, 2900.0, 100.0)),),
+    )
+    spot = (3400.0, 2900.0, 0.0)
+    assert raised.find(near=spot, within=50.0) == ()
+    assert [o.object_id for o in raised.find(near=spot, within=50.0, ground=True)] == [1]
+    assert ground_distance((0.0, 0.0, 0.0), (3.0, 4.0, 100.0)) == 5.0

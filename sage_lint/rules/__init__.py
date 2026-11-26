@@ -27,7 +27,7 @@ from sage_lint.rules.map_ini import MapBareModuleRule
 from sage_lint.rules.modifier_fx import ModifierFxDurationRule
 from sage_lint.rules.module_ops import ModuleOperationRule
 from sage_lint.rules.module_refs import ModuleTagReferenceRule
-from sage_lint.rules.modules import UnrecognizedBlockRule
+from sage_lint.rules.modules import UnrecognizedBlockRule, UnregisteredModuleRule
 from sage_lint.rules.references import DanglingAssetReferenceRule, DanglingReferenceRule
 from sage_lint.rules.respawn import RespawnLevelRule, RespawnOrderRule
 from sage_lint.rules.schema import (
@@ -78,6 +78,7 @@ __all__ = [
     "UnknownAttributeRule",
     "UnreachableContainRule",
     "UnrecognizedBlockRule",
+    "UnregisteredModuleRule",
     "UnknownStringLabelRule",
     "UpgradeAliasConflictRule",
     "UpgradeAliasInDefinitionRule",

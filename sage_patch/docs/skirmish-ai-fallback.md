@@ -97,6 +97,10 @@ Two hooks, both inside `initFromDict`, and one `.skfall` cave.
 | `0x006b09f5` | `38 45 db 75 26` | `cmp byte [ebp-0x25], al` / `jne 0x6b0a20` |
 | `0x006b0d4e` | `80 7d e0 00 0f 84 d6 02 00 00` | `cmp byte [ebp-0x20], 0` / `je 0x6b102e` |
 
+Two more stock sites are anchored, not hooked: the resume point `0x006b0d6b`
+(`8d 45 f3 50 b9 8c 2f da 00`) and the `playerAIType` type test `0x006b0db5`
+(`83 f8 03 0f 84 65 02 00 00`) that steers the synthesised player past the matched-side copy.
+
 **Hook 1 — route a side-less AI the way a matched AI is routed.** When `[ebp-0x25]` says loop A
 found nothing, the cave clears it and writes `[ebp-0x20] = 2`, then returns into the stock
 fall-through. `setPlayerType(1, 2)` therefore runs: type `PLAYER_COMPUTER`, `isSkirmish` non-zero,
@@ -118,8 +122,28 @@ For `2` the cave:
 3. calls `SidesList::loadAILibraryForSide(m_playerIndex)` — **`0x007318f4`**, the single-side
    variant of step 2 above, which builds the loader's temporaries itself and has **zero callers in
    the stock image**;
-4. discards its return address and jumps to `0x006b102e`, the same continuation the stock
-   "no side" edge uses, because there is no side to import from.
+4. discards its return address and jumps to **`0x006b0d6b`**, the matched path just past its side
+   lookup (`0x006acfa3`, the one step that needs a side). From there the engine runs its own code
+   for a skirmish AI:
+   - `0x006b0d6b`–`0x006b0d9f` copies the dict's `skirmishDifficulty` (default
+     `TheGlobalData+0x1a5c4`) into `[Player+0x2fc]+0x30`, the AI's difficulty;
+   - `0x006b0db5` tests the dict's `playerAIType` type. Step 2 made it an AsciiString (type 3), so
+     `je 0x006b1023` skips the matched-side script and team copy, which would index a side that
+     does not exist through `[ebp-0x18]`;
+   - `0x006b1023` calls `0x006add80`, which imports the scripts and teams of the map's side named
+     like the player (`Player_N`, found by `0x006acf0e` on `playerName`) — the import a matched
+     player also gets after its copy — and falls through to `0x006b102e`.
+
+   If the template or the side info is missing, `playerAIType` was never written, so the cave
+   leaves by `0x006b102e` instead, as the stock "no side" edge does.
+
+**Why not jump straight to `0x006b102e`.** The first version did, and that skips the difficulty
+copy: the AI keeps its constructor's 1 (Medium) whatever the lobby set. Seen live 2026-11-14/15 on
+Edain, where Belfalas has a `SkirmishBelfalas` side on 1 of 470 maps and Arnor a `SkirmishArnor`
+side on 207. Their lobby-Brutal AIs carried `Upgrade_MediumAIMultiPlayer` and never ran the
+Brutal-only scripts. The fallback is also meant to become the normal path, with no
+`Skirmish<Faction>` sides on the maps at all, so it has to run the same code a matched player
+does, not a subset of it.
 
 `0x0072fe23` merges into the side's script list rather than replacing it, so driving the loader
 against a live player side is additive. The result is that a Rohan player on a map with no
@@ -132,9 +156,10 @@ through its own `DefaultPlayerAIType`, with nothing borrowed from another factio
   as today, and hook 2 returns without doing anything. The patch is a fallback, never an override.
 - **It does not raise any limit.** `MAX_PLAYER_COUNT`, `m_sides[20]`, `m_skirmishSides[20]` and the
   32-bit `PlayerMaskType` are untouched.
-- **It does not clone teams.** The matched path copies `teamSkirmish<X>`; the synthesised player
-  gets only the team `initFromDict` already builds for every player at `0x006b0cb9`. That team is
-  the player's own, which is what the skirmish clone was providing a renamed copy of.
+- **It does not clone a skirmish side's teams.** The matched path copies `teamSkirmish<X>`; the
+  synthesised player gets the team `initFromDict` already builds for every player at `0x006b0cb9`,
+  plus, through `0x006add80`, the teams of the map's own `Player_N` side, as a matched player does.
+  The first is the player's own, which is what the skirmish clone was providing a renamed copy of.
 - **It does not read or write map data.** Nothing in the `.map` changes, and nothing has to.
 
 ## 4. What it buys

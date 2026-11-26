@@ -6,6 +6,11 @@ catches one would otherwise draw its glow on an object the player is not suppose
 The engine plays a modifier's FX in one function, `ModifierHolder::applyModifierList`, which every
 modifier source goes through, so the one gate covers auras, weapon nuggets, powers and upgrades.
 
+With `horde_default`, a `KindOf = HORDE` template that never writes the field counts as `Yes`:
+a battalion's container is never drawn, so the glow its modifiers play lands on empty ground. The
+flag byte then carries two bits - bit 0 the value, bit 1 "written in INI" - so an explicit `No`
+still shows the FX on a horde.
+
 `ThingTemplate` has no free byte, so the field lives in a 64 KiB cave array indexed by the
 template's engine-assigned 16-bit id, which INI override copies inherit. The two engine paths that
 move an id between templates carry the flag with it. Logic-neutral: FX are presentation only.
@@ -26,6 +31,8 @@ from ...addresses import (
     FIELD_PARSE_STRIDE,
     FX_LIST_PLAY_AT_OBJECT,
     INI_PARSE_BOOL,
+    KINDOF_HORDE_BIT,
+    KINDOF_HORDE_BYTE,
     MODIFIER_HOLDER_APPLY_FX_CALLS,
     OBJECT_FIELD_TABLE_REF_OPCODES,
     OBJECT_FIELD_TABLE_REFS,
@@ -77,6 +84,10 @@ _CHARACTERISTICS = 0x20 | 0x40 | 0x20000000 | 0x40000000 | 0x80000000
 #: bound check is needed anywhere.
 ID_TABLE_SIZE = 0x10000
 
+#: The flag byte's bits under `horde_default`: the parsed value, and "the INI wrote the field".
+FLAG_VALUE = 0x01
+FLAG_WRITTEN = 0x02
+
 #: `Object` fields the live table must still carry at these offsets, or this is not the build the
 #: template-id reasoning was derived against. Checked by name, so another patch having appended to
 #: the same table first does not trip it.
@@ -126,8 +137,10 @@ def build_table(entries: tuple[Entry, ...], keyword_va: int, parse_va: int) -> b
     return bytes(table) + bytes(FIELD_PARSE_STRIDE)
 
 
-def build_code(code_va: int, ids_va: int) -> Asm:
-    """The cave's four routines, laid out at the address they will occupy."""
+def build_code(code_va: int, ids_va: int, horde_default: bool = False) -> Asm:
+    """The cave's four routines, laid out at the address they will occupy. With `horde_default`
+    the gate hides a HORDE template's FX unless the INI wrote the field, and the parser marks the
+    field as written."""
     a = Asm(code_va)
     ids = u32(ids_va)
 
@@ -140,9 +153,21 @@ def build_code(code_va: int, ids_va: int) -> Asm:
     a.emit(0x8B, 0x49, OBJECT_THING_TEMPLATE)  # mov ecx, [ecx+4]  ; its ThingTemplate
     a.emit(0x85, 0xC9)  # test ecx, ecx
     a.jcc_short(JE, "play")
-    a.emit(0x0F, 0xB7, 0x89, u32(THING_TEMPLATE_ID))  # movzx ecx, word [ecx+0x5E8]
-    a.emit(0x80, 0xB9, ids, 0x00)  # cmp byte [ecx+ids], 0
-    a.jcc_short(JNE, "hide")
+    if horde_default:
+        a.emit(0x0F, 0xB7, 0x91, u32(THING_TEMPLATE_ID))  # movzx edx, word [ecx+0x5E8]
+        a.emit(0x0F, 0xB6, 0x92, ids)  # movzx edx, byte [edx+ids]
+        a.emit(0xF6, 0xC2, FLAG_WRITTEN)  # test dl, 2               ; written in INI?
+        a.jcc_short(JNE, "written")
+        a.emit(0xF6, 0x81, u32(KINDOF_HORDE_BYTE), KINDOF_HORDE_BIT)  # test [ecx+0x115], 0x20
+        a.jcc_short(JNE, "hide")  # an unwritten HORDE hides
+        a.jmp_short("play")
+        a.label("written")
+        a.emit(0xF6, 0xC2, FLAG_VALUE)  # test dl, 1
+        a.jcc_short(JNE, "hide")
+    else:
+        a.emit(0x0F, 0xB7, 0x89, u32(THING_TEMPLATE_ID))  # movzx ecx, word [ecx+0x5E8]
+        a.emit(0x80, 0xB9, ids, 0x00)  # cmp byte [ecx+ids], 0
+        a.jcc_short(JNE, "hide")
     a.label("play")
     a.jmp_absolute(FX_LIST_PLAY_AT_OBJECT)
     a.label("hide")
@@ -160,6 +185,10 @@ def build_code(code_va: int, ids_va: int) -> Asm:
     a.emit(0xFF, 0x74, 0x24, 0x10)  # push dword [esp+0x10]       ; ini
     a.call_absolute(INI_PARSE_BOOL)
     a.emit(0x83, 0xC4, 0x10)  # add esp, 0x10
+    if horde_default:
+        a.emit(0x8B, 0x44, 0x24, 0x08)  # mov eax, [esp+8]        ; the ThingTemplate again
+        a.emit(0x0F, 0xB7, 0x80, u32(THING_TEMPLATE_ID))  # movzx eax, word [eax+0x5E8]
+        a.emit(0x80, 0x88, ids, FLAG_WRITTEN)  # or byte [eax+ids], 2
     a.emit(0xC3)  # ret
 
     # The identity-keeping copy (ChildObject-style): the destination takes the source's flag
@@ -197,19 +226,34 @@ class HideModifierFxPatch(Patch):
 
     name = "hide-modifier-fx"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a HideModifierFX boolean to Object: with Yes, attribute modifiers (leadership auras, "
         "weapon nuggets, powers, upgrades) still apply to the object, but their ModifierList "
         "FX/FX2/FX3 are not played on it - for invisible helper objects that must not glow. No, "
-        "the default, is stock. Presentation only"
+        "the default, is stock; with horde_default a KindOf HORDE template that does not write "
+        "the field counts as Yes. Presentation only"
     )
 
-    def __init__(self, keyword: str = DEFAULT_KEYWORD):
+    def __init__(self, keyword: str = DEFAULT_KEYWORD, horde_default: bool = False):
         self.keyword = keyword
+        self.horde_default = horde_default
         validate_keyword(keyword)
 
     def __str__(self) -> str:
-        return f"{self.name} ({self.keyword})"
+        suffix = ", HORDE default Yes" if self.horde_default else ""
+        return f"{self.name} ({self.keyword}{suffix})"
+
+    def options(self) -> dict[str, object]:
+        """`keyword`, plus `horde_default` only when on, so manifests written before it existed
+        read back unchanged."""
+        found: dict[str, object] = {"keyword": self.keyword}
+        if self.horde_default:
+            found["horde_default"] = True
+        return found
+
+    def _code(self, code_va: int, ids_va: int) -> Asm:
+        return build_code(code_va, ids_va, self.horde_default)
 
     def apply(self, data: bytearray) -> None:
         self._check_sites(data)
@@ -219,14 +263,14 @@ class HideModifierFxPatch(Patch):
             data, SECTION_NAME, lambda base: self._build(base, entries), _CHARACTERISTICS
         )
         pieces = _layout(base_va, self.keyword, len(entries))
-        code = build_code(pieces.code_va, pieces.ids_va)
+        code = self._code(pieces.code_va, pieces.ids_va)
         for file_off, old, new, note in self._edits(data, pieces, code):
             apply_byte_patch(data, file_off, old, new, note)
 
     def _build(self, base_va: int, entries: tuple[Entry, ...]) -> bytes:
         """The cave: the id table (zero - nothing hidden), the keyword, the table, the code."""
         pieces = _layout(base_va, self.keyword, len(entries))
-        code = build_code(pieces.code_va, pieces.ids_va)
+        code = self._code(pieces.code_va, pieces.ids_va)
         blob = bytearray(ID_TABLE_SIZE)
         blob += self.keyword.encode("ascii") + b"\x00"
         blob += bytes(pieces.table_va - (base_va + len(blob)))
@@ -340,15 +384,19 @@ class HideModifierFxPatch(Patch):
         keyword = read_cstring(data, located[0] + ID_TABLE_SIZE)
         if keyword is None:
             return None
-        try:
-            patch = cls(keyword)
-        except ValueError:
-            return None
-        return None if patch.verify(data) else patch
+        for horde_default in (False, True):
+            try:
+                patch = cls(keyword, horde_default)
+            except ValueError:
+                return None
+            if not patch.verify(data):
+                return patch
+        return None
 
     def ini_surface(self) -> Engine:
         """The one `Bool` this patch adds to `Object`. The id table starts zeroed, so the default
-        is `No` - stock behaviour."""
+        is `No` - stock behaviour - except on a HORDE template under `horde_default`, which the
+        field model cannot express per KindOf."""
         return Engine(fields=(FieldDelta("Object", self.keyword, "Bool", False, self.name),))
 
     def verify(self, data: bytes | bytearray) -> list[str]:
@@ -365,7 +413,7 @@ class HideModifierFxPatch(Patch):
             if preceding is None:
                 return [f"the live Object table does not name {self.keyword!r}"]
             pieces = _layout(section_va, self.keyword, len(preceding))
-            code = build_code(pieces.code_va, pieces.ids_va)
+            code = self._code(pieces.code_va, pieces.ids_va)
             problems = self._verify_cave(data, pieces, code, preceding, section_va, vsize)
             problems += self._verify_sites(data, pieces, code, rebuilt)
         except (ValueError, struct.error) as exc:
@@ -434,7 +482,12 @@ class HideModifierFxPatch(Patch):
                 "digits and underscores, and must not already be an Object field"
             ),
         )
+        parser.add_argument(
+            "--horde-default",
+            action="store_true",
+            help="treat a KindOf HORDE template that does not write the field as Yes",
+        )
 
     @classmethod
     def from_cli_args(cls, args: argparse.Namespace) -> HideModifierFxPatch:
-        return cls(keyword=args.keyword)
+        return cls(keyword=args.keyword, horde_default=args.horde_default)

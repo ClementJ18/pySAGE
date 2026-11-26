@@ -387,6 +387,7 @@ def stock_windows() -> dict[int, bytes]:
 class MultiContainPatch(Patch):
     name = "multi-contain"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let an object carry slaughter contains beside the contain that keeps its passengers: a "
         "unit entering it goes to the last-declared contain as today if that one accepts it, "

@@ -44,6 +44,7 @@ ANCHORS: dict[int, bytes] = {
 class AiEquivalentBuildGatePatch(Patch):
     name = "ai-equivalent-build-gate"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "A producer whose build button is EquivalentTo the wanted unit is asked whether the "
         "player may build the wanted unit, not the button's, so a unit a script disallowed is "

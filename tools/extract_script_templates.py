@@ -66,6 +66,15 @@ _TABLE_VALUE_TYPES = (6, 20, 27, 30, 36, 37, 38, 57, 63, 68)
 # The two enum types `getUiText` names by comparing the value instead: Boolean (case 0x00AAD5B7)
 # and near/far (case 0x00AADA03), listed in value order.
 _COMPARED_VALUES = {8: ["FALSE", "TRUE"], 56: ["near", "far"]}
+# Types whose `EditParameter::OnInitDialog` case fills its combo from the literals it pushes after
+# the label. Relation is stored by index (with its name beside it); skirmish approach path and
+# threat type by name, which `getUiText` prints back as written.
+_DIALOG_INDEXED_TYPES = (19,)
+_DIALOG_NAMED_TYPES = (43, 66)
+# Name-stored types whose case calls an enumerator walking a null-terminated string table: object
+# panel flags and science availability.
+_ENUMERATED_NAMED_TYPES = (46, 50)
+REVERB_ROOM_TYPE = 60
 
 _STRING_SETTERS = frozenset(
     {
@@ -216,6 +225,94 @@ def extract_parameter_values(image: _Image) -> dict[str, list[str]]:
         kind: _case_value_names(image, disassembler, cases[kind]) for kind in _TABLE_VALUE_TYPES
     }
     values.update(_COMPARED_VALUES)
+    cases = _dialog_cases(image)
+    for kind in _DIALOG_INDEXED_TYPES:
+        values[kind] = _dialog_literals(image, disassembler, cases, kind)
+    return {str(kind): values[kind] for kind in sorted(values)}
+
+
+def _dialog_cases(image: _Image) -> tuple[int, ...]:
+    switch = addresses.WORLDBUILDER_EDIT_PARAMETER_INIT_SWITCH - image.base
+    return struct.unpack_from(f"<{PARAMETER_TYPE_COUNT}I", image.data, switch)
+
+
+def _case_code(image: _Image, disassembler: Cs, cases: tuple[int, ...], kind: int) -> list[Any]:
+    """The instructions of one `OnInitDialog` case, up to the next case's code."""
+    start = cases[kind]
+    end = min((case for case in cases if case > start), default=start + 0x400)
+    return list(disassembler.disasm(image.data[start - image.base : end - image.base], start))
+
+
+def _dialog_literals(
+    image: _Image, disassembler: Cs, cases: tuple[int, ...], kind: int
+) -> list[str]:
+    """The combo entries a case adds from literals: every string it pushes after its label."""
+    pushed = [
+        image.cstring(insn.operands[0].imm)
+        for insn in _case_code(image, disassembler, cases, kind)
+        if insn.mnemonic == "push"
+        and insn.operands[0].type == X86_OP_IMM
+        and image.base <= insn.operands[0].imm < image.base + len(image.data)
+    ]
+    if len(pushed) < 2:
+        raise ExtractionError(f"no literal values in the OnInitDialog case for type {kind}")
+    return pushed[1:]
+
+
+def _enumerated_names(
+    image: _Image, disassembler: Cs, cases: tuple[int, ...], kind: int
+) -> list[str]:
+    """The names a case's enumerator lists: the null-terminated string table it indexes."""
+    call = next(
+        insn
+        for insn in _case_code(image, disassembler, cases, kind)
+        if insn.mnemonic == "call" and insn.operands[0].type == X86_OP_IMM
+    )
+    target = call.operands[0].imm
+    if image.data[target - image.base] == 0xE9:  # an incremental-link thunk
+        target += 5 + struct.unpack_from("<i", image.data, target - image.base + 1)[0]
+    for insn in disassembler.disasm(image.data[target - image.base :], target):
+        table = next(
+            (
+                operand.mem.disp & 0xFFFFFFFF
+                for operand in insn.operands
+                if operand.type == X86_OP_MEM and operand.mem.scale == 4 and operand.mem.disp
+            ),
+            None,
+        )
+        if table is not None:
+            names = []
+            while pointer := struct.unpack_from("<I", image.data, table - image.base)[0]:
+                names.append(image.cstring(pointer))
+                table += 4
+            return names
+        if insn.mnemonic == "ret":
+            break
+    raise ExtractionError(f"no name table behind the OnInitDialog case for type {kind}")
+
+
+def _reverb_room_names(image: _Image) -> list[str]:
+    """The table has no terminator; its ids count up from 0, and the run ends where they stop."""
+    names: list[str] = []
+    entry = addresses.WORLDBUILDER_REVERB_ROOM_NAMES - image.base
+    while True:
+        pointer, room = struct.unpack_from("<2I", image.data, entry + 8 * len(names))
+        if room != len(names):
+            return names
+        names.append(image.cstring(pointer))
+
+
+def extract_named_values(image: _Image) -> dict[str, list[str]]:
+    """The names each name-stored parameter type offers, in the order the dialog lists them."""
+    disassembler = Cs(CS_ARCH_X86, CS_MODE_32)
+    disassembler.detail = True
+    cases = _dialog_cases(image)
+    values = {
+        kind: _dialog_literals(image, disassembler, cases, kind) for kind in _DIALOG_NAMED_TYPES
+    }
+    for kind in _ENUMERATED_NAMED_TYPES:
+        values[kind] = _enumerated_names(image, disassembler, cases, kind)
+    values[REVERB_ROOM_TYPE] = _reverb_room_names(image)
     return {str(kind): values[kind] for kind in sorted(values)}
 
 
@@ -262,6 +359,7 @@ def extract_templates(exe: Path) -> dict[str, Any]:
         "source": {"file": exe.name, "sha1": hashlib.sha1(exe.read_bytes()).hexdigest()},
         "templates": templates,
         "parameter_values": extract_parameter_values(image),
+        "named_values": extract_named_values(image),
     }
 
 

@@ -17,7 +17,10 @@ from dataclasses import dataclass, field
 import pytest
 
 from sage_patch.addresses import (
+    ASCII_STRING_CTOR,
+    ASCII_STRING_DTOR,
     COMBO_BOX_ADD_ENTRY,
+    COMBO_BOX_DISABLED_COLOR,
     COMBO_BOX_DROPDOWN_BUTTON,
     COMBO_BOX_ENTRY_COUNT,
     COMBO_BOX_GADGET_DATA,
@@ -28,13 +31,19 @@ from sage_patch.addresses import (
     COMBO_BOX_RESET,
     COMBO_BOX_SET_DROPDOWN_LINES,
     COMBO_BOX_SET_ITEM_DATA,
+    COMBO_BOX_SET_ITEM_DISABLED,
     COMBO_BOX_SET_SELECTED,
     COMBO_BOX_TOGGLE_BOX_EBP,
+    EMPTY_STRING,
     GAME_INFO_GET_SLOT,
+    GAME_INFO_PARSE_TEMPLATE_CHECKS,
     GAME_LOGIC_RANDOM_VALUE,
     GAME_LOGIC_SOURCE_FILE,
     GAME_SLOT_PLAYER_TEMPLATE,
+    GAME_SLOT_REQUEST_TEMPLATE_CHECK,
     GAME_SLOT_SET_PLAYER_TEMPLATE,
+    GAME_SLOT_STATE,
+    GAME_SLOT_STATE_CLOSED,
     GAME_START_RANDOM_ASSIGN_RESUME,
     GAME_START_RANDOM_CANDIDATES_EBP,
     GAME_START_RANDOM_DRAW_RESUME,
@@ -46,8 +55,21 @@ from sage_patch.addresses import (
     GAME_TEXT_FETCH_SLOT,
     GUI_RANDOM_LABEL,
     INI_NEXT_TOKEN_OR_NULL,
+    INI_PARSE_BOOL,
+    KEY_ESC,
+    KEY_STATE_UP,
+    LIVING_WORLD_CAMPAIGN_MANAGER_GET_CAMPAIGN,
+    LIVING_WORLD_CAMPAIGN_SCENARIO,
+    MP_SETUP_COMMAND_BLOCK_BYTES,
+    MP_SETUP_COMMAND_BLOCK_RESUME,
+    MP_SETUP_COMMAND_FUNCTOR_CTOR,
+    MP_SETUP_COMMAND_MAP,
+    MP_SETUP_COMMAND_MAP_INSERT,
+    MP_SETUP_CURRENT,
     MP_SETUP_DIRTY,
     MP_SETUP_DROPDOWN_LINES,
+    MP_SETUP_EXTERN_MAP,
+    MP_SETUP_EXTERN_MAP_INSERT,
     MP_SETUP_FACTION_COMBO,
     MP_SETUP_FACTION_LIST_INDEX_EBP,
     MP_SETUP_FACTION_LIST_PLAYABLE_RESUME,
@@ -60,19 +82,24 @@ from sage_patch.addresses import (
     MP_SETUP_GADGET_UNKNOWN,
     MP_SETUP_GAME_INFO,
     MP_SETUP_GET_GAME_INFO,
+    MP_SETUP_MODE,
+    MP_SETUP_MODE_WOTR,
     MP_SETUP_REDRAW_SLOT,
     MP_SETUP_SELECTION_DONE,
     MP_SETUP_STRATEGY,
     MP_SETUP_STRATEGY_REQUEST_TEMPLATE_SLOT,
     MP_SETUP_SYNC_FACTION,
     MP_SETUP_SYNC_FACTION_TEMPLATE_RESUME,
+    MP_SETUP_WOTR,
     MP_SETUP_WOTR_IS_HISTORICAL,
+    MP_SETUP_WOTR_SCENARIO_INDEX,
     MULTIPLAYER_COLOR_VALUE,
     MULTIPLAYER_SETTINGS_GET_COLOR,
     NAME_KEY_FROM_CSTR,
     PLAYER_TEMPLATE_EVIL,
     PLAYER_TEMPLATE_FIND_BY_INDEX,
     PLAYER_TEMPLATE_GET_DISPLAY_NAME,
+    PLAYER_TEMPLATE_GET_NAME,
     PLAYER_TEMPLATE_IS_OBSERVER,
     PLAYER_TEMPLATE_NAME_KEY,
     PLAYER_TEMPLATE_PARSED_JOIN_RESUME,
@@ -82,33 +109,45 @@ from sage_patch.addresses import (
     PLAYER_TEMPLATE_STORE_BEGIN,
     PLAYER_TEMPLATE_STORE_END,
     STRICMP,
+    THE_GAME_INFO,
     THE_GAME_TEXT,
+    THE_LIVING_WORLD_CAMPAIGN_MANAGER,
     THE_MULTIPLAYER_SETTINGS,
     THE_NAME_KEY_GENERATOR,
     THE_PLAYER_TEMPLATE_STORE,
     UNICODE_STRING_CONCAT,
     UNICODE_STRING_DTOR,
+    UNICODE_STRING_FROM_WIDE,
+    WIDE_DASH,
     WINDOW_ENABLE,
     WINDOW_HIDE,
+    WINDOW_MANAGER_PROCESS_KEY_RESUME,
+    WINDOW_MANAGER_PROCESS_MOUSE_RESUME,
     WINDOW_STATUS,
     WINDOW_STATUS_ENABLED,
     WINDOW_STATUS_HIDDEN,
 )
 from sage_patch.patches.multiplayer.faction_variants import (
     _MEMSET,
-    EVIL_LABEL,
+    ALL_VARIANTS_RULE,
+    ESCAPE_EXTERN,
     GADGET_KIND,
-    GOOD_LABEL,
+    POOL_COMMAND,
+    POOL_EXTERN,
+    POOL_MODAL_COMMAND,
     RANDOM_EVIL,
     RANDOM_GOOD,
     RANDOM_OF,
+    RANDOM_POOL,
     RANDOM_STANDARD,
     RANDOM_VARIANT,
     RANDOM_VARIANTS,
     ROWS,
+    SEAT_EXTERN,
     STANDARD_LABEL,
     build_section,
     layout,
+    random_pool,
 )
 
 unicorn = pytest.importorskip("unicorn", reason="the emulator harness needs unicorn")
@@ -133,9 +172,13 @@ RETURN = 0x30000000
 #: Where each stub returns and how much stack it takes back - the conventions the cave relies on.
 _STUBS = {
     INI_NEXT_TOKEN_OR_NULL: 4,
+    INI_PARSE_BOOL: 0,
     NAME_KEY_FROM_CSTR: 4,
     PLAYER_TEMPLATE_FIND_BY_INDEX: 4,
     PLAYER_TEMPLATE_GET_DISPLAY_NAME: 4,
+    PLAYER_TEMPLATE_GET_NAME: 4,
+    MP_SETUP_WOTR_SCENARIO_INDEX: 0,
+    LIVING_WORLD_CAMPAIGN_MANAGER_GET_CAMPAIGN: 4,
     MP_SETUP_GET_GAME_INFO: 0,
     GAME_INFO_GET_SLOT: 4,
     COMBO_BOX_RESET: 0,
@@ -145,6 +188,7 @@ _STUBS = {
     COMBO_BOX_SET_SELECTED: 0,
     COMBO_BOX_GET_SELECTED: 0,
     COMBO_BOX_SET_DROPDOWN_LINES: 0,
+    COMBO_BOX_SET_ITEM_DISABLED: 0,
     WINDOW_ENABLE: 4,
     WINDOW_HIDE: 4,
     MULTIPLAYER_SETTINGS_GET_COLOR: 4,
@@ -153,12 +197,18 @@ _STUBS = {
     MP_SETUP_WOTR_IS_HISTORICAL: 0,
     GAME_LOGIC_RANDOM_VALUE: 0,
     GAME_SLOT_SET_PLAYER_TEMPLATE: 4,
+    ASCII_STRING_CTOR: 4,
+    ASCII_STRING_DTOR: 0,
+    MP_SETUP_COMMAND_FUNCTOR_CTOR: 4,
+    MP_SETUP_COMMAND_MAP_INSERT: 8,
+    MP_SETUP_EXTERN_MAP_INSERT: 0xC,
     MP_SETUP_FACTION_COMBO: 4,
     MP_SETUP_SYNC_FACTION: 4,
     STRICMP: 0,
     _MEMSET: 0,
     UNICODE_STRING_CONCAT: 0,
     UNICODE_STRING_DTOR: 0,
+    UNICODE_STRING_FROM_WIDE: 4,
 }
 
 #: Where the stock code would take over again. Reaching one ends a run.
@@ -180,7 +230,17 @@ _EXITS = {
     MP_SETUP_GADGET_FILED,
     MP_SETUP_GADGET_UNKNOWN,
     MP_SETUP_GADGET_HERO_TEST_RESUME,
+    *(resume for _site, _window, resume, _reject in GAME_INFO_PARSE_TEMPLATE_CHECKS),
+    *GAME_SLOT_REQUEST_TEMPLATE_CHECK[2:],
+    MP_SETUP_COMMAND_BLOCK_RESUME,
+    WINDOW_MANAGER_PROCESS_MOUSE_RESUME,
+    WINDOW_MANAGER_PROCESS_KEY_RESUME,
+    *(reject for _site, _window, _resume, reject in GAME_INFO_PARSE_TEMPLATE_CHECKS),
 }
+
+
+#: The disabled-row colour the emulated engine holds at `COMBO_BOX_DISABLED_COLOR`.
+_GREY = 0xFF808080
 
 
 @dataclass
@@ -189,6 +249,9 @@ class Box:
 
     rows: list[tuple[str, int]] = field(default_factory=list)
     selected: int = -1
+    #: Rows written in the disabled colour, and rows made unpickable.
+    grey: set[int] = field(default_factory=set)
+    disabled: set[int] = field(default_factory=set)
 
 
 class Engine:
@@ -228,7 +291,13 @@ class Engine:
                 THE_MULTIPLAYER_SETTINGS,
                 THE_GAME_TEXT,
                 GUI_RANDOM_LABEL,
+                WIDE_DASH,
+                COMBO_BOX_DISABLED_COLOR,
                 GAME_LOGIC_SOURCE_FILE,
+                MP_SETUP_CURRENT,
+                THE_GAME_INFO,
+                THE_LIVING_WORLD_CAMPAIGN_MANAGER,
+                EMPTY_STRING,
             )
         }
         for page in engine_pages:
@@ -251,11 +320,15 @@ class Engine:
         #: `defer` it (a LAN client: accepted, answered later), or `refuse` it.
         self.requests = "apply"
         self._token = 0
+        #: What `INI::parseBool` reads from the line.
+        self._bool = False
 
         text = self._alloc(4)
         self._write(text, self._text_vtable)
         self._write(THE_GAME_TEXT, text)
         self.uc.mem_write(GUI_RANDOM_LABEL, b"GUI:Random\x00")
+        self.uc.mem_write(WIDE_DASH, "-".encode("utf-16-le") + b"\x00\x00")
+        self._write(COMBO_BOX_DISABLED_COLOR, _GREY)
         self.uc.mem_write(GAME_LOGIC_SOURCE_FILE, b"GameLogic.cpp\x00")
         #: What `GameLogicRandomValue` answers: an offset into its range, taken modulo its size.
         self.draw = 0
@@ -297,6 +370,14 @@ class Engine:
             self._write(self.screen + MP_SETUP_FACTION_WINDOWS + 4 * slot, window)
             self.faction_boxes.append(window)
             self.set_template(slot, -1)
+
+        #: The War of the Ring campaign the lobby plays, its index in the manager, and every
+        #: template name `PlayerTemplate::getName` has handed out (each must be destroyed).
+        self.campaign = 0
+        self.scenario_index = -1
+        self.names_out = 0
+        self.uc.mem_write(EMPTY_STRING, b"\x00")
+        self._write(THE_LIVING_WORLD_CAMPAIGN_MANAGER, self._alloc(0x40))
 
         self.exit: int | None = None
         self.uc.hook_add(UC_HOOK_CODE, self._on_code)
@@ -352,6 +433,9 @@ class Engine:
         status = self._read(window + WINDOW_STATUS)
         return not status & WINDOW_STATUS_HIDDEN, bool(status & WINDOW_STATUS_ENABLED)
 
+    def set_state(self, slot: int, state: int) -> None:
+        self._write(self.slots[slot] + GAME_SLOT_STATE, state)
+
     def set_template(self, slot: int, index: int) -> None:
         self._write(self.slots[slot] + GAME_SLOT_PLAYER_TEMPLATE, index)
 
@@ -364,6 +448,30 @@ class Engine:
         return self.names.index(name)
 
     # the stand-in engine
+
+    def ascii(self, text: str) -> int:
+        """An `AsciiString` handle: `{refCount, length, allocated, chars}`."""
+        data = text.encode() + b"\x00"
+        handle = self._alloc(8 + len(data))
+        self.uc.mem_write(handle, struct.pack("<IHH", 1, len(text), len(data)) + data)
+        return handle
+
+    def scenario(self, disabled: list[str] | None) -> None:
+        """Make the screen a War of the Ring lobby whose scenario has `disabled` as its
+        `DisabledFactions`; None for a skirmish lobby."""
+        if disabled is None:
+            self._write(self.screen + MP_SETUP_MODE, 0)
+            return
+        entries = self._alloc(4 * max(len(disabled), 1))
+        for i, entry in enumerate(disabled):
+            self._write(entries + 4 * i, self.ascii(entry))
+        scenario = self._alloc(0xC4)
+        self._write(scenario + 0x40, entries)
+        self._write(scenario + 0x44, entries + 4 * len(disabled))
+        self.campaign = self._alloc(0x40)
+        self._write(self.campaign + LIVING_WORLD_CAMPAIGN_SCENARIO, scenario)
+        self.scenario_index = 2
+        self._write(self.screen + MP_SETUP_MODE, MP_SETUP_MODE_WOTR)
 
     def _string(self, text: str) -> int:
         """A `UnicodeString` buffer as the engine lays one out - the characters at +8 - tracked
@@ -388,6 +496,8 @@ class Engine:
         eax = None
         if address == INI_NEXT_TOKEN_OR_NULL:
             eax = self._token
+        elif address == INI_PARSE_BOOL:
+            self.uc.mem_write(self._arg(2), bytes([self._bool]))
         elif address == NAME_KEY_FROM_CSTR:
             assert uc.reg_read(UC_X86_REG_ECX) == self._read(THE_NAME_KEY_GENERATOR)
             eax = self.key(self._cstr(self._arg(0)))
@@ -399,6 +509,19 @@ class Engine:
             out = self._arg(0)
             self._write(out, self._string(self.display[index]))
             eax = out
+        elif address == PLAYER_TEMPLATE_GET_NAME:
+            index = (uc.reg_read(UC_X86_REG_ECX) - self.vector) // PLAYER_TEMPLATE_SIZE
+            out = self._arg(0)
+            self._write(out, self.ascii(self.names[index]))
+            self.names_out += 1
+            eax = out
+        elif address == MP_SETUP_WOTR_SCENARIO_INDEX:
+            assert uc.reg_read(UC_X86_REG_ECX) == self.screen + MP_SETUP_WOTR
+            eax = self.scenario_index
+        elif address == LIVING_WORLD_CAMPAIGN_MANAGER_GET_CAMPAIGN:
+            assert uc.reg_read(UC_X86_REG_ECX) == self._read(THE_LIVING_WORLD_CAMPAIGN_MANAGER)
+            assert self._arg(0) == self.scenario_index
+            eax = self.campaign
         elif address == self._fetch:
             out, label = self._arg(0), self._cstr(self._arg(1))
             self._write(out, self._string(self.labels.get(label, f"<{label}>")))
@@ -415,10 +538,14 @@ class Engine:
             box = self.boxes[self._arg(0)]
             box.rows.clear()
             box.selected = -1
+            box.grey.clear()
+            box.disabled.clear()
         elif address == COMBO_BOX_ADD_ENTRY:
             box = self.boxes[self._arg(0)]
             text = self.strings.pop(self._arg(1))  # by value: the callee owns and ends it
-            assert self._arg(2) == 0xFFFFFFFF, "rows are written in the fill's own colour"
+            assert self._arg(2) in (0xFFFFFFFF, _GREY), "the fill's own colour, or the disabled one"
+            if self._arg(2) == _GREY:
+                box.grey.add(len(box.rows))
             box.rows.append((text, -99))
             eax = len(box.rows) - 1
         elif address == COMBO_BOX_SET_ITEM_DATA:
@@ -427,6 +554,9 @@ class Engine:
         elif address == COMBO_BOX_GET_ITEM_DATA:
             box, row = self.boxes[self._arg(0)], self._arg(1)
             eax = box.rows[row][1]
+        elif address == COMBO_BOX_SET_ITEM_DISABLED:
+            if self._arg(2):
+                self.boxes[self._arg(0)].disabled.add(self._arg(1))
         elif address == COMBO_BOX_SET_SELECTED:
             self.boxes[self._arg(0)].selected = self._arg(1)
         elif address == COMBO_BOX_GET_SELECTED:
@@ -456,6 +586,19 @@ class Engine:
             if self.requests == "apply":
                 self._write(slot + GAME_SLOT_PLAYER_TEMPLATE, index)
             eax = int(self.requests != "refuse")
+        elif address == ASCII_STRING_CTOR:
+            self.calls.append(("string", (self._cstr(self._arg(0)),)))
+        elif address == MP_SETUP_COMMAND_FUNCTOR_CTOR:
+            source = self._arg(0)
+            # {screen, (left as the frame had it), handler, 0}, copied from [ebp-0x28]
+            functor = [self._read(source + 4 * i) for i in range(4)]
+            self.calls.append(("functor", (functor[0], functor[2], functor[3])))
+        elif address == MP_SETUP_COMMAND_MAP_INSERT:
+            self.calls.append(("insert", (uc.reg_read(UC_X86_REG_ECX),)))
+        elif address == MP_SETUP_EXTERN_MAP_INSERT:
+            self.calls.append(("extern", (uc.reg_read(UC_X86_REG_ECX), self._arg(1))))
+        elif address == ASCII_STRING_DTOR:
+            self.calls.append(("string_end", ()))
         elif address == MP_SETUP_REDRAW_SLOT:
             self.calls.append(
                 ("redraw", (self.slots.index(self._arg(0)), self._arg(1), self._arg(2)))
@@ -466,6 +609,10 @@ class Engine:
             text = self._wide(fmt + 8)
             assert text.count("%") == text.count("%s"), "only %s is ever formatted"
             self._write(dest, self._string(text.replace("%s", self._wide(self._arg(2)))))
+        elif address == UNICODE_STRING_FROM_WIDE:
+            this = uc.reg_read(UC_X86_REG_ECX)
+            self._write(this, self._string(self._wide(self._arg(0))))
+            eax = this
         elif address == UNICODE_STRING_DTOR:
             this = uc.reg_read(UC_X86_REG_ECX)
             handle = self._read(this)
@@ -536,8 +683,22 @@ class Engine:
 
     # the INI side
 
-    def declare(self, name: str, variant_of: str | None, *, override: bool = False) -> None:
+    def declare(
+        self,
+        name: str,
+        variant_of: str | None,
+        *,
+        override: bool = False,
+        pvp: bool | None = None,
+    ) -> None:
         """One `PlayerTemplate` block through the store's parse: the fields, then the key."""
+        if pvp is not None:
+            self._bool = pvp
+            esp = self._frame()
+            self._push(0, 0, 0, self._alloc(0x10))
+            self._push(RETURN)
+            assert self.run("parse_pvp") == RETURN
+            assert self.uc.reg_read(UC_X86_REG_ESP) == esp - 16, "parse_pvp is cdecl"
         if variant_of is not None:
             self._token = self.cstr(variant_of)
             esp = self._frame()
@@ -558,6 +719,28 @@ class Engine:
             assert exit_ == PLAYER_TEMPLATE_PARSED_NEW_KEY_RESUME
             ebp = self.uc.reg_read(UC_X86_REG_EBP)
             assert self._read(ebp - 0x1E4) == self.key(name), "the displaced store still happens"
+
+    def rule(self, on: int) -> None:
+        """Set `ALL_VARIANTS_RULE` in the lobby's game info."""
+        self._write(self.game_info + 0x60 + 4 * ALL_VARIANTS_RULE, on)
+
+    def start(self, rule: int | None) -> None:
+        """`TheGameInfo` for a match starting with `ALL_VARIANTS_RULE` at `rule`; None for no
+        game info at all."""
+        if rule is None:
+            self._write(THE_GAME_INFO, 0)
+            return
+        info = self._alloc(0x100)
+        self._write(info + 0x60 + 4 * ALL_VARIANTS_RULE, rule)
+        self._write(THE_GAME_INFO, info)
+
+    def row(self, name: str) -> tuple[int, int] | None:
+        """`name`'s row in the cave's table: `(parent key, PvP)`."""
+        for i in range(self._read(self.at["count"])):
+            row = self.at["rows"] + _ROW * i
+            if self._read(row) == self.key(name):
+                return self._read(row + 4), self._read(row + 8)
+        return None
 
     # the lobby side
 
@@ -621,6 +804,10 @@ class Engine:
         return self.uc.mem_read(self.screen + MP_SETUP_DIRTY, 1)[0]
 
 
+#: A row of the cave's declaration table: key, parent key, PvP.
+_ROW = 12
+
+
 def _pages(size: int) -> int:
     return (size + PAGE - 1) & ~(PAGE - 1)
 
@@ -653,7 +840,9 @@ class TestParse:
     def test_declarations_land_in_the_table(self, engine: Engine):
         rows = engine._read(engine.at["count"])
         got = {
-            engine._read(engine.at["rows"] + 8 * i): engine._read(engine.at["rows"] + 8 * i + 4)
+            engine._read(engine.at["rows"] + _ROW * i): engine._read(
+                engine.at["rows"] + _ROW * i + 4
+            )
             for i in range(rows)
         }
         k = engine.key
@@ -777,7 +966,19 @@ class TestVariantBox:
         name = engine.display[engine.index(faction)]
         assert engine.boxes[box].rows == [(f"{name} (Standard)", engine.index(faction))]
         assert engine.boxes[box].selected == 0
-        assert engine.status(box) == (True, True)
+        assert engine.status(box) == (True, False), "nothing to choose: shown, greyed"
+        assert not engine.arrow(box)
+        assert not engine.strings
+
+    @pytest.mark.parametrize("template", [-1, -2, 0])
+    def test_a_closed_seat_shows_a_dash(self, engine: Engine, template: int):
+        box = engine.variant_box(1)
+        engine.set_state(1, GAME_SLOT_STATE_CLOSED)
+        engine.set_template(1, template)
+        engine.fill(1)
+        assert engine.boxes[box].rows == [("-", template)]
+        assert engine.boxes[box].selected == 0
+        assert engine.status(box) == (True, False)
         assert not engine.strings
 
     def test_hidden_for_an_observer(self, engine: Engine):
@@ -826,58 +1027,10 @@ class TestVariantBox:
 
 
 class TestRandom:
-    @pytest.mark.parametrize(
-        ("template", "row"), [(RANDOM_VARIANT, 0), (RANDOM_STANDARD, 1), (RANDOM_VARIANTS, 2)]
-    )
-    def test_a_random_slot_offers_random_and_standard(self, engine: Engine, template, row):
-        box = engine.variant_box(1)
-        engine.set_template(1, template)
-        engine.fill(1)
-        assert engine.boxes[box].rows == [
-            ("<GUI:Random>", RANDOM_VARIANT),
-            ("<GUI:FactionVariantStandard>", RANDOM_STANDARD),
-            ("<GUI:FactionVariantVariants>", RANDOM_VARIANTS),
-        ]
-        assert engine.boxes[box].selected == row
-        assert engine.status(box) == (True, True)
-
-    def test_a_random_standard_row_is_named_random(self, engine: Engine):
-        engine.labels.update({STANDARD_LABEL: "%s - Standard", "GUI:Random": "Random"})
-        box = engine.variant_box(1)
-        engine.set_template(1, RANDOM_STANDARD)
-        engine.fill(1)
-        texts = [text for text, _data in engine.boxes[box].rows]
-        assert texts == ["Random", "Random - Standard", "<GUI:FactionVariantVariants>"]
-        assert not engine.strings
-
     @pytest.mark.parametrize("template", [RANDOM_VARIANT, RANDOM_VARIANTS])
     def test_the_faction_box_shows_random_for_each(self, engine: Engine, template):
         engine.set_template(3, template)
         assert engine.synced(3) == RANDOM_STANDARD
-
-    def test_picking_variants_asks_for_its_sentinel(self, engine: Engine):
-        box = engine.variant_box(2)
-        engine.set_template(2, RANDOM_STANDARD)
-        engine.fill(2)
-        engine.calls.clear()
-        engine.pick(2, box, 2)
-        assert engine.calls[0] == ("request", (2, RANDOM_VARIANTS))
-
-    def test_no_variants_row_when_the_mod_has_none(self):
-        e = Engine([("A", "A", True), ("B", "B", True)])
-        box = e.variant_box(1)
-        e.set_template(1, RANDOM_STANDARD)
-        e.fill(1)
-        assert [data for _text, data in e.boxes[box].rows] == [RANDOM_VARIANT, RANDOM_STANDARD]
-
-    def test_picking_random_asks_for_the_new_sentinel(self, engine: Engine):
-        box = engine.variant_box(2)
-        engine.set_template(2, RANDOM_STANDARD)
-        engine.fill(2)
-        engine.calls.clear()
-        engine.pick(2, box, 0)
-        assert engine.calls[0] == ("request", (2, RANDOM_VARIANT))
-        assert engine.template(2) == RANDOM_VARIANT
 
     def test_a_pending_random_pick_is_kept_by_the_fill(self, engine: Engine):
         box = engine.variant_box(2)
@@ -1093,27 +1246,6 @@ def sided() -> Engine:
 
 
 class TestGoodAndEvil:
-    def test_a_random_slot_offers_both_sides_after_the_others(self, sided: Engine):
-        box = sided.variant_box(1)
-        sided.set_template(1, RANDOM_STANDARD)
-        sided.fill(1)
-        assert sided.boxes[box].rows == [
-            ("<GUI:Random>", RANDOM_VARIANT),
-            ("<GUI:FactionVariantStandard>", RANDOM_STANDARD),
-            ("<GUI:FactionVariantVariants>", RANDOM_VARIANTS),
-            (f"<{GOOD_LABEL}>", RANDOM_GOOD),
-            (f"<{EVIL_LABEL}>", RANDOM_EVIL),
-        ]
-        assert sided.boxes[box].selected == 1
-        assert not sided.strings
-
-    @pytest.mark.parametrize(("template", "row"), [(RANDOM_GOOD, 3), (RANDOM_EVIL, 4)])
-    def test_each_selects_its_row(self, sided: Engine, template: int, row: int):
-        box = sided.variant_box(1)
-        sided.set_template(1, template)
-        sided.fill(1)
-        assert sided.boxes[box].selected == row
-
     def test_a_mod_with_one_side_does_not_offer_them(self, engine: Engine):
         box = engine.variant_box(1)  # every faction of `engine` is Evil = No
         engine.set_template(1, RANDOM_STANDARD)
@@ -1121,18 +1253,6 @@ class TestGoodAndEvil:
         data = [d for _text, d in engine.boxes[box].rows]
         assert RANDOM_GOOD not in data
         assert RANDOM_EVIL not in data
-
-    def test_offered_without_variants_too(self):
-        e = Engine([("A", "A", True, False), ("B", "B", True, True)])
-        box = e.variant_box(1)
-        e.set_template(1, RANDOM_STANDARD)
-        e.fill(1)
-        assert [d for _text, d in e.boxes[box].rows] == [
-            RANDOM_VARIANT,
-            RANDOM_STANDARD,
-            RANDOM_GOOD,
-            RANDOM_EVIL,
-        ]
 
     def test_a_variant_alone_does_not_make_a_side(self):
         # The only Evil template is a variant: no Evil base faction to draw, so no rows.
@@ -1148,25 +1268,6 @@ class TestGoodAndEvil:
     def test_the_faction_box_shows_random(self, sided: Engine, template: int):
         sided.set_template(3, template)
         assert sided.synced(3) == RANDOM_STANDARD
-
-    @pytest.mark.parametrize(("row", "template"), [(3, RANDOM_GOOD), (4, RANDOM_EVIL)])
-    def test_picking_asks_for_its_sentinel(self, sided: Engine, row: int, template: int):
-        box = sided.variant_box(2)
-        sided.set_template(2, RANDOM_STANDARD)
-        sided.fill(2)
-        sided.calls.clear()
-        sided.pick(2, box, row)
-        assert sided.calls[0] == ("request", (2, template))
-        assert sided.template(2) == template
-
-    def test_a_pending_pick_is_kept_by_the_fill(self, sided: Engine):
-        box = sided.variant_box(2)
-        sided.set_template(2, RANDOM_STANDARD)
-        sided.fill(2)
-        sided.requests = "defer"
-        sided.pick(2, box, 4)
-        sided.fill(2)
-        assert sided.boxes[box].selected == 4, "every Random of a slot is one family"
 
     @pytest.mark.parametrize("template", [RANDOM_GOOD, RANDOM_EVIL])
     def test_game_start_leaves_it_to_the_random_pass(self, sided: Engine, template: int):
@@ -1189,33 +1290,39 @@ class TestGoodAndEvil:
         assert sided.draws == [], "no variant draw: Good and Evil are Standard of a side"
 
 
-class TestSidedDraw:
-    """The hook at the Random draw, with the slot's candidates as a real `std::vector<Int>`."""
+_SENTINEL_EBX = 0x7777
 
-    SENTINEL_EBX = 0x7777
+
+def _run_draw(e: Engine, slot: int, candidates: list[str]) -> list[str]:
+    """Run the hook at the Random draw for `slot` over `candidates`, a real `std::vector<Int>`;
+    returns what the stock draw then sees."""
+    e._frame()
+    ebp = e.uc.reg_read(UC_X86_REG_EBP)
+    vector = e._alloc(4 * len(candidates) + 4)
+    for i, name in enumerate(candidates):
+        e._write(vector + 4 * i, e.index(name))
+    e._write(ebp + GAME_START_RANDOM_CANDIDATES_EBP, vector)
+    e._write(ebp + GAME_START_RANDOM_CANDIDATES_EBP + 4, vector + 4 * len(candidates))
+    e._write(ebp + GAME_START_RANDOM_SLOT_EBP, e.slots[slot])
+    e.uc.reg_write(UC_X86_REG_EBX, _SENTINEL_EBX)
+    esp = e.uc.reg_read(UC_X86_REG_ESP)
+    assert e.run("random_side") == GAME_START_RANDOM_DRAW_RESUME
+    assert e.uc.reg_read(UC_X86_REG_ESP) == esp
+    assert e.uc.reg_read(UC_X86_REG_EBX) == _SENTINEL_EBX
+    begin = e._read(ebp + GAME_START_RANDOM_CANDIDATES_EBP)
+    end = e._read(ebp + GAME_START_RANDOM_CANDIDATES_EBP + 4)
+    assert begin == vector, "the block is freed through its begin"
+    # the displaced loads: esi = end, edi = begin
+    assert e.uc.reg_read(UC_X86_REG_ESI) == end
+    assert e.uc.reg_read(UC_X86_REG_EDI) == begin
+    return [e.names[e._read(va)] for va in range(begin, end, 4)]
+
+
+class TestSidedDraw:
+    """The hook at the Random draw, for a slot on Good or Evil."""
 
     def draw(self, e: Engine, slot: int, candidates: list[str]) -> list[str]:
-        """Run the hook for `slot` over `candidates`; returns what the stock draw then sees."""
-        e._frame()
-        ebp = e.uc.reg_read(UC_X86_REG_EBP)
-        vector = e._alloc(4 * len(candidates) + 4)
-        for i, name in enumerate(candidates):
-            e._write(vector + 4 * i, e.index(name))
-        e._write(ebp + GAME_START_RANDOM_CANDIDATES_EBP, vector)
-        e._write(ebp + GAME_START_RANDOM_CANDIDATES_EBP + 4, vector + 4 * len(candidates))
-        e._write(ebp + GAME_START_RANDOM_SLOT_EBP, e.slots[slot])
-        e.uc.reg_write(UC_X86_REG_EBX, self.SENTINEL_EBX)
-        esp = e.uc.reg_read(UC_X86_REG_ESP)
-        assert e.run("random_side") == GAME_START_RANDOM_DRAW_RESUME
-        assert e.uc.reg_read(UC_X86_REG_ESP) == esp
-        assert e.uc.reg_read(UC_X86_REG_EBX) == self.SENTINEL_EBX
-        begin = e._read(ebp + GAME_START_RANDOM_CANDIDATES_EBP)
-        end = e._read(ebp + GAME_START_RANDOM_CANDIDATES_EBP + 4)
-        assert begin == vector, "the block is freed through its begin"
-        # the displaced loads: esi = end, edi = begin
-        assert e.uc.reg_read(UC_X86_REG_ESI) == end
-        assert e.uc.reg_read(UC_X86_REG_EDI) == begin
-        return [e.names[e._read(va)] for va in range(begin, end, 4)]
+        return _run_draw(e, slot, candidates)
 
     _POOL = ["FactionMen", "FactionMordor", "FactionElves", "FactionIsengard"]
 
@@ -1244,11 +1351,421 @@ class TestSidedDraw:
         assert self.draw(sided, 0, []) == []
 
 
-class TestArrow:
-    """The Variant box's drop-down arrow shows whenever the box is usable, as every column's does -
-    including a faction without variants, whose list of one the gadget would leave arrowless."""
+class TestRandomPool:
+    """A slot on a `RANDOM_POOL`: one of the templates it names is drawn - variants included, each
+    equally likely, only where the start position allows its faction - and left as the
+    candidates' only element, so the stock draw can only take it."""
 
-    @pytest.mark.parametrize("faction", ["FactionElves", "FactionMen"])
+    _BASES = ["FactionMen", "FactionMordor", "FactionElves", "FactionIsengard"]
+
+    def pool(self, e: Engine, *names: str) -> int:
+        return random_pool(e.index(name) for name in names)
+
+    @pytest.mark.parametrize(
+        ("draw", "expected"), [(0, "FactionMen"), (1, "FactionElves"), (2, "FactionIsengard")]
+    )
+    def test_it_draws_among_what_it_names(self, sided: Engine, draw: int, expected: str):
+        sided.set_template(0, self.pool(sided, "FactionMen", "FactionElves", "FactionIsengard"))
+        sided.draw = draw
+        assert _run_draw(sided, 0, self._BASES) == [expected]
+        assert sided.draws == [(0, 2)]
+
+    @pytest.mark.parametrize(
+        ("draw", "expected"), [(0, "FactionMordor"), (1, "FactionMen_DolAmroth")]
+    )
+    def test_a_variant_is_a_choice_of_its_own(self, sided: Engine, draw: int, expected: str):
+        sided.set_template(0, self.pool(sided, "FactionMen_DolAmroth", "FactionMordor"))
+        sided.draw = draw
+        assert _run_draw(sided, 0, self._BASES) == [expected]
+        assert sided.draws == [(0, 1)]
+
+    def test_a_variant_whose_faction_the_start_position_forbids_is_left_out(self, sided: Engine):
+        sided.set_template(0, self.pool(sided, "FactionMen_DolAmroth", "FactionMordor"))
+        assert _run_draw(sided, 0, ["FactionMordor", "FactionElves"]) == ["FactionMordor"]
+        assert sided.draws == [(0, 0)]
+
+    def test_unplayable_and_missing_templates_are_left_out(self, sided: Engine):
+        sided.set_template(0, random_pool([sided.index("FactionHidden"), 20, 0]))
+        assert _run_draw(sided, 0, self._BASES) == ["FactionMen"]
+        assert sided.draws == [(0, 0)]
+
+    def test_a_pool_that_allows_nothing_draws_as_standard(self, sided: Engine):
+        sided.set_template(0, self.pool(sided, "FactionIsengard"))
+        assert _run_draw(sided, 0, ["FactionMen", "FactionElves"]) == [
+            "FactionMen",
+            "FactionElves",
+        ]
+        assert sided.draws == [], "nothing drawn: every peer stays on the same random sequence"
+
+    def test_an_empty_pool_is_left_alone(self, sided: Engine):
+        sided.set_template(0, self.pool(sided, "FactionMen"))
+        assert _run_draw(sided, 0, []) == []
+        assert sided.draws == []
+
+    def test_a_tag_without_a_mask_draws_as_standard(self, sided: Engine):
+        sided.set_template(0, RANDOM_POOL)
+        assert _run_draw(sided, 0, self._BASES) == self._BASES
+        assert sided.draws == []
+
+    def test_the_faction_box_shows_it_as_random(self, sided: Engine):
+        sided.set_template(3, self.pool(sided, "FactionMen", "FactionMordor"))
+        assert sided.synced(3) == RANDOM_STANDARD
+
+
+class TestParseTemplate:
+    """The lobby string parser's template check at each slot arm: what it took before - down to
+    `RANDOM_OF`'s last - and a `RANDOM_POOL` naming something."""
+
+    @pytest.fixture(params=GAME_INFO_PARSE_TEMPLATE_CHECKS, ids=lambda c: f"0x{c[0]:08x}")
+    def check(self, request: pytest.FixtureRequest) -> tuple[int, bytes, int, int]:
+        return request.param
+
+    def parse(self, e: Engine, check: tuple[int, bytes, int, int], value: int) -> bool:
+        site, _window, resume, reject = check
+        e._frame()
+        ebp = e.uc.reg_read(UC_X86_REG_EBP)
+        e._push(0x5151)  # what the displaced `pop ecx` takes back
+        esp = e.uc.reg_read(UC_X86_REG_ESP)
+        e.uc.reg_write(UC_X86_REG_EAX, value & 0xFFFFFFFF)
+        exit = e.run(f"parse_template_{site:08x}")
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp + 4
+        assert e.uc.reg_read(UC_X86_REG_ECX) == 0x5151
+        stored = struct.unpack("<i", e.uc.mem_read(ebp - 0x28, 4))[0]
+        assert stored == value
+        assert exit in (resume, reject)
+        return exit == resume
+
+    @pytest.mark.parametrize("value", [5, 0, -1, -2, RANDOM_VARIANT, RANDOM_OF - 111])
+    def test_what_it_took_before_still_passes(self, engine, check, value: int):
+        assert self.parse(engine, check, value)
+
+    def test_a_pool_passes(self, engine: Engine, check):
+        assert self.parse(engine, check, random_pool([0, 3, 23]))
+
+    @pytest.mark.parametrize(
+        "value",
+        [-128, RANDOM_POOL, -0x40000000 | 1, -0x7FFFFFF, RANDOM_POOL | 1 << 24],
+        ids=["lan-escape", "pool-tag-alone", "wrong-tag", "untagged", "past-24-bits"],
+    )
+    def test_anything_else_below_is_refused(self, engine, check, value: int):
+        # The upper bound is the stock check the arm resumes into.
+        assert not self.parse(engine, check, value)
+
+
+class TestSetRandomPool:
+    """`MpGameSetup::SetRandomPool`, what the movie's Random-pool panel sends on Confirm."""
+
+    def command(self, e: Engine, params: str | None) -> None:
+        e.calls.clear()
+        arg = 0 if params is None else e.cstr(params)
+        e.call("set_random_pool", arg, ecx=e.screen)
+
+    def test_a_mask_asks_for_that_pool_and_redraws(self, engine: Engine):
+        self.command(engine, "2:40")
+        assert engine.calls == [("request", (2, RANDOM_POOL | 40)), ("redraw", (2, 2, 1))]
+        assert engine.template(2) == RANDOM_POOL | 40
+
+    def test_no_mask_asks_for_plain_random(self, engine: Engine):
+        engine.set_template(5, engine.index("FactionMen"))
+        self.command(engine, "5:0")
+        assert engine.calls[0] == ("request", (5, RANDOM_STANDARD))
+
+    @pytest.mark.parametrize(("enabled", "hidden"), [(False, False), (True, True)])
+    def test_a_seat_the_player_may_not_change_is_left_alone(self, engine, enabled, hidden):
+        box = engine.faction_boxes[3]
+        engine._flag(box, WINDOW_STATUS_ENABLED, int(enabled))
+        engine._flag(box, WINDOW_STATUS_HIDDEN, int(hidden))
+        self.command(engine, "3:40")
+        assert engine.calls == []
+        assert engine.template(3) == RANDOM_STANDARD
+
+    @pytest.mark.parametrize(
+        "params", [None, "", ":40", "x:40", "8:40", "2:4x", "2:16777216", "12:1", "2"]
+    )
+    def test_anything_malformed_is_left_alone(self, engine: Engine, params: str | None):
+        self.command(engine, params)
+        assert engine.calls == []
+
+    def test_the_largest_mask_a_pool_can_name_gets_through(self, engine: Engine):
+        self.command(engine, "7:16777215")
+        assert engine.calls[0] == ("request", (7, RANDOM_POOL | 0xFFFFFF))
+
+    def test_a_lan_client_s_refused_request_is_not_redrawn(self, engine: Engine):
+        engine.requests = "refuse"
+        self.command(engine, "1:40")
+        assert engine.calls == [("request", (1, RANDOM_POOL | 40))]
+
+
+class TestRequestCheck:
+    """The LAN host's check on a client's template request: what it took, and pools."""
+
+    def check(self, e: Engine, template: int) -> bool:
+        _site, _window, resume, refuse = GAME_SLOT_REQUEST_TEMPLATE_CHECK
+        e._frame()
+        e.uc.reg_write(UC_X86_REG_EDI, template & 0xFFFFFFFF)
+        exit = e.run("request_check")
+        assert exit in (resume, refuse)
+        assert e.uc.reg_read(UC_X86_REG_EDI) == template & 0xFFFFFFFF
+        return exit == resume
+
+    @pytest.mark.parametrize("template", [5, -1, -2, RANDOM_VARIANT, RANDOM_OF - 111])
+    def test_what_it_took_before_still_passes(self, engine: Engine, template: int):
+        assert self.check(engine, template)
+
+    def test_a_pool_passes(self, engine: Engine):
+        assert self.check(engine, random_pool([3, 5]))
+
+    @pytest.mark.parametrize("template", [-128, RANDOM_POOL, RANDOM_POOL | 1 << 24])
+    def test_anything_else_below_is_refused(self, engine: Engine, template: int):
+        assert not self.check(engine, template)
+
+
+class TestRegisterPool:
+    """The command block run ahead of a stock one in the screen's constructor."""
+
+    def test_it_files_the_handler_under_its_name_and_carries_on(self, engine: Engine):
+        esp = engine._frame()
+        engine.uc.reg_write(UC_X86_REG_EBX, engine.screen)
+        engine.calls.clear()
+        engine._write(engine.at["modal"], engine.screen)
+        assert engine.run("register_pool") == MP_SETUP_COMMAND_BLOCK_RESUME
+        assert engine.calls == [
+            ("string", (POOL_COMMAND,)),
+            ("functor", (engine.screen, engine.at["set_random_pool"], 0)),
+            ("insert", (engine.screen + MP_SETUP_COMMAND_MAP,)),
+            ("string_end", ()),
+            ("string", (POOL_MODAL_COMMAND,)),
+            ("functor", (engine.screen, engine.at["set_pool_modal"], 0)),
+            ("insert", (engine.screen + MP_SETUP_COMMAND_MAP,)),
+            ("string_end", ()),
+            *(
+                call
+                for slot in range(8)
+                for call in (
+                    ("string", (f"{POOL_EXTERN}{slot}",)),
+                    ("functor", (engine.screen, engine.at["get_pool"], 0)),
+                    ("extern", (engine.screen + MP_SETUP_EXTERN_MAP, slot)),
+                    ("string_end", ()),
+                )
+            ),
+            *(
+                call
+                for slot in range(8)
+                for call in (
+                    ("string", (f"{SEAT_EXTERN}{slot}",)),
+                    ("functor", (engine.screen, engine.at["get_seat"], 0)),
+                    ("extern", (engine.screen + MP_SETUP_EXTERN_MAP, slot)),
+                    ("string_end", ()),
+                )
+            ),
+            ("string", (ESCAPE_EXTERN,)),
+            ("functor", (engine.screen, engine.at["get_escape"], 0)),
+            ("extern", (engine.screen + MP_SETUP_EXTERN_MAP, 0)),
+            ("string_end", ()),
+        ]
+        assert engine._read(engine.at["modal"]) == 0, "a new screen starts with the panel shut"
+        # balanced, but for the stock block's own `push <name>`, which it resumes after
+        assert engine.uc.reg_read(UC_X86_REG_ESP) == esp - 4
+        stock_name = struct.unpack_from("<I", MP_SETUP_COMMAND_BLOCK_BYTES, 1)[0]
+        assert engine._read(esp - 4) == stock_name
+        assert engine.uc.reg_read(UC_X86_REG_EBX) == engine.screen
+
+
+class TestGetPool:
+    """`MpGameSetup::RandomPool<slot>`: what the panel reads a seat's pool back with."""
+
+    def get(self, e: Engine, slot: int, flag: int = 0) -> str:
+        out = e._alloc(0x20)
+        e._write(out, 0x5A5A5A5A)  # anything left there would show
+        e._frame()
+        esp = e.uc.reg_read(UC_X86_REG_ESP)
+        e._push(flag, out, slot, RETURN)
+        e.uc.reg_write(UC_X86_REG_ECX, e.screen)
+        assert e.run("get_pool") == RETURN
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp, "ret 0xc, as the stock handler"
+        return e._cstr(out)
+
+    @pytest.mark.parametrize("mask", [1 << 3, (1 << 5) | (1 << 13), 1, (1 << 24) - 1, 1234567])
+    def test_a_pool_reads_back_as_its_mask(self, engine: Engine, mask: int):
+        engine.set_template(2, RANDOM_POOL | mask)
+        assert self.get(engine, 2) == str(mask)
+
+    @pytest.mark.parametrize("template", [5, -1, -2, -3, -128, RANDOM_OF - 4])
+    def test_anything_but_a_pool_reads_0(self, engine: Engine, template: int):
+        engine.set_template(4, template)
+        assert self.get(engine, 4) == "0"
+
+    def test_each_slot_reads_its_own(self, engine: Engine):
+        engine.set_template(0, RANDOM_POOL | 6)
+        engine.set_template(7, RANDOM_POOL | 40)
+        assert (self.get(engine, 0), self.get(engine, 7)) == ("6", "40")
+
+    def test_no_such_slot_reads_0(self, engine: Engine):
+        assert self.get(engine, 9) == "0"
+
+    def test_a_write_is_left_alone(self, engine: Engine):
+        engine.set_template(1, RANDOM_POOL | 6)
+        assert self.get(engine, 1, flag=1) == "ZZZZ"
+
+
+class TestGetSeat:
+    """`MpGameSetup::RandomPoolSeat<slot>`: whether a seat's row button may be used."""
+
+    def get(self, e: Engine, slot: int, flag: int = 0) -> str:
+        out = e._alloc(0x20)
+        e._write(out, 0x5A5A5A5A)  # anything left there would show
+        e._frame()
+        esp = e.uc.reg_read(UC_X86_REG_ESP)
+        e._push(flag, out, slot, RETURN)
+        e.uc.reg_write(UC_X86_REG_ECX, e.screen)
+        assert e.run("get_seat") == RETURN
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp, "ret 0xc, as the stock handler"
+        return e._cstr(out)
+
+    @pytest.mark.parametrize(
+        ("enabled", "hidden", "expected"),
+        [(True, False, "2"), (False, False, "1"), (True, True, "0"), (False, True, "0")],
+    )
+    def test_shown_and_enabled_2_shown_1_hidden_0(self, engine, enabled, hidden, expected):
+        box = engine.faction_boxes[3]
+        engine._flag(box, WINDOW_STATUS_ENABLED, int(enabled))
+        engine._flag(box, WINDOW_STATUS_HIDDEN, int(hidden))
+        assert self.get(engine, 3) == expected
+
+    def test_each_slot_reads_its_own(self, engine: Engine):
+        engine._flag(engine.faction_boxes[1], WINDOW_STATUS_ENABLED, 0)
+        assert (self.get(engine, 0), self.get(engine, 1)) == ("2", "1")
+
+    def test_no_such_slot_reads_0(self, engine: Engine):
+        assert self.get(engine, 8) == "0"
+        assert self.get(engine, -1) == "0"
+
+    def test_a_write_is_left_alone(self, engine: Engine):
+        assert self.get(engine, 1, flag=1) == "ZZZZ"
+
+
+class TestModal:
+    """`MpGameSetup::RandomPoolModal` and the gate on the windows' mouse input it opens."""
+
+    def modal(self, e: Engine, params: str | None) -> None:
+        e.call("set_pool_modal", 0 if params is None else e.cstr(params), ecx=e.screen)
+
+    def gate(self, e: Engine) -> bool:
+        """Whether a mouse event reaches the windows (`True`) or is reported unused."""
+        e._frame()
+        esp = e.uc.reg_read(UC_X86_REG_ESP)
+        e._push(0x33, 0x22, 0x11, RETURN)  # data, pos, msg, then the caller's return
+        exit = e.run("mouse_gate")
+        if exit == WINDOW_MANAGER_PROCESS_MOUSE_RESUME:
+            # the displaced prologue: push ebp / mov ebp, esp / sub esp, 0x28
+            assert e.uc.reg_read(UC_X86_REG_EBP) == esp - 0x14
+            return True
+        assert exit == RETURN
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp, "ret 0xc, as the stock routine"
+        assert e.uc.reg_read(UC_X86_REG_EAX) == 0
+        return False
+
+    def test_windows_take_the_mouse_until_the_panel_opens(self, engine: Engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        assert self.gate(engine)
+        self.modal(engine, "1")
+        assert not self.gate(engine)
+        self.modal(engine, "0")
+        assert self.gate(engine)
+
+    def test_a_screen_that_has_gone_does_not_hold_the_gate(self, engine: Engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        self.modal(engine, "1")
+        engine._write(MP_SETUP_CURRENT, 0)  # its destructor
+        assert self.gate(engine)
+
+    @pytest.mark.parametrize("params", [None, "", "0", "x"])
+    def test_anything_but_1_shuts_it(self, engine: Engine, params: str | None):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        self.modal(engine, "1")
+        self.modal(engine, params)
+        assert self.gate(engine)
+
+
+class TestEscape:
+    """While the panel is open, Escape goes to no window and is kept for the panel to read back
+    as `MpGameSetup::RandomPoolEscape`."""
+
+    def modal(self, e: Engine, params: str) -> None:
+        e.call("set_pool_modal", e.cstr(params), ecx=e.screen)
+
+    def key(self, e: Engine, key: int, state: int) -> bool:
+        """Whether a key reaches the windows (`True`) or is reported used."""
+        e._frame()
+        esp = e.uc.reg_read(UC_X86_REG_ESP)
+        e._push(state, key, RETURN)
+        exit = e.run("key_gate")
+        if exit == WINDOW_MANAGER_PROCESS_KEY_RESUME:
+            # the displaced prologue: push ebp / mov ebp, esp / push ecx / push ecx
+            assert e.uc.reg_read(UC_X86_REG_EBP) == esp - 0x10
+            assert e.uc.reg_read(UC_X86_REG_ESP) == esp - 0x18
+            return True
+        assert exit == RETURN
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp, "ret 8, as the stock routine"
+        assert e.uc.reg_read(UC_X86_REG_EAX) == 1
+        return False
+
+    def read(self, e: Engine, flag: int = 0) -> str:
+        out = e._alloc(0x20)
+        e._write(out, 0x5A5A5A5A)
+        e._frame()
+        esp = e.uc.reg_read(UC_X86_REG_ESP)
+        e._push(flag, out, 0, RETURN)
+        e.uc.reg_write(UC_X86_REG_ECX, e.screen)
+        assert e.run("get_escape") == RETURN
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp, "ret 0xc, as the stock handler"
+        return e._cstr(out)
+
+    def test_with_the_panel_shut_escape_is_the_windows(self, engine: Engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        assert self.key(engine, KEY_ESC, KEY_STATE_UP)
+        assert self.read(engine) == "0"
+
+    def test_with_it_open_escape_is_kept_from_the_windows_and_recorded_on_release(self, engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        self.modal(engine, "1")
+        assert not self.key(engine, KEY_ESC, 2)  # pressed
+        assert self.read(engine) == "0"
+        assert not self.key(engine, KEY_ESC, KEY_STATE_UP)  # let go
+        assert self.read(engine) == "1"
+        assert self.read(engine) == "1", "reading leaves it"
+
+    def test_other_keys_still_reach_the_windows(self, engine: Engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        self.modal(engine, "1")
+        assert self.key(engine, 0x1C, KEY_STATE_UP)  # Enter
+        assert self.read(engine) == "0"
+
+    def test_closing_or_opening_the_panel_forgets_it(self, engine: Engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        self.modal(engine, "1")
+        self.key(engine, KEY_ESC, KEY_STATE_UP)
+        self.modal(engine, "0")
+        assert self.read(engine) == "0"
+        assert self.key(engine, KEY_ESC, KEY_STATE_UP)
+        self.modal(engine, "1")
+        assert self.read(engine) == "0"
+
+    def test_a_screen_that_has_gone_does_not_take_escape(self, engine: Engine):
+        engine._write(MP_SETUP_CURRENT, engine.screen)
+        self.modal(engine, "1")
+        engine._write(MP_SETUP_CURRENT, 0)
+        assert self.key(engine, KEY_ESC, KEY_STATE_UP)
+
+    def test_a_write_is_left_alone(self, engine: Engine):
+        assert self.read(engine, flag=1) == "ZZZZ"
+
+
+class TestArrow:
+    """The Variant box's drop-down arrow shows whenever the box has a choice to offer, as every
+    column's does; a list of one - a faction without variants - is greyed like a remote row."""
+
+    @pytest.mark.parametrize("faction", ["FactionMen", "FactionMen_DolAmroth"])
     def test_an_enabled_box_shows_its_arrow(self, engine: Engine, faction: str):
         box = engine.variant_box(1)
         engine.set_template(1, engine.index(faction))
@@ -1256,12 +1773,13 @@ class TestArrow:
         assert engine.status(box) == (True, True)
         assert engine.arrow(box)
 
-    def test_a_single_row_box_shows_it_too(self, engine: Engine):
+    def test_a_single_row_box_is_greyed(self, engine: Engine):
         box = engine.variant_box(1)
         engine.set_template(1, engine.index("FactionElves"))
         engine.fill(1)
         assert len(engine.boxes[box].rows) == 1
-        assert engine.arrow(box), "the gadget alone would have disabled the button here"
+        assert engine.status(box) == (True, False)
+        assert not engine.arrow(box)
 
     def test_a_disabled_box_does_not(self, engine: Engine):
         box = engine.variant_box(4)
@@ -1273,7 +1791,7 @@ class TestArrow:
 
     def test_the_enable_hook_brings_the_arrow_back(self, engine: Engine):
         box = engine.variant_box(4)
-        engine.set_template(4, engine.index("FactionElves"))
+        engine.set_template(4, engine.index("FactionMen"))
         engine._flag(engine.faction_boxes[4], WINDOW_STATUS_ENABLED, 0)
         engine.fill(4)
         assert not engine.arrow(box)
@@ -1321,3 +1839,263 @@ class TestOpenGate:
     def test_an_empty_box_never_opens(self, engine: Engine):
         assert not self.opens(engine, engine.variant_box(3), 0)
         assert not self.opens(engine, engine.window(), 0)
+
+
+_PVP = [
+    ("FactionMen", "Gondor", True),
+    ("FactionElves", "Lorien", True),
+    ("FactionMen_DolAmroth", "Dol Amroth", True),
+    ("FactionMen_Ithilien", "Ithilien", True),
+    ("FactionMen_Arnor", "Arnor", True),
+    ("FactionElves_Rivendell", "Rivendell", True),
+]
+
+
+@pytest.fixture
+def pvp() -> Engine:
+    """Gondor with a PvP variant (Dol Amroth, stated), one left unstated (Ithilien) and one that is
+    not PvP (Arnor); Lorien whose only variant (Rivendell) is not PvP."""
+    e = Engine(_PVP)
+    e.declare("FactionMen", None, pvp=False)  # read on variants only: a base is always offered
+    e.declare("FactionElves", None)
+    e.declare("FactionMen_DolAmroth", "FactionMen", pvp=True)
+    e.declare("FactionMen_Ithilien", "FactionMen")
+    e.declare("FactionMen_Arnor", "FactionMen", pvp=False)
+    e.declare("FactionElves_Rivendell", "FactionElves", pvp=False)
+    return e
+
+
+class TestEnabledForPvP:
+    """`EnabledForPvP = No` holds a variant back while the lobby's "Enable all variants" rule is
+    clear: the Variant box does not list it, no Random draws it, and a seat on it plays its
+    faction."""
+
+    def test_the_field_lands_in_the_row(self, pvp: Engine):
+        k = pvp.key
+        assert pvp.row("FactionMen_DolAmroth") == (k("FactionMen"), 2)
+        assert pvp.row("FactionMen_Ithilien") == (k("FactionMen"), 0)
+        assert pvp.row("FactionMen_Arnor") == (k("FactionMen"), 1)
+        assert pvp.row("FactionMen") == (0, 1), "a row of its own, a variant of nothing"
+        assert pvp.row("FactionElves") is None
+        assert pvp._read(pvp.at["pending_pvp"]) == 0
+
+    def test_a_block_without_it_does_not_inherit_the_last_one(self, pvp: Engine):
+        pvp.declare("FactionMen_Late", "FactionMen")
+        assert pvp.row("FactionMen_Late") == (pvp.key("FactionMen"), 0)
+
+    def test_an_override_changes_one_field_and_keeps_the_other(self, pvp: Engine):
+        pvp.declare("FactionMen_Arnor", None, override=True, pvp=True)
+        assert pvp.row("FactionMen_Arnor") == (pvp.key("FactionMen"), 2)
+        pvp.declare("FactionMen_Arnor", "FactionElves", override=True)
+        assert pvp.row("FactionMen_Arnor") == (pvp.key("FactionElves"), 2)
+
+    def test_the_variant_box_leaves_it_out(self, pvp: Engine):
+        box = pvp.variant_box(1)
+        pvp.set_template(1, pvp.index("FactionMen"))
+        pvp.fill(1)
+        rows = pvp.boxes[box].rows
+        assert [data for _text, data in rows] == [
+            RANDOM_OF - pvp.index("FactionMen"),
+            pvp.index("FactionMen"),
+            pvp.index("FactionMen_DolAmroth"),
+            pvp.index("FactionMen_Ithilien"),
+            pvp.index("FactionMen_Arnor"),
+        ]
+        held = {len(rows) - 1}
+        assert pvp.boxes[box].grey == held, "listed in the disabled colour"
+        assert pvp.boxes[box].disabled == held, "and cannot be picked"
+
+    def test_the_rule_lists_every_variant(self, pvp: Engine):
+        pvp.rule(1)
+        box = pvp.variant_box(1)
+        pvp.set_template(1, pvp.index("FactionMen"))
+        pvp.fill(1)
+        assert [data for _text, data in pvp.boxes[box].rows][2:] == [
+            pvp.index("FactionMen_DolAmroth"),
+            pvp.index("FactionMen_Ithilien"),
+            pvp.index("FactionMen_Arnor"),
+        ]
+
+    def test_a_faction_whose_only_variant_is_held_back_still_lists_it_greyed(self, pvp: Engine):
+        box = pvp.variant_box(1)
+        pvp.set_template(1, pvp.index("FactionElves"))
+        pvp.fill(1)
+        rows = pvp.boxes[box].rows
+        assert [data for _text, data in rows] == [
+            RANDOM_OF - pvp.index("FactionElves"),
+            pvp.index("FactionElves"),
+            pvp.index("FactionElves_Rivendell"),
+        ]
+        assert pvp.boxes[box].disabled == {2}
+        assert pvp.boxes[box].selected == 1, "Standard"
+
+    def test_a_seat_left_on_it_shows_its_faction(self, pvp: Engine):
+        box = pvp.variant_box(1)
+        pvp.set_template(1, pvp.index("FactionMen_Arnor"))
+        pvp.fill(1)
+        rows = pvp.boxes[box].rows
+        assert rows[pvp.boxes[box].selected][1] == pvp.index("FactionMen"), "Standard"
+        assert pvp.template(1) == pvp.index("FactionMen_Arnor"), "the lobby changes no seat"
+
+    def settle(self, e: Engine, slot: int) -> int:
+        esp = e._frame()
+        e.uc.reg_write(UC_X86_REG_EBX, e.slots[slot])
+        assert e.run("slot_template") == GAME_START_SLOT_TEMPLATE_RESUME
+        assert e.uc.reg_read(UC_X86_REG_ESP) == esp
+        read = struct.unpack("<i", struct.pack("<I", e.uc.reg_read(UC_X86_REG_ESI)))[0]
+        assert read == e.template(slot), "the Random pass reads esi"
+        return read
+
+    def test_game_start_plays_its_faction(self, pvp: Engine):
+        pvp.start(0)
+        pvp.set_template(0, pvp.index("FactionMen_Arnor"))
+        assert self.settle(pvp, 0) == pvp.index("FactionMen")
+        assert ("set", (0, pvp.index("FactionMen"))) in pvp.calls
+        assert pvp.draws == []
+
+    @pytest.mark.parametrize("rule", [1, -1, None])
+    def test_with_the_rule_or_without_a_lobby_it_is_played(self, pvp: Engine, rule):
+        # -1 is what a lobby without the checkbox (War of the Ring) leaves in the rule.
+        pvp.start(rule)
+        pvp.set_template(0, pvp.index("FactionMen_Arnor"))
+        pvp.calls.clear()
+        assert self.settle(pvp, 0) == pvp.index("FactionMen_Arnor")
+        assert pvp.calls == []
+
+    @pytest.mark.parametrize("name", ["FactionMen", "FactionMen_DolAmroth", "FactionMen_Ithilien"])
+    def test_everything_else_is_played_as_picked(self, pvp: Engine, name: str):
+        pvp.start(0)
+        pvp.set_template(0, pvp.index(name))
+        pvp.calls.clear()
+        assert self.settle(pvp, 0) == pvp.index(name)
+        assert pvp.calls == []
+
+    @pytest.mark.parametrize(("rule", "hi"), [(0, 2), (1, 3)], ids=["held-back", "all-variants"])
+    def test_a_faction_s_random_draws_only_what_may_be_played(self, pvp: Engine, rule, hi):
+        pvp.start(rule)
+        pvp.set_template(0, RANDOM_OF - pvp.index("FactionMen"))
+        pvp.draw = 99
+        self.settle(pvp, 0)
+        assert pvp.draws == [(0, hi)]
+
+    def test_random_variants_draws_only_what_may_be_played(self, pvp: Engine):
+        pvp.start(0)
+        pvp.set_template(0, RANDOM_VARIANTS)
+        pvp.draw = 1
+        assert self.settle(pvp, 0) == pvp.index("FactionMen_Ithilien")
+        assert pvp.draws == [(0, 1)], "Dol Amroth and Ithilien"
+
+    def test_random_s_second_draw_skips_it(self, pvp: Engine):
+        pvp.start(0)
+        pvp.set_template(0, RANDOM_VARIANT)
+        esp = pvp._frame()
+        pvp.uc.reg_write(UC_X86_REG_EBX, pvp.slots[0])
+        pvp.uc.reg_write(UC_X86_REG_ESI, pvp.index("FactionElves"))
+        assert pvp.run("random_assign") == GAME_START_RANDOM_ASSIGN_RESUME
+        assert pvp.uc.reg_read(UC_X86_REG_ESP) == esp
+        assert pvp.uc.reg_read(UC_X86_REG_ESI) == pvp.index("FactionElves")
+        assert pvp.draws == [], "Rivendell held back: nothing to draw between"
+
+    def test_a_pool_naming_it_does_not_draw_it(self, pvp: Engine):
+        pvp.start(0)
+        names = ("FactionMen_Arnor", "FactionElves")
+        pvp.set_template(0, random_pool(pvp.index(name) for name in names))
+        assert _run_draw(pvp, 0, ["FactionMen", "FactionElves"]) == ["FactionElves"]
+        assert pvp.draws == [(0, 0)]
+
+    def test_a_pool_draws_it_with_the_rule(self, pvp: Engine):
+        pvp.start(1)
+        names = ("FactionMen_Arnor", "FactionElves")
+        pvp.set_template(0, random_pool(pvp.index(name) for name in names))
+        pvp.draw = 1  # in template order: Lorien, then Arnor
+        assert _run_draw(pvp, 0, ["FactionMen", "FactionElves"]) == ["FactionMen_Arnor"]
+        assert pvp.draws == [(0, 1)]
+
+
+class TestRandomSeatDash:
+    """A Random seat's Variant box shows a single greyed `-`: what it may draw is its Random
+    pool's to say."""
+
+    @pytest.mark.parametrize(
+        "template",
+        [RANDOM_STANDARD, RANDOM_VARIANT, RANDOM_VARIANTS, RANDOM_GOOD, RANDOM_EVIL, None],
+    )
+    def test_shows_a_disabled_dash(self, engine: Engine, template: int | None):
+        if template is None:
+            template = random_pool([engine.index("FactionMen"), engine.index("FactionElves")])
+        box = engine.variant_box(1)
+        engine.set_template(1, template)
+        engine.fill(1)
+        assert engine.boxes[box].rows == [("-", template)]
+        assert engine.boxes[box].selected == 0
+        assert engine.status(box) == (True, False)
+        assert not engine.strings
+
+
+class TestScenarioDisabledFactions:
+    """In the War of the Ring lobby the Variant box honours the scenario's `DisabledFactions`,
+    `scenario-player-factions`' `:N` included: a row the scenario refuses this seat is listed
+    greyed and cannot be picked, as the stock faction box lists a faction it refuses."""
+
+    def rows(self, e: Engine, slot: int, faction: str) -> tuple[Box, list[int]]:
+        box = e.variant_box(slot)
+        e.set_template(slot, e.index(faction))
+        e.fill(slot)
+        return e.boxes[box], [data for _text, data in e.boxes[box].rows]
+
+    def test_a_variant_disabled_for_everyone_is_greyed(self, engine: Engine):
+        engine.scenario(["FactionMen_Ithilien"])
+        box, data = self.rows(engine, 1, "FactionMen")
+        held = {data.index(engine.index("FactionMen_Ithilien"))}
+        assert box.grey == held
+        assert box.disabled == held
+        assert engine.names_out == engine.calls.count(("string_end", ())), "every name destroyed"
+
+    def test_a_disabled_base_greys_its_standard_row(self, engine: Engine):
+        engine.scenario(["FactionMen"])
+        box, data = self.rows(engine, 1, "FactionMen_DolAmroth")
+        held = {data.index(engine.index("FactionMen"))}
+        assert box.grey == held
+        assert box.disabled == held
+        assert box.rows[box.selected][1] == engine.index("FactionMen_DolAmroth")
+
+    def test_a_faction_without_variants_greys_its_lone_row(self, engine: Engine):
+        engine.scenario(["FactionElves"])
+        box, data = self.rows(engine, 1, "FactionElves")
+        assert data == [engine.index("FactionElves")]
+        assert box.grey == box.disabled == {0}
+
+    @pytest.mark.parametrize(("slot", "refused"), [(0, True), (1, False), (2, False)])
+    def test_a_player_entry_bars_only_that_seat(self, engine: Engine, slot: int, refused: bool):
+        engine.scenario(
+            ["FactionMen_Ithilien:1", "FactionMen_DolAmroth:9", "FactionMen_DolAmroth:"]
+        )
+        box, data = self.rows(engine, slot, "FactionMen")
+        ithilien = data.index(engine.index("FactionMen_Ithilien"))
+        assert box.disabled == ({ithilien} if refused else set())
+        assert box.grey == box.disabled
+
+    def test_matching_is_whole_name_and_case_sensitive(self, engine: Engine):
+        engine.scenario(["FactionMen_Ithil", "factionmen_dolamroth", "FactionMen_Ithilien_X"])
+        box, _data = self.rows(engine, 1, "FactionMen")
+        assert box.disabled == set()
+
+    def test_a_skirmish_lobby_ignores_the_scenario(self, engine: Engine):
+        engine.scenario(["FactionMen_Ithilien"])
+        engine.scenario(None)
+        box, _data = self.rows(engine, 1, "FactionMen")
+        assert box.disabled == set()
+        assert engine.names_out == 0, "no scenario asked"
+
+    def test_no_scenario_chosen_refuses_nothing(self, engine: Engine):
+        engine.scenario(["FactionMen_Ithilien"])
+        engine.scenario_index = -1
+        box, _data = self.rows(engine, 1, "FactionMen")
+        assert box.disabled == set()
+
+    def test_held_back_and_refused_combine(self, pvp: Engine):
+        pvp.scenario(["FactionMen_Ithilien"])
+        box, data = self.rows(pvp, 1, "FactionMen")
+        held = {data.index(pvp.index(n)) for n in ("FactionMen_Ithilien", "FactionMen_Arnor")}
+        assert box.disabled == held
+        assert box.grey == held

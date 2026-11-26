@@ -805,7 +805,7 @@ class HeroBarPatch(Patch):
 
     name = "herobar"
     author = "officialNecro"
-    runtime_verified = "partly"
+    runtime_verified = "yes"
     description = (
         "Add two kindofs that put an object on the hero bar without making it a HERO: HEROBAR "
         "gives every object its own slot, HEROBAR_GROUP shares one slot between every instance "

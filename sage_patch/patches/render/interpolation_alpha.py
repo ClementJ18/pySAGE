@@ -105,6 +105,7 @@ def build_code(base_va: int) -> bytes:
 class InterpolationAlphaPatch(Patch):
     name = "interpolation-alpha"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Stop every interpolated transform taking a doubled step at the logic-frame boundary, "
         "five times a second, by taking the interpolation alpha over the sub-frames the client "

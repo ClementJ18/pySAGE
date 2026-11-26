@@ -157,6 +157,7 @@ def replacement(base_va: int) -> bytes:
 class KillCountTooltipPatch(Patch):
     name = "kill-count-tooltip"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Add a kill count at the bottom of an object's hover tooltip, from the count the engine "
         "already keeps and saves. A battalion member shows its battalion's total. Formatted from "

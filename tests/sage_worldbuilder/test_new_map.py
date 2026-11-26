@@ -46,6 +46,13 @@ def test_a_new_map_saves_and_reopens_with_its_size_height_and_texture():
     assert not document.cells(CellLayer.IMPASSABLE).any()
 
 
+def test_a_new_map_starts_with_the_ckmp_signature():
+    # The game rejects a map whose asset table does not open with `CkMp` (ERROR_CORRUPT_FILE_FORMAT
+    # on load), and a map built from scratch has no signature read from a file to copy.
+    map = new_map(NewMapOptions(width=64, height=48, border=6))
+    assert write_map(map, compress=False)[:4] == b"CkMp"
+
+
 def test_new_map_options_are_checked():
     with pytest.raises(ValueError):
         new_map(NewMapOptions(width=20, height=20, border=10))

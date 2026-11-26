@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sage_worldbuilder.ui.window_sizes import remember_size
 from sage_worldbuilder.viewport import GridSettings, ViewOptions
 
 __all__ = ["GridSettingsDialog"]
@@ -20,6 +21,7 @@ __all__ = ["GridSettingsDialog"]
 class GridSettingsDialog(QDialog):
     def __init__(self, options: ViewOptions, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        remember_size(self)
         self.setWindowTitle("Grid Settings")
         grid = options.grid if options.grid is not None else GridSettings()
         layout = QFormLayout(self)

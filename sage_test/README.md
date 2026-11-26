@@ -44,9 +44,17 @@ the live object of that template nearest where it was placed.
 |---|---|---|
 | `scenario` | nothing | the declaration: seats, placements, handles |
 | `compile` | `sage_map` | appends the placements to a template map's object list |
+| `script_compile` | `sage_map` + `sage_worldbuilder` | writes a scenario's scripts, waypoints and trigger areas into the map |
+| `scripts` | a running game | `Match.scripts`: fires a scenario's scripts and reads their counts |
 | `runner` | a game install | writes the map where the engine looks, and launches |
 | `harness` | `sage_live` + a running game | binds handles; a `Session` for everything else |
 | `maps` | nothing | reads the engine's map cache: which maps can be started, and their names |
+| `mission` | `sage_worldbuilder.live` + a running game | campaign missions: carryover, the script watch, objectives, the skirmish defeat hold |
+| `mission_record` | the same | records a mission's opening frame by frame, and diffs two recordings |
+| `perf` | nothing | army layouts, the median centre a camera follows, a JSON-lines log |
+| `pace`, `camera` | a running game | frame-rate sampling; a camera that follows a moving army |
+| `accelerator`, `options` | an install | settings for one launch, put back afterwards |
+| `window`, `process` | Windows | the game's window (focus, Alt+Tab, capture); its address space |
 
 `scenario` imports no game data, `sage_map` or Windows-only code, so declarations can be checked
 anywhere, including the data-free core suite.
@@ -77,6 +85,9 @@ Enable the plugin from a `conftest.py`:
 ```python
 pytest_plugins = ["sage_test.plugin"]
 ```
+
+A test of something a `sage_patch` patch adds says so with `@pytest.mark.needs_patch("name")`,
+and is skipped - before any game launches - when the install's `game.dat` lacks it.
 
 It adds `--install`, `--mod`, `--map-template`, `--keep-maps`, `--headless` and `--shard`, and the fixtures `install` (skips
 without `--install`, so a bare `pytest` never launches a game), `scenario_runner` and `map_runner`.
@@ -145,6 +156,32 @@ out-of-range start position, a random faction or colour, or a team outside -1..3
 game: the parser's contract is read from the disassembly and tested under an emulator
 (`game-info.md` section 7).
 
+## Per-test ini overrides
+
+A scenario can bring its own `map.ini`. It is written beside the generated map, and the engine loads
+it on top of the mod's ini, so a test can change an Object without touching the mod:
+
+```python
+scenario.override("""
+    Object EntEntling
+        AddModule ModuleTag_WallMelee
+            Behavior = WeaponSetUpgrade ModuleTag_WallMelee
+                TriggeredBy = Upgrade_Test
+            End
+        End
+    End
+""", shared_inis_folder)  # optional: files or folders the override #includes
+```
+
+- The engine reads the file once, when the map loads. Changing it means another launch.
+- It is an override file, so a new module on an existing Object must be wrapped in `AddModule`.
+- Before launch, `check_map_ini` parses the file and runs `sage_lint`'s `map-bare-module` rule. A
+  problem raises `MapIniError` with the file and line, instead of an engine error box that a test
+  would only see as a timeout. References to definitions elsewhere in the mod are not checked.
+- An `#include` resolves from the user-maps folder, not from the mod tree, so pass what it names
+  as an include to have it copied there.
+- `--keep-maps` keeps the `map.ini` with the map.
+
 ## Starting a map that already exists
 
 A generated map never carries a shipped map's own `map.ini`, so to test that data, start the map
@@ -171,6 +208,40 @@ A folder the cache does not name cannot be started, and an `isMultiplayer = no` 
 auto-start, so suites skip those. `MapEntry.argument` is the `-file` spelling, which is not the
 path. A fatal `map.ini` error shows a message box rather than exiting, so it surfaces as the launch
 timeout.
+
+## Map scripts
+
+A scenario can add map scripts, so the engine itself spawns, kills or transfers something at the
+moment a test chooses, or reports a condition only it can judge. Actions and conditions are
+named the way WorldBuilder names them internally; the arguments are checked against the template
+when the map is compiled, before anything launches.
+
+```python
+from sage_test import act, cond
+
+scenario.place("GondorRanger", at=(1500, 1500, 0), name="TestScout")
+scenario.area("Yard", rect=((1650, 1650), (1750, 1750)))
+scenario.script("wave", act("CREATE_OBJECT", "MordorOrc", "Player_2/teamPlayer_2", (1400, 1700), 0))
+scenario.probe("scout_in_yard", cond("NAMED_INSIDE_AREA", "TestScout", "Yard"))
+
+with run_scenario(scenario, install, template, writable=True) as match:
+    match.scripts.run("wave")                       # fire it, and wait until it has run
+    assert match.scripts.count("scout_in_yard") == 0
+```
+
+- **`script`** declares a trigger: written switched off, it runs once each time the test fires
+  it (and its `when=` conditions hold, if it has any).
+- **`probe`** declares a script that is switched on from the start and counts each time its
+  conditions held. `any_of(a, (b, c))` ORs clauses.
+- Every script ends by raising the counter `sage_test.<name>`. That counter is how `run` and
+  `wait_fired` know the actions ran, and its value is `count`.
+- Scripts go into a `sage_test` group on the neutral side, or `side=` a seat index or side name.
+  `waypoint` and `area` declare the names scripts refer to.
+
+Firing writes the script's active flag and next-evaluation frame. No code is patched, so it
+works with the accelerator loaded. A network game is refused. The arguments are fixed when the
+map is compiled: declare one script per variant, or hand a number in through
+`match.scripts.set_counter`. The design is in [`docs/scenario-scripts.md`](../docs/scenario-scripts.md).
 
 ## Status
 

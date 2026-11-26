@@ -1222,23 +1222,33 @@ class UnitPanel(QWidget):
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(4)
-        for col, head in enumerate(("Type", "Damage type", "Damage", "Radius")):
+        heads = ("Type", "Vs", "Damage type", "Damage", "Radius")
+        for col, head in enumerate(heads):
             label = QLabel(head)
             label.setObjectName("colhead")
             grid.addWidget(label, 0, col)
-        for row, n in enumerate(nuggets, start=1):
+        row = 1
+        for n in nuggets:
             base_damage = n["damage"]
             damage = base_damage
             if base_damage is not None:
                 damage = self._unit_state.weapon_damage(base_damage, n["damage_type"])
             cells = (
                 QLabel(n["type"]),
+                QLabel(n["target"]),
                 QLabel(n["damage_type"] or "-"),
                 self._stat_label(fmt_stat(damage), damage, base_damage),
                 QLabel("-" if n["radius"] is None else fmt_stat(n["radius"])),
             )
             for col, widget in enumerate(cells):
                 grid.addWidget(widget, row, col)
+            row += 1
+            # The DamageScalar bonuses/penalties, as the wiki infobox bullets them.
+            for modifier in n["modifiers"]:
+                label = QLabel(f"• {modifier}")
+                label.setObjectName("muted")
+                grid.addWidget(label, row, 1, 1, len(heads) - 1)
+                row += 1
         grid.setColumnStretch(0, 1)
         wrap = QWidget()
         wrap.setLayout(grid)

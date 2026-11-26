@@ -47,6 +47,7 @@ def retargeted(site: int, stock: bytes) -> bytes:
 class LanJoinBystandersPatch(Patch):
     name = "lan-join-bystanders"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Let only the hosting copy of the game answer a LAN join request. Stock, every copy on the "
         "host's IP answers, and the ones not hosting refuse with 'Game has already started', so "

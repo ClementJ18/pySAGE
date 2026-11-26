@@ -140,6 +140,7 @@ __all__ = [
     "LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT",
     "LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT_READ",
     "LIVING_WORLD_CAMPAIGN_MANAGER_CURRENT_READ_BYTES",
+    "LIVING_WORLD_CAMPAIGN_MANAGER_GET_CAMPAIGN",
     "LIVING_WORLD_CAMPAIGN_SCENARIO",
     "LIVING_WORLD_CAMPAIGN_SCENARIO_READ",
     "LIVING_WORLD_CAMPAIGN_SCENARIO_READ_BYTES",
@@ -864,6 +865,11 @@ LIVING_WORLD_CAMPAIGN_MANAGER_CAMPAIGNS_END = 0x18
 LIVING_WORLD_CAMPAIGN_SCENARIO_READ = 0x00932B95
 LIVING_WORLD_CAMPAIGN_SCENARIO_READ_BYTES = bytes.fromhex("8b761c85f67437")
 LIVING_WORLD_CAMPAIGN_SCENARIO = 0x1C
+#: `LivingWorldCampaignManager::getCampaign(int index)`, thiscall on
+#: `THE_LIVING_WORLD_CAMPAIGN_MANAGER`, `ret 4`: the campaign at `index` in its vector at
+#: `+0x14..+0x18` (its first for an index out of range; an empty vector is not guarded). Its
+#: `LIVING_WORLD_CAMPAIGN_SCENARIO` is the `Scenario` the War of the Ring lobby plays.
+LIVING_WORLD_CAMPAIGN_MANAGER_GET_CAMPAIGN = 0x007B9636
 ARMY_RECORD_SPAWN = 0x00811104
 #: The record half of an army carryover, usable on any player. `ARMY_RECORD_SIZE` is what
 #: `ARMY_ENTRY_RECORD_CTOR` constructs, and the same record an `ArmyEntry` line parses into, so the

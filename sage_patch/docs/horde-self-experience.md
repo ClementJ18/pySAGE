@@ -9,7 +9,7 @@ repo's `game.dat` on 2026-10-22.
   the horde object itself is rerouted, and an empty horde keeps the stock call.
 - **Status:** static-verified, and the cave emulated over the real `game.dat`
   (`tests/sage_patch/test_horde_self_experience_emulated.py`). **Seen live, 2026-10-23**, in
-  Edain's `tests/test_bloodthirsty_combo_level.py`: one level-1 `MordorFighterHorde` ate
+  Edain's `tests/mordor/test_bloodthirsty_combo_level.py`: one level-1 `MordorFighterHorde` ate
   another, it and every orc in it held `Upgrade_ObjectLevel1` and `2` with a banner carrier,
   and the `MordorAufseherFighterHordeComboHorde` it made with an overseer kept the level and
   the banner.

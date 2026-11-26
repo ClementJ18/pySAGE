@@ -68,6 +68,7 @@ def build_code() -> bytes:
 class MountHealthRatioPatch(Patch):
     name = "mount-health-ratio"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Carry health across a ToggleMountedSpecialAbilityUpdate swap (MountedTemplate, both "
         "mounting and dismounting) as a percentage of maximum health rather than as hit points, "

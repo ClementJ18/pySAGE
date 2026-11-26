@@ -62,13 +62,14 @@ PROTOCOL_VERSION = 1
 
 # Bumped independently of PROTOCOL_VERSION whenever the observation payload layout changes,
 # so a reader can refuse a struct it does not know without rejecting the whole connection.
+#   7: each production entry's `100 / buildTime` and the speed its step is scaled by
 #   6: production and construction percents, rank ladder, lobby name/colour/allies, the
 #      match ledger, hero/spellbook/structure flags, build cost, hero experience
 #   5: held sciences
 #   4: per-object `ModelConditionFlags`
 #   3: `godsight`
 #   2: per-object production queues, `GameObject.upgrades`, `PlayerState.upgrades_in_progress`
-OBSERVATION_STRUCT_VERSION = 6
+OBSERVATION_STRUCT_VERSION = 7
 
 # "SG" - the sync marker every frame opens with, so a confused reader can find its footing.
 FRAME_MAGIC = 0x4753
@@ -398,6 +399,8 @@ def encode_observation(obs: Observation) -> bytes:
             w.text(item.kind)
             w.text(item.name)
             w.f32(item.percent)
+            w.f32(item.percent_per_frame)
+            w.f32(item.speed)
         # -1 for None, the engine's own spelling of "not being built".
         w.f32(-1.0 if o.construction_percent is None else o.construction_percent)
         w.u8(
@@ -485,7 +488,9 @@ def decode_observation(payload: bytes) -> tuple[Observation | None, list[Diagnos
         parent = r.i32()
         obj_upgrades = frozenset(r.text() for _ in range(r.u16()))
         conditions = frozenset(r.text() for _ in range(r.u16()))
-        production = tuple(ProductionItem(r.text(), r.text(), r.f32()) for _ in range(r.u16()))
+        production = tuple(
+            ProductionItem(r.text(), r.text(), r.f32(), r.f32(), r.f32()) for _ in range(r.u16())
+        )
         built = r.f32()
         kinds = r.u8()
         build_cost = r.u16()

@@ -1,4 +1,5 @@
-"""Rule: a child block whose type the schema does not recognize.
+"""Rules: a child block whose type the schema does not recognize, and a module header naming a
+class the schema models but the game's module factory does not register.
 
 A `Behavior`/`Draw`/`Body`/... module names its class in its header (`Behavior =
 PhysicsBehavior Tag`); a named sub-block is typed by its own name. When that type is not in
@@ -11,7 +12,7 @@ for manual triage.
 from collections.abc import Iterator
 
 from sage_ini.model.game import Game
-from sage_ini.model.objects import REGISTRY, classify_subblock
+from sage_ini.model.objects import REGISTRY, Behavior, Draw, Module, classify_subblock
 from sage_ini.parser.ast import Block
 from sage_ini.parser.diagnostics import Diagnostic, Severity
 from sage_ini.suggest import suggestion_hint
@@ -53,3 +54,55 @@ class UnrecognizedBlockRule(Rule):
                         "suggestion": suggestion,
                     },
                 )
+
+
+# Unregistered classes with one registered module that does their job in RotWK. Name similarity
+# alone would pick `W3DSailModelDraw` for `W3DModelDraw`.
+_REGISTERED_EQUIVALENT = {"W3DModelDraw": "W3DScriptedModelDraw"}
+
+
+def _registered_alternatives(cls: type[Module]) -> list[str]:
+    """Registered module names to suggest instead of `cls`: its known equivalent, else its
+    registered subclasses (a C++ base names the family to pick from), else the registered
+    modules of its slot."""
+    if cls.__name__ in _REGISTERED_EQUIVALENT:
+        return [_REGISTERED_EQUIVALENT[cls.__name__]]
+    descendants = [c.__name__ for c in _all_subclasses(cls) if c.factory_registered]
+    if descendants:
+        return descendants
+    slot = next((base for base in (Draw, Behavior) if issubclass(cls, base)), Module)
+    return [c.__name__ for c in _all_subclasses(slot) if c.factory_registered]
+
+
+def _all_subclasses(cls: type[Module]) -> list[type[Module]]:
+    found: list[type[Module]] = []
+    for sub in cls.__subclasses__():
+        found.append(sub)
+        found.extend(_all_subclasses(sub))
+    return found
+
+
+class UnregisteredModuleRule(Rule):
+    """A module header naming a class the schema models but RotWK's module factory does not
+    register (`Draw = W3DModelDraw`, `Behavior = DieBehavior`): a C++ base class or a Generals
+    module. The parser accepts it, then the factory returns NULL and the game crashes while
+    loading the INI, with no error dialog."""
+
+    code = "unregistered-module"
+
+    def check(self, game: Game) -> Iterator[Diagnostic]:
+        for module in walk_objects(game, Module):
+            if not isinstance(module, Module) or module.factory_registered:
+                continue
+            cls = type(module)
+            hint, suggestion = suggestion_hint(cls.__name__, _registered_alternatives(cls), 0.0)
+            yield Diagnostic(
+                code=self.code,
+                message=(
+                    f"{cls.__name__!r} is not a module the game registers; naming it crashes "
+                    f"the game on load.{hint}"
+                ),
+                span=module.span,
+                severity=Severity.ERROR,
+                extra={"type_name": cls.__name__, "header": module.name, "suggestion": suggestion},
+            )

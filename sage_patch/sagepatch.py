@@ -35,7 +35,7 @@ from sage_ini.engine import AppliedPatch, Engine, EnumDelta, Source
 from sage_utils.extras import package_version
 
 from .addresses import BUILD
-from .patcher import Patch
+from .patcher import Patch, application_order
 from .patches.utils import (
     locomotor_sets,
     map_weather,
@@ -130,9 +130,10 @@ def name_table_members(data: bytes | bytearray) -> tuple[tuple[EnumDelta, ...], 
 def detect_patches(data: bytes | bytearray) -> tuple[Patch, ...]:
     """Every registered patch the image carries, each built with the parameters recovered from
     it. Registry order - settled patches then experimental, each alphabetical - which is stable and
-    therefore keeps a generated file diffable."""
+    therefore keeps a generated file diffable, except that a patch follows any it names in
+    `apply_after`, so a rebuild from the file applies them in a working order."""
     found = [patch for cls in PATCHES.values() if (patch := cls.detect(data)) is not None]
-    return tuple(found)
+    return tuple(application_order(found))
 
 
 def _fuse(surfaced: Sequence[EnumDelta], observed: Sequence[EnumDelta]) -> tuple[EnumDelta, ...]:

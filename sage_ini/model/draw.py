@@ -187,7 +187,7 @@ class LodOptions(NestedAttribute):
     MaxAnimFrameDelta: t.Int
 
 
-class W3DModelDraw(Draw):
+class W3DModelDraw(Draw, factory_registered=False):
     IgnoreConditionStates: t.Untyped
     OkToChangeModelColor: t.Bool
     ReceivesDynamicLights: t.Bool
@@ -442,15 +442,15 @@ class W3DRopeDraw(Draw):
     pass
 
 
-class W3DScienceModelDraw(W3DModelDraw):
+class W3DScienceModelDraw(W3DModelDraw, factory_registered=False):
     RequiredScience: t.Opaque
 
 
-class W3DDependencyModelDraw(W3DModelDraw):
+class W3DDependencyModelDraw(W3DModelDraw, factory_registered=False):
     AttachToBoneInContainer: t.Bone
 
 
-class W3DPoliceCarDraw(W3DModelDraw):
+class W3DPoliceCarDraw(W3DModelDraw, factory_registered=False):
     PowerslideRotationAddition: t.Float
     TireRotationMultiplier: t.Float
     RightFrontTireBone: t.Bone
@@ -459,19 +459,19 @@ class W3DPoliceCarDraw(W3DModelDraw):
     LeftRearTireBone: t.Bone
 
 
-class W3DOverlordTankDraw(W3DTankDraw):
+class W3DOverlordTankDraw(W3DTankDraw, factory_registered=False):
     pass
 
 
-class W3DOverlordTruckDraw(W3DTruckDraw):
+class W3DOverlordTruckDraw(W3DTruckDraw, factory_registered=False):
     pass
 
 
-class W3DTankTruckDraw(W3DTruckDraw):
+class W3DTankTruckDraw(W3DTruckDraw, factory_registered=False):
     TreadAnimationRate: t.Float
     TreadDriveSpeedFraction: t.Float
     TreadPivotSpeedFraction: t.Float
 
 
-class W3DTracerDraw(Draw):
+class W3DTracerDraw(Draw, factory_registered=False):
     pass

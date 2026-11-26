@@ -355,6 +355,7 @@ def _entries(base_va: int) -> dict[int, int]:
 class ReviveObjectBindingPatch(Patch):
     name = "revive-object-binding"
     author = "officialNecro"
+    runtime_verified = "yes"
     description = (
         "Bind a REVIVE CommandButton to the hero its Object names, instead of to its position "
         "among the set's REVIVE buttons, so a building lists only the heroes it offers. Its "
