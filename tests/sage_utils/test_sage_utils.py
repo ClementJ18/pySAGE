@@ -10,6 +10,7 @@ from sage_ini.model.state import UnitState, has_kindof
 from sage_ini.parser.blockparser import parse
 from sage_ini.parser.io import ASSET_SUFFIXES, MAP_SUFFIXES
 from sage_ini.suggest import closest_names
+from sage_utils.config import user_config_dir
 from sage_utils.factiongraph import (
     StructureRole,
     build_faction_graph,
@@ -1392,7 +1393,6 @@ class TestFactionGraphSeeding:
 
 def test_user_config_dir_lives_under_pysage(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
-    from sage_utils.config import user_config_dir
 
     assert user_config_dir("sage_ui") == tmp_path / "pySAGE" / "sage_ui"
 
@@ -1401,7 +1401,6 @@ def test_user_config_dir_moves_legacy_folder(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     (tmp_path / "sage_ui").mkdir()
     (tmp_path / "sage_ui" / "sources.json").write_text("[]", encoding="utf-8")
-    from sage_utils.config import user_config_dir
 
     path = user_config_dir("sage_ui")
 
