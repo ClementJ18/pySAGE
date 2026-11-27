@@ -68,7 +68,8 @@ class Placement:
     upgrades: tuple[str, ...] = ()
     #: `objectInitialHealth`, as a percentage the way the map format stores it.
     health: int = 100
-    #: `objectIndestructible`, WorldBuilder's "Indestructible" box: the object takes no fatal damage.
+    #: `objectIndestructible`, WorldBuilder's "Indestructible" box: the object takes no fatal
+    #: damage.
     indestructible: bool = False
     #: `objectName`, the WorldBuilder label. Scripts address objects by this; tests do not need
     #: it, but a scenario that wants to be openable in WorldBuilder does.

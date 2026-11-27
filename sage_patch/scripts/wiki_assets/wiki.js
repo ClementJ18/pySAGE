@@ -156,8 +156,10 @@
   var iniCode = document.getElementById('ini');
   var fieldTable = document.querySelector('table.fields[data-module]');
   var NUM = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
-  var RANGES = { int8: [-128, 127], uint8: [0, 255], uint16: [0, 65535] };
-  var PARTS = { coord3: ['X', 'Y', 'Z'], rgb: ['R', 'G', 'B'], rgba: ['R', 'G', 'B', 'A'] };
+  var RANGES = { int8: [-128, 127], uint8: [0, 255], uint16: [0, 65535], uint32: [0, 4294967295] };
+  var PARTS = { coord3: ['X', 'Y', 'Z'], coord2: ['X', 'Y'], coord2int: ['X', 'Y'],
+                rgb: ['R', 'G', 'B'], rgba: ['R', 'G', 'B', 'A'] };
+  var WHOLE = /^[+-]?\d+$/;
 
   function memberOf(list, token) {
     var t = token.replace(/^[+-]/, '').toUpperCase();
@@ -172,8 +174,8 @@
     switch (kind) {
       case 'bool':
         return /^(yes|no)$/i.test(value) ? '' : 'expected Yes or No';
-      case 'int': case 'int8': case 'uint8': case 'uint16':
-        if (!/^[+-]?\d+$/.test(value)) return 'expected a whole number';
+      case 'int': case 'int8': case 'uint8': case 'uint16': case 'uint32':
+        if (!WHOLE.test(value)) return 'expected a whole number';
         var lim = RANGES[kind], n = parseInt(value, 10);
         if (lim && (n < lim[0] || n > lim[1])) return 'expected ' + lim[0] + ' to ' + lim[1];
         return '';
@@ -184,16 +186,17 @@
         if (kind === 'nonneg' && f < 0) return 'expected 0 or more';
         if (kind === 'nonpos' && f > 0) return 'expected 0 or less';
         return '';
-      case 'intrange':
-        if (toks.length !== 2 || !/^[+-]?\d+$/.test(toks[0]) || !/^[+-]?\d+$/.test(toks[1]))
-          return 'expected two whole numbers';
-        return '';
-      case 'coord3': case 'rgb': case 'rgba':
-        var keys = PARTS[kind];
+      case 'percent':
+        // the engine reads the number and ignores what follows it, so `50%` is 50
+        return NUM.test(value.replace(/%$/, '')) ? '' : 'expected a number';
+      case 'coord3': case 'coord2': case 'coord2int': case 'rgb': case 'rgba':
+        var keys = PARTS[kind], whole = kind === 'coord2int';
         for (var j = 0; j < toks.length; j++) {
           var m = /^([A-Za-z]+):(.*)$/.exec(toks[j]);
-          if (!m || keys.indexOf(m[1].toUpperCase()) < 0 || !NUM.test(m[2]))
-            return 'expected ' + keys.map(function (k) { return k + ':<number>'; }).join(' ');
+          if (!m || keys.indexOf(m[1].toUpperCase()) < 0 || !(whole ? WHOLE : NUM).test(m[2]))
+            return 'expected ' + keys.map(function (k) {
+              return k + (whole ? ':<whole number>' : ':<number>');
+            }).join(' ');
         }
         return '';
       case 'enum':
