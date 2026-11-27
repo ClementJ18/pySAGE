@@ -595,6 +595,16 @@ BLOCK_TYPES = {
     0x008E5E63: "WorldText",
     0x006001D4: "ShellMenuImagePart",
 }
+# The classes `MeleeBehavior = <name>` creates, by vtable, one per member of its name
+# table. The parser constructs each inline, so there is no registry to read them from.
+MELEE_BEHAVIOR_VTABLES = {
+    "Swarm": 0x00C5AE38,
+    "WaitForLeader": 0x00C8707C,
+    "HoldGround": 0x00C5AE2C,
+    "Amoeba": 0x00C872C8,
+}
+# The base constructor every `BuildingNugget` factory runs to file itself under its type.
+BUILDING_NUGGET_REGISTER = 0x00932302
 
 # Name arrays the flag and enum types resolve their tokens against: a
 # NULL-terminated `const char*[]` reached from a static member rather than from the
@@ -2008,6 +2018,95 @@ def _render_real(img: Image, kind: str, defaults: dict[int, Any], off: int) -> O
     return _num(value)
 
 
+def melee_behaviors(img: Image) -> dict[str, int]:
+    """The class behind each `MeleeBehavior` name, by vtable."""
+    return MELEE_BEHAVIOR_VTABLES
+
+
+def _stored_vtable(img: Image, fn: int) -> Optional[int]:
+    """The first vtable `fn` stores, the way a constructor installs its class's."""
+    for i in img.disasm(fn, 0x200):
+        dst, _, src = i.op_str.partition(", ")
+        if i.mnemonic == "mov" and dst.startswith("dword ptr [") and src.startswith("0x"):
+            va = int(src, 16)
+            if _is_data(img, va) and img.is_text(img.u32(va)):
+                return va
+    return None
+
+
+def building_nuggets(img: Image) -> dict[str, int]:
+    """The class behind each `BuildingNugget` type, by vtable.
+
+    Every type has a factory that a static initialiser constructs: it pushes the type
+    name, runs the registering base constructor and then stores the factory's own
+    vtable. The factory's `create`, its second virtual, constructs the nugget, and the
+    nugget's constructor installs the vtable that leads to its fields.
+    """
+    out: dict[str, int] = {}
+    for call in img.calls_to(BUILDING_NUGGET_REGISTER):
+        start = img.func_start(call, 0x40)
+        if start is None:
+            continue
+        name: Optional[str] = None
+        factory: Optional[int] = None
+        for i in img.disasm(start, call - start + 0x20):
+            if i.address < call and i.mnemonic == "push" and i.op_str.startswith("0x"):
+                va = int(i.op_str, 16)
+                if img.is_str(va):
+                    name = img.cstr(va)
+            elif i.address > call and factory is None:
+                factory = _stored_vtable(img, i.address)
+        if not name or factory is None:
+            continue
+        for i in img.disasm(img.u32(factory + 4), 0x200):
+            if i.mnemonic == "call" and i.op_str.startswith("0x"):
+                nugget = _stored_vtable(img, int(i.op_str, 16))
+                if nugget is not None:
+                    out[name] = nugget
+                    break
+    return dict(sorted(out.items()))
+
+
+# Sub-blocks whose keywords depend on a type token read before the block. The parser
+# creates the class that token names and asks the object for its field tables through
+# a virtual `buildFieldParse`, so every type has a schema of its own: (that virtual's
+# offset in the vtable, the vtable of every type).
+VARIANT_BLOCKS: dict[int, tuple[int, Callable[[Image], dict[str, int]]]] = {
+    0x0086C30A: (0x8, melee_behaviors),
+    0x006E1376: (0xC, building_nuggets),
+}
+
+
+def variant_block(img: Image, keyword: str, parse: int,
+                  blocks: dict[str, dict[str, Any]],
+                  capture: Optional[Callable[[int], list[tuple[str, int, int, int]]]] = None) -> str:
+    """The type name for a sub-block of `VARIANT_BLOCKS`, registering its schema.
+
+    The block lists the keywords of every type, the first type to declare one winning
+    its field, and `variants` lists which of them each type accepts.
+    """
+    name = PARSE_TYPES.get(parse) or BLOCK_TYPES.get(parse, keyword)
+    if name in blocks and blocks[name]["parse_fn"] == parse:
+        return name
+    slot, classes = VARIANT_BLOCKS[parse]
+    variants: dict[str, list[str]] = {}
+    rows: list[tuple[str, int, int, int]] = []
+    for variant, vtable in classes(img).items():
+        own = [(kw, fn, ud, off + extra)
+               for tab, _source, extra in field_tables(img, img.u32(vtable + slot))
+               for kw, fn, ud, off in parse_table(img, tab)]
+        variants[variant] = [kw for kw, _fn, _ud, _off in own]
+        known = {kw for kw, _fn, _ud, _off in rows}
+        rows.extend(row for row in own if row[0] not in known)
+    entry: dict[str, Any] = {"parse_fn": parse, "keywords": [kw for kw, _fn, _ud, _off in rows],
+                             "fields": [], "variants": variants}
+    blocks[name] = entry
+    entry["fields"] = [{"name": kw, "type": field_type(img, kw, fn, blocks, capture),
+                        "parse_fn": fn, "offset": off}
+                       for kw, fn, _ud, off in rows]
+    return name
+
+
 def field_type(img: Image, keyword: str, parse: int,
                blocks: dict[str, dict[str, Any]],
                capture: Optional[Callable[[int], list[tuple[str, int, int, int]]]] = None) -> str:
@@ -2018,6 +2117,8 @@ def field_type(img: Image, keyword: str, parse: int,
     block's own schema comes from its field table where it has one, and from the
     keywords it compares tokens against where it parses by hand.
     """
+    if parse in VARIANT_BLOCKS:
+        return variant_block(img, keyword, parse, blocks, capture)
     if parse in PARSE_TYPES:
         return PARSE_TYPES[parse]
     name = BLOCK_TYPES.get(parse, keyword)
@@ -2325,25 +2426,45 @@ def extract(img: Image) -> tuple[list[ModuleInfo], dict[str, Any], list[str]]:
     for name, _mask, _size, _ctor, bfp in reg:
         if bfp and name:
             declared_by.setdefault(bfp, name)
-    for name, mask, size, ctor, bfp in reg:
+    # A table a module adds itself can still be another's: keywords that share one
+    # ModuleData class share its `buildFieldParse`, and a derived class often adds its
+    # base's table itself, inlined or fetched through an accessor, rather than through
+    # the base's own `buildFieldParse`. The base is the module that adds the fewest
+    # tables, as the derived one adds its own on top; between equals the first
+    # registered wins, as above. A table added at an extra offset is an embedded member
+    # (`DieMuxData`, `UpgradeMuxData`), part of every module that embeds it rather than
+    # inherited from one of them.
+    tables_of = [field_tables(img, bfp) for _name, _mask, _size, _ctor, bfp in reg]
+    embedded = {tab for tabs in tables_of for tab, _source, extra in tabs if extra}
+    candidates: dict[int, list[tuple[int, int, str]]] = {}
+    for order, ((name, _mask, _size, _ctor, bfp), tabs) in enumerate(zip(reg, tables_of)):
+        own = [tab for tab, source, _extra in tabs if source == bfp and tab not in embedded]
+        for tab in own:
+            if name:
+                candidates.setdefault(tab, []).append((len(own), order, name))
+    owner = {tab: min(found)[2] for tab, found in candidates.items()}
+    for (name, mask, size, ctor, bfp), tabs in zip(reg, tables_of):
         bases: dict[int, int] = {}
         defaults = ctor_defaults(img, ctor, bases=bases)
-        rows: list[tuple[tuple[str, int, int, int], int, int]] = []
+        rows: list[tuple[tuple[str, int, int, int], int, int, int]] = []
         seen: set[str] = set()
-        for tab, source, extra in field_tables(img, bfp):
+        for tab, source, extra in tabs:
             for keyword, parse, ud, off in parse_table(img, tab):
                 if keyword not in seen:
                     seen.add(keyword)
-                    rows.append(((keyword, parse, ud, off + extra), source, extra))
-        defaults = _drop_stray(defaults, bases, [(row[3], extra) for row, _, extra in rows])
+                    rows.append(((keyword, parse, ud, off + extra), tab, source, extra))
+        defaults = _drop_stray(defaults, bases, [(row[3], extra) for row, _, _, extra in rows])
         runs = emu.run(ctor) if ctor else None
         fields: list[FieldInfo] = []
-        for row, source, _extra in rows:
+        for row, tab, source, _extra in rows:
             field = cat.field(img, row, defaults, runs, name or "")
             if source != bfp:
                 field["inherited"] = True
                 if source in declared_by:
                     field["inherited_from"] = declared_by[source]
+            elif tab not in embedded and owner.get(tab, name) != name:
+                field["inherited"] = True
+                field["inherited_from"] = owner[tab]
             fields.append(field)
         mods.append(ModuleInfo(
             name=name,

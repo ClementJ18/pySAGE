@@ -5731,6 +5731,139 @@
     }
    ]
   },
+  "ArmyToSpawn": {
+   "parse_fn": 9339504,
+   "keywords": [
+    "Icon",
+    "Banner",
+    "Position",
+    "InitialRegion",
+    "PlayerArmy",
+    "PalantirMovie",
+    "IconSize",
+    "SpawnForTemplates",
+    "ScriptingName",
+    "TooltipStringTag",
+    "IsCity",
+    "HeroTemplateName",
+    "MoveSpeed",
+    "BuildTime",
+    "ConstructButtonImage",
+    "ConstructButtonTitle",
+    "ConstructButtonHelp",
+    "SpawnAtActStart"
+   ],
+   "fields": [
+    {
+     "name": "Icon",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 4
+    },
+    {
+     "name": "Banner",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 8
+    },
+    {
+     "name": "Position",
+     "type": "Coord2D",
+     "parse_fn": 4387480,
+     "offset": 32
+    },
+    {
+     "name": "InitialRegion",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 40
+    },
+    {
+     "name": "PlayerArmy",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 44
+    },
+    {
+     "name": "PalantirMovie",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 48
+    },
+    {
+     "name": "IconSize",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 52
+    },
+    {
+     "name": "SpawnForTemplates",
+     "type": "AsciiStringList",
+     "parse_fn": 4386518,
+     "offset": 56
+    },
+    {
+     "name": "ScriptingName",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 24
+    },
+    {
+     "name": "TooltipStringTag",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 28
+    },
+    {
+     "name": "IsCity",
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "offset": 84
+    },
+    {
+     "name": "HeroTemplateName",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 80
+    },
+    {
+     "name": "MoveSpeed",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 68
+    },
+    {
+     "name": "BuildTime",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 72
+    },
+    {
+     "name": "ConstructButtonImage",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 12
+    },
+    {
+     "name": "ConstructButtonTitle",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 16
+    },
+    {
+     "name": "ConstructButtonHelp",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 20
+    },
+    {
+     "name": "SpawnAtActStart",
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "offset": 85
+    }
+   ]
+  },
   "AttachModel": {
    "parse_fn": 5013058,
    "keywords": [
@@ -6357,8 +6490,102 @@
   },
   "BuildingNugget": {
    "parse_fn": 7213942,
-   "keywords": [],
-   "fields": []
+   "keywords": [
+    "Type",
+    "Amount",
+    "TreasureAmount",
+    "QueueSize",
+    "ArmyToSpawn",
+    "StrengtheningRange",
+    "BonusKey",
+    "Bonus",
+    "NumUpgradesPerTurn",
+    "UpgradeableUnits"
+   ],
+   "fields": [
+    {
+     "name": "Type",
+     "type": "Enum",
+     "parse_fn": 4385110,
+     "offset": 8
+    },
+    {
+     "name": "Amount",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 12
+    },
+    {
+     "name": "TreasureAmount",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 8
+    },
+    {
+     "name": "QueueSize",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 20
+    },
+    {
+     "name": "ArmyToSpawn",
+     "type": "ArmyToSpawn",
+     "parse_fn": 9339504,
+     "offset": 8
+    },
+    {
+     "name": "StrengtheningRange",
+     "type": "Enum",
+     "parse_fn": 4385110,
+     "offset": 8
+    },
+    {
+     "name": "BonusKey",
+     "type": "AsciiString",
+     "parse_fn": 4386398,
+     "offset": 12
+    },
+    {
+     "name": "Bonus",
+     "type": "0x007f8f6f",
+     "parse_fn": 8359791,
+     "offset": 16
+    },
+    {
+     "name": "NumUpgradesPerTurn",
+     "type": "Int",
+     "parse_fn": 4385886,
+     "offset": 8
+    },
+    {
+     "name": "UpgradeableUnits",
+     "type": "AsciiStringList",
+     "parse_fn": 4384158,
+     "offset": 12
+    }
+   ],
+   "variants": {
+    "IncreaseCommandPoints": [
+     "Type",
+     "Amount"
+    ],
+    "IncreaseTreasury": [
+     "TreasureAmount"
+    ],
+    "SpawnArmy": [
+     "QueueSize",
+     "ArmyToSpawn"
+    ],
+    "StrengthenArmy": [
+     "StrengtheningRange",
+     "BonusKey",
+     "Bonus"
+    ],
+    "UpgradeTroops": [
+     "NumUpgradesPerTurn",
+     "UpgradeableUnits"
+    ]
+   }
   },
   "CameraShakerVolume": {
    "parse_fn": 6164016,
@@ -11645,6 +11872,117 @@
      "offset": 338
     }
    ]
+  },
+  "MeleeBehavior": {
+   "parse_fn": 8831754,
+   "keywords": [
+    "FollowLeader",
+    "DistanceToActiveLeader",
+    "DistanceToPassiveLeader",
+    "FacingBonus",
+    "AngleLimitCos",
+    "InnerRange",
+    "OuterRange",
+    "OuterRangeBuildings",
+    "IdleModelConditions",
+    "DelayUntilIdle",
+    "DelayRandomActivateMin",
+    "DelayRandomActivateMax"
+   ],
+   "fields": [
+    {
+     "name": "FollowLeader",
+     "type": "Bool",
+     "parse_fn": 4384088,
+     "offset": 4
+    },
+    {
+     "name": "DistanceToActiveLeader",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 8
+    },
+    {
+     "name": "DistanceToPassiveLeader",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 12
+    },
+    {
+     "name": "FacingBonus",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 4
+    },
+    {
+     "name": "AngleLimitCos",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 8
+    },
+    {
+     "name": "InnerRange",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 12
+    },
+    {
+     "name": "OuterRange",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 16
+    },
+    {
+     "name": "OuterRangeBuildings",
+     "type": "Real",
+     "parse_fn": 4386048,
+     "offset": 20
+    },
+    {
+     "name": "IdleModelConditions",
+     "type": "ModelConditionFlags",
+     "parse_fn": 4951073,
+     "offset": 24
+    },
+    {
+     "name": "DelayUntilIdle",
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "offset": 100
+    },
+    {
+     "name": "DelayRandomActivateMin",
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "offset": 104
+    },
+    {
+     "name": "DelayRandomActivateMax",
+     "type": "Duration",
+     "parse_fn": 7578665,
+     "offset": 108
+    }
+   ],
+   "variants": {
+    "Swarm": [],
+    "WaitForLeader": [
+     "FollowLeader",
+     "DistanceToActiveLeader",
+     "DistanceToPassiveLeader"
+    ],
+    "HoldGround": [],
+    "Amoeba": [
+     "FacingBonus",
+     "AngleLimitCos",
+     "InnerRange",
+     "OuterRange",
+     "OuterRangeBuildings",
+     "IdleModelConditions",
+     "DelayUntilIdle",
+     "DelayRandomActivateMin",
+     "DelayRandomActivateMax"
+    ]
+   }
   },
   "MetaImpactNugget": {
    "parse_fn": 7132612,

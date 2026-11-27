@@ -7043,7 +7043,9 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "FoundationAIUpdate"
    },
    {
     "name": "CastleToUnpackForFaction",
@@ -7195,7 +7197,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "0%"
+    "default": "0%",
+    "inherited": true,
+    "inherited_from": "FoundationAIUpdate"
    },
    {
     "name": "ScanDistance",
@@ -19060,7 +19064,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4384158,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "GeometryForOpen",
@@ -19068,7 +19074,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4384158,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "OpenByDefault",
@@ -19076,7 +19084,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "PercentOpenForPathing",
@@ -19084,7 +19094,9 @@
     "type": "UnsignedInt",
     "parse_fn": 4385970,
     "userdata": null,
-    "default": "50"
+    "default": "50",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "Proxy",
@@ -19092,7 +19104,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "RepelCollidingUnits",
@@ -19100,7 +19114,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "ResetTimeInMilliseconds",
@@ -19108,7 +19124,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "10000"
+    "default": "10000",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "SoundClosingGateLoop",
@@ -19116,7 +19134,9 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "SoundFinishedClosingGate",
@@ -19124,7 +19144,9 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "SoundFinishedOpeningGate",
@@ -19132,7 +19154,9 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "SoundOpeningGateLoop",
@@ -19140,7 +19164,9 @@
     "type": "AudioEventRTS",
     "parse_fn": 7582231,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "TimeBeforePlayingClosedSound",
@@ -19148,7 +19174,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    },
    {
     "name": "TimeBeforePlayingOpenSound",
@@ -19156,7 +19184,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "GateOpenAndCloseBehavior"
    }
   ]
  },
@@ -23490,7 +23520,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "BurningDeathFX",
@@ -23498,7 +23530,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "CheerRadius",
@@ -23506,7 +23540,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "200"
+    "default": "200",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DamageCreationList",
@@ -23514,7 +23550,9 @@
     "type": "DamageCreationList",
     "parse_fn": 9191199,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DamagedAttributeModifier",
@@ -23522,7 +23560,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DodgePercent",
@@ -23530,7 +23570,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "0%"
+    "default": "0%",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "EnteringDamagedTransitionTime",
@@ -23538,7 +23580,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "EnteringReallyDamagedTransitionTime",
@@ -23546,7 +23590,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabDamage",
@@ -23554,7 +23600,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "200"
+    "default": "200",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabFX",
@@ -23562,7 +23610,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabObject",
@@ -23570,7 +23620,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabOffset",
@@ -23578,7 +23630,9 @@
     "type": "Coord2D",
     "parse_fn": 4387480,
     "userdata": null,
-    "default": "X:0 Y:0"
+    "default": "X:0 Y:0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "HealingBuffFx",
@@ -23586,7 +23640,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "InitialHealth",
@@ -23594,7 +23650,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "-1"
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealth",
@@ -23602,7 +23660,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealthDamaged",
@@ -23610,7 +23670,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealthReallyDamaged",
@@ -23618,7 +23680,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "ReallyDamagedAttributeModifier",
@@ -23626,7 +23690,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "RecoveryTime",
@@ -23634,7 +23700,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "RemoveUpgradesOnDeath",
@@ -23642,7 +23710,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "UseDefaultDamageSettings",
@@ -23650,7 +23720,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    }
   ]
  },
@@ -23762,7 +23834,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "AttackPriority",
@@ -23770,7 +23844,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"DefaultAttackPriority\""
+    "default": "\"DefaultAttackPriority\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "AutoAcquireEnemiesWhenIdle",
@@ -23778,7 +23854,9 @@
     "type": "BitFlags",
     "parse_fn": 4384832,
     "userdata": "0x00da0504",
-    "default": "NONE"
+    "default": "NONE",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "BurningDeathTime",
@@ -23786,7 +23864,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "CanAttackWhileContained",
@@ -23794,7 +23874,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "ComboLocoAttackDistance",
@@ -23802,7 +23884,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "80"
+    "default": "80",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "ComboLocomotorSet",
@@ -23810,7 +23894,9 @@
     "type": "Enum",
     "parse_fn": 4385110,
     "userdata": "0x00da0530",
-    "default": "SET_NORMAL"
+    "default": "SET_NORMAL",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "FadeOnPortals",
@@ -23818,7 +23904,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "HoldGroundCloseRangeDistance",
@@ -23826,7 +23914,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MaxCowerTime",
@@ -23834,7 +23924,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MinCowerTime",
@@ -23842,7 +23934,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MoodAttackCheckRate",
@@ -23850,7 +23944,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "2000"
+    "default": "2000",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "RampageRequiresAflame",
@@ -23858,7 +23954,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "RampageTime",
@@ -23866,7 +23964,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "SpecialContactPoints",
@@ -23874,7 +23974,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4384158,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "StandGround",
@@ -23882,7 +23984,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "StopChaseDistance",
@@ -23890,7 +23994,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "500"
+    "default": "500",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "TimeToEjectPassengersOnRampage",
@@ -23898,7 +24004,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "Turret",
@@ -23906,7 +24014,9 @@
     "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    }
   ]
  },
@@ -27030,7 +27140,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "AttackPriority",
@@ -27038,7 +27150,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"DefaultAttackPriority\""
+    "default": "\"DefaultAttackPriority\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "AutoAcquireEnemiesWhenIdle",
@@ -27046,7 +27160,9 @@
     "type": "BitFlags",
     "parse_fn": 4384832,
     "userdata": "0x00da0504",
-    "default": "NONE"
+    "default": "NONE",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "BurningDeathTime",
@@ -27054,7 +27170,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "CanAttackWhileContained",
@@ -27062,7 +27180,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "ComboLocoAttackDistance",
@@ -27070,7 +27190,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "80"
+    "default": "80",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "ComboLocomotorSet",
@@ -27078,7 +27200,9 @@
     "type": "Enum",
     "parse_fn": 4385110,
     "userdata": "0x00da0530",
-    "default": "SET_NORMAL"
+    "default": "SET_NORMAL",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "FadeOnPortals",
@@ -27086,7 +27210,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "HoldGroundCloseRangeDistance",
@@ -27094,7 +27220,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MaxCowerTime",
@@ -27102,7 +27230,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MinCowerTime",
@@ -27110,7 +27240,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MoodAttackCheckRate",
@@ -27118,7 +27250,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "2000"
+    "default": "2000",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "RampageRequiresAflame",
@@ -27126,7 +27260,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "RampageTime",
@@ -27134,7 +27270,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "SpecialContactPoints",
@@ -27142,7 +27280,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4384158,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "StandGround",
@@ -27150,7 +27290,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "StopChaseDistance",
@@ -27158,7 +27300,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "500"
+    "default": "500",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "TimeToEjectPassengersOnRampage",
@@ -27166,7 +27310,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "Turret",
@@ -27174,7 +27320,9 @@
     "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    }
   ]
  },
@@ -27230,7 +27378,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "AttributeModifiers",
@@ -27238,7 +27388,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4386518,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BackUpMaxDelayTime",
@@ -27246,7 +27398,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BackUpMaxDistance",
@@ -27254,7 +27408,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "5"
+    "default": "5",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BackUpMinDelayTime",
@@ -27262,7 +27418,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BackUpMinDistance",
@@ -27270,7 +27428,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "3"
+    "default": "3",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BackupPercentage",
@@ -27278,7 +27438,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "50%"
+    "default": "50%",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BannerCarrierDestroyHordeOnDeath",
@@ -27286,7 +27448,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BannerCarrierHordeDeathType",
@@ -27294,7 +27458,9 @@
     "type": "DeathTypeFlags",
     "parse_fn": 7579274,
     "userdata": null,
-    "default": "NONE"
+    "default": "NONE",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BannerCarrierMinLevel",
@@ -27302,7 +27468,9 @@
     "type": "UInt8",
     "parse_fn": 4385653,
     "userdata": null,
-    "default": "1"
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BannerCarrierPosition",
@@ -27310,7 +27478,9 @@
     "type": "BannerCarrierPosition",
     "parse_fn": 8856623,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BannerCarriersAllowed",
@@ -27318,7 +27488,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4386518,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "BoneSpecificConditionState",
@@ -27356,7 +27528,9 @@
     "type": "ComboHorde",
     "parse_fn": 8857172,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ConditionForEntry",
@@ -27384,7 +27558,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "DamageAmountRequired",
@@ -27482,7 +27658,9 @@
     "type": "EvaEvent",
     "parse_fn": 6153608,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ExemptStatus",
@@ -27600,7 +27778,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "FlankedDuration",
@@ -27608,7 +27788,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ForcedLocomotorSet",
@@ -27616,7 +27798,9 @@
     "type": "Enum",
     "parse_fn": 4385110,
     "userdata": "0x00da0530",
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ForceOrientationContainer",
@@ -27634,7 +27818,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "360"
+    "default": "360",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "GoAggressiveOnExit",
@@ -27682,7 +27868,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "KillPassengersOnDeath",
@@ -27700,7 +27888,9 @@
     "type": "Coord3D",
     "parse_fn": 4387399,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "LeaderRank",
@@ -27708,7 +27898,9 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "LeadersAllowed",
@@ -27716,7 +27908,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4386518,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "LivingWorldOverloadTemplate",
@@ -27724,7 +27918,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "MachineAllowed",
@@ -27732,7 +27928,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "MachineType",
@@ -27740,7 +27938,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ManualPickUpFilter",
@@ -27768,7 +27968,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "60"
+    "default": "60",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "MeleeBehavior",
@@ -27776,7 +27978,9 @@
     "type": "MeleeBehavior",
     "parse_fn": 8831754,
     "userdata": "0x00daeb2c",
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "MinimumHordeSize",
@@ -27784,7 +27988,9 @@
     "type": "UnsignedInt",
     "parse_fn": 4385970,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "MinKillerAngle",
@@ -27822,7 +28028,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "NumberOfExitPaths",
@@ -27900,7 +28108,9 @@
     "type": "Coord2D",
     "parse_fn": 4387480,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "RankInfo",
@@ -27908,7 +28118,9 @@
     "type": "RankInfo",
     "parse_fn": 8876933,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "RankSplit",
@@ -27916,7 +28128,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "RanksThatStopAdvance",
@@ -27924,7 +28138,9 @@
     "type": "IntList",
     "parse_fn": 8838923,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "RanksToJustFreeWhenAttacking",
@@ -27932,7 +28148,9 @@
     "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "RanksToReleaseWhenAttacking",
@@ -27940,7 +28158,9 @@
     "type": "IntSet",
     "parse_fn": 8838865,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ReleaseSnappyness",
@@ -28018,7 +28238,9 @@
     "type": "SplitHorde",
     "parse_fn": 8856894,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "SplitHordeNumber",
@@ -28026,7 +28248,9 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ThisFormationIsTheMainFormation",
@@ -28034,7 +28258,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "ThrowOutPassengersDelay",
@@ -28132,7 +28358,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "UseSlowHordeMovement",
@@ -28140,7 +28368,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "VisionRearOverride",
@@ -28148,7 +28378,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "0%"
+    "default": "0%",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    },
    {
     "name": "VisionSideOverride",
@@ -28156,7 +28388,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "0%"
+    "default": "0%",
+    "inherited": true,
+    "inherited_from": "HordeContain"
    }
   ]
  },
@@ -28172,7 +28406,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "BurningDeathFX",
@@ -28180,7 +28416,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "CheerRadius",
@@ -28188,7 +28426,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "200"
+    "default": "200",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DamageCreationList",
@@ -28196,7 +28436,9 @@
     "type": "DamageCreationList",
     "parse_fn": 9191199,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DamagedAttributeModifier",
@@ -28204,7 +28446,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DodgePercent",
@@ -28212,7 +28456,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "0%"
+    "default": "0%",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "EnteringDamagedTransitionTime",
@@ -28220,7 +28466,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "EnteringReallyDamagedTransitionTime",
@@ -28228,7 +28476,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabDamage",
@@ -28236,7 +28486,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "200"
+    "default": "200",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabFX",
@@ -28244,7 +28496,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabObject",
@@ -28252,7 +28506,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabOffset",
@@ -28260,7 +28516,9 @@
     "type": "Coord2D",
     "parse_fn": 4387480,
     "userdata": null,
-    "default": "X:0 Y:0"
+    "default": "X:0 Y:0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "HealingBuffFx",
@@ -28268,7 +28526,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "InitialHealth",
@@ -28276,7 +28536,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "-1"
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealth",
@@ -28284,7 +28546,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealthDamaged",
@@ -28292,7 +28556,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealthReallyDamaged",
@@ -28300,7 +28566,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "ReallyDamagedAttributeModifier",
@@ -28308,7 +28576,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "RecoveryTime",
@@ -28316,7 +28586,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "RemoveUpgradesOnDeath",
@@ -28324,7 +28596,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "UseDefaultDamageSettings",
@@ -28332,7 +28606,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    }
   ]
  },
@@ -30455,7 +30731,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "FakePathfindPortalBehaviour"
    },
    {
     "name": "AllowNonSkirmishAIUnits",
@@ -30463,7 +30741,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "FakePathfindPortalBehaviour"
    },
    {
     "name": "ConflictsWith",
@@ -31985,7 +32265,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "BurningDeathFX",
@@ -31993,7 +32275,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "CheerRadius",
@@ -32001,7 +32285,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "200"
+    "default": "200",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DamageCreationList",
@@ -32009,7 +32295,9 @@
     "type": "DamageCreationList",
     "parse_fn": 9191199,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DamagedAttributeModifier",
@@ -32017,7 +32305,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "DodgePercent",
@@ -32025,7 +32315,9 @@
     "type": "Percent",
     "parse_fn": 4386554,
     "userdata": null,
-    "default": "0%"
+    "default": "0%",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "EnteringDamagedTransitionTime",
@@ -32033,7 +32325,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "EnteringReallyDamagedTransitionTime",
@@ -32041,7 +32335,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabDamage",
@@ -32049,7 +32345,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "200"
+    "default": "200",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabFX",
@@ -32057,7 +32355,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabObject",
@@ -32065,7 +32365,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "GrabOffset",
@@ -32073,7 +32375,9 @@
     "type": "Coord2D",
     "parse_fn": 4387480,
     "userdata": null,
-    "default": "X:0 Y:0"
+    "default": "X:0 Y:0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "HealingBuffFx",
@@ -32081,7 +32385,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "InitialHealth",
@@ -32089,7 +32395,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "-1"
+    "default": "-1",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealth",
@@ -32097,7 +32405,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealthDamaged",
@@ -32105,7 +32415,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "MaxHealthReallyDamaged",
@@ -32113,7 +32425,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "ReallyDamagedAttributeModifier",
@@ -32121,7 +32435,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "RecoveryTime",
@@ -32129,7 +32445,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "RemoveUpgradesOnDeath",
@@ -32137,7 +32455,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    },
    {
     "name": "UseDefaultDamageSettings",
@@ -32145,7 +32465,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "ActiveBody"
    }
   ]
  },
@@ -41598,7 +41920,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ExecuteAnimation",
@@ -41606,7 +41930,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ExecuteAnimationFades",
@@ -41614,7 +41940,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ExecuteAnimationTime",
@@ -41622,7 +41950,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ExecuteAnimationZRise",
@@ -41630,7 +41960,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ExecuteFX",
@@ -41638,7 +41970,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ForbiddenKindOf",
@@ -41646,7 +41980,9 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "ForbidOwnerPlayer",
@@ -41654,7 +41990,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "HumanOnly",
@@ -41662,7 +42000,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "PickupScience",
@@ -41670,7 +42010,9 @@
     "type": "ScienceType",
     "parse_fn": 7581667,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    },
    {
     "name": "RequiredKindOf",
@@ -41678,7 +42020,9 @@
     "type": "KindOfFlags",
     "parse_fn": 6644967,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "HealCrateCollide"
    }
   ]
  },
@@ -45158,7 +45502,9 @@
     "type": "SpecialPowerTemplate",
     "parse_fn": 7582255,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "HeroDie"
    }
   ]
  },
@@ -45469,7 +45815,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AffectAllies",
@@ -45477,7 +45825,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AffectEvil",
@@ -45485,7 +45835,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AffectGood",
@@ -45493,7 +45845,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AntiCategory",
@@ -45501,7 +45855,9 @@
     "type": "ModifierCategoryFlags",
     "parse_fn": 9040685,
     "userdata": "0x00d9fa40",
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AntiFX",
@@ -45509,7 +45865,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AttributeModifier",
@@ -45517,7 +45875,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AttributeModifierAffects",
@@ -45525,7 +45885,9 @@
     "type": "KindOfFilter",
     "parse_fn": 7747887,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AttributeModifierAffectsSelf",
@@ -45533,7 +45895,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AttributeModifierFX",
@@ -45541,7 +45905,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AttributeModifierRange",
@@ -45549,7 +45915,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AttributeModifierWeatherBased",
@@ -45557,7 +45925,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "AvailableAtStart",
@@ -45565,7 +45935,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "Yes"
+    "default": "Yes",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "BurnDecayModifier",
@@ -45573,7 +45945,9 @@
     "type": "UnsignedInt",
     "parse_fn": 4385970,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "ChangeWeather",
@@ -45581,7 +45955,9 @@
     "type": "WeatherType",
     "parse_fn": 9004793,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "DisableDuringAnimDuration",
@@ -45589,7 +45965,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "DistanceFromCommandCenter",
@@ -45597,7 +45975,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "GiveLevels",
@@ -45605,7 +45985,9 @@
     "type": "Int",
     "parse_fn": 4385886,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "IdleWhenStartingPower",
@@ -45613,7 +45995,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "InitiateFX",
@@ -45621,7 +46005,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "InitiateSound",
@@ -45629,7 +46015,9 @@
     "type": "AudioEventRTS",
     "parse_fn": 7580911,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "OnTriggerRechargeSpecialPower",
@@ -45637,7 +46025,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "ReEnableAntiCategory",
@@ -45645,7 +46035,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "RequirementsFilterMPSkirmish",
@@ -45653,7 +46045,9 @@
     "type": "KindOfFilter",
     "parse_fn": 7747887,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "RequirementsFilterStrategic",
@@ -45661,7 +46055,9 @@
     "type": "KindOfFilter",
     "parse_fn": 7747887,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "SetModelCondition",
@@ -45669,7 +46065,9 @@
     "type": "ModelConditionFlag",
     "parse_fn": 8822562,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "SetModelConditionTime",
@@ -45677,7 +46075,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "1"
+    "default": "1",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "SpecialPowerTemplate",
@@ -45685,7 +46085,9 @@
     "type": "SpecialPowerTemplate",
     "parse_fn": 7582255,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "StartsPaused",
@@ -45693,7 +46095,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "TargetAllSides",
@@ -45701,7 +46105,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "TargetEnemy",
@@ -45709,7 +46115,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "TriggerFX",
@@ -45717,7 +46125,9 @@
     "type": "FXList",
     "parse_fn": 7578370,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "UpdateModuleStartsAttack",
@@ -45725,7 +46135,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "UseDistanceFromCommandCenter",
@@ -45733,7 +46145,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    },
    {
     "name": "WeatherDuration",
@@ -45741,7 +46155,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "SpecialPowerModule"
    }
   ]
  },
@@ -49347,7 +49763,9 @@
     "type": "Coord3D",
     "parse_fn": 4387399,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "DefaultProductionExitUpdate"
    },
    {
     "name": "UnitCreatePoint",
@@ -49355,7 +49773,9 @@
     "type": "Coord3D",
     "parse_fn": 4387399,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "DefaultProductionExitUpdate"
    }
   ]
  },
@@ -54768,7 +55188,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "AttackPriority",
@@ -54776,7 +55198,9 @@
     "type": "AsciiString",
     "parse_fn": 4386398,
     "userdata": null,
-    "default": "\"DefaultAttackPriority\""
+    "default": "\"DefaultAttackPriority\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "AutoAcquireEnemiesWhenIdle",
@@ -54784,7 +55208,9 @@
     "type": "BitFlags",
     "parse_fn": 4384832,
     "userdata": "0x00da0504",
-    "default": "NONE"
+    "default": "NONE",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "BurningDeathTime",
@@ -54792,7 +55218,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "CanAttackWhileContained",
@@ -54800,7 +55228,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "ComboLocoAttackDistance",
@@ -54808,7 +55238,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "80"
+    "default": "80",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "ComboLocomotorSet",
@@ -54816,7 +55248,9 @@
     "type": "Enum",
     "parse_fn": 4385110,
     "userdata": "0x00da0530",
-    "default": "SET_NORMAL"
+    "default": "SET_NORMAL",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "FadeOnPortals",
@@ -54824,7 +55258,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "HoldGroundCloseRangeDistance",
@@ -54832,7 +55268,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MaxCowerTime",
@@ -54840,7 +55278,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MinCowerTime",
@@ -54848,7 +55288,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "MoodAttackCheckRate",
@@ -54856,7 +55298,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "2000"
+    "default": "2000",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "RampageRequiresAflame",
@@ -54864,7 +55308,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "RampageTime",
@@ -54872,7 +55318,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "SpecialContactPoints",
@@ -54880,7 +55328,9 @@
     "type": "AsciiStringList",
     "parse_fn": 4384158,
     "userdata": null,
-    "default": "\"\""
+    "default": "\"\"",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "StandGround",
@@ -54888,7 +55338,9 @@
     "type": "Bool",
     "parse_fn": 4384088,
     "userdata": null,
-    "default": "No"
+    "default": "No",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "StopChaseDistance",
@@ -54896,7 +55348,9 @@
     "type": "Real",
     "parse_fn": 4386048,
     "userdata": null,
-    "default": "500"
+    "default": "500",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "TimeToEjectPassengersOnRampage",
@@ -54904,7 +55358,9 @@
     "type": "Duration",
     "parse_fn": 7578665,
     "userdata": null,
-    "default": "0"
+    "default": "0",
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    },
    {
     "name": "Turret",
@@ -54912,7 +55368,9 @@
     "type": "TurretAIData",
     "parse_fn": 6693026,
     "userdata": null,
-    "default": null
+    "default": null,
+    "inherited": true,
+    "inherited_from": "AIUpdateInterface"
    }
   ]
  },
